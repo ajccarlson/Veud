@@ -11,11 +11,12 @@ ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 
 const gridOptions = {
   autoSizeStrategy: {
-    type: 'fitGridWidth',
+    type: 'fitCellContents',
     defaultMinWidth: 70
   },
   defaultColDef: {
     editable: true,
+    suppressMovable: true,
     wrapHeaderText: true,
     autoHeaderHeight: true,
     cellStyle: {"wordBreak": "normal"},
@@ -28,7 +29,7 @@ const gridOptions = {
 }
 
 const columnDefs = [
-  { field: '#', flex: 1, minWidth: 70, maxWidth: 80, rowDrag: true },
+  { field: '#', flex: 1, minWidth: 70, maxWidth: 75, rowDrag: true },
   { field: 'Thumbnail', flex: 1, minWidth: 80, maxWidth: 90 },
   { field: 'Title', flex: 2, minWidth: 90 },
   { field: 'Type', flex: 1, minWidth: 70, maxWidth: 80 },
