@@ -12,32 +12,36 @@ ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 const gridOptions = {
   autoSizeStrategy: {
     type: 'fitGridWidth',
-    defaultMinWidth: 50,
+    defaultMinWidth: 70,
+  },
+  defaultColDef: {
+    wrapHeaderText: true,
+    autoHeaderHeight: true,
   },
 }
 
 const columnDefs = [
   { field: '#', maxWidth: 50, editable: true },
-  { field: 'Thumbnail', maxWidth: 100 },
-  { field: 'Title' },
-  { field: 'Type', maxWidth: 80 },
-  { field: 'Air_Year', headerName: 'Air Year', maxWidth: 80 },
-  { field: 'Length', maxWidth: 110 },
+  { field: 'Thumbnail', minWidth: 80, maxWidth: 90 },
+  { field: 'Title', minWidth: 90 },
+  { field: 'Type', minWidth: 70, maxWidth: 80 },
+  { field: 'Air_Year', headerName: 'Air Year', minWidth: 65, maxWidth: 70 },
+  { field: 'Length', minWidth: 85, maxWidth: 110 },
   { field: 'Rating', minWidth: 80, maxWidth: 90, editable: true },
-  { field: 'Finished_Date', headerName: 'Finished Date', maxWidth: 110, editable: true },
+  { field: 'Finished_Date', headerName: 'Finished Date',  minWidth: 85,maxWidth: 110, editable: true },
   { field: 'Genre(s)', minWidth: 150 },
-  { field: 'Language', maxWidth: 115 },
-  { field: 'Story', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Character', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Presentation', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Sound', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Performance', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Enjoyment', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Averaged', maxWidth: 90, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Personal', maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Difference_Personal', maxWidth: 90, headerName: 'Difference Personal' },
-  { field: 'TMDB_Score', maxWidth: 80, headerName: 'TMDB Score' },
-  { field: 'Difference_Objective', maxWidth: 90, headerName: 'Difference Objective' }
+  { field: 'Language', minWidth: 90, maxWidth: 115 },
+  { field: 'Story', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Character', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Presentation', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Sound', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Performance', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Enjoyment', minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Averaged', minWidth: 62, maxWidth: 90, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Personal', minWidth: 55, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Difference_Personal', minWidth: 70, maxWidth: 90, headerName: 'Difference Personal' },
+  { field: 'TMDB_Score', minWidth: 55, maxWidth: 80, headerName: 'TMDB Score' },
+  { field: 'Difference_Objective', minWidth: 70, maxWidth: 90, headerName: 'Difference Objective' }
 ]
 
 const rowData = [
