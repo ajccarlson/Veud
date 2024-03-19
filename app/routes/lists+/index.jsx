@@ -12,37 +12,43 @@ ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 const gridOptions = {
   autoSizeStrategy: {
     type: 'fitGridWidth',
-    defaultMinWidth: 70,
+    defaultMinWidth: 70
   },
   defaultColDef: {
+    editable: true,
     wrapHeaderText: true,
     autoHeaderHeight: true,
+    cellStyle: {"wordBreak": "normal"},
     wrapText: true,
+    autoHeight: true
   },
+  rowDragManaged: true,
+  rowDragMultiRow: true,
+  rowSelection: 'multiple'
 }
 
 const columnDefs = [
-  { field: '#', flex: 1, maxWidth: 50, editable: true },
+  { field: '#', flex: 1, minWidth: 70, maxWidth: 80, rowDrag: true },
   { field: 'Thumbnail', flex: 1, minWidth: 80, maxWidth: 90 },
   { field: 'Title', flex: 2, minWidth: 90 },
   { field: 'Type', flex: 1, minWidth: 70, maxWidth: 80 },
   { field: 'Air_Year', flex: 1, headerName: 'Air Year', minWidth: 65, maxWidth: 70 },
   { field: 'Length', flex: 1, minWidth: 85, maxWidth: 110 },
   { field: 'Rating', flex: 1, minWidth: 80, maxWidth: 90, editable: true },
-  { field: 'Finished_Date', flex: 1, headerName: 'Finished Date',  minWidth: 85,maxWidth: 110, editable: true },
-  { field: 'Genre(s)', flex: 1, minWidth: 150 },
+  { field: 'Finished_Date', flex: 1, headerName: 'Finished Date',  minWidth: 85,maxWidth: 120, editable: true },
+  { field: 'Genre(s)', flex: 1, minWidth: 100 },
   { field: 'Language', flex: 1, minWidth: 90, maxWidth: 115 },
-  { field: 'Story', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Character', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Presentation', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Sound', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Performance', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Enjoyment', flex: 1, minWidth: 52, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Averaged', flex: 1, minWidth: 62, maxWidth: 90, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Personal', flex: 1, minWidth: 55, maxWidth: 80, editable: true, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
-  { field: 'Difference_Personal', flex: 1, minWidth: 70, maxWidth: 90, headerName: 'Difference Personal' },
-  { field: 'TMDB_Score', flex: 1, minWidth: 55, maxWidth: 80, headerName: 'TMDB Score' },
-  { field: 'Difference_Objective', flex: 1, minWidth: 70, maxWidth: 90, headerName: 'Difference Objective' }
+  { field: 'Story', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Character', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Presentation', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Sound', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Performance', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Enjoyment', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Averaged', flex: 1, minWidth: 62, maxWidth: 90, editable: false },
+  { field: 'Personal', flex: 1, minWidth: 55, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true } },
+  { field: 'Difference_Personal', flex: 1, minWidth: 70, maxWidth: 90, headerName: 'Difference Personal', editable: false },
+  { field: 'TMDB_Score', flex: 1, minWidth: 55, maxWidth: 80, headerName: 'TMDB Score', editable: false },
+  { field: 'Difference_Objective', flex: 1, minWidth: 70, maxWidth: 90, headerName: 'Difference Objective', editable: false }
 ]
 
 const rowData = [
