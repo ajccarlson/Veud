@@ -1,4 +1,39 @@
-@use "~ag-grid-community/styles" as ag;
+@use "@ag-grid-community/styles" as ag;
+
 @include ag.grid-styles((
-    theme: alpine-dark
+  // include multiple theme files and set specific parameters on each
+  theme: custom-react,
+  extend-theme: alpine-dark,
+  --ag-font-family: "Playfair Display",
+  --ag-font-size: 15px,
+  --ag-header-background-color: #121212,
+  --ag-background-color: #121212,
+  --ag-odd-row-background-color: #222222,
+
+  // setting the active color will use color blending to update various
+  // other colors eg. the row hover color will be set to a light pink
+  --ag-alpine-active-color: red,
+
+  // Uncomment this to remove all native widget styling from the grid. This is
+  // useful if you want to make your own styles starting from a blank slate.
+  // suppress-native-widget-styling: "true"
 ));
+
+// More kinds of customisation can be made with CSS rules
+.ag-theme-custom-react {
+  .ag-header-cell {
+    font-family: arial;
+    font-size: 13px;
+    font-weight: normal;
+    display: inline-grid;
+    justify-content: center;
+    align-items: center;
+    color:#ff9900;
+  }
+
+  .ag-cell {
+    display: inline-grid;
+    justify-content: center;
+    align-items: center;
+  }
+}

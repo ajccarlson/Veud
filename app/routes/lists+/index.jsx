@@ -3,10 +3,9 @@ import { ModuleRegistry } from '@ag-grid-community/core'
 import { AgGridReact } from '@ag-grid-community/react'
 import listThumbnailRenderer from "#app/utils/list-thumbnail-renderer.tsx";
 import { scoreColor, scoreRange } from "#app/utils/list-score-colorer.tsx";
-import watchlistStyleSheetUrl from '#app/styles/watchlist.scss?url'
 import { useFetcher } from '@remix-run/react'
 import '@ag-grid-community/styles/ag-grid.css';
-import '@ag-grid-community/styles/ag-theme-alpine.css';
+import "#app/styles/watchlist.scss";
 import { useCallback, useEffect, useState } from 'react'
 
     
@@ -35,7 +34,7 @@ const columnDefs = [
   { field: '#', flex: 1, minWidth: 70, maxWidth: 75, rowDrag: true },
   { field: 'Thumbnail', flex: 1, minWidth: 80, maxWidth: 200, cellRenderer: listThumbnailRenderer },
   { field: 'Title', flex: 2, minWidth: 90 },
-  { field: 'Type', flex: 1, minWidth: 70, maxWidth: 80, cellStyle: function(params) {
+  { field: 'Type', flex: 1, minWidth: 70, maxWidth: 110, cellStyle: function(params) {
     if (params.value.includes('Movie')) {
       return {color: '#408063'};
     } 
@@ -65,9 +64,9 @@ const columnDefs = [
   { field: 'Enjoyment', flex: 1, minWidth: 52, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 1, showStepperButtons: true }, cellStyle: function(params) { let scoreType = "Default"; return scoreColor( { range: scoreRange(), score: params.value, type: scoreType } ) } },
   { field: 'Averaged', flex: 1, minWidth: 62, maxWidth: 90, editable: false, cellStyle: function(params) { let scoreType = "Default"; return scoreColor( { range: scoreRange(), score: params.value, type: scoreType } ) } },
   { field: 'Personal', flex: 1, minWidth: 55, maxWidth: 80, cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 1, max: 10, precision: 1, step: 0.1, showStepperButtons: true }, cellStyle: function(params) { let scoreType = "Default"; return scoreColor( { range: scoreRange(), score: params.value, type: scoreType } ) } },
-  { field: 'Difference_Personal', headerName: 'Difference Personal', flex: 1, minWidth: 70, maxWidth: 90, editable: false, cellStyle: function(params) { let scoreType = "Difference Personal"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } },
+  { field: 'Difference_Personal', headerName: 'Difference: Personal', flex: 1, minWidth: 70, maxWidth: 90, editable: false, cellStyle: function(params) { let scoreType = "Difference Personal"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } },
   { field: 'TMDB_Score', headerName: 'TMDB Score', flex: 1, minWidth: 55, maxWidth: 80, editable: false, cellStyle: function(params) { let scoreType = "TMDB Score"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } },
-  { field: 'Difference_Objective', headerName: 'Difference Objective', flex: 1, minWidth: 70, maxWidth: 90, editable: false, cellStyle: function(params) { let scoreType = "Difference Objective"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } }
+  { field: 'Difference_Objective', headerName: 'Difference: Objective', flex: 1, minWidth: 70, maxWidth: 90, editable: false, cellStyle: function(params) { let scoreType = "Difference Objective"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } }
 ]
 
 const rowData = [
@@ -124,7 +123,7 @@ const rowData = [
   'Rating': 'PG',
   'Finished_Date': '6/23/23',
   'Genre(s)': 'Drama, Family',
-  'Language': 'Japanesen',
+  'Language': 'Japanese',
   'Story': '3',
   'Character': '6',
   'Presentation': '8',
@@ -184,7 +183,7 @@ const rowData = [
 
 export default function Index() {
   return (
-    <div className='ag-theme-alpine-dark' style={{ width: '100%', height: '100%' }}>
+    <div className='ag-theme-custom-react' style={{ width: '100%', height: '100%' }}>
       <AgGridReact
         gridOptions={gridOptions}
         columnDefs={columnDefs}
@@ -192,10 +191,4 @@ export default function Index() {
       ></AgGridReact>
     </div>
   )
-}
-
-export const LinksFunction = () => {
-	return [
-		{ rel: 'stylesheet', href: watchlistStyleSheetUrl },
-	].filter(Boolean)
 }
