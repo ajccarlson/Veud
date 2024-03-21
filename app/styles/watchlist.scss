@@ -1,18 +1,4 @@
 @use "~ag-grid-community/styles" as ag;
-@include ag.grid-styles();
-
-.logo {
-    display: block;
-    width: 25   px;
-    height: auto;
-    max-height: 50%;
-    margin-right: 12px;
-    filter: brightness(1.1);
-}
-
-.imgSpan {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    align-items: center;
-}
+@include ag.grid-styles((
+    theme: alpine-dark
+));

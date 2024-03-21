@@ -3,6 +3,7 @@ import { ModuleRegistry } from '@ag-grid-community/core'
 import { AgGridReact } from '@ag-grid-community/react'
 import listThumbnailRenderer from "#app/utils/list-thumbnail-renderer.tsx";
 import { scoreColor, scoreRange } from "#app/utils/list-score-colorer.tsx";
+import watchlistStyleSheetUrl from '#app/styles/watchlist.scss?url'
 import { useFetcher } from '@remix-run/react'
 import '@ag-grid-community/styles/ag-grid.css';
 import '@ag-grid-community/styles/ag-theme-alpine.css';
@@ -183,7 +184,7 @@ const rowData = [
 
 export default function Index() {
   return (
-    <div className='ag-theme-alpine' style={{ width: '100%', height: '100%' }}>
+    <div className='ag-theme-alpine-dark' style={{ width: '100%', height: '100%' }}>
       <AgGridReact
         gridOptions={gridOptions}
         columnDefs={columnDefs}
@@ -191,4 +192,10 @@ export default function Index() {
       ></AgGridReact>
     </div>
   )
+}
+
+export const LinksFunction = () => {
+	return [
+		{ rel: 'stylesheet', href: watchlistStyleSheetUrl },
+	].filter(Boolean)
 }
