@@ -9,6 +9,7 @@
   --ag-header-background-color: #121212,
   --ag-background-color:#222222,
   --ag-odd-row-background-color:#2e2f2b,
+  --ag-row-border-width: 0px,
 
   // setting the active color will use color blending to update various
   // other colors eg. the row hover color will be set to a light pink
@@ -29,17 +30,29 @@
     justify-content: center;
     align-items: center;
     color:#ff9900;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
   }
 
   .ag-cell {
     display: inline-grid;
     justify-content: center;
     align-items: center;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
   }
 
   .ag-title-cell {
     font-style: italic;
     font-weight:bold;
     color: #ffffb1;
+  }
+
+  .ag-score-border-left-single {
+    border-left: solid #66563d;
+  }
+
+  .ag-score-border-left-double {
+    border-left: double #999999 3.5px;
   }
 }
