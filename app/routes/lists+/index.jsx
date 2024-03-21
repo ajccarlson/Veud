@@ -33,7 +33,7 @@ const gridOptions = {
 const columnDefs = [
   { field: '#', flex: 1, minWidth: 70, maxWidth: 75, rowDrag: true },
   { field: 'Thumbnail', flex: 1, minWidth: 80, maxWidth: 200, cellRenderer: listThumbnailRenderer },
-  { field: 'Title', flex: 2, minWidth: 90 },
+  { field: 'Title', flex: 2, minWidth: 90, cellClass: "ag-title-cell" },
   { field: 'Type', flex: 1, minWidth: 70, maxWidth: 110, cellStyle: function(params) {
     if (params.value.includes('Movie')) {
       return {color: '#408063'};
