@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "app/routes/lists+/index.jsx", "app/routes/lists+/watching.tsx"],
+  "include": ["**/*.ts", "**/*.tsx", "app/routes/lists+/index.tsx", "app/routes/lists+/watching.tsx"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "isolatedModules": true,
