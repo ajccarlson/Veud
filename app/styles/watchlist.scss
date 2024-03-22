@@ -36,6 +36,8 @@
     border-left: dashed #00000000 3px;
     -webkit-text-stroke-width: 0.12px;
     -webkit-text-stroke-color: black;
+    text-overflow: ellipsis;
+    overflow: hidden;
   }
 
   .ag-cell {
@@ -52,13 +54,26 @@
     color: #ffffb1;
   }
 
+  // .ag-header-cell-label {
+  //   position: absolute;
+  //   left: 50%;
+  //   top: 50%;
+  //   transform: translate(-50%,-50%);
+  // }
+
+  // .ag-header-cell-menu-button {
+  //   position: absolute;
+  //   right: 10%;
+  //   top: 50%;
+  // }
+
   .ag-score-cell {
     color: #ccffdd;
     -webkit-text-stroke-width: 0.2px;
   }
 
   .ag-score-cell:hover {
-    box-shadow: 0 5px 15px #ff99001c;
+    box-shadow: 0 5px 15px #ff990051;
   }
 
   .ag-score-border-left-single {
