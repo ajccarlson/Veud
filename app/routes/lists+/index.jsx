@@ -5,10 +5,10 @@ export default function Index() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
       <WatchList/>
-      <div class="Row" style={{ height: '10%' }}>
-          <div class="Column">C1</div>
-          <div class="Column">C2</div>
-          <div class="Column">C3</div>
+      <div class="flex flex-row gap-4 justify-center bg-[#464646]">
+        <button class="bg-[#6F6F6F] hover:bg-[#BF8630] text-white font-bold py-5 px-10 border-b-4 border-[#FFD700] hover:border-[#FFF800] rounded">01</button>
+        <button class="bg-[#6F6F6F] hover:bg-[#BF8630] text-white font-bold py-5 px-10 border-b-4 border-[#FFD700] hover:border-[#FFF800] rounded">02</button>
+        <button class="bg-[#6F6F6F] hover:bg-[#BF8630] text-white font-bold py-5 px-10 border-b-4 border-[#FFD700] hover:border-[#FFF800] rounded">03</button>
       </div>
     </main>
   )
