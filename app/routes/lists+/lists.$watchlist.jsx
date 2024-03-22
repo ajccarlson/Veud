@@ -3,11 +3,10 @@ import { ModuleRegistry } from '@ag-grid-community/core'
 import { AgGridReact } from '@ag-grid-community/react'
 import '@ag-grid-community/styles/ag-grid.css';
 import "#app/styles/watchlist.scss";
-import listThumbnailRenderer from "#app/utils/lists/thumbnail-renderer.tsx";
-import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx";
 import { differenceFormatter } from "#app/utils/lists/column-functions.tsx";
+import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx";
+import listThumbnailRenderer from "#app/utils/lists/thumbnail-renderer.tsx";
 import { rowData } from "#app/utils/lists/watching-list";
-
     
 ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 
