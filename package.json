@@ -1,5 +1,5 @@
 {
-  "name": "mymovielist-90c8",
+  "name": "veud-90c8",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -37,6 +37,11 @@
     "/server-build"
   ],
   "dependencies": {
+    "@ag-grid-community/client-side-row-model": "^31.1.1",
+    "@ag-grid-community/core": "^31.1.1",
+    "@ag-grid-community/infinite-row-model": "^31.1.1",
+    "@ag-grid-community/react": "^31.1.1",
+    "@ag-grid-community/styles": "^31.2.0",
     "@conform-to/react": "^1.0.2",
     "@conform-to/zod": "^1.0.2",
     "@epic-web/cachified": "^5.1.2",
@@ -61,6 +66,8 @@
     "@sentry/profiling-node": "^7.105.0",
     "@sentry/remix": "^7.105.0",
     "address": "^2.0.2",
+    "ag-grid-community": "^31.2.0",
+    "ag-grid-react": "^31.2.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.3",
     "chalk": "^5.3.0",
@@ -93,6 +100,7 @@
     "remix-auth-form": "^1.4.0",
     "remix-auth-github": "^1.6.0",
     "remix-utils": "^7.5.0",
+    "sass": "^1.72.0",
     "set-cookie-parser": "^2.6.0",
     "sonner": "^1.4.3",
     "source-map-support": "^0.5.21",
