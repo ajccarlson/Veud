@@ -1,7 +1,7 @@
-export const rowData = [
+export const PlantoWatchData = [
   { '#': '1',
   'Thumbnail': 'Picture',
-  'Title': 'Before Sunset',
+  'Title': 'Before Sunset (Plan to Watch)',
   'Type': 'Movie',
   'Air_Year': '2004',
   'Length': '1h 20m',

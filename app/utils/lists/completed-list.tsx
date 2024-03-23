@@ -1,7 +1,7 @@
-export const rowData = [
+export const CompletedData = [
   { '#': '1',
   'Thumbnail': 'Picture',
-  'Title': 'Before Sunset',
+  'Title': 'Before Sunset (Completed)',
   'Type': 'Movie',
   'Air_Year': '2004',
   'Length': '1h 20m',

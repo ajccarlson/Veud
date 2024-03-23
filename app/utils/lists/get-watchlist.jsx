@@ -6,9 +6,27 @@ import "#app/styles/watchlist.scss";
 import { differenceFormatter } from "#app/utils/lists/column-functions.tsx";
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx";
 import listThumbnailRenderer from "#app/utils/lists/thumbnail-renderer.tsx";
-import { rowData } from "#app/utils/lists/watching-list";
+import { watchLists } from "#app/utils/lists/watchlists";
+import { WatchingData } from "#app/utils/lists/watching-list";
+import { CompletedData } from "#app/utils/lists/completed-list";
+import { PlantoWatchData } from "#app/utils/lists/plan-to-watch-list";
     
 ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
+
+let dataSheets = [
+  {
+    "name": "watching",
+    "data": WatchingData,
+  },
+  {
+    "name": "completed",
+    "data": CompletedData,
+  },
+  {
+    "name": "plantowatch",
+    "data": PlantoWatchData,
+  }
+]
 
 const gridOptions = {
   autoSizeStrategy: {
@@ -68,17 +86,30 @@ const columnDefs = [
   { field: 'Difference_Objective', headerName: 'Difference: Objective', valueGetter: 'data.Personal - data.TMDB_Score', valueFormatter: params => differenceFormatter(params), flex: 1, resizable: false, minWidth: 70, maxWidth: 90, filter: 'agNumberColumnFilter', editable: false, cellClass: "ag-score-cell", cellStyle: function(params) { let scoreType = "Difference Objective"; return  scoreColor( { range: scoreRange(scoreType), score: params.value, type: scoreType } ) } }
 ]
 
-function WatchList() {
+export function getWatchlist(listParam) {
+  let rowData;
+  for (let watchList of watchLists) {
+    let formattedParam = listParam.toLowerCase().replace(/[^0-9a-z]/gi, '');
+
+    if (Object.values(watchList).map(value => value.toLowerCase().replace(/[^0-9a-z]/gi, '')).indexOf(formattedParam) > -1) {
+      for (let dataSheet of dataSheets) {
+        if (formattedParam.includes(dataSheet['name'])) {
+          rowData = dataSheet['data'];
+          break;
+        }
+      }
+
+      break;
+    }
+  }
+  
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
       <AgGridReact
         gridOptions={gridOptions}
         columnDefs={columnDefs}
         rowData={rowData}
-
       ></AgGridReact>
     </div>
   )
 }
-
-export { WatchList }
