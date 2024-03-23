@@ -1,0 +1,86 @@
+@use "@ag-grid-community/styles" as ag;
+
+@include ag.grid-styles((
+  // include multiple theme files and set specific parameters on each
+  theme: custom-react,
+  extend-theme: alpine-dark,
+  --ag-font-family: "Playfair Display",
+  --ag-font-size: 15px,
+  --ag-header-background-color: #121212,
+  --ag-background-color:#222222,
+  --ag-odd-row-background-color:#2e2f2b,
+  --ag-row-border-width: 0px,
+
+  // setting the active color will use color blending to update various
+  // other colors eg. the row hover color will be set to a light pink
+  --ag-alpine-active-color: #FF9900,
+  --ag-header-cell-hover-background-color: #2e2f2b,
+
+  // Uncomment this to remove all native widget styling from the grid. This is
+  // useful if you want to make your own styles starting from a blank slate.
+  // suppress-native-widget-styling: "true"
+));
+
+// More kinds of customisation can be made with CSS rules
+.ag-theme-custom-react {
+  .ag-header-cell {
+    font-family: arial;
+    font-size: 13px;
+    font-weight: normal;
+    display: inline-grid;
+    justify-content: center;
+    align-items: center;
+    color:#ff9900;
+    border-top: inset #000000 3px;
+    border-bottom: solid #66563d 3px;
+    border-left: dashed #00000000 3px;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+
+  .ag-cell {
+    display: inline-grid;
+    justify-content: center;
+    align-items: center;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
+  }
+
+  .ag-title-cell {
+    font-style: italic;
+    font-weight:bold;
+    color: #ffffb1;
+  }
+
+  // .ag-header-cell-label {
+  //   position: absolute;
+  //   left: 50%;
+  //   top: 50%;
+  //   transform: translate(-50%,-50%);
+  // }
+
+  // .ag-header-cell-menu-button {
+  //   position: absolute;
+  //   right: 10%;
+  //   top: 50%;
+  // }
+
+  .ag-score-cell {
+    color: #ccffdd;
+    -webkit-text-stroke-width: 0.2px;
+  }
+
+  .ag-score-cell:hover {
+    box-shadow: 0 5px 15px #ff990051;
+  }
+
+  .ag-score-border-left-single {
+    border-left: solid #66563d;
+  }
+
+  .ag-score-border-left-double {
+    border-left: double #999999 3.5px;
+  }
+}
