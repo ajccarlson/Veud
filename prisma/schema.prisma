@@ -22,6 +22,7 @@ model User {
   image       UserImage?
   password    Password?
   notes       Note[]
+  watchlists  Watchlist[]
   roles       Role[]
   sessions    Session[]
   connections Connection[]
@@ -44,6 +45,57 @@ model Note {
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
+}
+
+model Watchlist {
+  id            String @id @default(cuid())
+  name          String
+  description   String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner         User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+
+  watchentries  WatchEntry[]
+
+  // non-unique foreign key
+  @@index([ownerId])
+  // This helps our order by in the user search a LOT
+  @@index([ownerId, updatedAt])
+}
+
+model WatchEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  airYear	            String?
+  length		          String?
+  rating	            String?
+  finishedDate	      DateTime?
+  genres	            String?
+  language	          String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  sound	              Int?
+  performance         Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  tmdbScore	          Decimal?
+  differenceObjective Decimal?
+
+  // non-unique foreign key
+  @@index([watchlistId])
 }
 
 model NoteImage {
