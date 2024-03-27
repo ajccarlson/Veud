@@ -1,10 +1,35 @@
+import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
+import { ModuleRegistry } from '@ag-grid-community/core'
+import { AgGridReact } from '@ag-grid-community/react'
 import { invariantResponse } from '@epic-web/invariant'
 import { json } from "@remix-run/node";
 import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
-import { getWatchlist } from "#app/utils/lists/get-watchlist.jsx"
+import { prisma } from '#app/utils/db.server.ts'
+import { gridOptions, columnDefs } from "#app/utils/lists/get-watchlist.jsx"
 import { watchLists } from "#app/utils/lists/watchlists"
+import '@ag-grid-community/styles/ag-grid.css';
+import "#app/styles/watchlist.scss";
+
+ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
+
+async function getListByName(listName) {
+  let formattedName = (listName.charAt(0).toUpperCase() + listName.toLowerCase().slice(1));
+  const listID = await prisma.watchlist.findFirst({
+		where: {
+			name: formattedName,
+		},
+	})
+
+  const entries = await prisma.watchEntry.findMany({
+		where: {
+			watchlistId: listID.id,
+		},
+	})
+
+  return entries;
+}
 
 export async function loader(params) {
   let listFound = false
@@ -16,7 +41,9 @@ export async function loader(params) {
 
   invariantResponse(!listFound, 'Watchlist not found', { status: 404 })
 
-  return json({ "watchList": params['params']['watchlist'] });
+  const listEntries = await getListByName(params['params']['watchlist']);
+
+  return json({ "watchList": params['params']['watchlist'], listEntries });
 };
 
 export function ErrorBoundary() {
@@ -34,7 +61,13 @@ export function ErrorBoundary() {
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {getWatchlist(useLoaderData()['watchList'])}
+      <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
+        <AgGridReact
+          gridOptions={gridOptions}
+          columnDefs={columnDefs}
+          rowData={useLoaderData()['listEntries']}
+        ></AgGridReact>
+      </div>
       {listNavButtons}
     </main>
   )
