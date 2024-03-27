@@ -14,10 +14,9 @@ import "#app/styles/watchlist.scss";
 ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 
 async function getListByName(listName) {
-  let formattedName = (listName.charAt(0).toUpperCase() + listName.toLowerCase().slice(1));
   const listID = await prisma.watchlist.findFirst({
 		where: {
-			name: formattedName,
+			name: listName.toLowerCase(),
 		},
 	})
 
@@ -31,18 +30,22 @@ async function getListByName(listName) {
 }
 
 export async function loader(params) {
-  let listFound = false
+  // let listFound = false
 
-  let watchLists = await prisma.watchlist.findMany({select: {name: true}})
-  watchLists = watchLists.map(a => a.name)
+  const watchlistData = await prisma.watchlist.findMany()
+
+  let watchLists = [];
+  watchlistData.map(a => watchLists.push({
+    name: a.name, header: a.header
+  }))
   
-  for (let watchList of watchLists) {
-    if (Object.values(watchList).indexOf(params['params']['watchlist']) > -1) {
-      listFound = true
-    }
-  }
+  // for (let watchList of watchLists) {
+  //   if (Object.values(watchList).indexOf(params['params']['watchlist']) > -1) {
+  //     listFound = true
+  //   }
+  // }
 
-  invariantResponse(!listFound, 'Watchlist not found', { status: 404 })
+  // invariantResponse(!listFound, 'Watchlist not found', { status: 404 })
 
   const listEntries = await getListByName(params['params']['watchlist']);
 

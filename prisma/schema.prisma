@@ -50,6 +50,7 @@ model Note {
 model Watchlist {
   id            String @id @default(cuid())
   name          String
+  header        String
   description   String?
 
   createdAt     DateTime @default(now())
