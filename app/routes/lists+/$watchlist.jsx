@@ -30,7 +30,7 @@ async function getListByName(listName) {
 }
 
 export async function loader(params) {
-  // let listFound = false
+  let listFound = false
 
   const watchlistData = await prisma.watchlist.findMany()
 
@@ -39,13 +39,14 @@ export async function loader(params) {
     name: a.name, header: a.header
   }))
   
-  // for (let watchList of watchLists) {
-  //   if (Object.values(watchList).indexOf(params['params']['watchlist']) > -1) {
-  //     listFound = true
-  //   }
-  // }
+  for (let watchList of watchLists) {
+    if (watchList.name == params['params']['watchlist']) {
+      listFound = true
+      break
+    }
+  }
 
-  // invariantResponse(!listFound, 'Watchlist not found', { status: 404 })
+  invariantResponse(listFound, 'Watchlist not found', { status: 404 }) 
 
   const listEntries = await getListByName(params['params']['watchlist']);
 
