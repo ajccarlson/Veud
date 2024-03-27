@@ -31,7 +31,9 @@
     justify-content: center;
     align-items: center;
     color:#ff9900;
-    border-top: inset #000000 3px;
+    box-shadow: 
+      inset 0px 8px 8px -10px #3D4666,
+      inset 0px -2px 8px -10px #BBB1A2; 
     border-bottom: solid #66563d 3px;
     border-left: dashed #00000000 3px;
     -webkit-text-stroke-width: 0.12px;

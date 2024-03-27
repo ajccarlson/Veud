@@ -7,8 +7,7 @@ import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
-import { gridOptions, columnDefs } from "#app/utils/lists/get-watchlist.jsx"
-import { watchLists } from "#app/utils/lists/watchlists"
+import { gridOptions, columnDefs } from "#app/utils/lists/watchlist-grid.jsx"
 import '@ag-grid-community/styles/ag-grid.css';
 import "#app/styles/watchlist.scss";
 
@@ -33,6 +32,10 @@ async function getListByName(listName) {
 
 export async function loader(params) {
   let listFound = false
+
+  let watchLists = await prisma.watchlist.findMany({select: {name: true}})
+  watchLists = watchLists.map(a => a.name)
+  
   for (let watchList of watchLists) {
     if (Object.values(watchList).indexOf(params['params']['watchlist']) > -1) {
       listFound = true
@@ -43,7 +46,7 @@ export async function loader(params) {
 
   const listEntries = await getListByName(params['params']['watchlist']);
 
-  return json({ "watchList": params['params']['watchlist'], listEntries });
+  return json({ "watchList": params['params']['watchlist'], listEntries, watchLists });
 };
 
 export function ErrorBoundary() {
@@ -68,7 +71,7 @@ export default function watchList() {
           rowData={useLoaderData()['listEntries']}
         ></AgGridReact>
       </div>
-      {listNavButtons}
+      {listNavButtons(useLoaderData()['watchLists'])}
     </main>
   )
 }
