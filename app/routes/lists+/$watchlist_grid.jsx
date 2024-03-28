@@ -30,6 +30,8 @@ function setterFunction(params) {
 
     fetch('fetch/' + new URLSearchParams({
         colId: params.column.colId,
+        type: params.colDef.cellDataType,
+        filter: params.colDef.filter,
         rowIndex: params.data.id,
         newValue: params.newValue,
     })).then((response) => { 
