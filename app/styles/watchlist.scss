@@ -56,6 +56,10 @@
     color: #ffffb1;
   }
 
+  .ag-thumbnail-cell {
+    padding-right: 0px;
+  }
+
   // .ag-header-cell-label {
   //   position: absolute;
   //   left: 50%;
@@ -63,11 +67,11 @@
   //   transform: translate(-50%,-50%);
   // }
 
-  // .ag-header-cell-menu-button {
-  //   position: absolute;
-  //   right: 10%;
-  //   top: 50%;
-  // }
+  .ag-header-cell-menu-button {
+    position: absolute;
+    left: 10%;
+    top: 50%;
+  }
 
   .ag-score-cell {
     color: #ccffdd;

@@ -18,7 +18,7 @@ export const gridOptions = {
   },
   rowDragManaged: true,
   rowDragMultiRow: true,
-  rowSelection: 'multiple'
+  rowSelection: 'multiple',
 }
 
 function setterFunction(params) {
@@ -61,7 +61,8 @@ export const columnDefs = [
     minWidth: 35,
     maxWidth: 35,
     filter: 'agNumberColumnFilter',
-    rowDrag: true 
+    rowDrag: true,
+    cellClass: "ag-position-cell"
   },
 
 
@@ -73,7 +74,8 @@ export const columnDefs = [
     resizable: false,
     minWidth: 80,
     maxWidth: 120,
-    cellRenderer: params => listThumbnailRenderer(params.value)
+    cellRenderer: params => listThumbnailRenderer(params.value),
+    cellClass: "ag-thumbnail-cell"
   },
 
 
@@ -128,6 +130,11 @@ export const columnDefs = [
     field: 'length',
     headerName: 'Length',
     valueSetter: params => {setterFunction(params)},
+    valueFormatter: params => {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
+          return ""
+      }
+    },
     flex: 1,
     resizable: false,
     minWidth: 85,
@@ -199,7 +206,7 @@ export const columnDefs = [
     headerName: 'Story',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
       }
     },
@@ -239,7 +246,7 @@ export const columnDefs = [
     headerName: 'Character',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       }
     },
@@ -279,7 +286,7 @@ export const columnDefs = [
     headerName: 'Presentation',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return "" 
       }
     },
@@ -320,7 +327,7 @@ export const columnDefs = [
     headerName: 'Sound',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       }
     },
@@ -360,7 +367,7 @@ export const columnDefs = [
     headerName: 'Performance',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       }
     },
@@ -400,7 +407,7 @@ export const columnDefs = [
     headerName: 'Enjoyment',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       }
     },
@@ -440,7 +447,7 @@ export const columnDefs = [
     headerName: 'Averaged',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       } else {
         return Number(params.value).toFixed(1)
@@ -489,7 +496,7 @@ export const columnDefs = [
     headerName: 'Personal',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       } else {
         return Number(params.value).toFixed(1)
@@ -536,7 +543,7 @@ export const columnDefs = [
       } else {return ""}
     },
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       } else {
         return differenceFormatter(params.value)
@@ -571,7 +578,7 @@ export const columnDefs = [
     headerName: 'TMDB Score',
     valueSetter: params => {setterFunction(params)},
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       } else {
         return Number(params.value).toFixed(1)
@@ -611,7 +618,7 @@ export const columnDefs = [
       } else {return ""}
     },
     valueFormatter: params => {
-      if (!params.value || params.value == "NULL" || params.value == 0) {
+      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
         return ""
       } else {
         return differenceFormatter(params.value)

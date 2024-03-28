@@ -29,7 +29,7 @@ export function listThumbnailRenderer(params: any) {
     <a href={url}>
       <span>
           { (
-            <img
+            <img 
                 alt={`Thumbnail`}
                 src={image}
             />
