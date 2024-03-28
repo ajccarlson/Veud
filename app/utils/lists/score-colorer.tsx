@@ -133,6 +133,9 @@ function colorRatio(scoreParams: scoreObject) {
 }
 
 export function scoreColor(scoreParams: scoreObject) {
+    if (!scoreParams.score || scoreParams.score == 0)
+      return;
+
     let ratio = {} as any;
     ratio = colorRatio(scoreParams);
     
