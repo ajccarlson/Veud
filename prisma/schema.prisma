@@ -51,6 +51,7 @@ model Watchlist {
   id            String @id @default(cuid())
   name          String
   header        String
+  type          String
   description   String?
 
   createdAt     DateTime @default(now())
@@ -59,7 +60,9 @@ model Watchlist {
   owner         User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId       String
 
-  watchentries  WatchEntry[]
+  liveActionEntries  LiveActionEntry[]
+  animeEntries  AnimeEntry[]
+  mangaEntries  MangaEntry[]
 
   // non-unique foreign key
   @@index([ownerId])
@@ -67,7 +70,7 @@ model Watchlist {
   @@index([ownerId, updatedAt])
 }
 
-model WatchEntry {
+model LiveActionEntry {
   id                  String @id @default(cuid())
 
   watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -94,6 +97,73 @@ model WatchEntry {
   differencePersonal  Decimal?
   tmdbScore	          Decimal?
   differenceObjective Decimal?
+  description         String?
+
+  // non-unique foreign key
+  @@index([watchlistId])
+}
+
+model AnimeEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  startSeason	        String?
+  length		          String?
+  rating	            String?
+  finishedDate	      DateTime?
+  genres	            String?
+  studio	            String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  sound	              Int?
+  performance         Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  malScore	          Decimal?
+  differenceObjective Decimal?
+  description         String?
+
+  // non-unique foreign key
+  @@index([watchlistId])
+}
+
+model MangaEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  startYear	          String?
+  chapters		        String?
+  volumes		          String?
+  rating	            String?
+  finishedDate	      DateTime?
+  genres	            String?
+  magazine	          String?
+  author	            String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  malScore	          Decimal?
+  differenceObjective Decimal?
+  description         String?
 
   // non-unique foreign key
   @@index([watchlistId])

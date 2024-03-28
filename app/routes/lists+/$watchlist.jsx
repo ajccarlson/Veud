@@ -19,7 +19,7 @@ async function getListByName(listName) {
 		},
 	})
 
-  const entries = await prisma.watchEntry.findMany({
+  const entries = await prisma.LiveActionEntry.findMany({
 		where: {
 			watchlistId: listID.id,
 		},
