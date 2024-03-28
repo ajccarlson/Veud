@@ -68,7 +68,7 @@ export const columnDefs = [
   { field: 'airYear', headerName: 'Air Year', valueSetter: params => {setterFunction(params)}, flex: 1, resizable: false, minWidth: 65, maxWidth: 72, filter: 'agDateColumnFilter' },
   { field: 'length', headerName: 'Length', valueSetter: params => {setterFunction(params)}, flex: 1, resizable: false, minWidth: 85, maxWidth: 110, filter: "agTextColumnFilter" },
   { field: 'rating', headerName: 'Rating', valueSetter: params => {setterFunction(params)}, flex: 1, resizable: false, minWidth: 80, maxWidth: 90, filter: "agSetColumnFilter", editable: true },
-  { field: 'finishedDate', headerName: 'Finished Date', valueSetter: params => {setterFunction(params)}, valueFormatter: params => dateFormatter(params.value), flex: 1, resizable: false,  minWidth: 85, maxWidth: 120, filter: 'agDateColumnFilter', cellEditor: 'agDateCellEditor', editable: true },
+  { field: 'finishedDate', headerName: 'Finished Date', valueSetter: params => {setterFunction(params)}, valueFormatter: params => dateFormatter(params.value), flex: 1, resizable: false,  minWidth: 85, maxWidth: 120, cellDataType: 'date', editable: true },
   { field: 'genres', headerName: 'Genre(s)', valueSetter: params => {setterFunction(params)}, flex: 1, resizable: false, minWidth: 100, maxWidth: 200, filter: "agSetColumnFilter" },
   { field: 'language', headerName: 'Language', valueSetter: params => {setterFunction(params)}, flex: 1, resizable: false, minWidth: 90, maxWidth: 135, filter: "agSetColumnFilter", cellStyle: function(params) {
     if (params.value.includes('English')) {

@@ -10,7 +10,7 @@ function castType(varIn, varType) {
   else if (typeFormatted.includes("string") || typeFormatted.includes("text"))
     return String(varIn);
   else if (typeFormatted.includes("date") || typeFormatted.includes("time"))
-    return Date(varIn);
+    return new Date(varIn).toISOString();
   else if (typeFormatted.includes("undefined"))
     return undefined;
   else
@@ -18,20 +18,25 @@ function castType(varIn, varType) {
 }
 
 export async function loader(params) {
-  const searchParams = new URLSearchParams(params.params.request);
+  try {
+    const searchParams = new URLSearchParams(params.params.request);
 
-  let valueFormatted;
-  if (searchParams.get('type') && searchParams.get('type') != "false")
-    valueFormatted = castType(searchParams.get('newValue'), searchParams.get('type'));
-  else
-    valueFormatted = castType(searchParams.get('newValue'), searchParams.get('filter'));
+    let valueFormatted;
+    if (searchParams.get('type') && searchParams.get('type') != "false")
+      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('type'));
+    else
+      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('filter'));
 
-  return await prisma.watchEntry.update({
-    where: {
-      id: searchParams.get('rowIndex'),
-    },
-    data: {
-      [searchParams.get('colId')]: valueFormatted,
-    },
-  });
+    return await prisma.watchEntry.update({
+      where: {
+        id: searchParams.get('rowIndex'),
+      },
+      data: {
+        [searchParams.get('colId')]: valueFormatted,
+      },
+    });
+  }
+  catch(e) {
+    return e
+  }
 };
