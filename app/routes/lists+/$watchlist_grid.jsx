@@ -216,7 +216,13 @@ export const columnDefs = [
       step: 1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-border-left-single ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-border-left-single ag-score-cell ag-score-present"
+      else {
+        return "ag-score-border-left-single ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -250,7 +256,13 @@ export const columnDefs = [
       step: 1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -285,7 +297,13 @@ export const columnDefs = [
       showStepperButtons:
       true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -319,7 +337,13 @@ export const columnDefs = [
       step: 1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -353,7 +377,13 @@ export const columnDefs = [
       step: 1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -387,7 +417,13 @@ export const columnDefs = [
       step: 1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -430,7 +466,13 @@ export const columnDefs = [
     maxWidth: 90,
     filter: 'agNumberColumnFilter',
     editable: false,
-    cellClass: "ag-score-border-left-double ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-border-left-double ag-score-cell ag-score-present"
+      else {
+        return "ag-score-border-left-double ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -466,7 +508,13 @@ export const columnDefs = [
       step: 0.1,
       showStepperButtons: true
     },
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Default";
       return scoreColor( {
@@ -500,7 +548,13 @@ export const columnDefs = [
     maxWidth: 90,
     filter: 'agNumberColumnFilter',
     editable: false,
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Difference Personal";
       return  scoreColor( {
@@ -529,7 +583,13 @@ export const columnDefs = [
     maxWidth: 80,
     filter: 'agNumberColumnFilter',
     editable: false,
-    cellClass: "ag-score-border-left-double ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-border-left-double ag-score-cell ag-score-present"
+      else {
+        return "ag-score-border-left-double ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "TMDB Score";
       return  scoreColor( {
@@ -563,7 +623,13 @@ export const columnDefs = [
     maxWidth: 90,
     filter: 'agNumberColumnFilter',
     editable: false,
-    cellClass: "ag-score-cell",
+    cellClass: params => {
+      if (params.value && params.value != 0)
+        return "ag-score-cell ag-score-present"
+      else {
+        return "ag-score-cell ag-score-empty"
+      }
+    },
     cellStyle: function(params) {
       let scoreType = "Difference Objective";
       return  scoreColor( {

@@ -74,8 +74,12 @@
     -webkit-text-stroke-width: 0.2px;
   }
 
-  .ag-score-cell:hover {
-    box-shadow: 0 5px 15px #ff990051;
+  .ag-score-present:hover {
+    box-shadow: 0 5px 15px #ff990066;
+  }
+
+  .ag-score-empty:hover {
+    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.067);
   }
 
   .ag-score-border-left-single {
