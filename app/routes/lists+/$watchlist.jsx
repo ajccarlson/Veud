@@ -31,16 +31,22 @@ async function getListByName(listName) {
 export async function loader(params) {
   let listFound = false
 
-  const watchlistData = await prisma.watchlist.findMany()
+  const watchlistSchema = await prisma.watchlist.findMany()
 
   let watchLists = [];
-  watchlistData.map(a => watchLists.push({
-    name: a.name, header: a.header
+  watchlistSchema.map(a => watchLists.push({
+    name: a.name,
+    header: a.header,
+    type: a.type,
+    columns: a.columns,
   }))
   
+  let watchListData;
+
   for (let watchList of watchLists) {
     if (watchList.name == params['params']['watchlist']) {
       listFound = true
+      watchListData = watchList;
       break
     }
   }
@@ -49,7 +55,7 @@ export async function loader(params) {
 
   const listEntries = await getListByName(params['params']['watchlist']);
 
-  return json({ "watchList": params['params']['watchlist'], listEntries, watchLists });
+  return json({ "watchList": params['params']['watchlist'], listEntries, watchLists, watchListData });
 };
 
 export function ErrorBoundary() {
@@ -67,7 +73,7 @@ export function ErrorBoundary() {
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(useLoaderData()['listEntries'])}
+      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'])}
       {listNavButtons(useLoaderData()['watchLists'])}
     </main>
   )

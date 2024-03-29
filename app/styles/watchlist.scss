@@ -82,8 +82,12 @@
     box-shadow: 0 5px 15px #ff990066;
   }
 
+  .ag-score-empty {
+    background-color:rgba(0, 0, 0, 0.3);
+  }
+
   .ag-score-empty:hover {
-    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.067);
+    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.155);
   }
 
   .ag-score-border-left-single {

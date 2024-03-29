@@ -52,6 +52,7 @@ model Watchlist {
   name          String
   header        String
   type          String
+  columns       String?
   description   String?
 
   createdAt     DateTime @default(now())
