@@ -1,6 +1,15 @@
 import { AgGridReact } from '@ag-grid-community/react'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { dateFormatter, differenceFormatter, listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuPortal,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
+import { Button } from '#app/components/ui/button.tsx'
 
 export const gridOptions = {
   autoSizeStrategy: {
@@ -19,6 +28,10 @@ export const gridOptions = {
   rowDragManaged: true,
   rowDragMultiRow: true,
   rowSelection: 'multiple',
+}
+
+function createNewRow() {
+  console.log("TEST!!!!")
 }
 
 function setterFunction(params) {
@@ -63,6 +76,29 @@ export function columnDefs(hiddenColumns) {
       maxWidth: 35,
       filter: 'agNumberColumnFilter',
       rowDrag: true,
+      cellRenderer: params => {
+        return (
+          <div>
+            {params.value}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <span className='ag-cell-insert'>
+                  <Icon name="plus"></Icon>
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuContent sideOffset={8} align="start">
+                  <DropdownMenuItem onSelect={event => {
+                    createNewRow()
+                  }}>
+                    Insert row below
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenu>
+          </div>
+        )
+      },
       cellClass: "ag-position-cell",
       hide: hiddenColumns['position'],
     },

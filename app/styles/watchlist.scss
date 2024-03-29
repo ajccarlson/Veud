@@ -87,7 +87,19 @@
   }
 
   .ag-score-empty:hover {
-    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.155);
+    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.119);
+  }
+
+  .ag-cell-insert {
+    visibility: hidden;
+    position: absolute;
+    bottom: 0%;
+    left: 35%;
+  }
+
+  .ag-position-cell:hover .ag-cell-insert {
+    visibility: visible;
+    font-size: 25px;
   }
 
   .ag-score-border-left-single {
