@@ -41,7 +41,7 @@ function setterFunction(params) {
     console.log("value: " + params.data + " has changed to " + params.newValue)
     params.data[params.column.colId] = params.newValue
 
-    fetch('fetch/' + new URLSearchParams({
+    fetch('fetch/update-cell/' + new URLSearchParams({
         colId: params.column.colId,
         type: params.colDef.cellDataType,
         filter: params.colDef.filter,
@@ -71,6 +71,7 @@ export function columnDefs(hiddenColumns) {
       headerName: '#',
       valueSetter: params => {setterFunction(params)},
       flex: 1,
+      editable: false,
       resizable: false,
       minWidth: 35,
       maxWidth: 35,
@@ -89,12 +90,36 @@ export function columnDefs(hiddenColumns) {
               <DropdownMenuPortal>
                 <DropdownMenuContent sideOffset={8} align="start">
                 <DropdownMenuItem onSelect={event => {
-                    createNewRow()
+                    fetch('fetch/insert-row/' + new URLSearchParams({
+                      id: params.data.id,
+                      watchlistId: params.data.watchlistId,
+                      position: params.data.position,
+                      change: 1
+                    })).then((response) => { 
+                      return response.json().then((data) => {
+                          console.log(data);
+                          return data;
+                      }).catch((err) => {
+                          console.log(err);
+                      }) 
+                    });
                   }}>
                     Insert 1 row above
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
-                    createNewRow()
+                    fetch('fetch/insert-row/' + new URLSearchParams({
+                      id: params.data.id,
+                      watchlistId: params.data.watchlistId,
+                      position: params.data.position,
+                      change: -1
+                    })).then((response) => { 
+                      return response.json().then((data) => {
+                          console.log(data);
+                          return data;
+                      }).catch((err) => {
+                          console.log(err);
+                      }) 
+                    });
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
@@ -104,7 +129,19 @@ export function columnDefs(hiddenColumns) {
                     Move row
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
-                    createNewRow()
+                    fetch('fetch/delete-row/' + new URLSearchParams({
+                      id: params.data.id,
+                      watchlistId: params.data.watchlistId,
+                      position: params.data.position,
+                      change: 1
+                    })).then((response) => { 
+                      return response.json().then((data) => {
+                          console.log(data);
+                          return data;
+                      }).catch((err) => {
+                          console.log(err);
+                      }) 
+                    });
                   }}>
                     Delete row
                   </DropdownMenuItem>
@@ -124,6 +161,7 @@ export function columnDefs(hiddenColumns) {
       headerName: 'Thumbnail',
       valueSetter: params => {setterFunction(params)},
       flex: 1,
+      sortable: false,
       resizable: false,
       minWidth: 80,
       maxWidth: 120,
@@ -154,7 +192,7 @@ export function columnDefs(hiddenColumns) {
       flex: 1,
       resizable: false,
       minWidth: 70,
-      maxWidth: 110,
+      maxWidth: 125,
       filter: 'agSetColumnFilter',
       cellStyle: function(params) {
         if (params.value.includes('Movie')) {

@@ -32,6 +32,7 @@ export function listThumbnailRenderer(params: any) {
             <img 
                 alt={`Thumbnail`}
                 src={image}
+                className="ag-thumbnail-image"
             />
           ) }
       </span>
