@@ -88,10 +88,25 @@ export function columnDefs(hiddenColumns) {
               </DropdownMenuTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuContent sideOffset={8} align="start">
+                <DropdownMenuItem onSelect={event => {
+                    createNewRow()
+                  }}>
+                    Insert 1 row above
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
                     createNewRow()
                   }}>
-                    Insert row below
+                    Insert 1 row below
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={event => {
+                    createNewRow()
+                  }}>
+                    Move row
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={event => {
+                    createNewRow()
+                  }}>
+                    Delete row
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenuPortal>
