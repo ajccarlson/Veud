@@ -5,7 +5,7 @@
   theme: custom-react,
   extend-theme: alpine-dark,
   --ag-font-family: "Playfair Display",
-  --ag-font-size: 15px,
+  --ag-font-size: 16px,
   --ag-header-background-color: #121212,
   --ag-background-color:#222222,
   --ag-odd-row-background-color:#2e2f2b,
@@ -31,7 +31,9 @@
     justify-content: center;
     align-items: center;
     color:#ff9900;
-    border-top: inset #000000 3px;
+    box-shadow: 
+      inset 0px 8px 8px -10px #3D4666,
+      inset 0px -2px 8px -10px #BBB1A2; 
     border-bottom: solid #66563d 3px;
     border-left: dashed #00000000 3px;
     -webkit-text-stroke-width: 0.12px;
@@ -54,6 +56,11 @@
     color: #ffffb1;
   }
 
+  .ag-thumbnail-cell {
+    padding-right: 0px;
+    box-shadow: 15px 5px 10px rgba(0, 0, 0, 0.273);
+  }
+
   // .ag-header-cell-label {
   //   position: absolute;
   //   left: 50%;
@@ -61,19 +68,40 @@
   //   transform: translate(-50%,-50%);
   // }
 
-  // .ag-header-cell-menu-button {
-  //   position: absolute;
-  //   right: 10%;
-  //   top: 50%;
-  // }
+  .ag-header-cell-menu-button {
+    position: absolute;
+    left: 10%;
+    top: 50%;
+  }
 
   .ag-score-cell {
     color: #ccffdd;
     -webkit-text-stroke-width: 0.2px;
   }
 
-  .ag-score-cell:hover {
-    box-shadow: 0 5px 15px #ff990051;
+  .ag-score-present:hover {
+    box-shadow: 0 5px 15px #ff990066;
+  }
+
+  .ag-score-empty {
+    background-color:rgba(0, 0, 0, 0.3);
+  }
+
+  .ag-score-empty:hover {
+    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.119);
+  }
+
+  .ag-cell-insert {
+    visibility: hidden;
+    position: absolute;
+    bottom: 0%;
+    left: 35%;
+    color: #FF4200;
+  }
+
+  .ag-position-cell:hover .ag-cell-insert {
+    visibility: visible;
+    font-size: 25px;
   }
 
   .ag-score-border-left-single {
