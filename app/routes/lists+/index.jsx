@@ -6,11 +6,11 @@ import { timeSince } from "#app/utils/lists/column-functions.tsx"
 function getWatchlistNav(watchListData) {
   return (
     `<div class="flex-auto font-sansp-6 bg-[#464646] w-[55rem] font-[arial] border-8 border-[#383040] rounded-lg">` + 
-      `<div class="flex flex-wrap border-b-[4px] bg-[#121212] border-[#66563d] border-spacing-y px-3 pt-1">` +
+      `<div class="flex flex-wrap border-b-[4px] bg-[#121212] border-[#66563d] border-spacing-y pb-1 px-3 pt-1 sticky top-0">` +
         `<h1 class="flex-auto text-xl font-semibold text-[#ffffb1] pl-5">` + 
           `${watchListData.watchlist.header}` +
         `</h1>` + 
-        `<div class="text-lg font-semibold text-[#FF9900] pb-1">` + 
+        `<div class="text-lg font-semibold text-[#FF9900] pl-4 border-l-[5px] border-[#7196aa] rounded-lg">` + 
           `${watchListData.listEntries.length}` +
         `</div>` + 
       `</div>` + 
@@ -68,7 +68,12 @@ export async function loader() {
 export default function lists() {
   return (
     <main class="bg-[#222222]" style={{ width: '100%', height: '100%' }}>
-      <div dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
+      <div class="bg-[#6F6F6F] text-[#FFEFCC] flex flex-col w-[10rem] fixed top-1/3 float-left font-[arial] border-t-8 border-r-8 border-[#54806C] hover:border-[#507b68] rounded ">
+        <a href="/lists/liveaction" class="] hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Live Action</a>
+        <a href="/lists/anime" class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Anime</a>
+        <a href="/lists/manga" class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded shadow-[0px_4px_0px_rgba(0,0,0,0.6)]">Manga</a>
+      </div>
+      <div class="flex flex-col items-center" dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
     </main>
   )
 }
