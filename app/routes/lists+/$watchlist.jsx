@@ -1,22 +1,61 @@
+import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
+import { ModuleRegistry } from '@ag-grid-community/core'
 import { invariantResponse } from '@epic-web/invariant'
-import { json } from "@remix-run/node";
+import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
-import { Link } from "@remix-run/react"
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { getWatchlist } from "#app/utils/lists/get-watchlist.jsx"
-import { watchLists } from "#app/utils/lists/watchlists"
+import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
+import { watchlistGrid } from "#app/routes/lists+/$watchlist_grid.jsx"
+import { prisma } from '#app/utils/db.server.ts'
+import '@ag-grid-community/styles/ag-grid.css'
+import "#app/styles/watchlist.scss"
+
+ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
+
+async function getListByName(listName) {
+  const listID = await prisma.watchlist.findFirst({
+		where: {
+			name: listName.toLowerCase(),
+		},
+	})
+
+  const entries = await prisma.LiveActionEntry.findMany({
+		where: {
+			watchlistId: listID.id,
+		},
+	})
+
+  return entries;
+}
 
 export async function loader(params) {
   let listFound = false
+
+  const watchlistSchema = await prisma.watchlist.findMany()
+
+  let watchLists = [];
+  watchlistSchema.map(a => watchLists.push({
+    name: a.name,
+    header: a.header,
+    type: a.type,
+    columns: a.columns,
+  }))
+  
+  let watchListData;
+
   for (let watchList of watchLists) {
-    if (Object.values(watchList).indexOf(params['params']['watchlist']) > -1) {
+    if (watchList.name == params['params']['watchlist']) {
       listFound = true
+      watchListData = watchList;
+      break
     }
   }
 
-  invariantResponse(!listFound, 'Watchlist not found', { status: 404 })
+  invariantResponse(listFound, 'Watchlist not found', { status: 404 }) 
 
-  return json({ "watchList": params['params']['watchlist'] });
+  const listEntries = await getListByName(params['params']['watchlist']);
+
+  return json({ "watchList": params['params']['watchlist'], listEntries, watchLists, watchListData });
 };
 
 export function ErrorBoundary() {
@@ -31,20 +70,11 @@ export function ErrorBoundary() {
 	)
 }
 
-let listNavButtons = watchLists.map( list =>
-  <Link to={"../lists/" + list['name'].replace(/[^a-z0-9_]+/gi, '').toLowerCase()}
-  class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC] font-family: arial text-s font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
-    {list['name']}
-  </Link>
-)
-
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {getWatchlist(useLoaderData()['watchList'])}
-      <div class="flex flex-row gap-4 justify-center bg-[#464646]" id="list-nav">
-        {listNavButtons}
-      </div>
+      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'])}
+      {listNavButtons(useLoaderData()['watchLists'])}
     </main>
   )
 }
