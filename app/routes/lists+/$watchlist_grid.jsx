@@ -1,7 +1,4 @@
 import { AgGridReact } from '@ag-grid-community/react'
-import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, differenceFormatter, listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
-import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -9,7 +6,15 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
+import { dateFormatter, differenceFormatter, listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
+import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
+import '@ag-grid-community/styles/ag-grid.css'
+import "#app/styles/watchlist.scss"
+import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
+import { ModuleRegistry } from '@ag-grid-community/core'
+
+ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 
 export const gridOptions = {
   autoSizeStrategy: {

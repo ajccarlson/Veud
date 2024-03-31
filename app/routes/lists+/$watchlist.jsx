@@ -1,5 +1,3 @@
-import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
-import { ModuleRegistry } from '@ag-grid-community/core'
 import { invariantResponse } from '@epic-web/invariant'
 import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
@@ -7,10 +5,6 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { watchlistGrid } from "#app/routes/lists+/$watchlist_grid.jsx"
 import { prisma } from '#app/utils/db.server.ts'
-import '@ag-grid-community/styles/ag-grid.css'
-import "#app/styles/watchlist.scss"
-
-ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 
 async function getListByName(listName) {
   const listID = await prisma.watchlist.findFirst({
