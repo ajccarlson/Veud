@@ -42,8 +42,6 @@ function getWatchlistNav(watchListData, listType) {
 }
 
 export async function loader(params) {
-  const watchLists = await prisma.watchlist.findMany()
-
   let watchListData = []
   let watchListNavs = []
 
@@ -58,6 +56,13 @@ export async function loader(params) {
     typeFormatted = "MangaEntry"
 
   invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
+
+  const watchLists = await prisma.watchlist.findMany({
+    where: {
+      type: listType,
+    },
+  })
+
   
   for (let watchlist of watchLists) {
     const listEntries = await prisma[typeFormatted].findMany({
