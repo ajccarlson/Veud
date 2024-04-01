@@ -2,8 +2,10 @@ import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
+import { invariantResponse } from '@epic-web/invariant'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
-function getWatchlistNav(watchListData) {
+function getWatchlistNav(watchListData, listType) {
   return (
     `<div class="flex-auto font-sansp-6 bg-[#464646] w-[55rem] font-[arial] border-8 border-[#383040] rounded-lg">` + 
       `<div class="flex flex-wrap border-b-[4px] bg-[#121212] border-[#66563d] border-spacing-y pb-1 px-3 pt-1 sticky top-0">` +
@@ -26,7 +28,7 @@ function getWatchlistNav(watchListData) {
         `</div>` + 
 
         `<div class="grid grid-rows-[85%_15%] /*border-8 border-[#383040]*/">` + 
-          `<a href=${"/lists/" + watchListData.watchlist.name} class="flex justify-center items-center text-center font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]">` + 
+          `<a href=${"/lists/" + listType + "/" + watchListData.watchlist.name} class="flex justify-center items-center text-center font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]">` + 
             `Open` + 
           `</a>` +  
           `<button class="font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]" type="submit">` + 
@@ -39,14 +41,26 @@ function getWatchlistNav(watchListData) {
   )
 }
 
-export async function loader() {
+export async function loader(params) {
   const watchLists = await prisma.watchlist.findMany()
 
   let watchListData = []
   let watchListNavs = []
+
+  const listType = params['params']['list-type']
+  let typeFormatted = null;
+
+  if (listType == 'liveaction')
+    typeFormatted = "LiveActionEntry"
+  else if (listType == 'anime')
+    typeFormatted = "AnimeEntry"
+  else if (listType == 'manga')
+    typeFormatted = "MangaEntry"
+
+  invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
   
   for (let watchlist of watchLists) {
-    const listEntries = await prisma.LiveActionEntry.findMany({
+    const listEntries = await prisma[typeFormatted].findMany({
       where: {
         watchlistId: watchlist.id,
       },
@@ -59,11 +73,23 @@ export async function loader() {
 
     watchListData.push(entryData)
 
-    watchListNavs.push(getWatchlistNav(entryData))
+    watchListNavs.push(getWatchlistNav(entryData, listType))
   }
 
-  return json({ watchListData, watchListNavs });
+  return json({ watchListData, watchListNavs, listType });
 };
+
+export function ErrorBoundary() {
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: ({ params }) => (
+					<p>No list type with the the name "{params.listType}" exists</p>
+				),
+			}}
+		/>
+	)
+}
 
 export default function lists() {
   return (

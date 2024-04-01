@@ -69,7 +69,7 @@ function setterFunction(params) {
   }
 }
 
-export function columnDefs(hiddenColumns) {
+export function columnDefs(hiddenColumns, listType) {
   return [
     {
       field: 'position',
@@ -96,6 +96,7 @@ export function columnDefs(hiddenColumns) {
                 <DropdownMenuContent sideOffset={8} align="start">
                 <DropdownMenuItem onSelect={event => {
                     fetch('fetch/insert-row/' + new URLSearchParams({
+                      listType: listType,
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
                       position: params.data.position,
@@ -113,6 +114,7 @@ export function columnDefs(hiddenColumns) {
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
                     fetch('fetch/insert-row/' + new URLSearchParams({
+                      listType: listType,
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
                       position: params.data.position,
@@ -135,6 +137,7 @@ export function columnDefs(hiddenColumns) {
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
                     fetch('fetch/delete-row/' + new URLSearchParams({
+                      listType: listType,
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
                       position: params.data.position,
@@ -779,7 +782,7 @@ export function columnDefs(hiddenColumns) {
   ]
 }
 
-export function watchlistGrid(listEntries, watchListData) {
+export function watchlistGrid(listEntries, watchListData, listType) {
   const columns = ["position", "thumbnail", "title", "type", "airYear", "length", "rating", "finishedDate", "genres", "language", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "tmdbScore", "differenceObjective", "description"];
   const hiddenArray = columns.filter(x => !watchListData.columns.split(', ').includes(x));
   const hiddenColumns = hiddenArray.reduce((key,value) => (key[value] = true, key),{});
@@ -788,7 +791,7 @@ export function watchlistGrid(listEntries, watchListData) {
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
         <AgGridReact
           gridOptions={gridOptions}
-          columnDefs={columnDefs(hiddenColumns)}
+          columnDefs={columnDefs(hiddenColumns, listType)}
           rowData={listEntries}
         ></AgGridReact>
     </div>

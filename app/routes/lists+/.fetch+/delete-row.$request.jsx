@@ -4,7 +4,7 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
-    return await prisma.LiveActionEntry.delete({
+    return await prisma[params.params.listType].delete({
       where: {
         id: searchParams.get('id'),
       },

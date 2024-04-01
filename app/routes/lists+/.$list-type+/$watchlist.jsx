@@ -3,17 +3,17 @@ import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
-import { watchlistGrid } from "#app/routes/lists+/$watchlist_grid.jsx"
 import { prisma } from '#app/utils/db.server.ts'
+import { watchlistGrid } from '#app/routes/lists+/.$list-type+/$watchlist_grid.jsx'
 
-async function getListByName(listName) {
+async function getListByName(listName, listType) {
   const listID = await prisma.watchlist.findFirst({
 		where: {
 			name: listName.toLowerCase(),
 		},
 	})
 
-  const entries = await prisma.LiveActionEntry.findMany({
+  const entries = await prisma[listType].findMany({
 		where: {
 			watchlistId: listID.id,
 		},
@@ -47,9 +47,21 @@ export async function loader(params) {
 
   invariantResponse(listFound, 'Watchlist not found', { status: 404 }) 
 
-  const listEntries = await getListByName(params['params']['watchlist']);
+  const listType = params['params']['list-type']
+  let typeFormatted = null;
 
-  return json({ "watchList": params['params']['watchlist'], listEntries, watchLists, watchListData });
+  if (listType == 'liveaction')
+    typeFormatted = "LiveActionEntry"
+  else if (listType == 'anime')
+    typeFormatted = "AnimeEntry"
+  else if (listType == 'manga')
+    typeFormatted = "MangaEntry"
+
+  invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
+
+  const listEntries = await getListByName(params['params']['watchlist'], typeFormatted);
+
+  return json({ "watchList": params['params']['watchlist'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData });
 };
 
 export function ErrorBoundary() {
@@ -67,8 +79,8 @@ export function ErrorBoundary() {
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'])}
-      {listNavButtons(useLoaderData()['watchLists'])}
+      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'] )}
+      {listNavButtons(useLoaderData()['watchLists'], useLoaderData()['listType'])}
     </main>
   )
 }

@@ -45,7 +45,7 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
-    const entries = await prisma.LiveActionEntry.findMany({
+    const entries = await prisma[listType].findMany({
       where: {
         watchlistId: searchParams.get('watchlistId'),
       },
@@ -60,7 +60,7 @@ export async function loader(params) {
         entry.position++
     }
 
-    return await bulkUpdate("LiveActionEntry", entries)
+    return await bulkUpdate(listType, entries)
   }
   catch(e) {
     return e
