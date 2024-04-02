@@ -317,6 +317,13 @@ function UserDropdown() {
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
+					<Link prefetch="intent" to={`/lists/${user.username}`}>
+							<Icon className="text-body-md" name="pencil-1">
+								Lists
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
 						<Link prefetch="intent" to={`/users/${user.username}/notes`}>
 							<Icon className="text-body-md" name="pencil-2">
 								Notes
