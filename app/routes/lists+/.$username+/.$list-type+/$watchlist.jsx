@@ -4,7 +4,7 @@ import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
-import { watchlistGrid } from '#app/routes/lists+/.$list-type+/$watchlist_grid.jsx'
+import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
 
 async function getListByName(listName, listType) {
   const listID = await prisma.watchlist.findFirst({
@@ -61,7 +61,7 @@ export async function loader(params) {
 
   const listEntries = await getListByName(params['params']['watchlist'], typeFormatted);
 
-  return json({ "watchList": params['params']['watchlist'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData });
 };
 
 export function ErrorBoundary() {
@@ -80,7 +80,7 @@ export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
       {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'] )}
-      {listNavButtons(useLoaderData()['watchLists'], useLoaderData()['listType'])}
+      {listNavButtons(useLoaderData()['watchLists'], useLoaderData()['username'], useLoaderData()['listType'], useLoaderData()['watchListData'])}
     </main>
   )
 }

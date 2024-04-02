@@ -5,7 +5,7 @@ import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
-function getWatchlistNav(watchListData, listType) {
+function getWatchlistNav(watchListData, username, listType) {
   return (
     `<div class="flex-auto font-sansp-6 bg-[#464646] w-[55rem] font-[arial] border-8 border-[#383040] rounded-lg">` + 
       `<div class="flex flex-wrap border-b-[4px] bg-[#121212] border-[#66563d] border-spacing-y pb-1 px-3 pt-1 sticky top-0">` +
@@ -28,7 +28,7 @@ function getWatchlistNav(watchListData, listType) {
         `</div>` + 
 
         `<div class="grid grid-rows-[85%_15%] /*border-8 border-[#383040]*/">` + 
-          `<a href=${"/lists/" + listType + "/" + watchListData.watchlist.name} class="flex justify-center items-center text-center font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]">` + 
+          `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="flex justify-center items-center text-center font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]">` + 
             `Open` + 
           `</a>` +  
           `<button class="font-semibold bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC]" type="submit">` + 
@@ -42,8 +42,13 @@ function getWatchlistNav(watchListData, listType) {
 }
 
 export async function loader(params) {
-  let watchListData = []
-  let watchListNavs = []
+  const currentUser = await prisma.User.findUnique({
+    where: {
+      username: params['params']['username'],
+    },
+  })
+
+  invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
   const listType = params['params']['list-type']
   let typeFormatted = null;
@@ -60,9 +65,12 @@ export async function loader(params) {
   const watchLists = await prisma.watchlist.findMany({
     where: {
       type: listType,
+      ownerId: currentUser.id,
     },
   })
 
+  let watchListData = []
+  let watchListNavs = []
   
   for (let watchlist of watchLists) {
     const listEntries = await prisma[typeFormatted].findMany({
@@ -78,10 +86,10 @@ export async function loader(params) {
 
     watchListData.push(entryData)
 
-    watchListNavs.push(getWatchlistNav(entryData, listType))
+    watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
   }
 
-  return json({ watchListData, watchListNavs, listType });
+  return json({ watchListData, watchListNavs, username: params['params']['username'], listType });
 };
 
 export function ErrorBoundary() {
@@ -100,9 +108,9 @@ export default function lists() {
   return (
     <main class="bg-[#222222]" style={{ width: '100%', height: '100%' }}>
       <div class="bg-[#6F6F6F] text-[#FFEFCC] flex flex-col w-[10rem] fixed top-1/3 float-left font-[arial] border-t-8 border-r-8 border-[#54806C] hover:border-[#507b68] rounded ">
-        <a href="/lists/liveaction" class="] hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Live Action</a>
-        <a href="/lists/anime" class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Anime</a>
-        <a href="/lists/manga" class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded shadow-[0px_4px_0px_rgba(0,0,0,0.6)]">Manga</a>
+        <a href={"/lists/" + useLoaderData()['username'] + "/liveaction"} class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Live Action</a>
+        <a href={"/lists/" + useLoaderData()['username'] + "/anime"} class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded">Anime</a>
+        <a href={"/lists/" + useLoaderData()['username'] + "/manga"} class="hover:bg-[#8CA99D] font-bold h-[5rem] content-center text-center justify-center rounded shadow-[0px_4px_0px_rgba(0,0,0,0.6)]">Manga</a>
       </div>
       <div class="flex flex-col items-center" dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
     </main>
