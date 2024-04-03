@@ -15,6 +15,7 @@ import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-mod
 import { ModuleRegistry } from '@ag-grid-community/core'
 
 ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
+let gridAPI
 
 export const gridOptions = {
   autoSizeStrategy: {
@@ -28,15 +29,25 @@ export const gridOptions = {
     autoHeaderHeight: true,
     cellStyle: {"wordBreak": "normal"},
     wrapText: true,
-    autoHeight: true
+    autoHeight: true,
   },
   rowDragManaged: true,
   rowDragMultiRow: true,
+  onRowDragEnd: rowDragEnd,
   rowSelection: 'multiple',
+  onGridReady: gridReady
+}
+
+function gridReady(e) {
+  gridAPI = e.api
+}
+
+function rowDragEnd(params) {
+  const rowNode = gridAPI.getRowNode(params.node.id)
+  rowNode.setDataValue("position", params.overIndex + 1)
 }
 
 const rowDragText = function (params) {
-  console.log(params)
   return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
 };
 
@@ -45,9 +56,33 @@ function createNewRow() {
 }
 
 function setterFunction(params) {
-  console.log(params)
+  let returnValue = true
 
-  if (params.data != params.newValue) {
+  if (params.column.colId == "position") {
+    gridAPI.forEachNode((rowNode, index) => {
+      if (rowNode.data.position != (index + 1)) {
+        rowNode.data[params.column.colId] = index + 1
+      }
+
+      // fetch('fetch/update-cell/' + new URLSearchParams({
+      //   colId: params.column.colId,
+      //   type: params.colDef.cellDataType,
+      //   filter: params.colDef.filter,
+      //   rowIndex: params.data.id,
+      //   newValue: params.newValue,
+      // })).then((response) => { 
+      //   return response.json().then((data) => {
+      //       console.log(data);
+      //       return data;
+      //   }).catch((err) => {
+      //       console.log(err);
+      //   }) 
+      // });
+    });
+
+    gridAPI.refreshCells({columns: ["position"], force: true })
+  }
+  else if (params.data != params.newValue) {
     console.log("value: " + params.data + " has changed to " + params.newValue)
     params.data[params.column.colId] = params.newValue
 
@@ -65,13 +100,13 @@ function setterFunction(params) {
           console.log(err);
       }) 
     });
-
-    return true;
   }
   else {
     console.log("value unchanged")
-    return false;
+    returnValue = false;
   }
+
+  return returnValue
 }
 
 export function columnDefs(hiddenColumns, listType) {
