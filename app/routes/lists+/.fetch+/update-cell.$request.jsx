@@ -27,7 +27,7 @@ export async function loader(params) {
     else
       valueFormatted = castType(searchParams.get('newValue'), searchParams.get('filter'));
 
-    return await prisma[listType].update({
+    return await prisma[searchParams.get('listType')].update({
       where: {
         id: searchParams.get('rowIndex'),
       },

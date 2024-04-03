@@ -35,7 +35,7 @@ export const gridOptions = {
   rowDragMultiRow: true,
   onRowDragEnd: rowDragEnd,
   rowSelection: 'multiple',
-  onGridReady: gridReady
+  onGridReady: gridReady,
 }
 
 function gridReady(e) {
@@ -55,7 +55,7 @@ function createNewRow() {
   console.log("TEST!!!!")
 }
 
-function setterFunction(params) {
+function setterFunction(params, listType) {
   let returnValue = true
 
   if (params.column.colId == "position") {
@@ -64,29 +64,30 @@ function setterFunction(params) {
         rowNode.data[params.column.colId] = index + 1
       }
 
-      // fetch('fetch/update-cell/' + new URLSearchParams({
-      //   colId: params.column.colId,
-      //   type: params.colDef.cellDataType,
-      //   filter: params.colDef.filter,
-      //   rowIndex: params.data.id,
-      //   newValue: params.newValue,
-      // })).then((response) => { 
-      //   return response.json().then((data) => {
-      //       console.log(data);
-      //       return data;
-      //   }).catch((err) => {
-      //       console.log(err);
-      //   }) 
-      // });
+      fetch('../../fetch/update-cell/' + new URLSearchParams({
+        listType: listType,
+        colId: params.column.colId,
+        type: params.colDef.cellDataType,
+        filter: params.colDef.filter,
+        rowIndex: rowNode.data.id,
+        newValue: index + 1,
+      })).then((response) => { 
+        return response.json().then((data) => {
+            console.log(data);
+            return data;
+        }).catch((err) => {
+            console.log(err);
+        }) 
+      });
     });
 
     gridAPI.refreshCells({columns: ["position"], force: true })
   }
   else if (params.data != params.newValue) {
-    console.log("value: " + params.data + " has changed to " + params.newValue)
     params.data[params.column.colId] = params.newValue
 
-    fetch('fetch/update-cell/' + new URLSearchParams({
+    fetch('../../fetch/update-cell/' + new URLSearchParams({
+        listType: listType,
         colId: params.column.colId,
         type: params.colDef.cellDataType,
         filter: params.colDef.filter,
@@ -100,6 +101,8 @@ function setterFunction(params) {
           console.log(err);
       }) 
     });
+
+    console.log("value: " + params.oldValue + " has changed to " + params.newValue)
   }
   else {
     console.log("value unchanged")
@@ -113,8 +116,9 @@ export function columnDefs(hiddenColumns, listType) {
   return [
     {
       field: 'position',
+      sort: "asc",
       headerName: '#',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -207,7 +211,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'thumbnail',
       headerName: 'Thumbnail',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       sortable: false,
       resizable: false,
@@ -222,7 +226,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'title',
       headerName: 'Title',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 2,
       resizable: false,
       minWidth: 90,
@@ -236,7 +240,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'type',
       headerName: 'Type',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       resizable: false,
       minWidth: 70,
@@ -259,7 +263,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'airYear',
       headerName: 'Air Year',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -272,7 +276,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'length',
       headerName: 'Length',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
@@ -290,7 +294,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'rating',
       headerName: 'Rating',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       resizable: false,
       minWidth: 80,
@@ -304,7 +308,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'finishedDate',
       headerName: 'Finished Date',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       resizable: false,
@@ -319,7 +323,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'genres',
       headerName: 'Genre(s)',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       resizable: false,
       minWidth: 100,
@@ -332,7 +336,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'language',
       headerName: 'Language',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 1,
       resizable: false,
       minWidth: 90,
@@ -352,7 +356,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'story',
       headerName: 'Story',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
@@ -393,7 +397,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'character',
       headerName: 'Character',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -434,7 +438,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'presentation',
       headerName: 'Presentation',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return "" 
@@ -476,7 +480,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'sound',
       headerName: 'Sound',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -517,7 +521,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'performance',
       headerName: 'Performance',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -558,7 +562,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'enjoyment',
       headerName: 'Enjoyment',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -599,7 +603,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'averaged',
       headerName: 'Averaged',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -649,7 +653,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'personal',
       headerName: 'Personal',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -692,7 +696,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'differencePersonal',
       headerName: 'Difference: Personal',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueGetter: params => {
         if (params.data.personal && params.data.personal != 0) {
           return (params.data.personal - ((params.data.story + params.data.character + params.data.presentation + params.data.sound + params.data.performance + params.data.enjoyment) / 6))
@@ -733,7 +737,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'tmdbScore',
       headerName: 'TMDB Score',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -769,7 +773,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'differenceObjective',
       headerName: 'Difference: Objective',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       valueGetter: params => {
         if ((params.data.personal && params.data.personal != 0) && (params.data.tmdbScore && params.data.tmdbScore != 0)) {
           return (params.data.personal - params.data.tmdbScore)
@@ -810,7 +814,7 @@ export function columnDefs(hiddenColumns, listType) {
     {
       field: 'description',
       headerName: 'Description',
-      valueSetter: params => {setterFunction(params)},
+      valueSetter: params => {setterFunction(params, listType)},
       flex: 2,
       resizable: false,
       minWidth: 90,
