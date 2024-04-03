@@ -47,10 +47,18 @@ export function differenceFormatter(params: any) {
 }
 
 export function listThumbnailRenderer(params: any) {
-  let separatorIndex = params.indexOf("|");
+  let image, url
 
-  let image = params.slice(0, separatorIndex);
-  let url = params.slice(separatorIndex + 1);
+  if (!params) {
+    image = "https://placehold.co/300x450?text=?"
+    url = "https://www.themoviedb.org/"
+  }
+  else {
+    let separatorIndex = params.indexOf("|");
+
+    image = params.slice(0, separatorIndex);
+    url = params.slice(separatorIndex + 1);
+  }
 
   return (
     <a href={url}>

@@ -51,37 +51,56 @@ const rowDragText = function (params) {
   return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
 };
 
-function createNewRow() {
-  console.log("TEST!!!!")
+function createNewRow(location, params, listType) {
+  let insertPosition = 0
+  if (location == "Above") {
+    if (params.data.position < 1) {
+      insertPosition = 0
+    }
+    else {
+      insertPosition = params.data.position - 1
+    }
+  }
+  else
+    insertPosition = params.data.position
+
+  let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: 0, genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: "Across continents and decades, five brilliant friends make earth-shattering discoveries as the laws of science unravel and an existential threat emerges."}
+  
+  gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
+  updatePositions(params, listType)
+}
+
+function updatePositions(params, listType) {
+  gridAPI.forEachNode((rowNode, index) => {
+    if (rowNode.data.position != (index + 1)) {
+      rowNode.data[params.column.colId] = index + 1
+    }
+
+    fetch('../../fetch/update-cell/' + new URLSearchParams({
+      listType: listType,
+      colId: params.column.colId,
+      type: params.colDef.cellDataType,
+      filter: params.colDef.filter,
+      rowIndex: rowNode.data.id,
+      newValue: index + 1,
+    })).then((response) => { 
+      return response.json().then((data) => {
+          console.log(data);
+          return data;
+      }).catch((err) => {
+          console.log(err);
+      }) 
+    });
+  });
+
+  gridAPI.refreshCells({columns: ["position"], force: true })
 }
 
 function setterFunction(params, listType) {
   let returnValue = true
 
   if (params.column.colId == "position") {
-    gridAPI.forEachNode((rowNode, index) => {
-      if (rowNode.data.position != (index + 1)) {
-        rowNode.data[params.column.colId] = index + 1
-      }
-
-      fetch('../../fetch/update-cell/' + new URLSearchParams({
-        listType: listType,
-        colId: params.column.colId,
-        type: params.colDef.cellDataType,
-        filter: params.colDef.filter,
-        rowIndex: rowNode.data.id,
-        newValue: index + 1,
-      })).then((response) => { 
-        return response.json().then((data) => {
-            console.log(data);
-            return data;
-        }).catch((err) => {
-            console.log(err);
-        }) 
-      });
-    });
-
-    gridAPI.refreshCells({columns: ["position"], force: true })
+    updatePositions(params, listType)
   }
   else if (params.data != params.newValue) {
     params.data[params.column.colId] = params.newValue
@@ -139,38 +158,12 @@ export function columnDefs(hiddenColumns, listType) {
               <DropdownMenuPortal>
                 <DropdownMenuContent sideOffset={8} align="start">
                 <DropdownMenuItem onSelect={event => {
-                    fetch('fetch/insert-row/' + new URLSearchParams({
-                      listType: listType,
-                      id: params.data.id,
-                      watchlistId: params.data.watchlistId,
-                      position: params.data.position,
-                      change: 1
-                    })).then((response) => { 
-                      return response.json().then((data) => {
-                          console.log(data);
-                          return data;
-                      }).catch((err) => {
-                          console.log(err);
-                      }) 
-                    });
+                    createNewRow("Above", params, listType)
                   }}>
                     Insert 1 row above
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
-                    fetch('fetch/insert-row/' + new URLSearchParams({
-                      listType: listType,
-                      id: params.data.id,
-                      watchlistId: params.data.watchlistId,
-                      position: params.data.position,
-                      change: -1
-                    })).then((response) => { 
-                      return response.json().then((data) => {
-                          console.log(data);
-                          return data;
-                      }).catch((err) => {
-                          console.log(err);
-                      }) 
-                    });
+                    createNewRow("Below", params, listType)
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
@@ -247,13 +240,15 @@ export function columnDefs(hiddenColumns, listType) {
       maxWidth: 125,
       filter: 'agSetColumnFilter',
       cellStyle: function(params) {
-        if (params.value.includes('Movie')) {
-          return {color: '#408063'};
-        } 
-        else if (params.value.includes('TV Series*')) {
-          return {color: '#ffdccc'};
-        } else {
-          return {color: '#dbffcc'};
+        if (params.value) {
+          if (params.value.includes('Movie')) {
+            return {color: '#408063'};
+          } 
+          else if (params.value.includes('TV Series*')) {
+            return {color: '#ffdccc'};
+          } else {
+            return {color: '#dbffcc'};
+          }
         }
       },
       hide: hiddenColumns['type'],
@@ -343,10 +338,12 @@ export function columnDefs(hiddenColumns, listType) {
       maxWidth: 135,
       filter: "agSetColumnFilter",
       cellStyle: function(params) {
-        if (params.value.includes('English')) {
-          return {color: '#7196aa'};
-        } else {
-          return {color: '#ccedff'};
+        if (params.value) {
+          if (params.value.includes('English')) {
+            return {color: '#7196aa'};
+          } else {
+            return {color: '#ccedff'};
+          }
         }
       },
       hide: hiddenColumns['language'],
