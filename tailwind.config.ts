@@ -6,6 +6,7 @@ import { extendedTheme } from './app/utils/extended-theme.ts'
 
 export default {
 	content: ['./app/**/*.{js,jsx,ts,tsx}'],
+	mode: 'jit',
 	darkMode: 'class',
 	theme: {
 		container: {

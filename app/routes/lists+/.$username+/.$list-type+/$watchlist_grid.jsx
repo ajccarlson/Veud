@@ -35,6 +35,11 @@ export const gridOptions = {
   rowSelection: 'multiple',
 }
 
+const rowDragText = function (params) {
+  console.log(params)
+  return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
+};
+
 function createNewRow() {
   console.log("TEST!!!!")
 }
@@ -793,6 +798,7 @@ export function watchlistGrid(listEntries, watchListData, listType) {
           gridOptions={gridOptions}
           columnDefs={columnDefs(hiddenColumns, listType)}
           rowData={listEntries}
+          rowDragText={rowDragText}
         ></AgGridReact>
     </div>
   )
