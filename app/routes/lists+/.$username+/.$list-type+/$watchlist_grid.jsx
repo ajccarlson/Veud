@@ -74,6 +74,18 @@ function createNewRow(location, params, listType) {
   // })).then((response) => { 
   //   return response.json().then((data) => {
   //       console.log(data);
+  //
+  //        fetch('../../fetch/now-updated/' + new URLSearchParams({
+  //          watchlistId: params.data.watchlistId
+  //        })).then((response) => { 
+  //          return response.json().then((data) => {
+  //              console.log(data);
+  //              return data;
+  //          }).catch((err) => {
+  //              console.log(err);
+  //          }) 
+  //        });
+  //      
   //       return data;
   //   }).catch((err) => {
   //       console.log(err);
@@ -99,6 +111,18 @@ function updatePositions(params, listType) {
     })).then((response) => { 
       return response.json().then((data) => {
           console.log(data);
+
+          fetch('../../fetch/now-updated/' + new URLSearchParams({
+            watchlistId: rowNode.data.watchlistId
+          })).then((response) => { 
+            return response.json().then((data) => {
+                console.log(data);
+                return data;
+            }).catch((err) => {
+                console.log(err);
+            }) 
+          });
+          
           return data;
       }).catch((err) => {
           console.log(err);
@@ -128,6 +152,18 @@ function setterFunction(params, listType) {
     })).then((response) => { 
       return response.json().then((data) => {
           console.log(data);
+
+          fetch('../../fetch/now-updated/' + new URLSearchParams({
+            watchlistId: params.data.watchlistId
+          })).then((response) => { 
+            return response.json().then((data) => {
+                console.log(data);
+                return data;
+            }).catch((err) => {
+                console.log(err);
+            }) 
+          });
+
           return data;
       }).catch((err) => {
           console.log(err);
@@ -195,6 +231,18 @@ export function columnDefs(hiddenColumns, listType) {
                     })).then((response) => { 
                       return response.json().then((data) => {
                           console.log(data);
+
+                          fetch('../../fetch/now-updated/' + new URLSearchParams({
+                            watchlistId: params.data.watchlistId
+                          })).then((response) => { 
+                            return response.json().then((data) => {
+                                console.log(data);
+                                return data;
+                            }).catch((err) => {
+                                console.log(err);
+                            }) 
+                          });
+
                           return data;
                       }).catch((err) => {
                           console.log(err);
