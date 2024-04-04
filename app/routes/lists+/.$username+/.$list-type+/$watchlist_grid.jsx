@@ -337,6 +337,44 @@ export function columnDefs(hiddenColumns, listType) {
       minWidth: 100,
       maxWidth: 200,
       filter: "agSetColumnFilter",
+      cellRenderer: params => {
+        let genres = String(params.value).split(", ")
+        let genreSpans = [], genreCount = 0
+        
+        for (let genre of genres) {
+          let genreText = ""
+
+          if (genreCount < genres.length - 1) {
+            genreText = genre + ", "
+          }
+          else {
+            genreText = genre
+          }
+
+          if (genreCount % 2 == 0) {
+            genreSpans.push(
+              <span class="text-[#FFCCDD]">
+                {genreText}
+              </span>
+            )
+          }
+          else {
+            genreSpans.push(
+              <span class="text-[#804055]">
+                {genreText}
+              </span>
+            )
+          }
+
+          genreCount++
+        }
+
+        return (
+          <div>
+            {genreSpans}
+          </div>
+        )
+      },
       hide: hiddenColumns['genres'],
     },
 
