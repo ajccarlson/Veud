@@ -23,9 +23,19 @@ async function getListByName(listName, listType) {
 }
 
 export async function loader(params) {
-  let listFound = false
+  const currentUser = await prisma.User.findUnique({
+    where: {
+      username: params['params']['username'],
+    },
+  })
 
-  const watchlistSchema = await prisma.watchlist.findMany()
+  invariantResponse(currentUser, 'User not found', { status: 404 }) 
+
+  const watchlistSchema = await prisma.watchlist.findMany({
+		where: {
+			ownerId: currentUser.id,
+		},
+	})
 
   let watchLists = [];
   watchlistSchema.map(a => watchLists.push({
@@ -35,7 +45,8 @@ export async function loader(params) {
     columns: a.columns,
   }))
   
-  let watchListData;
+  let watchListData
+  let listFound = false
 
   for (let watchList of watchLists) {
     if (watchList.name == params['params']['watchlist']) {

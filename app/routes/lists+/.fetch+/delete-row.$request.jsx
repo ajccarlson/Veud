@@ -4,7 +4,7 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
-    return await prisma[params.params.listType].delete({
+    return await prisma[searchParams.get('listType')].delete({
       where: {
         id: searchParams.get('id'),
       },

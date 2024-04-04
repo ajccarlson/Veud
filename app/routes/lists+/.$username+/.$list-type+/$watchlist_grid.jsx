@@ -64,9 +64,22 @@ function createNewRow(location, params, listType) {
   else
     insertPosition = params.data.position
 
-  let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: 0, genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: "Across continents and decades, five brilliant friends make earth-shattering discoveries as the laws of science unravel and an existential threat emerges."}
+  let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: 0, genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
   
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
+  
+  // fetch('../../fetch/add-row/' + new URLSearchParams({
+  //   listType: listType,
+  //   row: JSON.stringify(emptyRow)
+  // })).then((response) => { 
+  //   return response.json().then((data) => {
+  //       console.log(data);
+  //       return data;
+  //   }).catch((err) => {
+  //       console.log(err);
+  //   }) 
+  // });
+
   updatePositions(params, listType)
 }
 
@@ -173,7 +186,7 @@ export function columnDefs(hiddenColumns, listType) {
                     Move row
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
-                    fetch('fetch/delete-row/' + new URLSearchParams({
+                    fetch('../../fetch/delete-row/' + new URLSearchParams({
                       listType: listType,
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
