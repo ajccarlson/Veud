@@ -353,14 +353,14 @@ export function columnDefs(hiddenColumns, listType) {
 
           if (genreCount % 2 == 0) {
             genreSpans.push(
-              <span class="ag-genre-even">
+              <span class="ag-genre-odd">
                 {genreText}
               </span>
             )
           }
           else {
             genreSpans.push(
-              <span class="ag-genre-odd">
+              <span class="ag-genre-even">
                 {genreText}
               </span>
             )
