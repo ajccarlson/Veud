@@ -258,7 +258,7 @@ export function columnDefs(hiddenColumns, listType) {
             return {color: '#408063'};
           } 
           else if (params.value.includes('TV Series*')) {
-            return {color: '#ffdccc'};
+            return {color: '#A2FFD5'};
           } else {
             return {color: '#dbffcc'};
           }
@@ -353,14 +353,14 @@ export function columnDefs(hiddenColumns, listType) {
 
           if (genreCount % 2 == 0) {
             genreSpans.push(
-              <span class="text-[#FFCCDD]">
+              <span class="ag-genre-even">
                 {genreText}
               </span>
             )
           }
           else {
             genreSpans.push(
-              <span class="text-[#804055]">
+              <span class="ag-genre-odd">
                 {genreText}
               </span>
             )
