@@ -16,7 +16,7 @@
     border-top-width: 8px;
     border-right-width: 8px;
     border-color: #54806C;
-    border-radius: 0.25rem;
+    border-radius: 0 0.5rem 0.5rem 0;
   }
 
   .list-landing-sidebar-container:hover {
@@ -29,7 +29,6 @@
     align-content: center;
     text-align: center;
     justify-content: center;
-    border-radius: 0.25rem;
   }
 
   .list-landing-sidebar-item:hover {
@@ -66,8 +65,8 @@
     top: 0px;
     border-top-width: 8px;
     border-left-width: 8px;
-    border-right-width: 8px;
     border-color: #383040;
+    border-radius: 0.5rem 0 0 0;
   }
 
   .list-landing-nav-header {
@@ -92,18 +91,17 @@
     flex: 1 1 auto;
     //padding: 1.5rem;
     background-color: #464646;
-    width: 55rem;
+    width: 45rem;
     font-family: arial;
     border-left-width: 8px;
     border-bottom-width: 8px;
     border-color: #383040;
+    border-radius: 0 0 0 0.5rem;
   }
 
   .list-landing-nav-bottom {
-    display: grid;
     border-top-width: 4px;
     border-color: #66563d;
-    grid-template-columns: 85% 15%;
   }
 
   .list-landing-nav-description {
@@ -126,11 +124,9 @@
     font-weight: 600;
     color: #408063;
     margin-top: 0.5rem;
-    text-align: end;
-    padding-left: 0.75rem;
+    padding-left: 35%;
     padding-right: 0.75rem;
     padding-bottom: 0.25rem;
-    padding-right: 2rem;
   }
 
   .list-landing-nav-last-updated-span {
@@ -138,8 +134,11 @@
   }
 
   .list-landing-nav-link-container {
+    float: right;
+    width: 40%;
+    height: 2.6rem;
     display: grid;
-    grid-template-rows: 85% 15%;
+    grid-template-columns: 55% 45%;
     /*border-width: 8px;
     border-color: #383040;*/
   }
@@ -152,19 +151,27 @@
     font-weight: 600;
     background-color: #6F6F6F;
     color: #FFEFCC;
+    border-top-width: 8px;
+    border-color: #54806C;
   }
 
   .list-landing-nav-link-open:hover {
     background-color: #8CA99D;
+    border-color: #507b68;
   }
 
   .list-landing-nav-link-settings {
     font-weight: 600;
     background-color: #6F6F6F;
     color: #FFEFCC;
+    border-top-width: 8px;
+    border-right-width: 8px;
+    border-color: #54806C;
+    border-radius: 0 0 0.5rem 0;
   }
 
   .list-landing-nav-link-settings:hover {
     background-color: #8CA99D;
+    border-color: #507b68;
   }
 }

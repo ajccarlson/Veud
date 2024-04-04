@@ -180,11 +180,11 @@ export function columnDefs(hiddenColumns, listType) {
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={event => {
+                  {/* <DropdownMenuItem onSelect={event => {
                     createNewRow()
                   }}>
                     Move row
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuItem onSelect={event => {
                     fetch('../../fetch/delete-row/' + new URLSearchParams({
                       listType: listType,

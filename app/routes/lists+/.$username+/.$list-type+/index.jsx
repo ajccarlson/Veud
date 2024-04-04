@@ -27,16 +27,15 @@ function getWatchlistNav(watchListData, username, listType) {
               `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
             `</div>` + 
           `</div>` + 
-
-          `<div class="list-landing-nav-link-container">` + 
-            `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
-              `Open` + 
-            `</a>` +  
-            `<button class="list-landing-nav-link-settings" type="submit">` + 
-                `Settings` + 
-            `</button>` + 
-          `</div>` + 
         `</div>` + 
+      `</div>` + 
+      `<div class="list-landing-nav-link-container">` + 
+        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
+          `Open` + 
+        `</a>` +  
+        `<button class="list-landing-nav-link-settings" type="submit">` + 
+            `Settings` + 
+        `</button>` + 
       `</div>` + 
     `</div>` + 
     `<br></<br>` 
@@ -91,6 +90,10 @@ export async function loader(params) {
     watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
   }
 
+  if (watchListNavs.length < 1) {
+    watchListNavs = [`<h1">No lists found</h1>`]
+  }
+
   return json({ watchListData, watchListNavs, username: params['params']['username'], listType });
 };
 
@@ -108,8 +111,8 @@ export function ErrorBoundary() {
 
 export default function lists() {
   return (
-    <main class="list-landing list-landing-main" style={{ width: '100%', height: '100%' }}>
-      <div class="list-landing-main">
+    <main class="list-landing" style={{ width: '100%', height: '100%' }}>
+      <div class="list-landing-main" style={{ width: '100%', height: '100%' }}>
         <div class="list-landing-sidebar-container">
           <a href={"/lists/" + useLoaderData()['username'] + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
           <a href={"/lists/" + useLoaderData()['username'] + "/anime"} className="list-landing-sidebar-item">Anime</a>
