@@ -1,6 +1,6 @@
 .list-landing {
   .list-landing-main {
-    background-color: #ff0000;
+    background-color: #222222;
   }
 
   .list-landing-sidebar-container {
@@ -47,38 +47,35 @@
   }
 
   .list-landing-nav-item-container {
-    flex: 1 1 auto;
-    //padding: 1.5rem;
-    background-color: #464646;
-    width: 55rem;
     font-family: arial;
-    border-width: 8px;
-    border-color: #383040;
-    border-radius: 0.5rem;
   }
 
   .list-landing-nav-top {
+    flex: 1 1 auto;
+    //padding: 1.5rem;
     display: flex;
     flex-wrap: wrap;
-    border-bottom-width: 4px;
+    width: fit-content;
     background-color: #121212;
-    border-color: #66563d;
     //border-spacing: var(--tw-border-spacing-x) 0px;
     padding-bottom: 0.25rem;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
     padding-top: 0.25rem;
     position: sticky;
     top: 0px;
+    border-top-width: 8px;
+    border-left-width: 8px;
+    border-right-width: 8px;
+    border-color: #383040;
   }
 
   .list-landing-nav-header {
-    flex: 1 1 auto;
     font-size: 1.25rem;
     line-height: 1.75rem;
     font-weight: 600;
     color: #ffffb1;
-    padding-left: 1.25rem;
+    padding-right: 1rem;
   }
 
   .list-landing-nav-length {
@@ -87,13 +84,25 @@
     font-weight: 600;
     color: #FF9900;
     padding-left: 1rem;
-    border-left-width: 5px;
+    border-left-width: 4px;
     border-color: #7196aa;
-    border-radius: 0.5rem;
+  }
+
+  .list-landing-nav-bottom-container {
+    flex: 1 1 auto;
+    //padding: 1.5rem;
+    background-color: #464646;
+    width: 55rem;
+    font-family: arial;
+    border-left-width: 8px;
+    border-bottom-width: 8px;
+    border-color: #383040;
   }
 
   .list-landing-nav-bottom {
     display: grid;
+    border-top-width: 4px;
+    border-color: #66563d;
     grid-template-columns: 85% 15%;
   }
 

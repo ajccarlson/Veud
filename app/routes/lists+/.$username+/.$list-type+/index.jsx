@@ -17,24 +17,25 @@ function getWatchlistNav(watchListData, username, listType) {
           `${watchListData.listEntries.length}` +
         `</div>` + 
       `</div>` + 
-
-      `<div class="list-landing-nav-bottom">` + 
-        `<div>` + 
-          `<p class="list-landing-nav-description">` + 
-            `${watchListData.watchlist.description}` +
-          `</p>` +
-          `<div class="list-landing-nav-last-updated-container">` + 
-            `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
+      `<div class="list-landing-nav-bottom-container">` + 
+        `<div class="list-landing-nav-bottom">` + 
+          `<div>` + 
+            `<p class="list-landing-nav-description">` + 
+              `${watchListData.watchlist.description}` +
+            `</p>` +
+            `<div class="list-landing-nav-last-updated-container">` + 
+              `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
+            `</div>` + 
           `</div>` + 
-        `</div>` + 
 
-        `<div class="list-landing-nav-link-container">` + 
-          `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
-            `Open` + 
-          `</a>` +  
-          `<button class="list-landing-nav-link-settings" type="submit">` + 
-              `Settings` + 
-          `</button>` + 
+          `<div class="list-landing-nav-link-container">` + 
+            `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
+              `Open` + 
+            `</a>` +  
+            `<button class="list-landing-nav-link-settings" type="submit">` + 
+                `Settings` + 
+            `</button>` + 
+          `</div>` + 
         `</div>` + 
       `</div>` + 
     `</div>` + 
@@ -107,13 +108,15 @@ export function ErrorBoundary() {
 
 export default function lists() {
   return (
-    <main className='list-landing list-landing-main' style={{ width: '100%', height: '100%' }}>
-      <div className="list-landing-sidebar-container">
-        <a href={"/lists/" + useLoaderData()['username'] + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
-        <a href={"/lists/" + useLoaderData()['username'] + "/anime"} className="list-landing-sidebar-item">Anime</a>
-        <a href={"/lists/" + useLoaderData()['username'] + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
+    <main class="list-landing list-landing-main" style={{ width: '100%', height: '100%' }}>
+      <div class="list-landing-main">
+        <div class="list-landing-sidebar-container">
+          <a href={"/lists/" + useLoaderData()['username'] + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
+          <a href={"/lists/" + useLoaderData()['username'] + "/anime"} className="list-landing-sidebar-item">Anime</a>
+          <a href={"/lists/" + useLoaderData()['username'] + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
+        </div>
+        <div class="list-landing-nav-container" dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
       </div>
-      <div class="list-landing-nav-container" dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
     </main>
   )
 }
