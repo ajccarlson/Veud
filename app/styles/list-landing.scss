@@ -7,10 +7,9 @@
     align-items: center;
     background: linear-gradient(
       to right,
-      #383040 0%,
-      #383040 50%,
-      #54806C 50%,
-      #54806C 100%
+      #383040 0% 10%,
+      #2e2f2b 10% 90%,
+      #54806C 90% 100%
     );
   }
 
@@ -28,6 +27,7 @@
     border-right-width: 8px;
     border-color: #54806C;
     border-radius: 0 0.5rem 0.5rem 0;
+    // box-shadow: 0 0 50px #000000;
   }
 
   .list-landing-sidebar-container:hover {
