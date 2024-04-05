@@ -1,3 +1,5 @@
+import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.tsx'
+
 export function dateFormatter(params: any) {
   if (!params || params == null || params == 0 || params == "1970-01-01T00:00:00.000Z")
     return " "
@@ -75,3 +77,17 @@ export function listThumbnailRenderer(params: any) {
   )
 }
 
+export function titleCellRenderer(params: any) {
+  if (!params || params.replace(/\W/g, '') === "") {
+    return (
+      <span className=''>
+        <div className="ml-auto hidden max-w-sm flex-1 sm:block">
+          <MediaSearchBar status="idle" />
+        </div>
+      </span>
+    )
+  }
+  else {
+    return params
+  }
+}

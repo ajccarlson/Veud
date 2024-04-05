@@ -7,7 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, differenceFormatter, listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
+import { dateFormatter, differenceFormatter, listThumbnailRenderer, titleCellRenderer } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -51,7 +51,7 @@ const rowDragText = function (params) {
   return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
 };
 
-function createNewRow(location, params, listType) {
+async function createNewRow(location, params, listType) {
   let insertPosition = 0
   if (location == "Above") {
     if (params.data.position < 1) {
@@ -65,7 +65,7 @@ function createNewRow(location, params, listType) {
     insertPosition = params.data.position
 
   let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: 0, genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
-  
+
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
   // fetch('../../fetch/add-row/' + new URLSearchParams({
@@ -110,18 +110,18 @@ function updatePositions(params, listType) {
       newValue: index + 1,
     })).then((response) => { 
       return response.json().then((data) => {
-          console.log(data);
+          // console.log(data);
 
-          fetch('../../fetch/now-updated/' + new URLSearchParams({
+          /*fetch('../../fetch/now-updated/' + new URLSearchParams({
             watchlistId: rowNode.data.watchlistId
           })).then((response) => { 
             return response.json().then((data) => {
-                console.log(data);
+                // console.log(data);
                 return data;
             }).catch((err) => {
                 console.log(err);
             }) 
-          });
+          });*/
           
           return data;
       }).catch((err) => {
@@ -151,13 +151,13 @@ function setterFunction(params, listType) {
         newValue: params.newValue,
     })).then((response) => { 
       return response.json().then((data) => {
-          console.log(data);
+          // console.log(data);
 
           fetch('../../fetch/now-updated/' + new URLSearchParams({
             watchlistId: params.data.watchlistId
           })).then((response) => { 
             return response.json().then((data) => {
-                console.log(data);
+                // console.log(data);
                 return data;
             }).catch((err) => {
                 console.log(err);
@@ -230,13 +230,13 @@ export function columnDefs(hiddenColumns, listType) {
                       change: 1
                     })).then((response) => { 
                       return response.json().then((data) => {
-                          console.log(data);
+                          // console.log(data);
 
                           fetch('../../fetch/now-updated/' + new URLSearchParams({
                             watchlistId: params.data.watchlistId
                           })).then((response) => { 
                             return response.json().then((data) => {
-                                console.log(data);
+                                // console.log(data);
                                 return data;
                             }).catch((err) => {
                                 console.log(err);
@@ -285,6 +285,7 @@ export function columnDefs(hiddenColumns, listType) {
       resizable: false,
       minWidth: 90,
       maxWidth: 200,
+      cellRenderer: params => titleCellRenderer(params.value),
       filter: 'agTextColumnFilter',
       cellClass: "ag-title-cell",
       hide: hiddenColumns['title'],
@@ -389,39 +390,41 @@ export function columnDefs(hiddenColumns, listType) {
         let genres = String(params.value).split(", ")
         let genreSpans = [], genreCount = 0
         
-        for (let genre of genres) {
-          let genreText = ""
-
-          if (genreCount < genres.length - 1) {
-            genreText = genre + ", "
+        if (genres.length > 0 && (!genres.includes("null"))) {
+          for (let genre of genres) {
+            let genreText = ""
+  
+            if (genreCount < genres.length - 1) {
+              genreText = genre + ", "
+            }
+            else {
+              genreText = genre
+            }
+  
+            if (genreCount % 2 == 0) {
+              genreSpans.push(
+                <span class="ag-genre-odd">
+                  {genreText}
+                </span>
+              )
+            }
+            else {
+              genreSpans.push(
+                <span class="ag-genre-even">
+                  {genreText}
+                </span>
+              )
+            }
+  
+            genreCount++
           }
-          else {
-            genreText = genre
-          }
-
-          if (genreCount % 2 == 0) {
-            genreSpans.push(
-              <span class="ag-genre-odd">
-                {genreText}
-              </span>
-            )
-          }
-          else {
-            genreSpans.push(
-              <span class="ag-genre-even">
-                {genreText}
-              </span>
-            )
-          }
-
-          genreCount++
+  
+          return (
+            <div>
+              {genreSpans}
+            </div>
+          )
         }
-
-        return (
-          <div>
-            {genreSpans}
-          </div>
-        )
       },
       hide: hiddenColumns['genres'],
     },
