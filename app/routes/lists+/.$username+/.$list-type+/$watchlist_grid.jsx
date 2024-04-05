@@ -7,7 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, differenceFormatter, listThumbnailRenderer, titleCellRenderer } from "#app/utils/lists/column-functions.tsx"
+import { dateFormatter, differenceFormatter, listThumbnailRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -300,6 +300,7 @@ export function columnDefs(hiddenColumns, listType) {
       resizable: false,
       minWidth: 70,
       maxWidth: 125,
+      cellRenderer: params => TypeCellRenderer(params.value),
       filter: 'agSetColumnFilter',
       cellStyle: function(params) {
         if (params.value) {

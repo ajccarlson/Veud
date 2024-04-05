@@ -1,6 +1,15 @@
 import { fetchData } from "#app/routes/media+/fetch-data.jsx"
 
 export async function searchTMDB(entry, type) {
+  type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
+
+  if (type.includes('tv'))
+    type = 'tv'
+  else if (type.includes('person'))
+    type = 'person'
+  else
+    type = 'movie'
+
   const url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
   let response, data
 
