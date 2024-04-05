@@ -1,6 +1,17 @@
 .list-landing {
   .list-landing-main {
-    background-color: #222222;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(
+      to right,
+      #383040 0%,
+      #383040 50%,
+      #54806C 50%,
+      #54806C 100%
+    );
   }
 
   .list-landing-sidebar-container {
@@ -42,7 +53,14 @@
   .list-landing-nav-container {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
+    background-color: #222222;
+    top: 0;
+    left: 0;
+    height: 100%;
+    min-width: 60vw;
+    max-width: 100vw;
   }
 
   .list-landing-nav-item-container {
