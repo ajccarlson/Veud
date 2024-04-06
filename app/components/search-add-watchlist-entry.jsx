@@ -12,23 +12,21 @@ import { searchTMDB } from "#app/routes/media+/tmdb.jsx"
 import { Icon } from './ui/icon.tsx'
 import { Input } from './ui/input.tsx'
 import { StatusButton } from './ui/status-button.tsx'
+import "#app/styles/watchlist-search.scss"
 
 export function MediaSearchBar() {
 	const id = useId()
 	const [searchParams] = useSearchParams()
-
-	async function getTMDBInfo(event) {
-		event.preventDefault();
-		console.log(await searchTMDB(event.target.search.value, "movie"))
-	}
+	const [mediaResults, setmediaResults] = useState([]);
 
 	return (
 		<Form
 			method="GET"
-			onSubmit={async (response) => {
-        console.log(await getTMDBInfo(response))
+			onSubmit={async (event) => {
+        event.preventDefault();
+				setmediaResults(await searchTMDB(event.target.search.value, "movie"))
       }}
-			className="flex flex-wrap items-center justify-center gap-2"
+			className="watchlist-search flex flex-wrap items-center justify-center gap-2"
 		>
 			<div className="flex-1">
 				<Input
@@ -47,6 +45,13 @@ export function MediaSearchBar() {
 				>
 					<Icon name="magnifying-glass" size="md" />
 				</StatusButton>
+			</div>
+			<div>
+				{mediaResults.map( result =>
+					<div className="watchlist-search-item">
+						{result.title}
+					</div>
+				)}
 			</div>
 		</Form>
 	)
