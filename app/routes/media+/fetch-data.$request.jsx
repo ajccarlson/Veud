@@ -1,13 +1,22 @@
-const tmdbAPIKey=process.env.tmdbAPIKey
-const traktAPIKey=process.env.traktAPIKey
-const traktAccessTokenMain=process.env.traktAccessTokenMain
-const traktAccessTokenBackup=process.env.traktAccessTokenBackup
-const MALClientID=process.env.MALClientID
-const MALUser=process.env.MALUser
-
-export async function fetchData(fetchMethod, url, authorization, fetchBody, sleepTime = 1500/*, override = false*/) {
-  console.log("0.1")
+export async function loader(params) {
   try {
+    const tmdbAPIKey = process.env.tmdbAPIKey
+    const traktAPIKey = process.env.traktAPIKey
+    const traktAccessTokenMain = process.env.traktAccessTokenMain
+    const traktAccessTokenBackup = process.env.traktAccessTokenBackup
+    const MALClientID = process.env.MALClientID
+
+    const searchParams = new URLSearchParams(params.params.request)
+    const fetchMethod = searchParams.get('fetchMethod')
+    const url = searchParams.get('url')
+    const authorization = searchParams.get('authorization')
+    const fetchBody = searchParams.get('fetchBody')
+    let sleepTime = searchParams.get('sleepTime')
+
+    if (!sleepTime) {
+      sleepTime = 1500
+    }
+  
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
     // if (!checkTime() && !override && !Boolean(getVariable('devMode')))
@@ -76,23 +85,3 @@ export async function fetchData(fetchMethod, url, authorization, fetchBody, slee
     throw new Error('Failed to fetch data!\n' + e);
   }
 }
-
-// function fetchTest() {
-//   try {
-//     const url = "https://api.themoviedb.org/3/discover/movie?include_adult=false&include_video=false&language=en-US&page=1&sort_by=popularity.desc";
-//     const [response, data] = fetchData('get', url, 'tmdb', undefined, 0, true);
-//     if (!response || !data) {
-//       console.error("Error: no data found!");
-//       return false;
-//     }
-//     else {
-//       setVariable('fetchAvailable', true);
-//       return true;
-//     }
-//   }
-//   catch (e) {
-//     setVariable('fetchAvailable', false);
-//     console.error('UrlFetchApp is not working!\n' + e);
-//     return false;
-//   }
-// }

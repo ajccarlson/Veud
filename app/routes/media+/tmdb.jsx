@@ -1,5 +1,3 @@
-import { fetchData } from "#app/routes/media+/fetch-data.jsx"
-
 export async function searchTMDB(entry, type) {
   type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
 
@@ -14,7 +12,16 @@ export async function searchTMDB(entry, type) {
   let response, data
 
   try {
-    [response, data] = await fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+    response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+      fetchMethod: 'get',
+      url: url,
+      authorization: 'tmdb',
+      fetchBody: undefined,
+      sleepTime: 1500,
+    }))
+    data = await response.json();
+    data.map(e => data = e ? {...data, ...e} : data)
+
     if (!response || !data)
       throw new Error("Error: no data found!");
   }
@@ -26,7 +33,7 @@ export async function searchTMDB(entry, type) {
   return data.results
 }
 
-export function getTMDBInfo(entry, type/*, override = false*/) {
+export async function getTMDBInfo(entry, type/*, override = false*/) {
   try {
     type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
     if (type.includes('tv'))
@@ -46,8 +53,17 @@ export function getTMDBInfo(entry, type/*, override = false*/) {
       if (entry.match(imdbRegex)) {
         url = "https://api.themoviedb.org/3/find/" + encodeURIComponent(entry) + "?external_source=imdb_id";
 
-        try {
-          [response, data] = fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+        try {;
+          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+            fetchMethod: 'get',
+            url: url,
+            authorization: 'tmdb',
+            fetchBody: undefined,
+            sleepTime: 1500,
+          }))
+          data = await response.json();
+          data.map(e => data = e ? {...data, ...e} : data)
+
           if (!response || !data)
             throw new Error("Error: no data found!");
         }
@@ -66,7 +82,16 @@ export function getTMDBInfo(entry, type/*, override = false*/) {
         url = "https://api.themoviedb.org/3/search/multi?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
 
         try {
-          [response, data] = fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+            fetchMethod: 'get',
+            url: url,
+            authorization: 'tmdb',
+            fetchBody: undefined,
+            sleepTime: 1500,
+          }))
+          data = await response.json();
+          data.map(e => data = e ? {...data, ...e} : data)
+
           if (!response || !data)
             throw new Error("Error: no data found!");
         }
@@ -82,7 +107,16 @@ export function getTMDBInfo(entry, type/*, override = false*/) {
     url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "&include_adult=false&language=en-US&page=1";
 
     try {
-      [response, data] = fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+      response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'tmdb',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      }))
+      data = await response.json();
+      data.map(e => data = e ? {...data, ...e} : data)
+
       if (!response || !data)
         throw new Error("Error: no data found!");
     }
@@ -141,7 +175,16 @@ export function getTMDBInfo(entry, type/*, override = false*/) {
         url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "/content_ratings";
 
         try {
-          [response, data] = fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+            fetchMethod: 'get',
+            url: url,
+            authorization: 'tmdb',
+            fetchBody: undefined,
+            sleepTime: 1500,
+          }))
+          data = await response.json();
+          data.map(e => data = e ? {...data, ...e} : data)
+
           if (!response || !data)
             throw new Error("Error: no data found!");
         }
@@ -160,7 +203,16 @@ export function getTMDBInfo(entry, type/*, override = false*/) {
         url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "/release_dates";
         
         try {
-          [response, data] = fetchData('get', url, 'tmdb', undefined, 1500/*, override*/);
+          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+            fetchMethod: 'get',
+            url: url,
+            authorization: 'tmdb',
+            fetchBody: undefined,
+            sleepTime: 1500,
+          }))
+          data = await response.json();
+          data.map(e => data = e ? {...data, ...e} : data)
+
           if (!response || !data)
             throw new Error("Error: no data found!");
         }

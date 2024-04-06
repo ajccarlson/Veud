@@ -1,12 +1,4 @@
-import { useState } from 'react'
-import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.tsx'
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuPortal,
-	DropdownMenuTrigger,
-} from '#app/components/ui/dropdown-menu.tsx'
+import { MediaSearchBar, MediaTypeDropdown } from '#app/components/search-add-watchlist-entry.jsx'
 
 export function dateFormatter(params: any) {
   if (!params || params == null || params == 0 || params == "1970-01-01T00:00:00.000Z")
@@ -100,28 +92,12 @@ export function titleCellRenderer(params: any) {
   }
 }
 
-export function TypeCellRenderer(params: any) {
-  const [selectedItem, setSelectedItem] = useState("Type");
+export function TypeCellRenderer(params: any) { 
+  
 
   if (!params || params.replace(/\W/g, '') === "") {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <div className="bg-[#6F6F6F] hover:bg-[#8CA99D] cursor-pointer text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
-            {selectedItem}
-          </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent sideOffset={8} align="start">
-            <DropdownMenuItem onClick={() => {setSelectedItem('Movie')}}>
-              Movie
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {setSelectedItem('TV Series')}}>
-              TV Series
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
-      </DropdownMenu>
+      <MediaTypeDropdown/>
     )
   }
   else {

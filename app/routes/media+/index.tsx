@@ -2,7 +2,7 @@ import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node'
 import { Link, useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
-import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.tsx'
+import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.jsx'
 import { searchTMDB } from "#app/routes/media+/tmdb.jsx"
 import { cn, useDelayedIsPending } from '#app/utils/misc.tsx'
 
