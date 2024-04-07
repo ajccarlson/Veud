@@ -77,24 +77,22 @@ export function listThumbnailRenderer(params: any) {
   )
 }
 
-export function titleCellRenderer(params: any) {
-  if (!params || params.replace(/\W/g, '') === "") {
+export function titleCellRenderer(params: any, listType: any) {
+  if (!params.value || params.value.replace(/\W/g, '') === "") {
     return (
       <span className=''>
         <div className="ml-auto hidden max-w-sm flex-1 sm:block">
-          <MediaSearchBar status="idle" />
+          <MediaSearchBar params={{params, listType}}/>
         </div>
       </span>
     )
   }
   else {
-    return params
+    return params.value
   }
 }
 
 export function TypeCellRenderer(params: any) { 
-  
-
   if (!params || params.replace(/\W/g, '') === "") {
     return (
       <MediaTypeDropdown/>

@@ -38,12 +38,14 @@ export async function searchTMDB(entry, type) {
 export async function getTMDBInfo(entry, type/*, override = false*/) {
   try {
     type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
-    if (type.includes('tv'))
+    if (type.includes('movie'))
+      type = 'movie'
+    else if (type.includes('tv'))
       type = 'tv'
     else if (type.includes('person'))
       type = 'person'
     else
-      type = 'movie'
+      type = 'multi'
 
     let url, response, data, entryID;
 
@@ -81,7 +83,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
           entryID = data.movie_results[0].id;
       }
       else {
-        url = "https://api.themoviedb.org/3/search/multi?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
+        url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
 
         try {
           response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
@@ -103,6 +105,9 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
         }
 
         entryID = data.results[0].id;
+
+        if (type == 'multi')
+          type = data.results[0].media_type
       }
     }
 
@@ -133,7 +138,6 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
     if (!posterFill)
       posterFill = data.profile_path;
 
-    const thumbnail = ("=HYPERLINK(\"" + "https://www.themoviedb.org/" + type + "/" + entryID + "\", Image(\"https://www.themoviedb.org/t/p/w600_and_h900_bestv2" + posterFill + "\"))");
     const description = data.overview;
 
     if (type != 'person') {
@@ -231,6 +235,8 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
       }
 
       const typeFormatted = type == "tv" ? "TV Series" : type.charAt(0).toUpperCase() + type.slice(1);
+
+      const thumbnail = ("https://www.themoviedb.org/t/p/w600_and_h900_bestv2" + posterFill + "|" + "https://www.themoviedb.org/" + type + "/" + entryID);
 
       infoObject = {
         'entryID': data.id,

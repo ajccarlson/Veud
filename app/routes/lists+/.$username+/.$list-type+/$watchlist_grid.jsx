@@ -42,6 +42,15 @@ function gridReady(e) {
   gridAPI = e.api
 }
 
+export function refreshGrid(refreshColumns) {
+  if (refreshColumns && (refreshColumns.length > 0)) {
+    gridAPI.refreshCells({columns: refreshColumns, force: true })
+  }
+  else {
+    gridAPI.refreshCells()
+  }
+}
+
 function rowDragEnd(params) {
   const rowNode = gridAPI.getRowNode(params.node.id)
   rowNode.setDataValue("position", params.overIndex + 1)
@@ -64,7 +73,7 @@ async function createNewRow(location, params, listType) {
   else
     insertPosition = params.data.position
 
-  let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: 0, genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
+  let emptyRow = {id: " ", watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
 
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
@@ -130,7 +139,7 @@ function updatePositions(params, listType) {
     });
   });
 
-  gridAPI.refreshCells({columns: ["position"], force: true })
+  refreshGrid(["position"])
 }
 
 function setterFunction(params, listType) {
@@ -285,7 +294,7 @@ export function columnDefs(hiddenColumns, listType) {
       resizable: false,
       minWidth: 90,
       maxWidth: 200,
-      cellRenderer: params => titleCellRenderer(params.value),
+      cellRenderer: params => titleCellRenderer(params, listType),
       filter: 'agTextColumnFilter',
       cellClass: "ag-title-cell",
       hide: hiddenColumns['title'],

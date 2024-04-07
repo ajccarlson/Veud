@@ -2,4 +2,9 @@
   .watchlist-search-item {
     background-color: #6F6F6F;
   }
+
+  .watchlist-search-item:hover {
+    cursor: pointer;
+    background-color: #464646;
+  }
 }
