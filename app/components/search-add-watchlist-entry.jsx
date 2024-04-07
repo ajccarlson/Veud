@@ -67,6 +67,13 @@ export function MediaSearchBar(params) {
 						  row: JSON.stringify(addRow)
 						}))
 
+						const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + new URLSearchParams({
+							listName: params.params.watchlistName,
+							listType: params.params.listType,
+						}))
+						const deleteEmptyData = await deleteEmptyResponse.json();
+						console.log(deleteEmptyData)
+
 						const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
 							watchlistId: params.params.params.data.watchlistId
 						}))
