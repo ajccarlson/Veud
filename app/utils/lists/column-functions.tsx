@@ -77,12 +77,12 @@ export function listThumbnailRenderer(params: any) {
   )
 }
 
-export function titleCellRenderer(params: any, listType: any) {
+export function titleCellRenderer(params: any, watchlistName: any, listType: any) {
   if (!params.value || params.value.replace(/\W/g, '') === "") {
     return (
       <span className=''>
         <div className="ml-auto hidden max-w-sm flex-1 sm:block">
-          <MediaSearchBar params={{params, listType}}/>
+          <MediaSearchBar params={{params, watchlistName, listType}}/>
         </div>
       </span>
     )
