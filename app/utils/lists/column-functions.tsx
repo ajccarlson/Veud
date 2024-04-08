@@ -40,12 +40,17 @@ export function timeSince(date: Date) {
 }
 
 export function differenceFormatter(params: any) {
+  try {
     if (params > 0) {
       return ('+' + params.toFixed(2))
     }
     else {
       return params.toFixed(2)
     }
+  }
+  catch(e) {
+    return params
+  }
 }
 
 export function listThumbnailRenderer(params: any) {
