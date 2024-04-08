@@ -1,7 +1,7 @@
 import { MediaSearchBar, MediaTypeDropdown } from '#app/components/search-add-watchlist-entry.jsx'
 
 export function dateFormatter(params: any) {
-  if (!params || params == null || params == 0 || params == "1970-01-01T00:00:00.000Z")
+  if (!params || params == null || params == 0 || params == "1970-01-01T00:00:00.000Z" || params == new Date(0))
     return " "
 
   let date = new Date(params);

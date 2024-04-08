@@ -763,7 +763,7 @@ export function columnDefs(hiddenColumns, watchListData, listType) {
         } else {return ""}
       },
       valueFormatter: params => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
+        if ((!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) && (!params.data.personal || params.data.personal == "null" || params.data.personal == "NULL" || params.data.personal == 0)) {
           return ""
         } else {
           return differenceFormatter(params.value)
@@ -840,7 +840,7 @@ export function columnDefs(hiddenColumns, watchListData, listType) {
         } else {return ""}
       },
       valueFormatter: params => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
+        if ((!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) && (!params.data.tmdbScore || params.data.tmdbScore == "null" || params.data.tmdbScore == "NULL" || params.data.tmdbScore == 0)) {
           return ""
         } else {
           return differenceFormatter(params.value)
