@@ -58,6 +58,20 @@ export async function refreshGrid(refreshColumns, watchlistName, listType) {
     gridAPI.setGridOption('rowData', listEntriesData)
     gridAPI.refreshCells({ force: true })
   }
+
+  if (listEntries.slice(-1)[0] &&
+  ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== ""))) {
+    listEntries.push(emptyRow)
+
+    if (refreshColumns && (refreshColumns.length > 0)) {
+      gridAPI.setGridOption('rowData', listEntriesData)
+      gridAPI.refreshCells({columns: refreshColumns, force: true })
+    }
+    else {
+      gridAPI.setGridOption('rowData', listEntriesData)
+      gridAPI.refreshCells({ force: true })
+    }
+  }
 }
 
 function rowDragEnd(params) {
@@ -886,10 +900,16 @@ export function columnDefs(hiddenColumns, watchListData, listType) {
   ]
 }
 
-export function watchlistGrid(listEntries, watchListData, listType) {
+export function watchlistGrid(listEntries, watchListData, listType, watchlistId) {
   const columns = ["position", "thumbnail", "title", "type", "airYear", "length", "rating", "finishedDate", "genres", "language", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "tmdbScore", "differenceObjective", "description"];
   const hiddenArray = columns.filter(x => !watchListData.columns.split(', ').includes(x));
   const hiddenColumns = hiddenArray.reduce((key,value) => (key[value] = true, key),{});
+
+  let emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
+  if (listEntries.slice(-1)[0] &&
+  ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== ""))) {
+    listEntries.push(emptyRow)
+  }
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>

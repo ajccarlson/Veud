@@ -117,9 +117,12 @@ model AnimeEntry {
   startSeason	        String?
   length		          String?
   rating	            String?
+  startDate	          DateTime?
   finishedDate	      DateTime?
   genres	            String?
   studio	            String?
+  demographics        String?
+  priority            String?
   story		            Int?
   character	          Int?
   presentation	      Int?
@@ -151,10 +154,13 @@ model MangaEntry {
   chapters		        String?
   volumes		          String?
   rating	            String?
+  startDate	          DateTime?
   finishedDate	      DateTime?
   genres	            String?
   magazine	          String?
+  demographics        String?
   author	            String?
+  priority            String?
   story		            Int?
   character	          Int?
   presentation	      Int?

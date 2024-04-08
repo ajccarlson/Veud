@@ -19,7 +19,7 @@ async function getListByName(listName, listType) {
 		},
 	})
 
-  return entries;
+  return {listEntries: entries, watchlistId: listID.id};
 }
 
 export async function loader(params) {
@@ -70,9 +70,9 @@ export async function loader(params) {
 
   invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
 
-  const listEntries = await getListByName(params['params']['watchlist'], typeFormatted);
+  const {listEntries, watchlistId} = await getListByName(params['params']['watchlist'], typeFormatted);
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData, watchlistId });
 };
 
 export function ErrorBoundary() {
@@ -90,7 +90,7 @@ export function ErrorBoundary() {
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'] )}
+      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'], useLoaderData()['watchlistId'] )}
       {listNavButtons(useLoaderData()['watchLists'], useLoaderData()['username'], useLoaderData()['listType'], useLoaderData()['watchListData'])}
     </main>
   )
