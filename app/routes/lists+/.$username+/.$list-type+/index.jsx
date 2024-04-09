@@ -1,7 +1,6 @@
 import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
 import { useState } from 'react'
-import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { invariantResponse } from '@epic-web/invariant'
@@ -45,7 +44,45 @@ function getWatchlistNav(watchListData, username, listType) {
   )
 }
 
-function getWatchlistSettings(watchListData, username, watchlist, listType) {
+function checkDisplayedColumns(columns, displayedColumns) {
+  let checkedColumns = ""
+  let displayedIndex = 0
+
+  for (let column of columns) {
+    if (displayedColumns[displayedIndex]) {
+      if (column == displayedColumns[displayedIndex]) {
+        checkedColumns += (
+          `<label>` +
+            `<Input class="list-landing-settings-input-item" type="checkbox" checked="true"/>` +
+            `${column}` +
+          `</label>`
+        )
+
+        displayedIndex++
+      }
+      else {
+        checkedColumns += (
+          `<label>` +
+            `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
+            `${column}` +
+          `</label>`
+        )
+      }
+    }
+    else {
+      checkedColumns += (
+        `<label>` +
+          `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
+          `${column}` +
+        `</label>`
+      )
+    }
+  }
+
+  return checkedColumns
+}
+
+function getWatchlistSettings(watchListData, username, checkedColumns, listType) {
   return (
     `<div class="list-landing-nav-item-container">` + 
       `<div class="list-landing-nav-top">` +
@@ -61,26 +98,23 @@ function getWatchlistSettings(watchListData, username, watchlist, listType) {
           `<div>` + 
             `<div class="list-landing-settings-container">` +
               `<div class="list-landing-settings-input-row">` + 
-                `<div class="list-landing-settings-input-item">` + 
+                `<div>` + 
                   `Name` +
                 `</div>` + 
                 `<Input class="list-landing-settings-input-item"/>` +
               `</div>` + 
               `<div class="list-landing-settings-input-row">` + 
-                `<div class="list-landing-settings-input-item">` + 
+                `<div>` + 
                   `Description` +
                 `</div>` + 
-                `<Input class="list-landing-settings-input-item"/>` +
+                `<textarea class="list-landing-settings-input-item" cols="50" rows="5"></textarea>` +
               `</div>` +
               `<div class="list-landing-settings-input-row">` + 
-                `<div class="list-landing-settings-input-item">` + 
+                `<div>` + 
                   `Columns` +
                 `</div>` + 
                 `<div class="list-landing-settings-checkbox-container">` + 
-                  `<label>` +
-                    `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
-                    ` Test` +
-                  `</label>` +
+                  `${checkedColumns}` + 
                 `</div>` + 
               `</div>` +
             `</div>` +
@@ -156,35 +190,10 @@ export async function loader(params) {
     let columnStatus = []
     const columns = watchlist.columns.split(', ')
     const displayedColumns = watchlist.displayedColumns.split(', ')
-    
-    let displayedIndex = 0
 
-    for (let column of columns) {
-      if (displayedColumns[displayedIndex]) {
-        if (column == displayedColumns[displayedIndex]) {
-          columnStatus.push({
-            column: column,
-            displayed: true
-          })
-  
-          displayedIndex++
-        }
-        else {
-          columnStatus.push({
-            column: column,
-            displayed: false
-          })
-        }
-      }
-      else {
-        columnStatus.push({
-          column: column,
-          displayed: false
-        })
-      }
-    }
+    const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
-    watchListNavs.push(getWatchlistSettings(entryData, params['params']['username'], watchlist.columns.split(', '), listType))
+    watchListNavs.push(getWatchlistSettings(entryData, params['params']['username'], checkedColumns, listType))
   }
 
   if (watchListNavs.length < 1) {

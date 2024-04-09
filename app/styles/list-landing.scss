@@ -216,15 +216,20 @@
 
   .list-landing-settings-input-row {
     display: grid;
-    grid-template-columns: 15rem 15rem;
+    grid-template-columns: 15rem 30rem;
   }
 
   .list-landing-settings-input-item {
     width: fit-content;
+    color: black;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 
   .list-landing-settings-checkbox-container {
-    width: fit-content;
+    display: grid;
+    grid-template-rows: repeat(10, 2rem);
+    grid-auto-flow: column;
   }
 
   .list-landing-nav-link-settings-close {
