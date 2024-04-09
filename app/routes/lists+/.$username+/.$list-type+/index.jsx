@@ -31,10 +31,10 @@ function getWatchlistNav(watchListData, username, listType) {
         `</div>` + 
       `</div>` + 
       `<div class="list-landing-nav-link-container">` + 
-        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
+        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">` + 
           `Open` + 
         `</a>` +  
-        `<Button id="settings-button" class="list-landing-nav-link-settings">` + 
+        `<Button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings">` + 
           `Settings` + 
         `</Button>` + 
       `</div>` + 
@@ -128,10 +128,10 @@ function getWatchlistSettings(watchListData, username, checkedColumns, listType)
           `</div>` + 
         `</div>` + 
         `<div class="list-landing-nav-link-container">` + 
-          `<Button class="list-landing-nav-link-settings-submit">` + 
+          `<Button class="list-landing-settings-submit">` + 
             `Submit` + 
           `</Button>` +   
-          `<Button class="list-landing-nav-link-settings-cancel">` + 
+          `<Button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel">` + 
             `Cancel` + `<span class="list-landing-settings-close-span"> ⓧ </span>` + 
           `</Button>` + 
         `</div>` + 
@@ -222,8 +222,14 @@ export function ErrorBoundary() {
 function handleClick(e, setShowSettings) {
   e.preventDefault();
   
-  if (e.target.id === "settings-button") {
+  if (e.target.id === "list-landing-nav-link-settings-button") {
     setShowSettings(true)
+  }
+  else if (e.target.id === "list-landing-settings-cancel-button") {
+    setShowSettings(false)
+  }
+  else if (e.target.href) {
+    window.location.href = e.target.href
   }
 }
 
