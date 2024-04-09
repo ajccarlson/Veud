@@ -139,7 +139,7 @@ function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
           <button class="list-landing-settings-submit">
             Submit 
           </button> 
-          <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(shownSettings=> shownSettings.filter((s,i)=>(i == entryData.watchlist.id)))}}>
+          <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(oldValues => { return oldValues.filter(setting => setting !== entryData.watchlist.id) })}}>
             Cancel
             <span class="list-landing-settings-close-span">
               ⓧ
