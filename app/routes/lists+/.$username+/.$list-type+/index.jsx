@@ -52,9 +52,9 @@ function checkDisplayedColumns(columns, displayedColumns) {
     if (displayedColumns[displayedIndex]) {
       if (column == displayedColumns[displayedIndex]) {
         checkedColumns += (
-          `<label>` +
-            `<Input class="list-landing-settings-input-item" type="checkbox" checked="true"/>` +
-            `${column}` +
+          `<label class="list-landing-settings-checkbox-item">` +
+            `<Input type="checkbox" checked="true"/>` +
+            `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
           `</label>`
         )
 
@@ -62,18 +62,18 @@ function checkDisplayedColumns(columns, displayedColumns) {
       }
       else {
         checkedColumns += (
-          `<label>` +
-            `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
-            `${column}` +
+          `<label class="list-landing-settings-checkbox-item">` +
+            `<Input type="checkbox"/>` +
+            `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
           `</label>`
         )
       }
     }
     else {
       checkedColumns += (
-        `<label>` +
-          `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
-          `${column}` +
+        `<label class="list-landing-settings-checkbox-item">` +
+            `<Input type="checkbox"/>` +
+          `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
         `</label>`
       )
     }

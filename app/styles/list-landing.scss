@@ -232,6 +232,12 @@
     grid-auto-flow: column;
   }
 
+  .list-landing-settings-checkbox-item {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
   .list-landing-nav-link-settings-close {
     display: flex;
     justify-content: center;
