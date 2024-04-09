@@ -53,7 +53,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
       if (column == displayedColumns[displayedIndex]) {
         checkedColumns += (
           `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox" checked="true"/>` +
+            `<Input type="checkbox" id="${column}-checkbox" checked="true"/>` +
             `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
           `</label>`
         )
@@ -63,7 +63,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
       else {
         checkedColumns += (
           `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox"/>` +
+            `<Input type="checkbox" id="${column}-checkbox"/>` +
             `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
           `</label>`
         )
@@ -72,7 +72,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
     else {
       checkedColumns += (
         `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox"/>` +
+            `<Input type="checkbox" id="${column}-checkbox"/>` +
           `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
         `</label>`
       )
@@ -101,13 +101,15 @@ function getWatchlistSettings(watchListData, username, checkedColumns, listType)
                 `<div>` + 
                   `Name` +
                 `</div>` + 
-                `<Input class="list-landing-settings-input-item"/>` +
+                `<Input class="list-landing-settings-input-item" value="${watchListData.watchlist.header}"/>` +
               `</div>` + 
               `<div class="list-landing-settings-input-row">` + 
                 `<div>` + 
                   `Description` +
                 `</div>` + 
-                `<textarea class="list-landing-settings-input-item" cols="50" rows="5"></textarea>` +
+                `<textarea class="list-landing-settings-input-item" cols="50" rows="5">` + 
+                  `${watchListData.watchlist.description}` + 
+                `</textarea>` +
               `</div>` +
               `<div class="list-landing-settings-input-row">` + 
                 `<div>` + 
