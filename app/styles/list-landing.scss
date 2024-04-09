@@ -238,7 +238,24 @@
     align-items: center;
   }
 
-  .list-landing-nav-link-settings-close {
+  .list-landing-nav-link-settings-submit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-weight: 600;
+    background-color: #8CA99D;
+    color: #46554E;
+    border-top-width: 8px;
+    border-color: #54806C;
+  }
+
+  .list-landing-nav-link-settings-submit:hover {
+    background-color: #ABD4C2;
+    border-color: #507b68;
+  }
+
+  .list-landing-nav-link-settings-cancel {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -252,13 +269,15 @@
     border-radius: 0 0 0.5rem 0;
   }
 
-  .list-landing-nav-link-settings-close:hover {
+  .list-landing-nav-link-settings-cancel:hover {
     background-color: #FFAFA3;
     border-color: #77544F;
   }
 
-  .list-landing-settings-close-span {
+  .list-landing-settings-cancel-span {
     margin-left: 0.25rem;
     color: #80546C;
   }
+
+  
 }

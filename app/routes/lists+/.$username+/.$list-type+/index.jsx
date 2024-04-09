@@ -127,11 +127,11 @@ function getWatchlistSettings(watchListData, username, checkedColumns, listType)
         `</div>` + 
       `</div>` + 
       `<div class="list-landing-nav-link-container">` + 
-        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
-          `Open` + 
-        `</a>` +  
-        `<Button class="list-landing-nav-link-settings-close">` + 
-          `Settings` + `<span class="list-landing-settings-close-span"> ⓧ </span>` + 
+        `<Button class="list-landing-nav-link-settings-submit">` + 
+          `Submit` + 
+        `</Button>` +   
+        `<Button class="list-landing-nav-link-settings-cancel">` + 
+          `Cancel` + `<span class="list-landing-settings-close-span"> ⓧ </span>` + 
         `</Button>` + 
       `</div>` + 
     `</div>` + 
