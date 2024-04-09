@@ -220,6 +220,8 @@ export function ErrorBoundary() {
 }
 
 function handleClick(e, setShowSettings) {
+  e.preventDefault();
+  
   if (e.target.id === "settings-button") {
     setShowSettings(true)
   }
