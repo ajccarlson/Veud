@@ -1,5 +1,7 @@
 import { json } from "@remix-run/node"
 import { useLoaderData } from '@remix-run/react'
+import { useState } from 'react'
+import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { invariantResponse } from '@epic-web/invariant'
@@ -33,9 +35,68 @@ function getWatchlistNav(watchListData, username, listType) {
         `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
           `Open` + 
         `</a>` +  
-        `<button class="list-landing-nav-link-settings" type="submit">` + 
-            `Settings` + 
-        `</button>` + 
+        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name + "/settings"} class="list-landing-nav-link-settings">` + 
+          `Settings` + 
+        `</a>` + 
+      `</div>` + 
+    `</div>` + 
+    `<br></<br>` +
+    `<br></<br>` 
+  )
+}
+
+function getWatchlistSettings(watchListData, username, watchlist, listType) {
+  return (
+    `<div class="list-landing-nav-item-container">` + 
+      `<div class="list-landing-nav-top">` +
+        `<h1 class="list-landing-nav-header">` + 
+          `${watchListData.watchlist.header}` +
+        `</h1>` + 
+        `<div class="list-landing-nav-length">` + 
+          `${watchListData.listEntries.length}` +
+        `</div>` + 
+      `</div>` + 
+      `<div class="list-landing-nav-bottom-container">` + 
+        `<div class="list-landing-nav-bottom">` + 
+          `<div>` + 
+            `<div class="list-landing-settings-container">` +
+              `<div class="list-landing-settings-input-row">` + 
+                `<div class="list-landing-settings-input-item">` + 
+                  `Name` +
+                `</div>` + 
+                `<Input class="list-landing-settings-input-item"/>` +
+              `</div>` + 
+              `<div class="list-landing-settings-input-row">` + 
+                `<div class="list-landing-settings-input-item">` + 
+                  `Description` +
+                `</div>` + 
+                `<Input class="list-landing-settings-input-item"/>` +
+              `</div>` +
+              `<div class="list-landing-settings-input-row">` + 
+                `<div class="list-landing-settings-input-item">` + 
+                  `Columns` +
+                `</div>` + 
+                `<div class="list-landing-settings-checkbox-container">` + 
+                  `<label>` +
+                    `<Input class="list-landing-settings-input-item" type="checkbox"/>` +
+                    ` Test` +
+                  `</label>` +
+                `</div>` + 
+              `</div>` +
+            `</div>` +
+            `<div class="list-landing-nav-last-updated-container">` + 
+              `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
+            `</div>` + 
+          `</div>` + 
+        `</div>` + 
+      `</div>` + 
+      `<div class="list-landing-nav-link-container">` + 
+        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} class="list-landing-nav-link-open">` + 
+          `Open` + 
+        `</a>` +  
+        `<Button class="list-landing-nav-link-settings-close">` + 
+          `Settings` + `<span class="list-landing-settings-close-span"> ⓧ </span>` + 
+        `</Button>` + 
       `</div>` + 
     `</div>` + 
     `<br></<br>` +
@@ -44,6 +105,8 @@ function getWatchlistNav(watchListData, username, listType) {
 }
 
 export async function loader(params) {
+  //const [showSettings, showSettingsDropdown] = useState(false);
+
   const currentUser = await prisma.User.findUnique({
     where: {
       username: params['params']['username'],
@@ -73,8 +136,10 @@ export async function loader(params) {
 
   let watchListData = []
   let watchListNavs = []
+
+  const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
   
-  for (let watchlist of watchLists) {
+  for (let watchlist of watchListsSorted) {
     const listEntries = await prisma[typeFormatted].findMany({
       where: {
         watchlistId: watchlist.id,
@@ -88,7 +153,38 @@ export async function loader(params) {
 
     watchListData.push(entryData)
 
-    watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
+    let columnStatus = []
+    const columns = watchlist.columns.split(', ')
+    const displayedColumns = watchlist.displayedColumns.split(', ')
+    
+    let displayedIndex = 0
+
+    for (let column of columns) {
+      if (displayedColumns[displayedIndex]) {
+        if (column == displayedColumns[displayedIndex]) {
+          columnStatus.push({
+            column: column,
+            displayed: true
+          })
+  
+          displayedIndex++
+        }
+        else {
+          columnStatus.push({
+            column: column,
+            displayed: false
+          })
+        }
+      }
+      else {
+        columnStatus.push({
+          column: column,
+          displayed: false
+        })
+      }
+    }
+
+    watchListNavs.push(getWatchlistSettings(entryData, params['params']['username'], watchlist.columns.split(', '), listType))
   }
 
   if (watchListNavs.length < 1) {

@@ -901,8 +901,8 @@ export function columnDefs(hiddenColumns, watchListData, listType) {
 }
 
 export function watchlistGrid(listEntries, watchListData, listType, watchlistId) {
-  const columns = ["position", "thumbnail", "title", "type", "airYear", "length", "rating", "finishedDate", "genres", "language", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "tmdbScore", "differenceObjective", "description"];
-  const hiddenArray = columns.filter(x => !watchListData.columns.split(', ').includes(x));
+  const columns = watchListData.columns.split(', ')
+  const hiddenArray = columns.filter(x => !watchListData.displayedColumns.split(', ').includes(x));
   const hiddenColumns = hiddenArray.reduce((key,value) => (key[value] = true, key),{});
 
   let emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}

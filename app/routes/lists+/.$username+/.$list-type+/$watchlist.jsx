@@ -31,22 +31,16 @@ export async function loader(params) {
 
   invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
-  const watchlistSchema = await prisma.watchlist.findMany({
+  const watchLists = await prisma.watchlist.findMany({
 		where: {
 			ownerId: currentUser.id,
 		},
 	})
 
-  let watchLists = [];
-  watchlistSchema.map(a => watchLists.push({
-    name: a.name,
-    header: a.header,
-    type: a.type,
-    columns: a.columns,
-  }))
-  
   let watchListData
   let listFound = false
+
+  const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
 
   for (let watchList of watchLists) {
     if (watchList.name == params['params']['watchlist']) {
@@ -72,7 +66,7 @@ export async function loader(params) {
 
   const {listEntries, watchlistId} = await getListByName(params['params']['watchlist'], typeFormatted);
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListData, watchlistId });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListsSorted, watchListData, watchlistId });
 };
 
 export function ErrorBoundary() {
@@ -91,7 +85,7 @@ export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
       {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'], useLoaderData()['watchlistId'] )}
-      {listNavButtons(useLoaderData()['watchLists'], useLoaderData()['username'], useLoaderData()['listType'], useLoaderData()['watchListData'])}
+      {listNavButtons(useLoaderData()['watchListsSorted'], useLoaderData()['username'], useLoaderData()['listType'], useLoaderData()['watchListData'])}
     </main>
   )
 }

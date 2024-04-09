@@ -181,6 +181,10 @@
   }
 
   .list-landing-nav-link-settings {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
     font-weight: 600;
     background-color: #6F6F6F;
     color: #FFEFCC;
@@ -193,5 +197,57 @@
   .list-landing-nav-link-settings:hover {
     background-color: #8CA99D;
     border-color: #507b68;
+  }
+
+  .list-landing-settings-container {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    color: white;
+    font-family: "Playfair Display";
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 0.75rem; 
+    padding-bottom: 0.75rem;
+    box-shadow: 0 35px 60px -15px rgba(46,47,43,18);
+  }
+
+  .list-landing-settings-input-row {
+    display: grid;
+    grid-template-columns: 15rem 15rem;
+  }
+
+  .list-landing-settings-input-item {
+    width: fit-content;
+  }
+
+  .list-landing-settings-checkbox-container {
+    width: fit-content;
+  }
+
+  .list-landing-nav-link-settings-close {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-weight: 600;
+    background-color: #D4B1AB;
+    color: #7F5A53;
+    border-top-width: 8px;
+    border-right-width: 8px;
+    border-color: #80545A;
+    border-radius: 0 0 0.5rem 0;
+  }
+
+  .list-landing-nav-link-settings-close:hover {
+    background-color: #FFAFA3;
+    border-color: #77544F;
+  }
+
+  .list-landing-settings-close-span {
+    margin-left: 0.25rem;
+    color: #80546C;
   }
 }
