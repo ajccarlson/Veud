@@ -7,50 +7,44 @@ import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
 
-function getWatchlistNav(watchListData, username, listType, setShowSettings) {
-  let watchListNavs = []
-
-  for (const entryData of watchListData) {
-    watchListNavs.push(
-      <div class="list-landing-nav-item-container">
-        <div class="list-landing-nav-top">
-          <h1 class="list-landing-nav-header">
-            {entryData.watchlist.header}
-          </h1>
-          <div class="list-landing-nav-length">
-            {entryData.listEntries.length}
-          </div> 
+function getWatchlistNav(entryData, username, listType, shownSettings, setShownSettings) {
+  return(
+    <div class="list-landing-nav-item-container">
+      <div class="list-landing-nav-top">
+        <h1 class="list-landing-nav-header">
+          {entryData.watchlist.header}
+        </h1>
+        <div class="list-landing-nav-length">
+          {entryData.listEntries.length}
         </div> 
-        <div class="list-landing-nav-bottom-container">
-          <div class="list-landing-nav-bottom">
-            <div>
-              <p class="list-landing-nav-description">
-                {entryData.watchlist.description}
-              </p>
-              <div class="list-landing-nav-last-updated-container">
-                Last Updated:
-                <span class="list-landing-nav-last-updated-span">
-                  {timeSince(new Date(entryData.watchlist.updatedAt))}
-                </span>
-              </div>
+      </div> 
+      <div class="list-landing-nav-bottom-container">
+        <div class="list-landing-nav-bottom">
+          <div>
+            <p class="list-landing-nav-description">
+              {entryData.watchlist.description}
+            </p>
+            <div class="list-landing-nav-last-updated-container">
+              Last Updated:
+              <span class="list-landing-nav-last-updated-span">
+                {timeSince(new Date(entryData.watchlist.updatedAt))}
+              </span>
             </div>
           </div>
         </div>
-        <div class="list-landing-nav-link-container">
-          <a href={"/lists/" + username + "/" + listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
-            Open
-          </a>
-          <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {setShowSettings(true)}}>
-            Settings
-          </button>
-        </div>
-        <br></br>
-        <br></br>
       </div>
-    )
-  }
-
-  return watchListNavs
+      <div class="list-landing-nav-link-container">
+        <a href={"/lists/" + username + "/" + listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
+          Open
+        </a>
+        <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {setShownSettings([...shownSettings, entryData.watchlist.id])}}>
+          Settings
+        </button>
+      </div>
+      <br></br>
+      <br></br>
+    </div>
+  )
 }
 
 function checkDisplayedColumns(columns, displayedColumns) {
@@ -91,78 +85,87 @@ function checkDisplayedColumns(columns, displayedColumns) {
   return checkedColumns
 }
 
-function getWatchlistSettings(watchListData, setShowSettings) {
-  let watchListSettings = []
+function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
+  const columns = entryData.watchlist.columns.split(', ')
+  const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
+  const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
-  for (const entryData of watchListData) {
-    const columns = entryData.watchlist.columns.split(', ')
-    const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
-    const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
-
-    watchListSettings.push(
-      <Form>
-        <div class="list-landing-nav-item-container">
-          <div class="list-landing-nav-top">
-            <h1 class="list-landing-nav-header">
-             {entryData.watchlist.header}
-            </h1> 
-            <div class="list-landing-nav-length">
-              {entryData.listEntries.length}
-            </div>
-          </div> 
-          <div class="list-landing-nav-bottom-container"> 
-            <div class="list-landing-nav-bottom"> 
-              <div>
-                <div class="list-landing-settings-container">
-                  <div class="list-landing-settings-input-row"> 
-                    <div>
-                      Name
-                    </div>
-                    <input class="list-landing-settings-input-item" defaultValue={entryData.watchlist.header}/>
-                  </div>
-                  <div class="list-landing-settings-input-row"> 
-                    <div> 
-                      Description
-                    </div>
-                    <textarea class="list-landing-settings-input-item" cols="50" rows="5" defaultValue={entryData.watchlist.description}></textarea>
-                  </div>
-                  <div class="list-landing-settings-input-row"> 
-                    <div>
-                      Columns
-                    </div>
-                    <div class="list-landing-settings-checkbox-container"> 
-                      {checkedColumns} 
-                    </div> 
-                  </div>
-                </div>
-                <div class="list-landing-nav-last-updated-container">
-                  Last Updated:
-                    <span class="list-landing-nav-last-updated-span">
-                      {timeSince(new Date(entryData.watchlist.updatedAt))}
-                    </span>
-                </div>
-              </div> 
-            </div>
-          </div>
-          <div class="list-landing-nav-link-container"> 
-            <button class="list-landing-settings-submit">
-              Submit 
-            </button> 
-            <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShowSettings(false)}}>
-              Cancel
-              <span class="list-landing-settings-close-span">
-                ⓧ
-              </span>
-            </button>
+  return(
+    <Form>
+      <div class="list-landing-nav-item-container">
+        <div class="list-landing-nav-top">
+          <h1 class="list-landing-nav-header">
+            {entryData.watchlist.header}
+          </h1> 
+          <div class="list-landing-nav-length">
+            {entryData.listEntries.length}
           </div>
         </div> 
-        <br></br>
-        <br></br>
-      </Form>
-    )
+        <div class="list-landing-nav-bottom-container"> 
+          <div class="list-landing-nav-bottom"> 
+            <div>
+              <div class="list-landing-settings-container">
+                <div class="list-landing-settings-input-row"> 
+                  <div>
+                    Name
+                  </div>
+                  <input class="list-landing-settings-input-item" defaultValue={entryData.watchlist.header}/>
+                </div>
+                <div class="list-landing-settings-input-row"> 
+                  <div> 
+                    Description
+                  </div>
+                  <textarea class="list-landing-settings-input-item" cols="50" rows="5" defaultValue={entryData.watchlist.description}></textarea>
+                </div>
+                <div class="list-landing-settings-input-row"> 
+                  <div>
+                    Columns
+                  </div>
+                  <div class="list-landing-settings-checkbox-container"> 
+                    {checkedColumns} 
+                  </div> 
+                </div>
+              </div>
+              <div class="list-landing-nav-last-updated-container">
+                Last Updated:
+                  <span class="list-landing-nav-last-updated-span">
+                    {timeSince(new Date(entryData.watchlist.updatedAt))}
+                  </span>
+              </div>
+            </div> 
+          </div>
+        </div>
+        <div class="list-landing-nav-link-container"> 
+          <button class="list-landing-settings-submit">
+            Submit 
+          </button> 
+          <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(shownSettings=> shownSettings.filter((s,i)=>(i == entryData.watchlist.id)))}}>
+            Cancel
+            <span class="list-landing-settings-close-span">
+              ⓧ
+            </span>
+          </button>
+        </div>
+      </div> 
+      <br></br>
+      <br></br>
+    </Form>
+  )
+}
+
+function listNavigationDisplayer(watchListData, username, listType, shownSettings, setShownSettings) {
+  let navigationItems = []
+
+  for (const entryData of watchListData) {
+    if (shownSettings.includes(entryData.watchlist.id)) {
+      navigationItems.push(getWatchlistSettings(entryData, shownSettings, setShownSettings))
+    }
+    else {
+      navigationItems.push(getWatchlistNav(entryData, username, listType, shownSettings, setShownSettings))
+    }
   }
 
-  return watchListSettings
+  return navigationItems
 }
 
 export async function loader(params) {
@@ -212,9 +215,6 @@ export async function loader(params) {
     }
 
     watchListData.push(entryData)
-
-    // watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
-    // watchListSettings.push(getWatchlistSettings(entryData, params['params']['username'], checkedColumns, listType))
   }
 
   if (watchListNavs.length < 1) {
@@ -237,7 +237,7 @@ export function ErrorBoundary() {
 }
 
 export default function lists() {
-  const [showSettings, setShowSettings] = useState(false);
+  const [shownSettings, setShownSettings] = useState([])
 
   return (
     <main class="list-landing" style={{ width: '100%', height: '100%' }}>
@@ -246,19 +246,11 @@ export default function lists() {
         <a href={"/lists/" + useLoaderData()['username'] + "/anime"} className="list-landing-sidebar-item">Anime</a>
         <a href={"/lists/" + useLoaderData()['username'] + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
       </div>
-      { showSettings ? 
-        <div class="list-landing-main">
-          <div class="list-landing-nav-container">
-            {getWatchlistSettings(useLoaderData()['watchListData'], setShowSettings)}
-          </div>
-        </div>
-      :
       <div class="list-landing-main">
         <div class="list-landing-nav-container">
-          {getWatchlistNav(useLoaderData()['watchListData'], useLoaderData()['username'], useLoaderData()['listType'], setShowSettings)}
+          { listNavigationDisplayer(useLoaderData()['watchListData'], useLoaderData()['username'], useLoaderData()['listType'], shownSettings, setShownSettings) }
         </div>
       </div>
-      }
     </main>
   )
 }
