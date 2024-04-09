@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node"
-import { useLoaderData } from '@remix-run/react'
+import { Form, useLoaderData } from '@remix-run/react'
 import { useState } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
@@ -7,74 +7,83 @@ import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
 
-function getWatchlistNav(watchListData, username, listType) {
-  return (
-    `<div class="list-landing-nav-item-container">` + 
-      `<div class="list-landing-nav-top">` +
-        `<h1 class="list-landing-nav-header">` + 
-          `${watchListData.watchlist.header}` +
-        `</h1>` + 
-        `<div class="list-landing-nav-length">` + 
-          `${watchListData.listEntries.length}` +
-        `</div>` + 
-      `</div>` + 
-      `<div class="list-landing-nav-bottom-container">` + 
-        `<div class="list-landing-nav-bottom">` + 
-          `<div>` + 
-            `<p class="list-landing-nav-description">` + 
-              `${watchListData.watchlist.description}` +
-            `</p>` +
-            `<div class="list-landing-nav-last-updated-container">` + 
-              `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
-            `</div>` + 
-          `</div>` + 
-        `</div>` + 
-      `</div>` + 
-      `<div class="list-landing-nav-link-container">` + 
-        `<a href=${"/lists/" + username + "/" + listType + "/" + watchListData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">` + 
-          `Open` + 
-        `</a>` +  
-        `<Button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings">` + 
-          `Settings` + 
-        `</Button>` + 
-      `</div>` + 
-    `</div>` + 
-    `<br></<br>` +
-    `<br></<br>` 
-  )
+function getWatchlistNav(watchListData, username, listType, setShowSettings) {
+  let watchListNavs = []
+
+  for (const entryData of watchListData) {
+    watchListNavs.push(
+      <div class="list-landing-nav-item-container">
+        <div class="list-landing-nav-top">
+          <h1 class="list-landing-nav-header">
+            {entryData.watchlist.header}
+          </h1>
+          <div class="list-landing-nav-length">
+            {entryData.listEntries.length}
+          </div> 
+        </div> 
+        <div class="list-landing-nav-bottom-container">
+          <div class="list-landing-nav-bottom">
+            <div>
+              <p class="list-landing-nav-description">
+                {entryData.watchlist.description}
+              </p>
+              <div class="list-landing-nav-last-updated-container">
+                Last Updated:
+                <span class="list-landing-nav-last-updated-span">
+                  {timeSince(new Date(entryData.watchlist.updatedAt))}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="list-landing-nav-link-container">
+          <a href={"/lists/" + username + "/" + listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
+            Open
+          </a>
+          <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {setShowSettings(true)}}>
+            Settings
+          </button>
+        </div>
+        <br></br>
+        <br></br>
+      </div>
+    )
+  }
+
+  return watchListNavs
 }
 
 function checkDisplayedColumns(columns, displayedColumns) {
-  let checkedColumns = ""
+  let checkedColumns = []
   let displayedIndex = 0
 
   for (let column of columns) {
     if (displayedColumns[displayedIndex]) {
       if (column == displayedColumns[displayedIndex]) {
-        checkedColumns += (
-          `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox" id="${column}-checkbox" checked="true"/>` +
-            `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
-          `</label>`
+        checkedColumns.push(
+          <label class="list-landing-settings-checkbox-item">
+            <input id={`${column}-checkbox`} type="checkbox" defaultChecked="true"/>
+            {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
+          </label>
         )
 
         displayedIndex++
       }
       else {
-        checkedColumns += (
-          `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox" id="${column}-checkbox"/>` +
-            `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
-          `</label>`
+        checkedColumns.push(
+          <label class="list-landing-settings-checkbox-item">
+            <input type="checkbox" id={`${column}-checkbox`}/>
+            {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
+          </label>
         )
       }
     }
     else {
-      checkedColumns += (
-        `<label class="list-landing-settings-checkbox-item">` +
-            `<Input type="checkbox" id="${column}-checkbox"/>` +
-          `${(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}` +
-        `</label>`
+      checkedColumns.push(
+        <label class="list-landing-settings-checkbox-item">
+            <input type="checkbox" id="${column}-checkbox"/>
+          {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
+        </label>
       )
     }
   }
@@ -82,64 +91,78 @@ function checkDisplayedColumns(columns, displayedColumns) {
   return checkedColumns
 }
 
-function getWatchlistSettings(watchListData, username, checkedColumns, listType) {
-  return (
-    `<Form>` + 
-      `<div class="list-landing-nav-item-container">` + 
-        `<div class="list-landing-nav-top">` +
-          `<h1 class="list-landing-nav-header">` + 
-            `${watchListData.watchlist.header}` +
-          `</h1>` + 
-          `<div class="list-landing-nav-length">` + 
-            `${watchListData.listEntries.length}` +
-          `</div>` + 
-        `</div>` + 
-        `<div class="list-landing-nav-bottom-container">` + 
-          `<div class="list-landing-nav-bottom">` + 
-            `<div>` + 
-              `<div class="list-landing-settings-container">` +
-                `<div class="list-landing-settings-input-row">` + 
-                  `<div>` + 
-                    `Name` +
-                  `</div>` + 
-                  `<Input class="list-landing-settings-input-item" value="${watchListData.watchlist.header}"/>` +
-                `</div>` + 
-                `<div class="list-landing-settings-input-row">` + 
-                  `<div>` + 
-                    `Description` +
-                  `</div>` + 
-                  `<textarea class="list-landing-settings-input-item" cols="50" rows="5">` + 
-                    `${watchListData.watchlist.description}` + 
-                  `</textarea>` +
-                `</div>` +
-                `<div class="list-landing-settings-input-row">` + 
-                  `<div>` + 
-                    `Columns` +
-                  `</div>` + 
-                  `<div class="list-landing-settings-checkbox-container">` + 
-                    `${checkedColumns}` + 
-                  `</div>` + 
-                `</div>` +
-              `</div>` +
-              `<div class="list-landing-nav-last-updated-container">` + 
-                `Last Updated: ` + `<span class="list-landing-nav-last-updated-span">` + `${timeSince(watchListData.watchlist.updatedAt)}` + `</span>` +
-              `</div>` + 
-            `</div>` + 
-          `</div>` + 
-        `</div>` + 
-        `<div class="list-landing-nav-link-container">` + 
-          `<Button class="list-landing-settings-submit">` + 
-            `Submit` + 
-          `</Button>` +   
-          `<Button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel">` + 
-            `Cancel` + `<span class="list-landing-settings-close-span"> ⓧ </span>` + 
-          `</Button>` + 
-        `</div>` + 
-      `</div>` + 
-      `<br></<br>` +
-      `<br></<br>` +
-    `</Form>`
-  )
+function getWatchlistSettings(watchListData, setShowSettings) {
+  let watchListSettings = []
+
+  for (const entryData of watchListData) {
+    const columns = entryData.watchlist.columns.split(', ')
+    const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
+    const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
+
+    watchListSettings.push(
+      <Form>
+        <div class="list-landing-nav-item-container">
+          <div class="list-landing-nav-top">
+            <h1 class="list-landing-nav-header">
+             {entryData.watchlist.header}
+            </h1> 
+            <div class="list-landing-nav-length">
+              {entryData.listEntries.length}
+            </div>
+          </div> 
+          <div class="list-landing-nav-bottom-container"> 
+            <div class="list-landing-nav-bottom"> 
+              <div>
+                <div class="list-landing-settings-container">
+                  <div class="list-landing-settings-input-row"> 
+                    <div>
+                      Name
+                    </div>
+                    <input class="list-landing-settings-input-item" defaultValue={entryData.watchlist.header}/>
+                  </div>
+                  <div class="list-landing-settings-input-row"> 
+                    <div> 
+                      Description
+                    </div>
+                    <textarea class="list-landing-settings-input-item" cols="50" rows="5" defaultValue={entryData.watchlist.description}></textarea>
+                  </div>
+                  <div class="list-landing-settings-input-row"> 
+                    <div>
+                      Columns
+                    </div>
+                    <div class="list-landing-settings-checkbox-container"> 
+                      {checkedColumns} 
+                    </div> 
+                  </div>
+                </div>
+                <div class="list-landing-nav-last-updated-container">
+                  Last Updated:
+                    <span class="list-landing-nav-last-updated-span">
+                      {timeSince(new Date(entryData.watchlist.updatedAt))}
+                    </span>
+                </div>
+              </div> 
+            </div>
+          </div>
+          <div class="list-landing-nav-link-container"> 
+            <button class="list-landing-settings-submit">
+              Submit 
+            </button> 
+            <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShowSettings(false)}}>
+              Cancel
+              <span class="list-landing-settings-close-span">
+                ⓧ
+              </span>
+            </button>
+          </div>
+        </div> 
+        <br></br>
+        <br></br>
+      </Form>
+    )
+  }
+
+  return watchListSettings
 }
 
 export async function loader(params) {
@@ -190,14 +213,8 @@ export async function loader(params) {
 
     watchListData.push(entryData)
 
-    let columnStatus = []
-    const columns = watchlist.columns.split(', ')
-    const displayedColumns = watchlist.displayedColumns.split(', ')
-
-    const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
-
-    watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
-    watchListSettings.push(getWatchlistSettings(entryData, params['params']['username'], checkedColumns, listType))
+    // watchListNavs.push(getWatchlistNav(entryData, params['params']['username'], listType))
+    // watchListSettings.push(getWatchlistSettings(entryData, params['params']['username'], checkedColumns, listType))
   }
 
   if (watchListNavs.length < 1) {
@@ -219,20 +236,6 @@ export function ErrorBoundary() {
 	)
 }
 
-function handleClick(e, setShowSettings) {
-  e.preventDefault();
-  
-  if (e.target.id === "list-landing-nav-link-settings-button") {
-    setShowSettings(true)
-  }
-  else if (e.target.id === "list-landing-settings-cancel-button") {
-    setShowSettings(false)
-  }
-  else if (e.target.href) {
-    window.location.href = e.target.href
-  }
-}
-
 export default function lists() {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -245,12 +248,16 @@ export default function lists() {
       </div>
       { showSettings ? 
         <div class="list-landing-main">
-          <div class="list-landing-nav-container" onClick={e => handleClick(e, setShowSettings)} dangerouslySetInnerHTML={{__html: useLoaderData()['watchListSettings'].join("")}} />
+          <div class="list-landing-nav-container">
+            {getWatchlistSettings(useLoaderData()['watchListData'], setShowSettings)}
+          </div>
         </div>
       :
-        <div class="list-landing-main">
-          <div class="list-landing-nav-container" onClick={e => handleClick(e, setShowSettings)} dangerouslySetInnerHTML={{__html: useLoaderData()['watchListNavs'].join("")}} />
+      <div class="list-landing-main">
+        <div class="list-landing-nav-container">
+          {getWatchlistNav(useLoaderData()['watchListData'], useLoaderData()['username'], useLoaderData()['listType'], setShowSettings)}
         </div>
+      </div>
       }
     </main>
   )

@@ -9,7 +9,6 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.jsx"
 import { Icon } from './ui/icon.tsx'
-import { Input } from './ui/input.tsx'
 import { StatusButton } from './ui/status-button.tsx'
 import "#app/styles/watchlist-search.scss"
 import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
@@ -40,7 +39,7 @@ export function MediaSearchBar(params) {
 			{ showDropdown ? 
 				<div>
 					<div className="flex flex-row gap-2">
-						<Input
+						<input
 							type="search"
 							name="search"
 							id={id}
