@@ -78,7 +78,7 @@ export function MediaSearchBar(params) {
 								watchlistId: params.params.params.data.watchlistId
 							}))
 
-							refreshGrid(undefined, params.params.watchlistName, params.params.listType);
+							refreshGrid(undefined, {watchlistName: params.params.watchlistName, listType: params.params.listType, watchlistId: params.params.params.data.watchlistId});
 							setShowDropdown(true)
 						}}>
 							{result.title}

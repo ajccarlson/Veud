@@ -16,7 +16,7 @@ function columnsDifferent(source, destination, listType) {
   console.log(destinationLength)
 
   // if (sourceLength != destinationLength)
-  //   refreshGrid(undefined, destination.name, listType);
+  //   refreshGrid(undefined, {watchlistName: destination.name, listType: listType, watchlistId: destination.watchlistId});
 }
 
 function formatType(listType) {
