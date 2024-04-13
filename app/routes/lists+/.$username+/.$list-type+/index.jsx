@@ -126,6 +126,8 @@ async function handleSubmit(e, columns, watchlist) {
   const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
     watchlistId: watchlist.id
   }))
+
+  window.location.reload();
 }
 
 function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
