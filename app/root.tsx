@@ -249,7 +249,7 @@ function App() {
 				</div>
 
 				<div className="container flex justify-between pb-5">
-					<Logo />
+					{/* <Logo /> */}
 					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
 				</div>
 			</div>
