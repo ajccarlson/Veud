@@ -61,7 +61,7 @@
   .ag-thumbnail-cell {
     padding-right: 0px;
     filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
-    transition: all .2s ease-in-out; 
+    transition: all .1s ease-in-out; 
   }
 
   .ag-thumbnail-cell:hover {
@@ -87,17 +87,12 @@
     -webkit-text-stroke-width: 0.2px;
   }
 
-  .ag-score-present {
-    transition: all .1s ease-out; 
-  }
-
   .ag-score-present:hover {
     box-shadow: 0 5px 15px #ff990066;
   }
 
   .ag-score-empty {
     background-color:rgba(0, 0, 0, 0.3);
-    transition: all .1s ease-out; 
   }
 
   .ag-score-empty:hover {
