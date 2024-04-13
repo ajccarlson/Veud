@@ -30,6 +30,7 @@
     border-color: #54806C;
     border-radius: 0 0.5rem 0.5rem 0;
     // box-shadow: 0 0 50px #000000;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-sidebar-container:hover {
@@ -42,6 +43,7 @@
     align-content: center;
     text-align: center;
     justify-content: center;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-sidebar-item:hover {
@@ -67,6 +69,13 @@
 
   .list-landing-nav-item-container {
     font-family: arial;
+    transition: all .2s ease-in-out; 
+  }
+
+  .list-landing-nav-item-container:hover {
+    transform: scale(1.01);
+    filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
+    background-color: #ffb70019; 
   }
 
   .list-landing-nav-top {
@@ -174,6 +183,7 @@
     color: #FFEFCC;
     border-top-width: 8px;
     border-color: #54806C;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-nav-link-open:hover {
@@ -193,6 +203,7 @@
     border-right-width: 8px;
     border-color: #54806C;
     border-radius: 0 0 0.5rem 0;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-nav-link-settings:hover {
@@ -249,6 +260,7 @@
     color: #46554E;
     border-top-width: 8px;
     border-color: #54806C;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-settings-submit:hover {
@@ -268,6 +280,7 @@
     border-right-width: 8px;
     border-color: #80545A;
     border-radius: 0 0 0.5rem 0;
+    transition: all .1s ease-out; 
   }
 
   .list-landing-settings-cancel:hover {

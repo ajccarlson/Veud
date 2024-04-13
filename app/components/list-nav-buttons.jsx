@@ -63,7 +63,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
                   {listTypes.map( typeMap =>
                     <DropdownMenuItem>
                       <Link to={"../lists/" + username + "/" + typeMap.name + "/"}
-                        class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
+                        class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out delay-100 text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
                           {typeMap.formatted}
                       </Link>
                     </DropdownMenuItem>
@@ -76,7 +76,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
         <div class="flex flex-row gap-4 justify-center">
           {watchLists.map( list =>
             <Link to={"../lists/" + username + "/" + listType + "/" + list.name} /*onClick={columnsDifferent(watchListData, list, listType)}*/
-            class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
+            class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out delay-100 text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
               {list.header}
             </Link>
           )}
