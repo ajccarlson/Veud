@@ -56,7 +56,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
       if (column == displayedColumns[displayedIndex]) {
         checkedColumns.push(
           <label class="list-landing-settings-checkbox-item">
-            <input id={`${column}-checkbox`} type="checkbox" defaultChecked="true"/>
+            <input id={`${column}-checkbox`} name={`${column}-checkbox`} type="checkbox" defaultChecked="true"/>
             {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
           </label>
         )
@@ -66,7 +66,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
       else {
         checkedColumns.push(
           <label class="list-landing-settings-checkbox-item">
-            <input type="checkbox" id={`${column}-checkbox`}/>
+            <input type="checkbox" id={`${column}-checkbox`} name={`${column}-checkbox`}/>
             {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
           </label>
         )
@@ -75,7 +75,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
     else {
       checkedColumns.push(
         <label class="list-landing-settings-checkbox-item">
-            <input type="checkbox" id="${column}-checkbox"/>
+            <input type="checkbox" id={`${column}-checkbox`} name={`${column}-checkbox`}/>
           {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
         </label>
       )
@@ -85,13 +85,56 @@ function checkDisplayedColumns(columns, displayedColumns) {
   return checkedColumns
 }
 
+async function handleSubmit(e, columns, watchlist) {
+  e.preventDefault()
+
+  let columnsFormatted = columns.map(column => `${column}-checkbox`)
+  let columnArray = []
+
+  const formRaw = new FormData(e.target)
+  const data = formRaw.entries();
+  let settingsObject = {}
+
+  for (const entry of data) {
+    if (columnsFormatted.includes(entry[0])) {
+      let tailIndex = entry[0].lastIndexOf("-checkbox")
+      columnArray.push(entry[0].slice(0, tailIndex))
+    }
+    else {
+      let tailIndex = entry[0].lastIndexOf("-input")
+      let settingType = entry[0].slice(0, tailIndex)
+
+      if (settingType == "name") {
+        settingsObject["header"] = entry[1]
+        settingsObject["name"] = entry[1].replace(/\W/g, '').toLowerCase()
+      }
+      else {
+        settingsObject[settingType] = entry[1]
+      }
+    }
+  }
+
+  const foundColumns = columnArray.join(", ")
+  settingsObject["displayedColumns"] = foundColumns
+
+  const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + new URLSearchParams({
+    settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
+    listId: watchlist.id
+  }))
+  const updateSettingsData = await updateSettingsResponse.json();
+  
+  const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
+    watchlistId: watchlist.id
+  }))
+}
+
 function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
   const columns = entryData.watchlist.columns.split(', ')
   const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
   return(
-    <Form>
+    <Form onSubmit={(e) => {handleSubmit(e, columns, entryData.watchlist)}}>
       <div class="list-landing-nav-item-container">
         <div class="list-landing-nav-top">
           <h1 class="list-landing-nav-header">
@@ -109,13 +152,13 @@ function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
                   <div>
                     Name
                   </div>
-                  <input class="list-landing-settings-input-item" defaultValue={entryData.watchlist.header}/>
+                  <input class="list-landing-settings-input-item" id="name-input" name="name-input" defaultValue={entryData.watchlist.header}/>
                 </div>
                 <div class="list-landing-settings-input-row"> 
                   <div> 
                     Description
                   </div>
-                  <textarea class="list-landing-settings-input-item" cols="50" rows="5" defaultValue={entryData.watchlist.description}></textarea>
+                  <textarea class="list-landing-settings-input-item" id="description-input" name="description-input" cols="50" rows="5" defaultValue={entryData.watchlist.description}></textarea>
                 </div>
                 <div class="list-landing-settings-input-row"> 
                   <div>
@@ -136,10 +179,10 @@ function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
           </div>
         </div>
         <div class="list-landing-nav-link-container"> 
-          <button class="list-landing-settings-submit">
+          <button type="submit" id="list-landing-settings-submit-button" name="list-landing-settings-submit-button" class="list-landing-settings-submit">
             Submit 
           </button> 
-          <button id="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(oldValues => { return oldValues.filter(setting => setting !== entryData.watchlist.id) })}}>
+          <button id="list-landing-settings-cancel-button" name="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(oldValues => { return oldValues.filter(setting => setting !== entryData.watchlist.id) })}}>
             Cancel
             <span class="list-landing-settings-close-span">
               ⓧ
