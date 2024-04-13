@@ -6,18 +6,6 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
-
-function columnsDifferent(source, destination, listType) {
-  const sourceLength = source.displayedColumns.split(", ").length
-  const destinationLength = destination.displayedColumns.split(", ").length
-
-  console.log(sourceLength)
-  console.log(destinationLength)
-
-  // if (sourceLength != destinationLength)
-  //   refreshGrid(undefined, {watchlistName: destination.name, listType: listType, watchlistId: destination.watchlistId});
-}
 
 function formatType(listType) {
   if (listType == 'liveaction')
@@ -63,7 +51,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
                   {listTypes.map( typeMap =>
                     <DropdownMenuItem>
                       <Link to={"../lists/" + username + "/" + typeMap.name + "/"}
-                        class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out delay-100 text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
+                        class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out duration-100 text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
                           {typeMap.formatted}
                       </Link>
                     </DropdownMenuItem>
@@ -75,8 +63,8 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
         </div>
         <div class="flex flex-row gap-4 justify-center">
           {watchLists.map( list =>
-            <Link to={"../lists/" + username + "/" + listType + "/" + list.name} /*onClick={columnsDifferent(watchListData, list, listType)}*/
-            class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out delay-100 text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
+            <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
+            class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out duration-100 text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
               {list.header}
             </Link>
           )}
@@ -89,7 +77,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
       <div class="font-family: arial bg-[#464646] text-[#FFEFCC] border-t-8 border-t-[#54806C] pt-3 pb-1 shadow-[inset_0_-6px_8px_rgba(0,0,0,0.6)]" id="list-nav">
         <div class="flex flex-row gap-4 justify-center">
           {watchLists.map( list =>
-            <Link to={"../lists/" + username + "/" + listType + "/" + list.name} /*onClick={columnsDifferent(watchListData, list, listType)}*/
+            <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
             class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
               {list.header}
             </Link>

@@ -237,7 +237,7 @@ export function columnDefs(columnParams) {
         )
       },
       cellClass: "ag-position-cell",
-      hide: columnParams.hiddenColumns['position'],
+      hide: !columnParams.displayedColumns['position'],
     },
 
 
@@ -252,7 +252,7 @@ export function columnDefs(columnParams) {
       maxWidth: 120,
       cellRenderer: params => listThumbnailRenderer(params.value),
       cellClass: "ag-thumbnail-cell",
-      hide: columnParams.hiddenColumns['thumbnail'],
+      hide: !columnParams.displayedColumns['thumbnail'],
     },
 
 
@@ -267,7 +267,7 @@ export function columnDefs(columnParams) {
       cellRenderer: params => titleCellRenderer(params, columnParams.watchListData.name, columnParams.listType),
       filter: 'agTextColumnFilter',
       cellClass: "ag-title-cell",
-      hide: columnParams.hiddenColumns['title'],
+      hide: !columnParams.displayedColumns['title'],
     },
 
 
@@ -293,7 +293,7 @@ export function columnDefs(columnParams) {
           }
         }
       },
-      hide: columnParams.hiddenColumns['type'],
+      hide: !columnParams.displayedColumns['type'],
     },
 
 
@@ -306,7 +306,7 @@ export function columnDefs(columnParams) {
       minWidth: 65,
       maxWidth: 72,
       filter: 'agDateColumnFilter',
-      hide: columnParams.hiddenColumns['airYear'],
+      hide: !columnParams.displayedColumns['airYear'],
     },
 
 
@@ -324,7 +324,7 @@ export function columnDefs(columnParams) {
       minWidth: 85,
       maxWidth: 110,
       filter: "agTextColumnFilter",
-      hide: columnParams.hiddenColumns['length'],
+      hide: !columnParams.displayedColumns['length'],
     },
 
 
@@ -338,7 +338,7 @@ export function columnDefs(columnParams) {
       maxWidth: 90,
       filter: "agSetColumnFilter",
       editable: true,
-      hide: columnParams.hiddenColumns['rating'],
+      hide: !columnParams.displayedColumns['rating'],
     },
 
 
@@ -353,7 +353,7 @@ export function columnDefs(columnParams) {
       maxWidth: 120,
       cellDataType: 'date',
       editable: true,
-      hide: columnParams.hiddenColumns['finishedDate'],
+      hide: !columnParams.displayedColumns['finishedDate'],
     },
 
 
@@ -406,7 +406,7 @@ export function columnDefs(columnParams) {
           )
         }
       },
-      hide: columnParams.hiddenColumns['genres'],
+      hide: !columnParams.displayedColumns['genres'],
     },
 
 
@@ -428,7 +428,7 @@ export function columnDefs(columnParams) {
           }
         }
       },
-      hide: columnParams.hiddenColumns['language'],
+      hide: !columnParams.displayedColumns['language'],
     },
 
 
@@ -469,7 +469,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['story'],
+      hide: !columnParams.displayedColumns['story'],
     },
 
 
@@ -510,7 +510,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['character'],
+      hide: !columnParams.displayedColumns['character'],
     },
 
 
@@ -552,7 +552,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['presentation'],
+      hide: !columnParams.displayedColumns['presentation'],
     },
 
 
@@ -593,7 +593,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['sound'],
+      hide: !columnParams.displayedColumns['sound'],
     },
 
 
@@ -634,7 +634,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['performance'],
+      hide: !columnParams.displayedColumns['performance'],
     },
 
 
@@ -675,7 +675,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['averaged'],
+      hide: !columnParams.displayedColumns['averaged'],
     },
 
 
@@ -725,7 +725,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['averaged'],
+      hide: !columnParams.displayedColumns['averaged'],
     },
 
 
@@ -768,7 +768,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['personal'],
+      hide: !columnParams.displayedColumns['personal'],
     },
 
 
@@ -809,7 +809,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['differencePersonal'],
+      hide: !columnParams.displayedColumns['differencePersonal'],
     },
 
 
@@ -845,7 +845,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['tmdbScore'],
+      hide: !columnParams.displayedColumns['tmdbScore'],
     },
 
 
@@ -886,7 +886,7 @@ export function columnDefs(columnParams) {
           type: scoreType
         } )
       },
-      hide: columnParams.hiddenColumns['differenceObjective'],
+      hide: !columnParams.displayedColumns['differenceObjective'],
     },
 
 
@@ -900,15 +900,14 @@ export function columnDefs(columnParams) {
       maxWidth: 500,
       filter: 'agTextColumnFilter',
       cellClass: "ag-description-cell",
-      hide: columnParams.hiddenColumns['description'],
+      hide: !columnParams.displayedColumns['description'],
     }
   ]
 }
 
 export function watchlistGrid(listEntries, watchListData, listType, watchlistId) {
-  const columns = watchListData.columns.split(', ')
-  const hiddenArray = columns.filter(x => !watchListData.displayedColumns.split(', ').includes(x));
-  const hiddenColumns = hiddenArray.reduce((key,value) => (key[value] = true, key),{});
+  const displayedArray = watchListData.displayedColumns.split(', ')
+  const displayedColumns = displayedArray.reduce((key,value) => (key[value] = true, key),{});
 
   const emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
   if (listEntries.slice(-1)[0] &&
@@ -916,7 +915,7 @@ export function watchlistGrid(listEntries, watchListData, listType, watchlistId)
     listEntries.push(emptyRow)
   }
 
-  const columnParams = {listEntries, watchListData, listType, watchlistId, hiddenColumns, emptyRow}
+  const columnParams = {listEntries, watchListData, listType, watchlistId, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
