@@ -70,10 +70,11 @@
   .list-landing-nav-item-container {
     font-family: arial;
     transition: all .1s ease-in-out; 
+    transform: scale(0.98)
   }
 
   .list-landing-nav-item-container:hover {
-    transform: scale(1.01);
+    transform: scale(1);
     filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
     background-color: #ffb70019; 
   }
@@ -99,16 +100,16 @@
   }
 
   .list-landing-nav-header {
-    font-size: 1.25rem;
-    line-height: 1.75rem;
+    font-size: 1.3rem;
+    line-height: 1.9rem;
     font-weight: 600;
     color: #ffffb1;
     padding-right: 1rem;
   }
 
   .list-landing-nav-length {
-    font-size: 1.125rem;
-    line-height: 1.75rem;
+    font-size: 1.3rem;
+    line-height: 1.9rem;
     font-weight: 600;
     color: #FF9900;
     padding-left: 1rem;
@@ -120,7 +121,7 @@
     flex: 1 1 auto;
     //padding: 1.5rem;
     background-color: #464646;
-    width: 45rem;
+    width: 45.3rem;
     font-family: arial;
     border-left-width: 8px;
     border-bottom-width: 8px;
@@ -134,7 +135,7 @@
   }
 
   .list-landing-nav-description {
-    font-size: 1rem;
+    font-size: 1.02rem;
     line-height: 1.5rem;
     color: white;
     font-family: "Playfair Display";
@@ -149,7 +150,7 @@
     width: 100%;
     display: flex;
     gap: 0.25rem;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     line-height: 1rem;
     font-weight: 600;
     color: #408063;
@@ -166,11 +167,13 @@
   .list-landing-nav-link-container {
     float: right;
     width: 40%;
-    height: 2.6rem;
+    height: 2.7rem;
     display: grid;
     grid-template-columns: 50% 50%;
     /*border-width: 8px;
     border-color: #383040;*/
+    background-color: #6F6F6F;
+    border-radius: 0 0 0.5rem 0;
   }
 
   .list-landing-nav-link-open {
@@ -215,7 +218,7 @@
     display: flex;
     flex-direction: column;
     row-gap: 1rem;
-    font-size: 1rem;
+    font-size: 1.02rem;
     line-height: 1.5rem;
     color: white;
     font-family: "Playfair Display";
@@ -293,5 +296,21 @@
     color: #80546C;
   }
 
-  
+  .list-landing-nav-insert {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #FF4200;
+    font-size: 45px;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    transition: all .1s ease-out; 
+  }
+
+  .list-landing-nav-insert:hover {
+    border: 2px solid #FF4200;
+    border-radius:50%;
+    -moz-border-radius:50%;
+    -webkit-border-radius:50%;
+  }
 }

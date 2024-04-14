@@ -3,6 +3,7 @@ import { Form, useLoaderData } from '@remix-run/react'
 import { useState } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
+import { Icon } from '#app/components/ui/icon.tsx'
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
@@ -294,6 +295,9 @@ export default function lists() {
       <div class="list-landing-main">
         <div class="list-landing-nav-container">
           { listNavigationDisplayer(useLoaderData()['watchListData'], useLoaderData()['username'], useLoaderData()['listType'], shownSettings, setShownSettings) }
+          <span className='list-landing-nav-insert'>
+            <Icon name="plus"></Icon>
+          </span>
         </div>
       </div>
     </main>
