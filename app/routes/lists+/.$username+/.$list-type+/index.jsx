@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node"
 import { Form, useLoaderData } from '@remix-run/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
 import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -8,7 +8,45 @@ import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
 
-function getWatchlistNav(entryData, username, listType, shownSettings, setShownSettings) {
+async function createNewList(listParams) {
+  let columns
+  if (listParams.listType == 'liveaction') {
+    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, airYear, length, rating, finishedDate, genres, language, story, character, presentation, sound, performance, enjoyment, averaged, personal, differencePersonal, tmdbScore, differenceObjective, description"
+  }
+  else if (listParams.listType == 'anime') {
+    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startSeason, length, rating, startDate, finishedDate, genres, studio, demographics, priority, story, character, presentation, sound, performance, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
+  }
+  else if (listParams.listType == 'manga') {
+    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startYear, chapters, volumes, rating, startDate, finishedDate, genres, magazine, demographics, author, priority, story, character, presentation, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
+  }
+
+  const emptyList = {
+    position: {value: listParams.watchListData.slice(-1)[0].watchlist.position + 1, type: "int"},
+    name: {value: " ", type: "string"},
+    header: {value: " ", type: "string"},
+    type: {value: listParams.listType, type: "string"},
+    columns: {value: columns, type: "string"},
+    displayedColumns: {value: columns, type: "string"},
+    createdAt: {value: Date.now(), type: "date"},
+    updatedAt: {value: Date.now(), type: "date"},
+    ownerId: {value: listParams.currentUser.id, type: "string"},
+  }
+
+  const addResponse = await fetch('/lists/fetch/create-watchlist/' + new URLSearchParams({
+    list: JSON.stringify(emptyList)
+  }))
+  const addData = await addResponse.json();
+
+  listParams.watchListData.push({
+    watchlist: addData,
+    listEntries: []
+  })
+
+  listParams.setShownSettings([...listParams.shownSettings, addData.id])
+  listParams.setNavItems(listNavigationDisplayer(listParams))
+}
+
+function getWatchlistNav(entryData, listParams) {
   return(
     <div class="list-landing-nav-item-container">
       <div class="list-landing-nav-top">
@@ -35,10 +73,10 @@ function getWatchlistNav(entryData, username, listType, shownSettings, setShownS
         </div>
       </div>
       <div class="list-landing-nav-link-container">
-        <a href={"/lists/" + username + "/" + listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
+        <a href={"/lists/" + listParams.username + "/" + listParams.listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
           Open
         </a>
-        <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {setShownSettings([...shownSettings, entryData.watchlist.id])}}>
+        <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}>
           Settings
         </button>
       </div>
@@ -86,7 +124,7 @@ function checkDisplayedColumns(columns, displayedColumns) {
   return checkedColumns
 }
 
-async function handleSubmit(e, columns, watchlist) {
+async function handleSubmit(e, columns, watchlist, listParams) {
   e.preventDefault()
 
   let columnsFormatted = columns.map(column => `${column}-checkbox`)
@@ -128,16 +166,24 @@ async function handleSubmit(e, columns, watchlist) {
     watchlistId: watchlist.id
   }))
 
-  window.location.reload();
+  listParams.watchListData.find((object, index) => {
+    if (object.watchlist.id === watchlist.id) {
+      listParams.watchListData[index].watchlist = updateSettingsData.slice(-1)[0]
+      return true;
+    }
+  })
+
+  listParams.setShownSettings(oldValues => { return oldValues.filter(setting => setting !== watchlist.id) })
+  listParams.setNavItems(listNavigationDisplayer(listParams))
 }
 
-function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
+function getWatchlistSettings(entryData, listParams) {
   const columns = entryData.watchlist.columns.split(', ')
   const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
   return(
-    <Form onSubmit={(e) => {handleSubmit(e, columns, entryData.watchlist)}}>
+    <Form onSubmit={(e) => {handleSubmit(e, columns, entryData.watchlist, listParams)}}>
       <div class="list-landing-nav-item-container">
         <div class="list-landing-nav-top">
           <h1 class="list-landing-nav-header">
@@ -185,7 +231,7 @@ function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
           <button type="submit" id="list-landing-settings-submit-button" name="list-landing-settings-submit-button" class="list-landing-settings-submit">
             Submit 
           </button> 
-          <button id="list-landing-settings-cancel-button" name="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {setShownSettings(oldValues => { return oldValues.filter(setting => setting !== entryData.watchlist.id) })}}>
+          <button id="list-landing-settings-cancel-button" name="list-landing-settings-cancel-button" class="list-landing-settings-cancel" onClick={() => {listParams.setShownSettings(oldValues => { return oldValues.filter(setting => setting !== entryData.watchlist.id) })}}>
             Cancel
             <span class="list-landing-settings-close-span">
               ⓧ
@@ -199,15 +245,15 @@ function getWatchlistSettings(entryData, shownSettings, setShownSettings) {
   )
 }
 
-function listNavigationDisplayer(watchListData, username, listType, shownSettings, setShownSettings) {
+function listNavigationDisplayer(listParams) {
   let navigationItems = []
 
-  for (const entryData of watchListData) {
-    if (shownSettings.includes(entryData.watchlist.id)) {
-      navigationItems.push(getWatchlistSettings(entryData, shownSettings, setShownSettings))
+  for (const entryData of listParams.watchListData) {
+    if (listParams.shownSettings.includes(entryData.watchlist.id)) {
+      navigationItems.push(getWatchlistSettings(entryData, listParams))
     }
     else {
-      navigationItems.push(getWatchlistNav(entryData, username, listType, shownSettings, setShownSettings))
+      navigationItems.push(getWatchlistNav(entryData, listParams))
     }
   }
 
@@ -267,7 +313,7 @@ export async function loader(params) {
     watchListNavs = [`<h1">No lists found</h1>`]
   }
 
-  return json({ watchListData, watchListNavs, watchListSettings, username: params['params']['username'], listType });
+  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listType });
 };
 
 export function ErrorBoundary() {
@@ -284,18 +330,30 @@ export function ErrorBoundary() {
 
 export default function lists() {
   const [shownSettings, setShownSettings] = useState([])
+  const [navItems, setNavItems] = useState([])
+
+  const currentUser = useLoaderData()['currentUser']
+  const username = useLoaderData()['username']
+  const listType = useLoaderData()['listType']
+  const watchListData = useLoaderData()['watchListData']
+
+  const listParams = {watchListData, currentUser, username, listType, shownSettings, setShownSettings, navItems, setNavItems}
+
+  useEffect(() => {
+  	setNavItems(listNavigationDisplayer(listParams))
+  }, [shownSettings]);
 
   return (
     <main class="list-landing" style={{ width: '100%', height: '100%' }}>
       <div class="list-landing-sidebar-container">
-        <a href={"/lists/" + useLoaderData()['username'] + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
-        <a href={"/lists/" + useLoaderData()['username'] + "/anime"} className="list-landing-sidebar-item">Anime</a>
-        <a href={"/lists/" + useLoaderData()['username'] + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
+        <a href={"/lists/" + username + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
+        <a href={"/lists/" + username + "/anime"} className="list-landing-sidebar-item">Anime</a>
+        <a href={"/lists/" + username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
       </div>
       <div class="list-landing-main">
         <div class="list-landing-nav-container">
-          { listNavigationDisplayer(useLoaderData()['watchListData'], useLoaderData()['username'], useLoaderData()['listType'], shownSettings, setShownSettings) }
-          <span className='list-landing-nav-insert'>
+          { navItems }
+          <span className='list-landing-nav-insert' onClick={(e) => {createNewList(listParams)}}>
             <Icon name="plus"></Icon>
           </span>
         </div>
