@@ -100,7 +100,7 @@ function colorRatio(scoreParams: scoreObject) {
     let curveValue: number = 0.01
 
     if (scoreParams['type'] != "Default") {
-        if (scoreParams['type'] == "TMDB Score") {
+        if (scoreParams['type'] == "TMDB Score" || scoreParams['type'] == "MAL Score") {
             curveValue = 0.1
         } else if (scoreParams['score'] > 0) {
             minValue = 0;

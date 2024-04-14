@@ -311,6 +311,32 @@ export function columnDefs(columnParams) {
 
 
     {
+      field: 'startSeason',
+      headerName: 'Start Season',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['startSeason'],
+    },
+
+
+    {
+      field: 'startYear',
+      headerName: 'Start Year',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['startYear'],
+    },
+
+
+    {
       field: 'length',
       headerName: 'Length',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
@@ -329,6 +355,32 @@ export function columnDefs(columnParams) {
 
 
     {
+      field: 'chapters',
+      headerName: 'Chapters',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['chapters'],
+    },
+
+
+    {
+      field: 'volumes',
+      headerName: 'Volumes',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['volumes'],
+    },
+
+
+    {
       field: 'rating',
       headerName: 'Rating',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
@@ -339,6 +391,21 @@ export function columnDefs(columnParams) {
       filter: "agSetColumnFilter",
       editable: true,
       hide: !columnParams.displayedColumns['rating'],
+    },
+
+
+    {
+      field: 'startDate',
+      headerName: 'Start Date',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueFormatter: params => dateFormatter(params.value),
+      flex: 1,
+      resizable: false,
+      minWidth: 85,
+      maxWidth: 120,
+      cellDataType: 'date',
+      editable: true,
+      hide: !columnParams.displayedColumns['startDate'],
     },
 
 
@@ -411,6 +478,58 @@ export function columnDefs(columnParams) {
 
 
     {
+      field: 'studio',
+      headerName: 'Studio',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['studio'],
+    },
+
+
+    {
+      field: 'magazine',
+      headerName: 'Magazine',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['magazine'],
+    },
+
+
+    {
+      field: 'demographics',
+      headerName: 'Demographics',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['demographics'],
+    },
+
+
+    {
+      field: 'author',
+      headerName: 'Author',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['author'],
+    },
+
+
+    {
       field: 'language',
       headerName: 'Language',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
@@ -429,6 +548,19 @@ export function columnDefs(columnParams) {
         }
       },
       hide: !columnParams.displayedColumns['language'],
+    },
+
+
+    {
+      field: 'priority',
+      headerName: 'Priority',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      flex: 1,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agTextColumnFilter",
+      hide: !columnParams.displayedColumns['priority'],
     },
 
 
@@ -850,12 +982,51 @@ export function columnDefs(columnParams) {
 
 
     {
+      field: 'malScore',
+      headerName: 'MAL Score',
+      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueFormatter: params => {
+        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
+          return ""
+        } else {
+          return Number(params.value).toFixed(1)
+        }
+      },
+      flex: 1,
+      resizable: false,
+      minWidth: 55,
+      maxWidth: 80,
+      filter: 'agNumberColumnFilter',
+      editable: false,
+      cellClass: params => {
+        if (params.value && params.value != 0)
+          return "ag-score-border-left-double ag-score-cell ag-score-present"
+        else {
+          return "ag-score-border-left-double ag-score-cell ag-score-empty"
+        }
+      },
+      cellStyle: function(params) {
+        let scoreType = "MAL Score";
+        return  scoreColor( {
+          range: scoreRange(scoreType),
+          score: params.value,
+          type: scoreType
+        } )
+      },
+      hide: !columnParams.displayedColumns['malScore'],
+    },
+
+
+    {
       field: 'differenceObjective',
       headerName: 'Difference: Objective',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
       valueGetter: params => {
         if ((params.data.personal && params.data.personal != 0) && (params.data.tmdbScore && params.data.tmdbScore != 0)) {
           return (params.data.personal - params.data.tmdbScore)
+        } 
+        else if ((params.data.personal && params.data.personal != 0) && (params.data.malScore && params.data.malScore != 0)) {
+          return (params.data.personal - params.data.malScore)
         } else {return ""}
       },
       valueFormatter: params => {
