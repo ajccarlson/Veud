@@ -20,11 +20,9 @@ async function createNewList(listParams) {
     columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startYear, chapters, volumes, rating, startDate, finishedDate, genres, magazine, demographics, author, priority, story, character, presentation, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
   }
 
-  const sameType = listParams.watchListData.find(item => item.type === listParams.listType)
   let lastPosition = 1
-
-  if (sameType > 0) {
-    lastPosition = sameType.slice(-1)[0].watchlist.position + 1
+  if (listParams && listParams.sameType.length > 0) {
+    lastPosition = listParams.sameType.slice(-1)[0].watchlist.position + 1
   }
 
   const emptyList = {
@@ -344,11 +342,17 @@ export default function lists() {
   const listType = useLoaderData()['listType']
   const watchListData = useLoaderData()['watchListData']
 
-  const listParams = {watchListData, currentUser, username, listType, shownSettings, setShownSettings, navItems, setNavItems}
+  const sameType = watchListData.find(item => item.watchlist.type === listType)
+  const listParams = {watchListData, sameType, currentUser, username, listType, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))
   }, [shownSettings]);
+
+  let firstListMessage
+  if (!sameType || sameType.length < 1) {
+    firstListMessage = "Create your first list"
+  }
 
   return (
     <main class="list-landing" style={{ width: '100%', height: '100%' }}>
@@ -360,6 +364,7 @@ export default function lists() {
       <div class="list-landing-main">
         <div class="list-landing-nav-container">
           { navItems }
+          <div class="list-landing-starting-message"> { firstListMessage } </div>
           <span className='list-landing-nav-insert' onClick={(e) => {createNewList(listParams)}}>
             <Icon name="plus"></Icon>
           </span>
