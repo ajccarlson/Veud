@@ -20,8 +20,15 @@ async function createNewList(listParams) {
     columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startYear, chapters, volumes, rating, startDate, finishedDate, genres, magazine, demographics, author, priority, story, character, presentation, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
   }
 
+  const sameType = listParams.watchListData.find(item => item.type === listParams.listType)
+  let lastPosition = 1
+
+  if (sameType > 0) {
+    lastPosition = sameType.slice(-1)[0].watchlist.position + 1
+  }
+
   const emptyList = {
-    position: {value: listParams.watchListData.slice(-1)[0].watchlist.position + 1, type: "int"},
+    position: {value: lastPosition, type: "int"},
     name: {value: " ", type: "string"},
     header: {value: " ", type: "string"},
     type: {value: listParams.listType, type: "string"},

@@ -50,7 +50,7 @@ model Note {
 model Watchlist {
   id                String @id @default(cuid())
   
-  position 	        Int @unique @default(-1)
+  position 	        Int @default(1)
   name              String
   header            String
   type              String
