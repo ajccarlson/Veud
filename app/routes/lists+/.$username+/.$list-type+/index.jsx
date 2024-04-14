@@ -342,7 +342,7 @@ export default function lists() {
   const listType = useLoaderData()['listType']
   const watchListData = useLoaderData()['watchListData']
 
-  const sameType = watchListData.find(item => item.watchlist.type === listType)
+  const sameType = watchListData.filter(item => item.watchlist.type === listType)
   const listParams = {watchListData, sameType, currentUser, username, listType, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
