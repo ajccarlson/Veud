@@ -222,6 +222,22 @@ function getWatchlistSettings(entryData, listParams) {
                     {checkedColumns} 
                   </div> 
                 </div>
+                <button type="button" class="list-landing-settings-delete-button"
+                  onClick={async () => {
+                    await fetch('/lists/fetch/delete-watchlist/' + new URLSearchParams({
+                      id: entryData.watchlist.id
+                    }))
+
+                    listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)
+                    listParams.setNavItems(listNavigationDisplayer(listParams))
+                  }}>
+                  <div class="list-landing-settings-delete-icon">
+                    <Icon name="trash"></Icon>
+                  </div>
+                  <span class="list-landing-settings-delete-text">
+                    Delete
+                  </span>
+                </button>
               </div>
               <div class="list-landing-nav-last-updated-container">
                 Last Updated:
