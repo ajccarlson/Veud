@@ -9,15 +9,15 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
 
 async function createNewList(listParams) {
-  let columns
+  let columns 
   if (listParams.listType == 'liveaction') {
-    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, airYear, length, rating, finishedDate, genres, language, story, character, presentation, sound, performance, enjoyment, averaged, personal, differencePersonal, tmdbScore, differenceObjective, description"
+    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "airYear", "length", "rating", "finishedDate", "genres", "language", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "tmdbScore", "differenceObjective", "description"]
   }
   else if (listParams.listType == 'anime') {
-    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startSeason, length, rating, startDate, finishedDate, genres, studio, demographics, priority, story, character, presentation, sound, performance, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
+    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startSeason", "length", "rating", "startDate", "finishedDate", "genres", "studio", "demographics", "priority", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
   }
   else if (listParams.listType == 'manga') {
-    columns = "id, watchlist, watchlistId, position, thumbnail, title, type, startYear, chapters, volumes, rating, startDate, finishedDate, genres, magazine, demographics, author, priority, story, character, presentation, enjoyment, averaged, personal, differencePersonal, malScore, differenceObjective, description"
+    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startYear", "chapters", "volumes", "rating", "startDate", "finishedDate", "genres", "magazine", "demographics", "author", "priority", "story", "character", "presentation", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
   }
 
   let lastPosition = 1
@@ -30,8 +30,8 @@ async function createNewList(listParams) {
     name: {value: " ", type: "string"},
     header: {value: " ", type: "string"},
     type: {value: listParams.listType, type: "string"},
-    columns: {value: columns, type: "string"},
-    displayedColumns: {value: columns, type: "string"},
+    columns: {value: columns.join(", "), type: "string"},
+    displayedColumns: {value: columns.filter(entry => entry !== "id" && entry !== "watchlistId"  && entry !== "watchlist").join(", "), type: "string"},
     createdAt: {value: Date.now(), type: "date"},
     updatedAt: {value: Date.now(), type: "date"},
     ownerId: {value: listParams.currentUser.id, type: "string"},
