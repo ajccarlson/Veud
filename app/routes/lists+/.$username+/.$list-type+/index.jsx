@@ -96,6 +96,9 @@ function checkDisplayedColumns(columns, displayedColumns) {
   let displayedIndex = 0
 
   for (let column of columns) {
+    if (column == "id" || column == "watchlistId" || column == "watchlist")
+      continue
+
     if (displayedColumns[displayedIndex]) {
       if (column == displayedColumns[displayedIndex]) {
         checkedColumns.push(
