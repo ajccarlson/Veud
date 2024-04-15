@@ -31,6 +31,18 @@ export async function loader(params) {
 
   invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
+  const listType = params['params']['list-type']
+  let typeFormatted = null;
+
+  if (listType == 'liveaction')
+    typeFormatted = "LiveActionEntry"
+  else if (listType == 'anime')
+    typeFormatted = "AnimeEntry"
+  else if (listType == 'manga')
+    typeFormatted = "MangaEntry"
+
+  invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
+
   const watchLists = await prisma.watchlist.findMany({
 		where: {
 			ownerId: currentUser.id,
@@ -43,26 +55,16 @@ export async function loader(params) {
   const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
 
   for (let watchList of watchLists) {
-    if (watchList.name == params['params']['watchlist']) {
-      listFound = true
-      watchListData = watchList;
-      break
+    if (watchList.type == listType) {
+      if (watchList.name == params['params']['watchlist']) {
+        listFound = true
+        watchListData = watchList;
+        break
+      }
     }
   }
 
   invariantResponse(listFound, 'Watchlist not found', { status: 404 }) 
-
-  const listType = params['params']['list-type']
-  let typeFormatted = null;
-
-  if (listType == 'liveaction')
-    typeFormatted = "LiveActionEntry"
-  else if (listType == 'anime')
-    typeFormatted = "AnimeEntry"
-  else if (listType == 'manga')
-    typeFormatted = "MangaEntry"
-
-  invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
 
   const {listEntries, watchlistId} = await getListByName(params['params']['watchlist'], typeFormatted);
 

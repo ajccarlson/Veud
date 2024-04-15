@@ -1,0 +1,92 @@
+.list-nav-buttons {
+  .list-nav-buttons-main {
+    font-family: arial;
+    background-color: #464646;
+    color: #FFEFCC;
+    border-top-width: 8px;
+    border-color: #54806C;
+    padding-top: 0.75rem;
+    padding-bottom: 0.25rem;
+    box-shadow: inset 0 -6px 8px rgba(0,0,0,0.6);
+  }
+
+  .list-nav-buttons-container {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .list-nav-button {
+    background-color: #6F6F6F;
+    transition: all .1s ease-out; 
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 700;
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+    padding-left: 4rem;
+    padding-right: 4rem;
+    border-bottom-width: 4px;
+    border-color: #A2FFD5;
+    border-radius: 0.25rem;
+  }
+
+  .list-nav-button:hover {
+    background-color: #8CA99D;
+    border-color: #80FFC6;
+  }
+
+  .list-type-nav-container {
+    display: flex;
+    flex-direction: column;
+    background-color: #6F6F6F;
+    position: fixed;
+    float: left;
+    font-weight: 700;
+    border-radius: 0.25rem;
+  }
+
+  .list-type-dropdown-container {
+    align-content: center;
+    text-align: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+  }
+
+  .list-type-dropdown-trigger {
+    background-color: #6F6F6F;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 700;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-radius: 0.25rem;
+  }
+
+  .list-type-dropdown-trigger:hover {
+    background-color: #8CA99D;
+  }
+
+  .list-type-dropdown-button {
+    background-color: #6F6F6F;
+    transition: all .1s ease-out; 
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 700;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-radius: 0.25rem;
+  }
+
+  .list-type-dropdown-button:hover {
+    background-color: #8CA99D;
+  }
+}
