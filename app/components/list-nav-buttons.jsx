@@ -19,9 +19,12 @@ function formatType(listType) {
 export function listNavButtons(watchLists, username, listType, watchListData) {
   let listTypes = []
   let currentType = {}
+  let typedWatchlists = []
   
   for (let list of watchLists) {
     if (list.type == listType) {
+      typedWatchlists.push(list)
+
       currentType = {
         name: list.type,
         formatted: formatType(list.type)
@@ -62,7 +65,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
           </div>
         </div>
         <div class="flex flex-row gap-4 justify-center">
-          {watchLists.map( list =>
+          {typedWatchlists.map( list =>
             <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
             class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out duration-100 text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
               {list.header}
@@ -76,7 +79,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
     return (
       <div class="font-family: arial bg-[#464646] text-[#FFEFCC] border-t-8 border-t-[#54806C] pt-3 pb-1 shadow-[inset_0_-6px_8px_rgba(0,0,0,0.6)]" id="list-nav">
         <div class="flex flex-row gap-4 justify-center">
-          {watchLists.map( list =>
+          {typedWatchlists.map( list =>
             <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
             class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-base font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
               {list.header}
