@@ -228,7 +228,9 @@ function getWatchlistSettings(entryData, listParams) {
                 <button type="button" class="list-landing-settings-delete-button"
                   onClick={async () => {
                     await fetch('/lists/fetch/delete-watchlist/' + new URLSearchParams({
-                      id: entryData.watchlist.id
+                      id: entryData.watchlist.id,
+                      listType: listParams.listType,
+                      ownerId: listParams.currentUser.id
                     }))
 
                     listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)

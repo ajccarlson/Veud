@@ -30,10 +30,11 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
         formatted: formatType(list.type)
       }
     }
-    else if (!listTypes.some(e => e.name === list.type)) {
+    else if (!listTypes.some(e => e.name === list.type) && list.position == 1) {
       listTypes.push({
         name: list.type,
-        formatted: formatType(list.type)
+        formatted: formatType(list.type),
+        url: ("../lists/" + username + "/" + list.type + "/" + list.name)
       })
     }
   }
@@ -53,7 +54,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
                 <DropdownMenuContent sideOffset={8} align="start">
                   {listTypes.map( typeMap =>
                     <DropdownMenuItem>
-                      <Link to={"../lists/" + username + "/" + typeMap.name + "/"}
+                      <Link to={typeMap.url}
                         class="bg-[#6F6F6F] hover:bg-[#8CA99D] transition ease-out duration-100 text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
                           {typeMap.formatted}
                       </Link>
