@@ -17,7 +17,7 @@ async function createNewList(listParams) {
     columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startSeason", "length", "rating", "startDate", "finishedDate", "genres", "studios", "priority", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
   }
   else if (listParams.listType == 'manga') {
-    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startYear", "chapters", "volumes", "rating", "startDate", "finishedDate", "genres", "magazine", "author", "priority", "story", "character", "presentation", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
+    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startYear", "chapters", "volumes", "startDate", "finishedDate", "genres", "serialization", "authors", "priority", "story", "character", "presentation", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
   }
 
   let lastPosition = 1

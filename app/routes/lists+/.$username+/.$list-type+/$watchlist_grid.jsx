@@ -44,6 +44,8 @@ function gridReady(e) {
 }
 
 export async function refreshGrid(refreshColumns, columnParams) {
+  console.log(columnParams)
+
   const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + new URLSearchParams({
     listName: columnParams.watchListData.name,
     listType: columnParams.listType
@@ -68,7 +70,7 @@ export async function refreshGrid(refreshColumns, columnParams) {
       emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
     }
     else if (columnParams.listType == 'MangaEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
     }
   }
   
@@ -109,7 +111,17 @@ async function createNewRow(location, params, columnParams) {
   else
     insertPosition = params.data.position
 
-  let emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
+  let emptyRow
+
+  if (columnParams.listType == 'LiveActionEntry') {
+    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
+  }
+  else if (columnParams.listType == 'AnimeEntry') {
+    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+  }
+  else if (columnParams.listType == 'MangaEntry') {
+    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+  }
 
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
@@ -499,28 +511,28 @@ export function columnDefs(columnParams) {
 
 
     {
-      field: 'magazine',
-      headerName: 'Magazine',
+      field: 'serialization',
+      headerName: 'Serialization',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
       flex: 1,
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
-      hide: !columnParams.displayedColumns['magazine'],
+      hide: !columnParams.displayedColumns['serialization'],
     },
 
 
     {
-      field: 'author',
-      headerName: 'Author',
+      field: 'authors',
+      headerName: 'Authors',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
       flex: 1,
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
-      hide: !columnParams.displayedColumns['author'],
+      hide: !columnParams.displayedColumns['authors'],
     },
 
 
@@ -1083,7 +1095,7 @@ export function watchlistGrid(listEntries, watchListData, listType, watchlistId)
     emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
   }
   else if (listType == 'MangaEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
   }
   
   if (listEntries.slice(-1)[0] &&

@@ -155,12 +155,11 @@ model MangaEntry {
   startYear	          String?
   chapters		        String?
   volumes		          String?
-  rating	            String?
   startDate	          DateTime?
   finishedDate	      DateTime?
   genres	            String?
-  magazine	          String?
-  author	            String?
+  serialization	      String?
+  authors	            String?
   priority            String?
   story		            Int?
   character	          Int?
