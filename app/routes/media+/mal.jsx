@@ -21,7 +21,7 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
     return
   }
 
-  return data.data.map(entry => entry.node)
+  return data.data.map(entry => entry.node).slice(0, numResults)
 }
 
 export async function getAnimeInfo(entryID) {

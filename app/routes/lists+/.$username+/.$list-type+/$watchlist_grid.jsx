@@ -1,5 +1,5 @@
 import { AgGridReact } from '@ag-grid-community/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -1088,6 +1088,10 @@ export function watchlistGrid(listEntriesPass, watchListData, listType, watchlis
   listEntries.length < 1) {
     listEntries.push(emptyRow)
   }
+
+  useEffect(() => {
+  	setListEntries(listEntriesPass)
+  }, [listEntriesPass]);
   
   const columnParams = {listEntries, setListEntries, watchListData, listType, watchlistId, displayedColumns, emptyRow}
 
