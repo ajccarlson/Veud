@@ -10,6 +10,12 @@ export async function loader(params) {
       },
     });
 
+    await prisma[searchParams.get('listType')].delete({
+      where: {
+        watchlistId: searchParams.get('id'),
+      },
+    })
+
     const watchLists = await prisma.watchlist.findMany({
       where: {
         type: searchParams.get('listType'),
