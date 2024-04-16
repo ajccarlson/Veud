@@ -1,4 +1,4 @@
-export async function searchTMDB(entry, type) {
+export async function searchTMDB(entry, type, numResults) {
   type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
 
   if (type.includes('movie'))
@@ -32,7 +32,12 @@ export async function searchTMDB(entry, type) {
     return;
   }
 
-  return data.results
+  if (numResults) {
+    return data.results.slice(0, numResults);
+  }
+  else {
+    return data.results;
+  }
 }
 
 export async function getTMDBInfo(entry, type/*, override = false*/) {

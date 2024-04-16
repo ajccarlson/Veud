@@ -73,8 +73,6 @@ export async function loader(params) {
 
     await sleep(sleepTime);
 
-    console.log("HERE")
-
     return [response, data];
   }
   catch (e) {

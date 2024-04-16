@@ -65,10 +65,10 @@ export async function refreshGrid(refreshColumns, columnParams) {
       emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
     }
     else if (columnParams.listType == 'AnimeEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studio: null, demographics: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
     }
     else if (columnParams.listType == 'MangaEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, demographics: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
     }
   }
   
@@ -486,15 +486,15 @@ export function columnDefs(columnParams) {
 
 
     {
-      field: 'studio',
-      headerName: 'Studio',
+      field: 'studios',
+      headerName: 'Studios',
       valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
       flex: 1,
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
-      hide: !columnParams.displayedColumns['studio'],
+      hide: !columnParams.displayedColumns['studios'],
     },
 
 
@@ -508,19 +508,6 @@ export function columnDefs(columnParams) {
       maxWidth: 72,
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['magazine'],
-    },
-
-
-    {
-      field: 'demographics',
-      headerName: 'Demographics',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
-      flex: 1,
-      resizable: false,
-      minWidth: 65,
-      maxWidth: 72,
-      filter: "agTextColumnFilter",
-      hide: !columnParams.displayedColumns['demographics'],
     },
 
 
@@ -1093,14 +1080,15 @@ export function watchlistGrid(listEntries, watchListData, listType, watchlistId)
     emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
   }
   else if (listType == 'AnimeEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studio: null, demographics: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
   }
   else if (listType == 'MangaEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, demographics: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
+    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , magazine: null, author: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
   }
   
   if (listEntries.slice(-1)[0] &&
-  ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== ""))) {
+  ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== "")) ||
+  listEntries.length < 1) {
     listEntries.push(emptyRow)
   }
 

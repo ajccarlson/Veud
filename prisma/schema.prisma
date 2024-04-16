@@ -123,8 +123,7 @@ model AnimeEntry {
   startDate	          DateTime?
   finishedDate	      DateTime?
   genres	            String?
-  studio	            String?
-  demographics        String?
+  studios	            String?
   priority            String?
   story		            Int?
   character	          Int?
@@ -161,7 +160,6 @@ model MangaEntry {
   finishedDate	      DateTime?
   genres	            String?
   magazine	          String?
-  demographics        String?
   author	            String?
   priority            String?
   story		            Int?

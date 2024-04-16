@@ -8,6 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.jsx"
+import { searchMAL, getAnimeInfo, getMangaInfo } from "#app/routes/media+/mal.jsx"
 import { Icon } from './ui/icon.tsx'
 import { StatusButton } from './ui/status-button.tsx'
 import "#app/styles/watchlist-search.scss"
@@ -32,7 +33,15 @@ export function MediaSearchBar(params) {
 			method="GET"
 			onSubmit={async (event) => {
         event.preventDefault();
-				setmediaResults(await searchTMDB(event.target.search.value, selectedItem))
+				if (params.params.listType == "LiveActionEntry") {
+					setmediaResults(await searchTMDB(event.target.search.value, selectedItem, 5))
+				}
+				else if (params.params.listType == "AnimeEntry") {
+					setmediaResults(await searchMAL(event.target.search.value, 'anime', 5))
+				}
+				else if (params.params.listType == "MangaEntry") {
+					setmediaResults(await searchTMDB(event.target.search.value, selectedItem, 5))
+				}
       }}
 			className="watchlist-search flex flex-wrap items-center justify-center"
 		>
@@ -58,9 +67,18 @@ export function MediaSearchBar(params) {
 						<div className="watchlist-search-item" onClick={async () => {
 							setShowDropdown(false)
 
-							const resultInfo = await getTMDBInfo(result.title, selectedItem)
-
-							const addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, finishedDate: new Date(0), genres: resultInfo.genres , language: resultInfo.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo.score, differenceObjective: 0, description: resultInfo.description}
+							let resultInfo, addRow
+							if (params.params.listType == "LiveActionEntry") {
+								resultInfo = await getTMDBInfo(result.title, selectedItem)
+								addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, finishedDate: new Date(0), genres: resultInfo.genres , language: resultInfo.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo.score, differenceObjective: 0, description: resultInfo.description}
+							}
+							else if (params.params.listType == "AnimeEntry") {
+								resultInfo = await getAnimeInfo(result.id)
+								addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , studios: resultInfo.studios.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
+							}
+							else if (params.params.listType == "MangaEntry") {
+								resultInfo = await getTMDBInfo(result.title, selectedItem)
+							} 
 
 							const addResponse = await fetch('/lists/fetch/add-row/' + new URLSearchParams({
 								listType: params.params.listType,
