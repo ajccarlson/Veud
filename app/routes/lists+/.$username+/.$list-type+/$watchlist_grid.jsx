@@ -43,23 +43,14 @@ function gridReady(e) {
   gridAPI = e.api
 }
 
-export async function refreshGrid(refreshColumns, columnParams) {
-  console.log(columnParams)
-
+export async function refreshGrid(columnParams) {
   const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + new URLSearchParams({
     listName: columnParams.watchListData.name,
     listType: columnParams.listType
   }))
   const listEntriesData = await listEntriesResponse.json();
 
-  if (refreshColumns && (refreshColumns.length > 0)) {
-    gridAPI.setGridOption('rowData', listEntriesData)
-    gridAPI.refreshCells({columns: refreshColumns, force: true })
-  }
-  else {
-    gridAPI.setGridOption('rowData', listEntriesData)
-    gridAPI.refreshCells({ force: true })
-  }
+  columnParams.setListEntries(listEntriesData)
 
   let emptyRow = columnParams.emptyRow
   if (!emptyRow && columnParams.watchlistId) {
@@ -77,15 +68,7 @@ export async function refreshGrid(refreshColumns, columnParams) {
   if (listEntriesData.slice(-1)[0] &&
   ((listEntriesData.slice(-1)[0].title && listEntriesData.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntriesData.slice(-1)[0].type && listEntriesData.slice(-1)[0].type.replace(/\W/g, '') !== ""))) {
     listEntriesData.push(emptyRow)
-
-    if (refreshColumns && (refreshColumns.length > 0)) {
-      gridAPI.setGridOption('rowData', listEntriesData)
-      gridAPI.refreshCells({columns: refreshColumns, force: true })
-    }
-    else {
-      gridAPI.setGridOption('rowData', listEntriesData)
-      gridAPI.refreshCells({ force: true })
-    }
+    columnParams.setListEntries(listEntriesData)
   }
 }
 
@@ -157,7 +140,7 @@ async function updatePositions(params, columnParams) {
     watchlistId: params.data.watchlistId
   }))
 
-  refreshGrid(["position"], columnParams)
+  refreshGrid(columnParams)
 }
 
 async function setterFunction(params, columnParams) {
@@ -246,7 +229,7 @@ export function columnDefs(columnParams) {
                       watchlistId: params.data.watchlistId
                     }))
 
-                    refreshGrid(undefined, columnParams)
+                    refreshGrid(columnParams)
                   }}>
                     Delete row
                   </DropdownMenuItem>
@@ -284,7 +267,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 90,
       maxWidth: 200,
-      cellRenderer: params => titleCellRenderer(params, columnParams.watchListData.name, columnParams.listType),
+      cellRenderer: params => titleCellRenderer(params, columnParams),
       filter: 'agTextColumnFilter',
       cellClass: "ag-title-cell",
       hide: !columnParams.displayedColumns['title'],
@@ -1083,7 +1066,9 @@ export function columnDefs(columnParams) {
   ]
 }
 
-export function watchlistGrid(listEntries, watchListData, listType, watchlistId) {
+export function watchlistGrid(listEntriesPass, watchListData, listType, watchlistId) {
+  const [listEntries, setListEntries] = useState(listEntriesPass)
+
   const displayedArray = watchListData.displayedColumns.split(', ')
   const displayedColumns = displayedArray.reduce((key,value) => (key[value] = true, key),{});
 
@@ -1103,8 +1088,8 @@ export function watchlistGrid(listEntries, watchListData, listType, watchlistId)
   listEntries.length < 1) {
     listEntries.push(emptyRow)
   }
-
-  const columnParams = {listEntries, watchListData, listType, watchlistId, displayedColumns, emptyRow}
+  
+  const columnParams = {listEntries, setListEntries, watchListData, listType, watchlistId, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>

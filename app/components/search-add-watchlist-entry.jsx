@@ -33,13 +33,13 @@ export function MediaSearchBar(params) {
 			method="GET"
 			onSubmit={async (event) => {
         event.preventDefault();
-				if (params.params.listType == "LiveActionEntry") {
+				if (params.columnParams.listType == "LiveActionEntry") {
 					setmediaResults(await searchTMDB(event.target.search.value, selectedItem, 5))
 				}
-				else if (params.params.listType == "AnimeEntry") {
+				else if (params.columnParams.listType == "AnimeEntry") {
 					setmediaResults(await searchMAL(event.target.search.value, 'anime', 5))
 				}
-				else if (params.params.listType == "MangaEntry") {
+				else if (params.columnParams.listType == "MangaEntry") {
 					setmediaResults(await searchMAL(event.target.search.value, 'manga', 5))
 				}
       }}
@@ -68,21 +68,21 @@ export function MediaSearchBar(params) {
 							setShowDropdown(false)
 
 							let resultInfo, addRow
-							if (params.params.listType == "LiveActionEntry") {
+							if (params.columnParams.listType == "LiveActionEntry") {
 								resultInfo = await getTMDBInfo(result.title, selectedItem)
-								addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, finishedDate: new Date(0), genres: resultInfo.genres , language: resultInfo.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo.score, differenceObjective: 0, description: resultInfo.description}
+								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, finishedDate: new Date(0), genres: resultInfo.genres , language: resultInfo.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo.score, differenceObjective: 0, description: resultInfo.description}
 							}
-							else if (params.params.listType == "AnimeEntry") {
+							else if (params.columnParams.listType == "AnimeEntry") {
 								resultInfo = await getAnimeInfo(result.id)
-								addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , studios: resultInfo.studios.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
+								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , studios: resultInfo.studios.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
 							}
-							else if (params.params.listType == "MangaEntry") {
+							else if (params.columnParams.listType == "MangaEntry") {
 								resultInfo = await getMangaInfo(result.id)
-								addRow = {/*id: " ", */watchlistId: params.params.params.data.watchlistId, position: params.params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , serialization: resultInfo.serialization.map(entry => entry.name).join(", "), authors: resultInfo.authors.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
+								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , serialization: resultInfo.serialization.map(entry => entry.name).join(", "), authors: resultInfo.authors.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
 							} 
 
 							const addResponse = await fetch('/lists/fetch/add-row/' + new URLSearchParams({
-								listType: params.params.listType,
+								listType: params.columnParams.listType,
 								row: JSON.stringify(addRow)
 							}))
 							const addData = await addResponse.json();
@@ -90,17 +90,17 @@ export function MediaSearchBar(params) {
 
 
 							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + new URLSearchParams({
-								listName: params.params.watchlistName,
-								listType: params.params.listType,
+								listName: params.columnParams.watchlistName,
+								listType: params.columnParams.listType,
 							}))
 							const deleteEmptyData = await deleteEmptyResponse.json();
 							//console.log(deleteEmptyData)
 
 							const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
-								watchlistId: params.params.params.data.watchlistId
+								watchlistId: params.params.data.watchlistId
 							}))
 
-							refreshGrid(undefined, {watchListData: {name: params.params.watchlistName}, listType: params.params.listType, watchlistId: params.params.params.data.watchlistId});
+							refreshGrid(params.columnParams);
 							setShowDropdown(true)
 						}}>
 							{result.title}
