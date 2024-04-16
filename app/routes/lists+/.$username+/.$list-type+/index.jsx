@@ -166,7 +166,9 @@ async function handleSubmit(e, columns, watchlist, listParams) {
 
   const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + new URLSearchParams({
     settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
-    listId: watchlist.id
+    listId: watchlist.id,
+    listType: listParams.listType,
+    ownerId: listParams.currentUser.id
   }))
   const updateSettingsData = await updateSettingsResponse.json();
   

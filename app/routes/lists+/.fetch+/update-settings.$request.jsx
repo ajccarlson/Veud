@@ -16,7 +16,25 @@ export async function loader(params) {
       }));
     }
 
-    return response
+    const watchLists = await prisma.watchlist.findMany({
+      where: {
+        type: searchParams.get('listType'),
+        ownerId: searchParams.get('ownerId'),
+      },
+    })
+
+    const watchListsSorted = watchLists.sort((a,b) => a.position - b.position)
+
+    for (let i = 0; i < watchListsSorted.length; i++) {
+      await prisma.watchlist.update({
+        where: {
+          id: watchListsSorted[i].id,
+        },
+        data: {
+          position: (i + 1),
+        },
+      })
+    }
   }
   catch(e) {
     return e
