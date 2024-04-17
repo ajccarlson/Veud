@@ -1065,6 +1065,19 @@ export function columnDefs(columnParams) {
       filter: 'agTextColumnFilter',
       cellClass: "ag-description-cell",
       hide: !columnParams.displayedColumns['description'],
+    },
+
+    {
+      field: 'notes',
+      headerName: 'Notes',
+      valueSetter: params => {setterFunction(params, columnParams)},
+      flex: 2,
+      resizable: false,
+      minWidth: 90,
+      maxWidth: 500,
+      filter: 'agTextColumnFilter',
+      cellClass: "ag-description-cell",
+      hide: !columnParams.displayedColumns['notes'],
     }
   ]
 }

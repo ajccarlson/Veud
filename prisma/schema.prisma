@@ -114,6 +114,7 @@ model LiveActionEntry {
   tmdbScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
@@ -149,6 +150,7 @@ model AnimeEntry {
   malScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
@@ -183,6 +185,7 @@ model MangaEntry {
   malScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
