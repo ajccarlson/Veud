@@ -160,6 +160,13 @@
     width: 9rem;
     padding-left: 0.375rem;
     padding-right: 0.375rem;
+    filter: drop-shadow(9px 2px 6px #66563d);
+    transition: all .1s ease-in-out; 
+  }
+
+  .ag-thumbnail-image:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(3px 0px 20px #66563d);
   }
 
   .list-landing-nav-last-updated-container {
