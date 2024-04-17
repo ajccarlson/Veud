@@ -6,14 +6,14 @@ import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
 
-async function getListByName(listName, listType) {
+async function getListByName(listName, typeFormatted) {
   const listID = await prisma.watchlist.findFirst({
 		where: {
 			name: listName.toLowerCase(),
 		},
 	})
 
-  const entries = await prisma[listType].findMany({
+  const entries = await prisma[typeFormatted].findMany({
 		where: {
 			watchlistId: listID.id,
 		},
@@ -32,14 +32,9 @@ export async function loader(params) {
   invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
   const listType = params['params']['list-type']
-  let typeFormatted = null;
-
-  if (listType == 'liveaction')
-    typeFormatted = "LiveActionEntry"
-  else if (listType == 'anime')
-    typeFormatted = "AnimeEntry"
-  else if (listType == 'manga')
-    typeFormatted = "MangaEntry"
+  const listTypes = await prisma.ListType.findMany()
+  const listTypeData = listTypes.find(type => type.name === listType)
+  const typeFormatted = listTypeData.header.replace(/\W/g, '') + "Entry"
 
   invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
 
@@ -55,7 +50,7 @@ export async function loader(params) {
   const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
 
   for (let watchList of watchLists) {
-    if (watchList.type == listType) {
+    if (watchList.typeId == listTypeData.id) {
       if (watchList.name == params['params']['watchlist']) {
         listFound = true
         watchListData = watchList;
@@ -68,7 +63,7 @@ export async function loader(params) {
 
   const {listEntries, watchlistId} = await getListByName(params['params']['watchlist'], typeFormatted);
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], "typeFormatted": typeFormatted, listEntries, watchLists, watchListsSorted, watchListData, watchlistId });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries, watchLists, watchListsSorted, watchListData, watchlistId });
 };
 
 export function ErrorBoundary() {
@@ -86,8 +81,8 @@ export function ErrorBoundary() {
 export default function watchList() {
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['typeFormatted'], useLoaderData()['watchlistId'] )}
-      {listNavButtons(useLoaderData()['watchListsSorted'], useLoaderData()['username'], useLoaderData()['listType'], useLoaderData()['watchListData'])}
+      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['listTypeData'], useLoaderData()['watchlistId'] )}
+      {listNavButtons(useLoaderData()['watchListsSorted'], useLoaderData()['username'], useLoaderData()['listTypes'], useLoaderData()['listTypeData'], useLoaderData()['watchListData'])}
     </main>
   )
 }

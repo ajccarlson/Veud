@@ -18,7 +18,7 @@ export async function loader(params) {
 
     const watchLists = await prisma.watchlist.findMany({
       where: {
-        type: searchParams.get('listType'),
+        id: JSON.parse(searchParams.get('listTypeData')).id,
         ownerId: searchParams.get('ownerId'),
       },
     })

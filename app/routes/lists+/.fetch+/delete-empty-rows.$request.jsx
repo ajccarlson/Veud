@@ -9,8 +9,10 @@ export async function loader(params) {
         name: searchParams.get('listName').toLowerCase(),
       },
     })
+
+    const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
   
-    const entries = await prisma[searchParams.get('listType')].findMany({
+    const entries = await prisma[typeFormatted].findMany({
       where: {
         watchlistId: listID.id,
       },
@@ -22,7 +24,7 @@ export async function loader(params) {
       if ((!entry.title || entry.title.replace(/\W/g, '') === "") && (!entry.type || entry.type.replace(/\W/g, '') === "")) {
         removedEntries.push(entry)
 
-        await prisma[searchParams.get('listType')].delete({
+        await prisma[typeFormatted].delete({
           where: {
             id: entry.id,
           },

@@ -10,7 +10,9 @@ export async function loader(params) {
       },
     });
 
-    await prisma[searchParams.get('listType')].delete({
+    const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
+
+    await prisma[typeFormatted].delete({
       where: {
         watchlistId: searchParams.get('id'),
       },
@@ -18,7 +20,7 @@ export async function loader(params) {
 
     const watchLists = await prisma.watchlist.findMany({
       where: {
-        type: searchParams.get('listType'),
+        id: JSON.parse(searchParams.get('listTypeData')).id,
         ownerId: searchParams.get('ownerId'),
       },
     })

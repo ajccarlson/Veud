@@ -9,16 +9,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import "#app/styles/list-landing.scss"
 
 async function createNewList(listParams) {
-  let columns 
-  if (listParams.listType == 'liveaction') {
-    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "airYear", "length", "rating", "finishedDate", "genres", "language", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "tmdbScore", "differenceObjective", "description"]
-  }
-  else if (listParams.listType == 'anime') {
-    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startSeason", "length", "rating", "startDate", "finishedDate", "genres", "studios", "priority", "story", "character", "presentation", "sound", "performance", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
-  }
-  else if (listParams.listType == 'manga') {
-    columns = ["id", "watchlist", "watchlistId", "position", "thumbnail", "title", "type", "startYear", "chapters", "volumes", "startDate", "finishedDate", "genres", "serialization", "authors", "priority", "story", "character", "presentation", "enjoyment", "averaged", "personal", "differencePersonal", "malScore", "differenceObjective", "description"]
-  }
+  const typeId = listParams.listTypeData.id
 
   let lastPosition = 1
   if (listParams && listParams.sameType.length > 0) {
@@ -29,8 +20,7 @@ async function createNewList(listParams) {
     position: {value: lastPosition, type: "int"},
     name: {value: " ", type: "string"},
     header: {value: " ", type: "string"},
-    type: {value: listParams.listType, type: "string"},
-    columns: {value: columns.join(", "), type: "string"},
+    typeId: typeId,
     displayedColumns: {value: columns.filter(entry => entry !== "id" && entry !== "watchlistId"  && entry !== "watchlist").join(", "), type: "string"},
     createdAt: {value: Date.now(), type: "date"},
     updatedAt: {value: Date.now(), type: "date"},
@@ -78,7 +68,7 @@ function getWatchlistNav(entryData, listParams) {
         </div>
       </div>
       <div class="list-landing-nav-link-container">
-        <a href={"/lists/" + listParams.username + "/" + listParams.listType + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
+        <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
           Open
         </a>
         <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}>
@@ -167,7 +157,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
   const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + new URLSearchParams({
     settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
     listId: watchlist.id,
-    listType: listParams.listType,
+    listTypeData: JSON.stringify(listParams.listTypeData),
     ownerId: listParams.currentUser.id
   }))
   const updateSettingsData = await updateSettingsResponse.json();
@@ -188,7 +178,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
 }
 
 function getWatchlistSettings(entryData, listParams) {
-  const columns = entryData.watchlist.columns.split(', ')
+  const columns = Object.keys(JSON.parse(listTypeData.columns))
   const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
@@ -231,7 +221,7 @@ function getWatchlistSettings(entryData, listParams) {
                   onClick={async () => {
                     await fetch('/lists/fetch/delete-watchlist/' + new URLSearchParams({
                       id: entryData.watchlist.id,
-                      listType: listParams.listType,
+                      listTypeData: JSON.stringify(listParams.listTypeData),
                       ownerId: listParams.currentUser.id
                     }))
 
@@ -298,20 +288,20 @@ export async function loader(params) {
   invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
   const listType = params['params']['list-type']
-  let typeFormatted = null;
 
-  if (listType == 'liveaction')
-    typeFormatted = "LiveActionEntry"
-  else if (listType == 'anime')
-    typeFormatted = "AnimeEntry"
-  else if (listType == 'manga')
-    typeFormatted = "MangaEntry"
+  const listTypeData = await prisma.ListType.findUnique({
+    where: {
+      name: listType,
+    },
+  })
 
-  invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
+  const typeFormatted = listTypeData.header.replace(/\W/g, '') + "Entry"
+
+  invariantResponse(typeFormatted, 'List type not found', { status: 404 })
 
   const watchLists = await prisma.watchlist.findMany({
     where: {
-      type: listType,
+      typeId: listTypeData.id,
       ownerId: currentUser.id,
     },
   })
@@ -340,8 +330,7 @@ export async function loader(params) {
   if (watchListNavs.length < 1) {
     watchListNavs = [`<h1">No lists found</h1>`]
   }
-
-  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listType });
+  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listTypeData });
 };
 
 export function ErrorBoundary() {
@@ -360,13 +349,13 @@ export default function lists() {
   const [shownSettings, setShownSettings] = useState([])
   const [navItems, setNavItems] = useState([])
 
+  const watchListData = useLoaderData()['watchListData']
   const currentUser = useLoaderData()['currentUser']
   const username = useLoaderData()['username']
-  const listType = useLoaderData()['listType']
-  const watchListData = useLoaderData()['watchListData']
+  const listTypeData = useLoaderData()['listTypeData']
 
-  const sameType = watchListData.filter(item => item.watchlist.type === listType)
-  const listParams = {watchListData, sameType, currentUser, username, listType, shownSettings, setShownSettings, navItems, setNavItems}
+  const sameType = watchListData.filter(item => item.watchlist.typeId === listTypeData.id)
+  const listParams = {watchListData, sameType, currentUser, username, listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))

@@ -56,7 +56,7 @@ export function differenceFormatter(params: any) {
 export function listThumbnailRenderer(params: any) {
   let image, url
 
-  if (!params) {
+  if (!params || params.replace(/\W/g, '') == "") {
     image = "https://placehold.co/300x450?text=?"
     url = "https://www.themoviedb.org/"
   }

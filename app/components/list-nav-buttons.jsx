@@ -8,37 +8,8 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import "#app/styles/list-nav-buttons.scss"
 
-function formatType(listType) {
-  if (listType == 'liveaction')
-    return "Live Action"
-  else if (listType == 'anime')
-    return "Anime"
-  else if (listType == 'manga')
-    return "Manga"
-}
-
-export function listNavButtons(watchLists, username, listType, watchListData) {
-  let listTypes = []
-  let currentType = {}
-  let typedWatchlists = []
-  
-  for (let list of watchLists) {
-    if (list.type == listType) {
-      typedWatchlists.push(list)
-
-      currentType = {
-        name: list.type,
-        formatted: formatType(list.type)
-      }
-    }
-    else if (!listTypes.some(e => e.name === list.type) && list.position == 1) {
-      listTypes.push({
-        name: list.type,
-        formatted: formatType(list.type),
-        url: ("../lists/" + username + "/" + list.type + "/" + list.name)
-      })
-    }
-  }
+export function listNavButtons(watchLists, username, listTypes, listTypeData, watchListData) {
+  const typedWatchlists = watchLists.filter(watchlist => watchlist.typeId === listTypeData.id)
 
   if (listTypes && listTypes.length > 0) {
     return (
@@ -49,16 +20,16 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div class="list-type-dropdown-trigger"> 
-                    {currentType.formatted}
+                    {listTypeData.header}
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuContent sideOffset={8} align="start">
                     {listTypes.map( typeMap =>
                       <DropdownMenuItem>
-                        <Link to={typeMap.url}
+                        <Link to={"../lists/" + username + "/" + typeMap.name + "/" + watchListData.name}
                           class="list-type-dropdown-button"> 
-                            {typeMap.formatted}
+                            {typeMap.header}
                         </Link>
                       </DropdownMenuItem>
                     )}
@@ -69,7 +40,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
           </div>
           <div class="list-nav-buttons-container">
             {typedWatchlists.map( list =>
-              <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
+              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button"> 
                 {list.header}
               </Link>
@@ -85,7 +56,7 @@ export function listNavButtons(watchLists, username, listType, watchListData) {
         <div class="list-nav-buttons-main" id="list-nav">
           <div class="list-nav-buttons-container">
             {typedWatchlists.map( list =>
-              <Link to={"../lists/" + username + "/" + listType + "/" + list.name}
+              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button"> 
                 {list.header}
               </Link>

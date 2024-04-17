@@ -50,7 +50,7 @@ model Note {
 model ListType {
   id                String @id @default(cuid())
   
-  name              String
+  name              String @unique
   header            String
   columns           String
 

@@ -9,8 +9,10 @@ export async function loader(params) {
         name: searchParams.get('listName').toLowerCase(),
       },
     })
+
+    const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
   
-    const entries = await prisma[searchParams.get('listType')].findMany({
+    const entries = await prisma[typeFormatted].findMany({
       where: {
         watchlistId: listID.id,
       },

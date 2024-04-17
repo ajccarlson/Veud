@@ -43,10 +43,31 @@ function gridReady(e) {
   gridAPI = e.api
 }
 
+function createEmptyRow(watchlistId, position, listTypeData) {
+  let emptyRow = {}
+
+  for (const [key, value] of Object.entries(JSON.parse(listTypeData.columns))) {
+    if (value == "string") {
+      emptyRow[key] = " "
+    }
+    else if (value == "number") {
+      emptyRow[key] = 0
+    }
+    else if (value == "date") {
+      emptyRow[key] = new Date(0)
+    }
+  }
+
+  emptyRow["watchlistId"] = watchlistId
+  emptyRow["position"] = position
+
+  return emptyRow
+}
+
 export async function refreshGrid(columnParams) {
   const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + new URLSearchParams({
     listName: columnParams.watchListData.name,
-    listType: columnParams.listType
+    listTypeData: JSON.stringify(columnParams.listTypeData),
   }))
   const listEntriesData = await listEntriesResponse.json();
 
@@ -54,15 +75,7 @@ export async function refreshGrid(columnParams) {
 
   let emptyRow = columnParams.emptyRow
   if (!emptyRow && columnParams.watchlistId) {
-    if (columnParams.listType == 'LiveActionEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
-    }
-    else if (columnParams.listType == 'AnimeEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-    }
-    else if (columnParams.listType == 'MangaEntry') {
-      emptyRow = {watchlistId: columnParams.watchlistId, position: listEntriesData.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-    }
+    emptyRow = createEmptyRow(columnParams.watchlistId, listEntries.length + 1, columnParams.listTypeData)
   }
   
   if (listEntriesData.slice(-1)[0] &&
@@ -94,22 +107,12 @@ async function createNewRow(location, params, columnParams) {
   else
     insertPosition = params.data.position
 
-  let emptyRow
-
-  if (columnParams.listType == 'LiveActionEntry') {
-    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
-  }
-  else if (columnParams.listType == 'AnimeEntry') {
-    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-  }
-  else if (columnParams.listType == 'MangaEntry') {
-    emptyRow = {watchlistId: params.data.watchlistId, position: insertPosition + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-  }
+  const emptyRow = createEmptyRow(params.data.watchlistId, listEntries.length + 1, columnParams.listTypeData)
 
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
   const addResponse = await fetch('../../fetch/add-row/' + new URLSearchParams({
-    listType: columnParams.listType,
+    listTypeData: JSON.stringify(columnParams.listTypeData),
     row: JSON.stringify(emptyRow)
   }))
 
@@ -127,7 +130,7 @@ async function updatePositions(params, columnParams) {
     }
 
     const updateCellResponse = await fetch('../../fetch/update-cell/' + new URLSearchParams({
-      listType: columnParams.listType,
+      listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
       type: params.colDef.cellDataType,
       filter: params.colDef.filter,
@@ -153,7 +156,7 @@ async function setterFunction(params, columnParams) {
     params.data[params.column.colId] = params.newValue
 
     const updateCellResponse = await fetch('../../fetch/update-cell/' + new URLSearchParams({
-      listType: columnParams.listType,
+      listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
       type: params.colDef.cellDataType,
       filter: params.colDef.filter,
@@ -181,7 +184,7 @@ export function columnDefs(columnParams) {
       field: 'position',
       sort: "asc",
       headerName: '#',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -218,7 +221,7 @@ export function columnDefs(columnParams) {
                   </DropdownMenuItem> */}
                   <DropdownMenuItem onSelect={async event => {
                     const deleteResponse = await fetch('../../fetch/delete-row/' + new URLSearchParams({
-                      listType: columnParams.listType,
+                      listTypeData: JSON.stringify(columnParams.listTypeData),
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
                       position: params.data.position,
@@ -247,7 +250,7 @@ export function columnDefs(columnParams) {
     {
       field: 'thumbnail',
       headerName: 'Thumbnail',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       sortable: false,
       resizable: false,
@@ -262,7 +265,7 @@ export function columnDefs(columnParams) {
     {
       field: 'title',
       headerName: 'Title',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 2,
       resizable: false,
       minWidth: 90,
@@ -277,7 +280,7 @@ export function columnDefs(columnParams) {
     {
       field: 'type',
       headerName: 'Type',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 70,
@@ -303,7 +306,7 @@ export function columnDefs(columnParams) {
     {
       field: 'airYear',
       headerName: 'Air Year',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -316,7 +319,7 @@ export function columnDefs(columnParams) {
     {
       field: 'startSeason',
       headerName: 'Start Season',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -329,7 +332,7 @@ export function columnDefs(columnParams) {
     {
       field: 'startYear',
       headerName: 'Start Year',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -342,7 +345,7 @@ export function columnDefs(columnParams) {
     {
       field: 'length',
       headerName: 'Length',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
@@ -360,7 +363,7 @@ export function columnDefs(columnParams) {
     {
       field: 'chapters',
       headerName: 'Chapters',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -373,7 +376,7 @@ export function columnDefs(columnParams) {
     {
       field: 'volumes',
       headerName: 'Volumes',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -386,7 +389,7 @@ export function columnDefs(columnParams) {
     {
       field: 'rating',
       headerName: 'Rating',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 80,
@@ -400,7 +403,7 @@ export function columnDefs(columnParams) {
     {
       field: 'startDate',
       headerName: 'Start Date',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       resizable: false,
@@ -415,7 +418,7 @@ export function columnDefs(columnParams) {
     {
       field: 'finishedDate',
       headerName: 'Finished Date',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       resizable: false,
@@ -430,7 +433,7 @@ export function columnDefs(columnParams) {
     {
       field: 'genres',
       headerName: 'Genre(s)',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 100,
@@ -483,7 +486,7 @@ export function columnDefs(columnParams) {
     {
       field: 'studios',
       headerName: 'Studios',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -496,7 +499,7 @@ export function columnDefs(columnParams) {
     {
       field: 'serialization',
       headerName: 'Serialization',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -509,7 +512,7 @@ export function columnDefs(columnParams) {
     {
       field: 'authors',
       headerName: 'Authors',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -522,7 +525,7 @@ export function columnDefs(columnParams) {
     {
       field: 'language',
       headerName: 'Language',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 90,
@@ -544,7 +547,7 @@ export function columnDefs(columnParams) {
     {
       field: 'priority',
       headerName: 'Priority',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -557,7 +560,7 @@ export function columnDefs(columnParams) {
     {
       field: 'story',
       headerName: 'Story',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
@@ -598,7 +601,7 @@ export function columnDefs(columnParams) {
     {
       field: 'character',
       headerName: 'Character',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -639,7 +642,7 @@ export function columnDefs(columnParams) {
     {
       field: 'presentation',
       headerName: 'Presentation',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return "" 
@@ -681,7 +684,7 @@ export function columnDefs(columnParams) {
     {
       field: 'sound',
       headerName: 'Sound',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -722,7 +725,7 @@ export function columnDefs(columnParams) {
     {
       field: 'performance',
       headerName: 'Performance',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -763,7 +766,7 @@ export function columnDefs(columnParams) {
     {
       field: 'enjoyment',
       headerName: 'Enjoyment',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -804,7 +807,7 @@ export function columnDefs(columnParams) {
     {
       field: 'averaged',
       headerName: 'Averaged',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -854,7 +857,7 @@ export function columnDefs(columnParams) {
     {
       field: 'personal',
       headerName: 'Personal',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -897,7 +900,7 @@ export function columnDefs(columnParams) {
     {
       field: 'differencePersonal',
       headerName: 'Difference: Personal',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueGetter: params => {
         if (params.data.personal && params.data.personal != 0) {
           return (params.data.personal - ((params.data.story + params.data.character + params.data.presentation + params.data.sound + params.data.performance + params.data.enjoyment) / 6))
@@ -938,7 +941,7 @@ export function columnDefs(columnParams) {
     {
       field: 'tmdbScore',
       headerName: 'TMDB Score',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -974,7 +977,7 @@ export function columnDefs(columnParams) {
     {
       field: 'malScore',
       headerName: 'MAL Score',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1010,7 +1013,7 @@ export function columnDefs(columnParams) {
     {
       field: 'differenceObjective',
       headerName: 'Difference: Objective',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       valueGetter: params => {
         if ((params.data.personal && params.data.personal != 0) && (params.data.tmdbScore && params.data.tmdbScore != 0)) {
           return (params.data.personal - params.data.tmdbScore)
@@ -1054,7 +1057,7 @@ export function columnDefs(columnParams) {
     {
       field: 'description',
       headerName: 'Description',
-      valueSetter: params => {setterFunction(params, columnParams.watchListData.name, columnParams.listType)},
+      valueSetter: params => {setterFunction(params, columnParams)},
       flex: 2,
       resizable: false,
       minWidth: 90,
@@ -1066,22 +1069,13 @@ export function columnDefs(columnParams) {
   ]
 }
 
-export function watchlistGrid(listEntriesPass, watchListData, listType, watchlistId) {
+export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
 
   const displayedArray = watchListData.displayedColumns.split(', ')
   const displayedColumns = displayedArray.reduce((key,value) => (key[value] = true, key),{});
 
-  let emptyRow
-  if (listType == 'LiveActionEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, airYear: null, length: null, rating: null, finishedDate: new Date(0), genres: null , language: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: 0, differenceObjective: 0, description: null}
-  }
-  else if (listType == 'AnimeEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startSeason: null, length: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , studios: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-  }
-  else if (listType == 'MangaEntry') {
-    emptyRow = {watchlistId: watchlistId, position: listEntries.length + 1, thumbnail: null, title: " ", type: null, startYear: null, chapters: null, volumes: null, rating: null, startDate: new Date(0), finishedDate: new Date(0), genres: null , serialization: null, authors: null, priority: null, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: 0, differenceObjective: 0, description: null}
-  }
+  const emptyRow = createEmptyRow(watchlistId, listEntries.length + 1, listTypeData)
   
   if (listEntries.slice(-1)[0] &&
   ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== "")) ||
@@ -1093,7 +1087,7 @@ export function watchlistGrid(listEntriesPass, watchListData, listType, watchlis
   	setListEntries(listEntriesPass)
   }, [listEntriesPass]);
   
-  const columnParams = {listEntries, setListEntries, watchListData, listType, watchlistId, displayedColumns, emptyRow}
+  const columnParams = {listEntries, setListEntries, watchListData, listTypeData, watchlistId, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
