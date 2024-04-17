@@ -12,7 +12,7 @@ export async function loader(params) {
 
     const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
 
-    await prisma[typeFormatted].delete({
+    await prisma[typeFormatted].deleteMany({
       where: {
         watchlistId: searchParams.get('id'),
       },
@@ -20,7 +20,7 @@ export async function loader(params) {
 
     const watchLists = await prisma.watchlist.findMany({
       where: {
-        id: JSON.parse(searchParams.get('listTypeData')).id,
+        typeId: JSON.parse(searchParams.get('listTypeData')).id,
         ownerId: searchParams.get('ownerId'),
       },
     })

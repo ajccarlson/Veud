@@ -20,11 +20,12 @@ async function createNewList(listParams) {
     position: {value: lastPosition, type: "int"},
     name: {value: " ", type: "string"},
     header: {value: " ", type: "string"},
-    typeId: typeId,
-    displayedColumns: {value: columns.filter(entry => entry !== "id" && entry !== "watchlistId"  && entry !== "watchlist").join(", "), type: "string"},
+    typeId: {value: typeId, type: "string"},
+    displayedColumns: {value: Object.keys(JSON.parse(listParams.listTypeData.columns)).filter(entry => entry !== "id" && entry !== "watchlistId"  && entry !== "watchlist").join(", "), type: "string"},
     createdAt: {value: Date.now(), type: "date"},
     updatedAt: {value: Date.now(), type: "date"},
     ownerId: {value: listParams.currentUser.id, type: "string"},
+    description: {value: " ", type: "string"}
   }
 
   const addResponse = await fetch('/lists/fetch/create-watchlist/' + new URLSearchParams({
@@ -160,7 +161,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
     listTypeData: JSON.stringify(listParams.listTypeData),
     ownerId: listParams.currentUser.id
   }))
-  const updateSettingsData = await updateSettingsResponse.json();
+  const updateSettingsData = await updateSettingsResponse.json()
   
   const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
     watchlistId: watchlist.id
@@ -178,7 +179,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
 }
 
 function getWatchlistSettings(entryData, listParams) {
-  const columns = Object.keys(JSON.parse(listTypeData.columns))
+  const columns = Object.keys(JSON.parse(listParams.listTypeData.columns))
   const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 

@@ -6,22 +6,6 @@ import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
 
-async function getListByName(listName, typeFormatted) {
-  const listID = await prisma.watchlist.findFirst({
-		where: {
-			name: listName.toLowerCase(),
-		},
-	})
-
-  const entries = await prisma[typeFormatted].findMany({
-		where: {
-			watchlistId: listID.id,
-		},
-	})
-
-  return {listEntries: entries, watchlistId: listID.id};
-}
-
 export async function loader(params) {
   const currentUser = await prisma.User.findUnique({
     where: {
@@ -61,9 +45,13 @@ export async function loader(params) {
 
   invariantResponse(listFound, 'Watchlist not found', { status: 404 }) 
 
-  const {listEntries, watchlistId} = await getListByName(params['params']['watchlist'], typeFormatted);
+  const listEntries = await prisma[typeFormatted].findMany({
+		where: {
+			watchlistId: watchListData.id,
+		},
+	})
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries, watchLists, watchListsSorted, watchListData, watchlistId });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries, watchLists, watchListsSorted, watchListData, watchlistId: watchListData.id });
 };
 
 export function ErrorBoundary() {

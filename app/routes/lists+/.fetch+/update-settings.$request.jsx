@@ -18,7 +18,7 @@ export async function loader(params) {
 
     const watchLists = await prisma.watchlist.findMany({
       where: {
-        id: JSON.parse(searchParams.get('listTypeData')).id,
+        typeId: JSON.parse(searchParams.get('listTypeData')).id,
         ownerId: searchParams.get('ownerId'),
       },
     })
@@ -35,6 +35,8 @@ export async function loader(params) {
         },
       })
     }
+    
+    return response
   }
   catch(e) {
     return e
