@@ -9,9 +9,12 @@ import {
 import "#app/styles/list-nav-buttons.scss"
 
 export function listNavButtons(watchLists, username, listTypes, listTypeData, watchListData) {
-  const typedWatchlists = watchLists.filter(watchlist => watchlist.typeId === listTypeData.id)
+  const typedWatchlists = watchLists.reduce((x, y) => {
+    (x[y.typeId] = x[y.typeId] || []).push(y);
+     return x;
+  },{});
 
-  if (listTypes && listTypes.length > 0) {
+  if (typedWatchlists && Object.keys(typedWatchlists).length > 1) {
     return (
       <main class="list-nav-buttons">
         <div class="list-nav-buttons-main" id="list-nav">
@@ -25,11 +28,11 @@ export function listNavButtons(watchLists, username, listTypes, listTypeData, wa
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuContent sideOffset={8} align="start">
-                    {listTypes.map( typeMap =>
+                    {Object.entries(typedWatchlists).map(([key, value]) => 
                       <DropdownMenuItem>
-                        <Link to={"../lists/" + username + "/" + typeMap.name + "/" + watchListData.name}
+                        <Link to={"../lists/" + username + "/" + listTypes.find(listType => listType.id == key).name + "/" + value.reduce((prev, curr) => prev.position < curr.position ? prev : curr).name}
                           class="list-type-dropdown-button"> 
-                            {typeMap.header}
+                            {listTypes.find(listType => listType.id == key).header}
                         </Link>
                       </DropdownMenuItem>
                     )}
@@ -39,7 +42,7 @@ export function listNavButtons(watchLists, username, listTypes, listTypeData, wa
             </div>
           </div>
           <div class="list-nav-buttons-container">
-            {typedWatchlists.map( list =>
+            {typedWatchlists[listTypeData.id].map( list =>
               <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button"> 
                 {list.header}
@@ -55,7 +58,7 @@ export function listNavButtons(watchLists, username, listTypes, listTypeData, wa
       <main class="list-nav-buttons">
         <div class="list-nav-buttons-main" id="list-nav">
           <div class="list-nav-buttons-container">
-            {typedWatchlists.map( list =>
+            {typedWatchlists[listTypeData.id].map( list =>
               <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button"> 
                 {list.header}
