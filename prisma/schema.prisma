@@ -47,14 +47,24 @@ model Note {
   @@index([ownerId, updatedAt])
 }
 
+model ListType {
+  id                String @id @default(cuid())
+  
+  name              String
+  header            String
+  columns           String
+
+  watchlists  Watchlist[]
+}
+
 model Watchlist {
   id                String @id @default(cuid())
   
   position 	        Int @default(1)
   name              String
   header            String
-  type              String
-  columns           String?
+  type              ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId            String
   displayedColumns  String?
   description       String?
 
@@ -72,6 +82,8 @@ model Watchlist {
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
+  
+  @@index([typeId])
 }
 
 model LiveActionEntry {
