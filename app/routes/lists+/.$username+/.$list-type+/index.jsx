@@ -6,6 +6,7 @@ import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
 import "#app/styles/list-landing.scss"
 
 async function createNewList(listParams) {
@@ -59,6 +60,13 @@ function getWatchlistNav(entryData, listParams) {
             <p class="list-landing-nav-description">
               {entryData.watchlist.description}
             </p>
+            <div class="list-landing-nav-thumbnail-container">
+              {entryData.listEntries.slice(0, 5).map(listEntry => 
+                <div class="list-landing-nav-thumbnail-item">
+                  {listThumbnailRenderer(listEntry.thumbnail)}
+                </div>
+              )}
+            </div>
             <div class="list-landing-nav-last-updated-container">
               Last Updated:
               <span class="list-landing-nav-last-updated-span">
@@ -322,7 +330,7 @@ export async function loader(params) {
 
     const entryData = {
       watchlist: watchlist,
-      listEntries: listEntries
+      listEntries: listEntries.sort((a, b) => a.position - b.position)
     }
 
     watchListData.push(entryData)
