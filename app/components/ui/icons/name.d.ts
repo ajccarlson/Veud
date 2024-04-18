@@ -28,3 +28,4 @@ export type IconName =
 	| 'sun'
 	| 'trash'
 	| 'update'
+	| 'veud-logo'
