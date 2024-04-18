@@ -53,33 +53,74 @@ export function differenceFormatter(params: any) {
   }
 }
 
-export function listThumbnailRenderer(params: any) {
-  let image, url
+export function hyperlinkRenderer(params: any, type: any = undefined) {
+  let content, url, inner
 
-  if (!params || params.replace(/\W/g, '') == "") {
-    image = "https://placehold.co/300x450?text=?"
-    url = "https://www.themoviedb.org/"
+  try {
+    const paramsObject: any = JSON.parse(params)
+
+    let itemCount = 0
+    let hyperlinkArray = []
+
+    for (const item of paramsObject) {
+      const separatorIndex = item.indexOf("|")
+      content = item.slice(0, separatorIndex)
+      url = item.slice(separatorIndex + 1)
+
+      if (itemCount % 2 == 0) {
+        inner = <span className='ag-list-odd'>
+          {content}
+        </span>
+      }
+      else {
+        inner = <span className='ag-list-even'>
+          {content}
+        </span>
+      }
+
+      hyperlinkArray.push(
+        <a href={url}>
+          {inner}
+        </a>
+      )
+    }
+
+    return hyperlinkArray
   }
-  else {
-    let separatorIndex = params.indexOf("|");
+  catch(e) {
+    if (!params || params.replace(/\W/g, '') == "" && type == "thumbnail") {
+      content = "https://placehold.co/300x450?text=?"
+      url = "https://www.themoviedb.org/"
+    }
+    else {
+      const separatorIndex = params.indexOf("|")
+      content = params.slice(0, separatorIndex)
+      url = params.slice(separatorIndex + 1)
+    }
 
-    image = params.slice(0, separatorIndex);
-    url = params.slice(separatorIndex + 1);
-  }
-
-  return (
-    <a href={url}>
-      <span>
-          { (
-            <img 
-                alt={`Thumbnail`}
-                src={image}
-                className="ag-thumbnail-image"
-            />
-          ) }
+    if (type == "thumbnail") {
+      inner = <span>
+        { (
+          <img 
+              alt={`Thumbnail`}
+              src={content}
+              className="ag-thumbnail-image"
+          />
+        ) }
       </span>
-    </a>
-  )
+    }
+    else {
+      inner = <span>
+        {content}
+      </span>
+    }
+
+    return (
+      <a href={url}>
+        {inner}
+      </a>
+    )
+  }
 }
 
 export function titleCellRenderer(params: any, columnParams: any) {

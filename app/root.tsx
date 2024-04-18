@@ -27,7 +27,7 @@ import { withSentry } from '@sentry/remix'
 import { useRef } from 'react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
-import logo from '#app/components/ui/icons/logo.webp';
+import logo from '#app/components/ui/icons/logoV3.webp';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { SearchBar } from './components/search-bar.tsx'

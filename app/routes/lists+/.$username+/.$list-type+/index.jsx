@@ -6,7 +6,7 @@ import { timeSince } from "#app/utils/lists/column-functions.tsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import {listThumbnailRenderer } from "#app/utils/lists/column-functions.tsx"
+import {hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
 import "#app/styles/list-landing.scss"
 
 async function createNewList(listParams) {
@@ -29,9 +29,9 @@ async function createNewList(listParams) {
     description: {value: " ", type: "string"}
   }
 
-  const addResponse = await fetch('/lists/fetch/create-watchlist/' + new URLSearchParams({
+  const addResponse = await fetch('/lists/fetch/create-watchlist/' + encodeURIComponent(new URLSearchParams({
     list: JSON.stringify(emptyList)
-  }))
+  })))
   const addData = await addResponse.json();
 
   listParams.watchListData.push({
@@ -63,7 +63,7 @@ function getWatchlistNav(entryData, listParams) {
             <div class="list-landing-nav-thumbnail-container">
               {entryData.listEntries.slice(0, 5).map(listEntry => 
                 <div class="list-landing-nav-thumbnail-item">
-                  {listThumbnailRenderer(listEntry.thumbnail)}
+                  {hyperlinkRenderer(listEntry.thumbnail, undefined)}
                 </div>
               )}
             </div>
@@ -163,17 +163,17 @@ async function handleSubmit(e, columns, watchlist, listParams) {
   const foundColumns = columnArray.join(", ")
   settingsObject["displayedColumns"] = foundColumns
 
-  const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + new URLSearchParams({
+  const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + encodeURIComponent(new URLSearchParams({
     settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
     listId: watchlist.id,
     listTypeData: JSON.stringify(listParams.listTypeData),
     ownerId: listParams.currentUser.id
-  }))
+  })))
   const updateSettingsData = await updateSettingsResponse.json()
   
-  const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
+  const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     watchlistId: watchlist.id
-  }))
+  })))
 
   listParams.watchListData.find((object, index) => {
     if (object.watchlist.id === watchlist.id) {
@@ -228,11 +228,11 @@ function getWatchlistSettings(entryData, listParams) {
                 </div>
                 <button type="button" class="list-landing-settings-delete-button"
                   onClick={async () => {
-                    await fetch('/lists/fetch/delete-watchlist/' + new URLSearchParams({
+                    await fetch('/lists/fetch/delete-watchlist/' + encodeURIComponent(new URLSearchParams({
                       id: entryData.watchlist.id,
                       listTypeData: JSON.stringify(listParams.listTypeData),
                       ownerId: listParams.currentUser.id
-                    }))
+                    })))
 
                     listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)
                     listParams.setNavItems(listNavigationDisplayer(listParams))
@@ -382,7 +382,7 @@ export default function lists() {
         <a href={"/lists/" + username + "/anime"} className="list-landing-sidebar-item">Anime</a>
         <a href={"/lists/" + username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
       </div>
-      <div class="list-landing-main">
+      <div class="list-landing-nav-main">
         <div class="list-landing-nav-container">
           { navItems }
           <div class="list-landing-starting-message"> { firstListMessage } </div>

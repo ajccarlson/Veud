@@ -8,7 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, differenceFormatter, listThumbnailRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
+import { dateFormatter, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -65,10 +65,10 @@ function createEmptyRow(watchlistId, position, listTypeData) {
 }
 
 export async function refreshGrid(columnParams) {
-  const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + new URLSearchParams({
+  const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
     listName: columnParams.watchListData.name,
     listTypeData: JSON.stringify(columnParams.listTypeData),
-  }))
+  })))
   const listEntriesData = await listEntriesResponse.json();
 
   columnParams.setListEntries(listEntriesData)
@@ -111,14 +111,14 @@ async function createNewRow(location, params, columnParams) {
 
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
-  const addResponse = await fetch('../../fetch/add-row/' + new URLSearchParams({
+  const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
     listTypeData: JSON.stringify(columnParams.listTypeData),
     row: JSON.stringify(emptyRow)
-  }))
+  })))
 
-  const updateResponse = await fetch('../../fetch/now-updated/' + new URLSearchParams({
+  const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     watchlistId: params.data.watchlistId
-  }))
+  })))
 
   updatePositions(params, columnParams)
 }
@@ -129,19 +129,19 @@ async function updatePositions(params, columnParams) {
       rowNode.data[params.column.colId] = index + 1
     }
 
-    const updateCellResponse = await fetch('../../fetch/update-cell/' + new URLSearchParams({
+    const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
       listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
       type: params.colDef.cellDataType,
       filter: params.colDef.filter,
       rowIndex: rowNode.data.id,
       newValue: index + 1,
-    }))
+    })))
   });
 
-  const updateResponse = await fetch('../../fetch/now-updated/' + new URLSearchParams({
+  const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     watchlistId: params.data.watchlistId
-  }))
+  })))
 
   refreshGrid(columnParams)
 }
@@ -155,18 +155,18 @@ async function setterFunction(params, columnParams) {
   else if (params.data != params.newValue) {
     params.data[params.column.colId] = params.newValue
 
-    const updateCellResponse = await fetch('../../fetch/update-cell/' + new URLSearchParams({
+    const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
       listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
       type: params.colDef.cellDataType,
       filter: params.colDef.filter,
       rowIndex: params.data.id,
       newValue: params.newValue,
-    }))
+    })))
 
-    const updateResponse = await fetch('../../fetch/now-updated/' + new URLSearchParams({
+    const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       watchlistId: params.data.watchlistId
-    }))
+    })))
 
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
   }
@@ -220,17 +220,17 @@ export function columnDefs(columnParams) {
                     Move row
                   </DropdownMenuItem> */}
                   <DropdownMenuItem onSelect={async event => {
-                    const deleteResponse = await fetch('../../fetch/delete-row/' + new URLSearchParams({
+                    const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
                       listTypeData: JSON.stringify(columnParams.listTypeData),
                       id: params.data.id,
                       watchlistId: params.data.watchlistId,
                       position: params.data.position,
                       change: 1
-                    }))
+                    })))
 
-                    const updateResponse = await fetch('../../fetch/now-updated/' + new URLSearchParams({
+                    const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
                       watchlistId: params.data.watchlistId
-                    }))
+                    })))
 
                     refreshGrid(columnParams)
                   }}>
@@ -256,7 +256,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 80,
       maxWidth: 120,
-      cellRenderer: params => listThumbnailRenderer(params.value),
+      cellRenderer: params => hyperlinkRenderer(params.value, "thumbnail"),
       cellClass: "ag-thumbnail-cell",
       hide: !columnParams.displayedColumns['thumbnail'],
     },
@@ -456,14 +456,14 @@ export function columnDefs(columnParams) {
   
             if (genreCount % 2 == 0) {
               genreSpans.push(
-                <span class="ag-genre-odd">
+                <span class="ag-list-odd">
                   {genreText}
                 </span>
               )
             }
             else {
               genreSpans.push(
-                <span class="ag-genre-even">
+                <span class="ag-list-even">
                   {genreText}
                 </span>
               )
@@ -491,6 +491,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
+      cellRenderer: params => hyperlinkRenderer(params.value, undefined),
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['studios'],
     },
@@ -504,6 +505,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
+      cellRenderer: params => hyperlinkRenderer(params.value, undefined),
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['serialization'],
     },
@@ -517,6 +519,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
+      cellRenderer: params => hyperlinkRenderer(params.value, undefined),
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['authors'],
     },

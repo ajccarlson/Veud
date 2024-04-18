@@ -74,31 +74,31 @@ export function MediaSearchBar(params) {
 							}
 							else if (params.columnParams.listTypeData.name == "anime") {
 								resultInfo = await getAnimeInfo(result.id)
-								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , studios: resultInfo.studios.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
+								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , studios: JSON.stringify(resultInfo.studios), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
 							}
 							else if (params.columnParams.listTypeData.name == "manga") {
 								resultInfo = await getMangaInfo(result.id)
-								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , serialization: resultInfo.serialization.map(entry => entry.name).join(", "), authors: resultInfo.authors.map(entry => entry.name).join(", "), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
+								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), startDate: new Date(0), finishedDate: new Date(0), genres: resultInfo.genres , serialization: JSON.stringify(resultInfo.serialization), authors: JSON.stringify(resultInfo.authors), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description}
 							} 
 
-							const addResponse = await fetch('/lists/fetch/add-row/' + new URLSearchParams({
+							const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 								row: JSON.stringify(addRow)
-							}))
+							})))
 							const addData = await addResponse.json();
 							//console.log(addData)
 
 
-							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + new URLSearchParams({
+							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
 								listName: params.columnParams.watchlistName,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
-							}))
+							})))
 							const deleteEmptyData = await deleteEmptyResponse.json();
 							//console.log(deleteEmptyData)
 
-							const updateResponse = await fetch('/lists/fetch/now-updated/' + new URLSearchParams({
+							const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
 								watchlistId: params.params.data.watchlistId
-							}))
+							})))
 
 							refreshGrid(params.columnParams);
 							setShowDropdown(true)

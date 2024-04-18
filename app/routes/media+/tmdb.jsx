@@ -10,17 +10,17 @@ export async function searchTMDB(entry, type, numResults) {
   else
     type = 'multi'
 
-  const url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
+  const url = "https://api.themoviedb.org/3/search/" + type + "?query=" + entry + "&include_adult=false&language=en-US&page=1";
   let response, data
 
   try {
-    response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+    response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
       fetchMethod: 'get',
       url: url,
       authorization: 'tmdb',
       fetchBody: undefined,
       sleepTime: 1500,
-    }))
+    })))
     data = await response.json();
     data.map(e => data = e ? {...data, ...e} : data)
 
@@ -60,16 +60,16 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
       const imdbRegex = /^ev\d{7}\/\d{4}(-\d)?$|^(ch|co|ev|nm|tt)\d*$/;
 
       if (entry.match(imdbRegex)) {
-        url = "https://api.themoviedb.org/3/find/" + encodeURIComponent(entry) + "?external_source=imdb_id";
+        url = "https://api.themoviedb.org/3/find/" + entry + "?external_source=imdb_id";
 
         try {;
-          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
             sleepTime: 1500,
-          }))
+          })))
           data = await response.json();
           data.map(e => data = e ? {...data, ...e} : data)
 
@@ -88,16 +88,16 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
           entryID = data.movie_results[0].id;
       }
       else {
-        url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
+        url = "https://api.themoviedb.org/3/search/" + type + "?query=" + entry + "&include_adult=false&language=en-US&page=1";
 
         try {
-          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
             sleepTime: 1500,
-          }))
+          })))
           data = await response.json();
           data.map(e => data = e ? {...data, ...e} : data)
 
@@ -116,16 +116,16 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
       }
     }
 
-    url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "&include_adult=false&language=en-US&page=1";
+    url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "&include_adult=false&language=en-US&page=1";
 
     try {
-      response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'tmdb',
         fetchBody: undefined,
         sleepTime: 1500,
-      }))
+      })))
       data = await response.json();
       data.map(e => data = e ? {...data, ...e} : data)
 
@@ -183,16 +183,16 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
       const score = data.vote_average;
 
       if (type == "tv") {
-        url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "/content_ratings";
+        url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "/content_ratings";
 
         try {
-          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
             sleepTime: 1500,
-          }))
+          })))
           data = await response.json();
           data.map(e => data = e ? {...data, ...e} : data)
 
@@ -211,16 +211,16 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
         }
       }
       else {
-        url = "https://api.themoviedb.org/3/" + encodeURIComponent(type) + "/" + encodeURIComponent(entryID) + "/release_dates";
+        url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "/release_dates";
         
         try {
-          response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
             sleepTime: 1500,
-          }))
+          })))
           data = await response.json();
           data.map(e => data = e ? {...data, ...e} : data)
 
@@ -260,6 +260,8 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
     else {
       let gender = data.gender == 1 ? 'female' : 'male';
 
+      const thumbnail = ("https://www.themoviedb.org/t/p/w600_and_h900_bestv2" + posterFill + "|" + "https://www.themoviedb.org/" + type + "/" + entryID);
+
       infoObject = {
         'entryID': data.id,
         'thumbnail': thumbnail,
@@ -279,52 +281,6 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
     console.error(e)
   }
 }
-
-// export function monitorNewTitles() {
-//   try {
-//     const ss = SpreadsheetApp.getActiveSpreadsheet();
-//     const sheetName = SpreadsheetApp.getActiveSheet().getName();
-//     const sheets = ['Plan to Watch (Movies)', 'Plan to Watch (Foreign Movies)', 'Plan to Watch (TV)'];
-
-//     if (sheets.includes(sheetName)) {
-//       const sheet = ss.getSheetByName(sheetName);
-//       const editedCell = sheet.getActiveCell();
-//       const editedRow = editedCell.getRow();
-//       const rowRange = sheet.getRange(editedRow, 1, 1, 10);
-
-//       console.log('editedRow: ' + editedRow);
-//       console.log('column: ' + editedCell.getColumn());
-
-//       if (editedCell.getColumn() == 3 && !sheet.getRange('A' + editedRow).getValue()) {
-//         const entryPass = sheet.getRange('C' + editedRow).getValue();
-//         let typePass;
-
-//         console.log(entryPass);
-
-//         if (sheetName == 'Plan to Watch (TV)')
-//           typePass = 'tv';
-//         else
-//           typePass = 'movie';
-
-//         console.log(typePass);
-        
-//         const rowData = getTMDBInfo(entryPass, typePass, true);
-
-//         const rowFormat = [["=ROW()-1", rowData['thumbnail'], rowData['title'], rowData['type'], rowData['year'], rowData['length'], rowData['rating'], rowData['genres'], rowData['language'], rowData['description']]];
-
-//         try {
-//           rowRange.setValues(rowFormat);
-//         }
-//         catch(e) {
-//           console.log(e)
-//         }
-//       }
-//     }
-//   }
-//   catch (e) {
-//     console.error('Failed to monitor new titles!\n' + e);
-//   }
-// }
 
 export function getFavoriteInfo(entryPass, typePass) {
   try {

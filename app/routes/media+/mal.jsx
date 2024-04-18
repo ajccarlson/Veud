@@ -3,13 +3,13 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   let response, data
 
   try {
-    response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+    response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
       fetchMethod: 'get',
       url: url,
       authorization: 'mal',
       fetchBody: undefined,
       sleepTime: 1500,
-    }))
+    })))
     data = await response.json()
     data.map(e => data = e ? {...data, ...e} : data)
 
@@ -30,13 +30,13 @@ export async function getAnimeInfo(entryID) {
 
   try {
     try {
-      response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
         sleepTime: 1500,
-      }))
+      })))
       data = await response.json()
       data.map(e => data = e ? {...data, ...e} : data)
   
@@ -106,10 +106,7 @@ export async function getAnimeInfo(entryID) {
 
     let studios = []
     for (let studio of data['studios']) {
-      studios.push({
-        'url':  "https://myanimelist.net/anime/producer/" + studio['id'],
-        'name': studio['name']
-      })
+      studios.push(studio['name'] + "|https://myanimelist.net/anime/producer/" + studio['id'])
     }
 
     const malInfo = {
@@ -140,13 +137,13 @@ export async function getMangaInfo(entryID) {
 
   try {
     try {
-      response = await fetch('../../../media/fetch-data/' + new URLSearchParams({
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
         sleepTime: 1500,
-      }))
+      })))
       data = await response.json()
       data.map(e => data = e ? {...data, ...e} : data)
   
@@ -185,19 +182,14 @@ export async function getMangaInfo(entryID) {
 
     let serialization = []
     for (let magazine of data['serialization'].map(entry => entry.node)) {
-      serialization.push({
-        'url':  "https://myanimelist.net/anime/magazine/" + magazine['id'],
-        'name': magazine['name']
-      })
+      serialization.push(magazine['name'] + "|https://myanimelist.net/anime/magazine/" + magazine['id'])
     }
 
     let authors = []
     for (let author of data['authors']) {
-      authors.push({
-        'url':  "https://myanimelist.net/anime/magazine/" + author.node['id'],
-        'name': author.node['first_name'] + " " + author.node['last_name'],
-        'role': author['role']
-      })
+      authors.push(
+        author.node['first_name'] + " " + author.node['last_name'] + " (" + author['role'] + ")|https://myanimelist.net/anime/magazine/" + author.node['id']
+      )
     }
 
     const malInfo = {
