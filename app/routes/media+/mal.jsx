@@ -182,18 +182,18 @@ export async function getMangaInfo(entryID) {
 
     let serialization = []
     for (let magazine of data['serialization'].map(entry => entry.node)) {
-      serialization.push(magazine['name'] + "|https://myanimelist.net/anime/magazine/" + magazine['id'])
+      serialization.push(magazine['name'] + "|https://myanimelist.net/manga/magazine/" + magazine['id'])
     }
 
     let authors = []
     for (let author of data['authors']) {
       authors.push(
-        author.node['first_name'] + " " + author.node['last_name'] + " (" + author['role'] + ")|https://myanimelist.net/anime/magazine/" + author.node['id']
+        author.node['first_name'] + " " + author.node['last_name'] + " (" + author['role'] + ")|https://myanimelist.net/people/" + author.node['id']
       )
     }
 
     const malInfo = {
-      'thumbnail': data['main_picture']['large'] + "|" + "https://myanimelist.net/anime/" + data['id'],
+      'thumbnail': data['main_picture']['large'] + "|" + "https://myanimelist.net/manga/" + data['id'],
       'title': data['title'],
       'type': typeFormatted,
       'startYear': startYear,

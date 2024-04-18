@@ -63,7 +63,7 @@ function getWatchlistNav(entryData, listParams) {
             <div class="list-landing-nav-thumbnail-container">
               {entryData.listEntries.slice(0, 5).map(listEntry => 
                 <div class="list-landing-nav-thumbnail-item">
-                  {hyperlinkRenderer(listEntry.thumbnail, undefined)}
+                  {hyperlinkRenderer(listEntry.thumbnail, "thumbnail")}
                 </div>
               )}
             </div>
