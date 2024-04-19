@@ -36,7 +36,7 @@ export async function loader(params) {
     },
   })
 
-	const typedWatchlists = watchLists.reduce((x, y) => {
+	const typedWatchlists = watchLists?.reduce((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
   },{});
@@ -55,13 +55,25 @@ export async function loader(params) {
 		}
 	}
 
-	const lastCompleted = listEntries.sort(function(a, b) {
+	const lastCompleted = listEntries?.sort(function(a, b) {
 		if (a.finishedDate > b.finishedDate) return -1;
 		if (a.finishedDate < b.finishedDate) return 1;
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, listEntries, lastCompleted })
+	const favorites = await prisma.userFavorite.findMany({
+    where: {
+      ownerId: user.id,
+    },
+  })
+	
+	const favoritesSorted = favorites?.sort(function(a, b) {
+		if (a.position < b.position) return -1;
+		if (a.position > b.position) return 1;
+		return 0;
+	});
+
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, listEntries, lastCompleted, favorites: favoritesSorted })
 }
 
 export default function ProfileRoute() {
@@ -70,8 +82,13 @@ export default function ProfileRoute() {
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
-	const lastCompletedGrouped = loaderData.lastCompleted.slice(0, 5).reduce((x, y) => {
+	const lastCompletedGrouped = loaderData.lastCompleted?.slice(0, 5).reduce((x, y) => {
     (x[y.watchlistId] = x[y.watchlistId] || []).push(y);
+     return x;
+  },{});
+
+	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
+    (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
   },{});
 
@@ -147,7 +164,7 @@ export default function ProfileRoute() {
 						<h1 className="user-landing-recent-activity-header">Recent Activity</h1>
 						{Object.entries(lastCompletedGrouped)?.map(([listKey, listValue]) =>
 							<div className="user-landing-recent-activity-list-container">
-								<h1 className="user-landing-recent-activity-header">{loaderData.watchLists.find(list => list.id == listKey).header}</h1>
+								<h1 className="user-landing-recent-activity-header">{loaderData.watchLists?.find(list => list.id == listKey).header}</h1>
 								<div className="user-landing-recent-activity-item-container">
 									{listValue.map(entry =>
 									<div className="user-landing-recent-activity-item">
@@ -169,7 +186,32 @@ export default function ProfileRoute() {
 						)}
 					</div>
 					<div className="user-landing-favorites-container">
-						Favorites
+						<h1 className="user-landing-favorites-header">Favorites</h1>
+						{Object.entries(typedFavorites)?.map(([typeKey, typeValue]) =>
+							<div className="user-landing-favorites-list-container">
+								<h1 className="user-landing-favorites-header">{loaderData.listTypes?.find(listType => listType.id == typeKey).header}</h1>
+								<div className="user-landing-favorites-item-container">
+									{typeValue.map(favorite =>
+									<div className="user-landing-favorites-item">
+										<div className="user-landing-favorites-thumbnail-container">
+											{hyperlinkRenderer(favorite.thumbnail, "thumbnail")}
+										</div>
+										<div className="user-landing-favorites-text-container">
+											<span className="user-landing-favorites-title">
+												{favorite.title}
+											</span>
+											<span className="user-landing-favorites-media-type">
+												{favorite.mediaType}
+											</span>
+											<span className="user-landing-start-year">
+												{new Date(favorite.startYear).getFullYear()}
+											</span>
+										</div>
+									</div>
+									)}
+								</div>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
