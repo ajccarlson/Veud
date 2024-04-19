@@ -20,21 +20,59 @@ function castType(varIn, varType) {
 export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
-
-    let valueFormatted;
-    if (searchParams.get('type') && searchParams.get('type') != "false")
-      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('type'));
-    else
-      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('filter'));
-
     const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
+
+    let valueFormatted
+    let columnName = searchParams.get('colId')
+
+    if (searchParams.get('type') && searchParams.get('type') != "false" && searchParams.get('type') != "history") {
+      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('type'))
+    }
+    else if (searchParams.get('type') == "history") {
+      const historyObject = await prisma[typeFormatted].findUnique({
+        where: {
+          id: searchParams.get('rowIndex'),
+        },
+      })
+
+      let parsedObject = {}
+      try {
+        parsedObject = JSON.parse(historyObject.history)
+
+        if (Object.keys(parsedObject).length < 1)
+          throw new Error
+      }
+      catch(e) {
+        parsedObject = {
+          added: null,
+          started: null,
+          finished: null,
+          progress: null,
+          lastUpdated: null,
+        }
+      }
+
+      if (searchParams.get('colId') == "length") {
+        parsedObject["progress"] = JSON.parse(searchParams.get('newValue'))
+      }
+      else {
+        parsedObject[searchParams.get('colId')] = new Date(searchParams.get('newValue')).toISOString()
+      }
+      
+      valueFormatted = JSON.stringify(parsedObject)
+
+      columnName = "history"
+    }
+    else {
+      valueFormatted = castType(searchParams.get('newValue'), searchParams.get('filter'))
+    }
 
     return await prisma[typeFormatted].update({
       where: {
         id: searchParams.get('rowIndex'),
       },
       data: {
-        [searchParams.get('colId')]: valueFormatted,
+        [columnName]: valueFormatted,
       },
     });
   }

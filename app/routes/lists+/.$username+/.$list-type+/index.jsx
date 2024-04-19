@@ -60,13 +60,20 @@ function getWatchlistNav(entryData, listParams) {
             <p class="list-landing-nav-description">
               {entryData.watchlist.description}
             </p>
-            <div class="list-landing-nav-thumbnail-container">
-              {entryData.listEntries.slice(0, 5).map(listEntry => 
-                <div class="list-landing-nav-thumbnail-item">
-                  {hyperlinkRenderer(listEntry.thumbnail, "thumbnail")}
+            {entryData.listEntries? 
+              <div class="list-landing-nav-entry-preview-container">
+                {entryData.watchlist.description.length > 30? 
+                  <hr class="list-landing-nav-entry-preview-separator"></hr>
+                : null}
+                <div class="list-landing-nav-thumbnail-container">
+                  {entryData.listEntries.slice(0, 5).map(listEntry => 
+                    <div class="list-landing-nav-thumbnail-item">
+                      {hyperlinkRenderer(listEntry.thumbnail, "thumbnail")}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
+            : null}
             <div class="list-landing-nav-last-updated-container">
               Last Updated:
               <span class="list-landing-nav-last-updated-span">

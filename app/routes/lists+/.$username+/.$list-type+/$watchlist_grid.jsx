@@ -54,7 +54,16 @@ function createEmptyRow(watchlistId, position, listTypeData) {
       emptyRow[key] = 0
     }
     else if (value == "date") {
-      emptyRow[key] = new Date(0)
+      emptyRow[key] = null
+    }
+    else if (value == "history") {
+      emptyRow[key] = JSON.stringify({
+        added: null,
+        started: null,
+        finished: null,
+        progress: null,
+        lastUpdated: null,
+      })
     }
   }
 
@@ -157,16 +166,24 @@ async function setterFunction(params, columnParams) {
     updatePositions(params, columnParams)
   }
   else if (params.data != params.newValue) {
+    let cellType = params.colDef.cellDataType
+    if (params.column.colId.toLowerCase() == ("finished") || params.column.colId.toLowerCase() == ("started")) {
+      cellType = "history"
+    }
+
     params.data[params.column.colId] = params.newValue
 
     const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
       listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
-      type: params.colDef.cellDataType,
+      type: cellType,
       filter: params.colDef.filter,
       rowIndex: params.data.id,
       newValue: params.newValue,
     })))
+    const updateCellData = await updateCellResponse.json();
+
+    console.log(updateCellData)
 
     const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       watchlistId: params.data.watchlistId
@@ -404,8 +421,14 @@ export function columnDefs(columnParams) {
 
 
     {
-      field: 'startDate',
+      field: 'started',
       headerName: 'Start Date',
+      valueGetter: (params) => {
+        try {
+          return JSON.parse(params.data.historyd).starte
+        }
+        catch(e) {}
+      },
       valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
@@ -419,8 +442,14 @@ export function columnDefs(columnParams) {
 
 
     {
-      field: 'finishedDate',
+      field: 'finished',
       headerName: 'Finished Date',
+      valueGetter: (params) => {
+        try {
+          return JSON.parse(params.data.history).finished
+        }
+        catch(e) {}
+      },
       valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,

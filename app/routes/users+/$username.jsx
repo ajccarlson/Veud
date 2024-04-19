@@ -42,24 +42,26 @@ export async function loader(params) {
   },{});
 
 	let listEntries = []
+	let typedEntries = {}
 
 	for (const type of listTypes) {
 		const typeFormatted = type.header.replace(/\W/g, '') + "Entry"
+		let perWatchlistEntries = []
 
 		for (const typedList of typedWatchlists[type.id]) {
-			listEntries = listEntries.concat(await prisma[typeFormatted].findMany({
+			perWatchlistEntries.push(await prisma[typeFormatted].findMany({
 				where: {
 					watchlistId: typedList.id,
 				},
 			}))
 		}
-	}
 
-	const lastCompleted = listEntries?.sort(function(a, b) {
-		if (a.finishedDate > b.finishedDate) return -1;
-		if (a.finishedDate < b.finishedDate) return 1;
-		return 0;
-	});
+		typedEntries[type.header] = perWatchlistEntries.flat(2).sort(function(a, b) {
+			if (a.history.finished > b.history.finished) return -1;
+			if (a.history.finished < b.history.finished) return 1;
+			return 0;
+		});
+	}
 
 	const favorites = await prisma.userFavorite.findMany({
     where: {
@@ -73,7 +75,7 @@ export async function loader(params) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, listEntries, lastCompleted, favorites: favoritesSorted })
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, listEntries, typedEntries, favorites: favoritesSorted })
 }
 
 export default function ProfileRoute() {
@@ -81,11 +83,6 @@ export default function ProfileRoute() {
 	const user = loaderData.user
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
-
-	const lastCompletedGrouped = loaderData.lastCompleted?.slice(0, 5).reduce((x, y) => {
-    (x[y.watchlistId] = x[y.watchlistId] || []).push(y);
-     return x;
-  },{});
 
 	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
@@ -162,11 +159,13 @@ export default function ProfileRoute() {
 				<div className="user-landing-body-container">
 					<div className="user-landing-recent-activity-container">
 						<h1 className="user-landing-recent-activity-header">Recent Activity</h1>
-						{Object.entries(lastCompletedGrouped)?.map(([listKey, listValue]) =>
+						{Object.entries(loaderData.typedEntries)?.map(([listKey, listValue]) =>
 							<div className="user-landing-recent-activity-list-container">
-								<h1 className="user-landing-recent-activity-header">{loaderData.watchLists?.find(list => list.id == listKey).header}</h1>
+								<h1 className="user-landing-recent-activity-header">
+									{`${listKey}`}
+								</h1>
 								<div className="user-landing-recent-activity-item-container">
-									{listValue.map(entry =>
+									{listValue.slice(0, 10).map(entry =>
 									<div className="user-landing-recent-activity-item">
 										<div className="user-landing-recent-activity-thumbnail-container">
 											{hyperlinkRenderer(entry.thumbnail, "thumbnail")}
@@ -176,7 +175,7 @@ export default function ProfileRoute() {
 												{entry.title}
 											</span>
 											<span className="user-landing-recent-activity-date">
-												{timeSince(new Date(entry.finishedDate))}
+												{timeSince(new Date(entry.history.finished))}
 											</span>
 										</div>
 									</div>
