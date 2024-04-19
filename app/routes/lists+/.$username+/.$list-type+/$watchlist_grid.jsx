@@ -445,9 +445,9 @@ export function columnDefs(columnParams) {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, columnParams, params.data.history).then(val => {
-              console.log(val);
+              // console.log(val);
             }).catch(e => {
-              console.log(e);
+              // console.log(e);
             })
 
             return parsedDate
@@ -479,9 +479,9 @@ export function columnDefs(columnParams) {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, columnParams, params.data.history).then(val => {
-              console.log(val);
+              // console.log(val);
             }).catch(e => {
-              console.log(e);
+              // console.log(e);
             })
 
             return parsedDate

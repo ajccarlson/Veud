@@ -18,30 +18,63 @@ export function dateFormatter(params: any) {
 }
 
 export function timeSince(date: Date) {
-  var seconds = Math.floor(((new Date()).valueOf() - date.valueOf()) / 1000);
+  const seconds = Math.floor(((new Date()).valueOf() - date.valueOf()) / 1000);
+  let interval = seconds / 31536000;
+  let flooredInterval = Math.floor(interval)
 
-  var interval = seconds / 31536000;
+  function updateInterval(denominator: number) {
+    interval = seconds / denominator;
+    flooredInterval = Math.floor(interval)
+  }
+
 
   if (interval > 1) {
-    return Math.floor(interval) + " years";
+    if (flooredInterval == 1)
+      return flooredInterval + " year";
+    else
+      return flooredInterval + " years";
   }
-  interval = seconds / 2592000;
+  
+  updateInterval(2592000);
+
   if (interval > 1) {
-    return Math.floor(interval) + " months";
+    if (flooredInterval == 1)
+      return flooredInterval + " month";
+    else
+      return flooredInterval + " months";
   }
-  interval = seconds / 86400;
+
+  updateInterval(86400);
+
   if (interval > 1) {
-    return Math.floor(interval) + " days";
+    if (flooredInterval == 1)
+      return flooredInterval + " day";
+    else
+      return flooredInterval + " days";
   }
-  interval = seconds / 3600;
+
+  updateInterval(3600);
+
   if (interval > 1) {
-    return Math.floor(interval) + " hours";
+    if (flooredInterval == 1)
+      return flooredInterval + " hour";
+    else
+      return flooredInterval + " hours";
   }
-  interval = seconds / 60;
+
+  updateInterval(60);
+
   if (interval > 1) {
-    return Math.floor(interval) + " minutes";
+    if (flooredInterval == 1)
+      return flooredInterval + " minute";
+    else
+      return flooredInterval + " minutes";
   }
-  return Math.floor(seconds) + " seconds";
+
+  if (Math.floor(seconds) == 1)
+    return flooredInterval + " second";
+  else
+    return flooredInterval + " seconds";
 }
 
 export function differenceFormatter(params: any) {

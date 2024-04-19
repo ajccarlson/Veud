@@ -56,12 +56,58 @@ export async function loader(params) {
 			}))
 		}
 
-		typedEntries[type.header] = perWatchlistEntries.flat(2).sort(function(a, b) {
-			if (a.history.finished > b.history.finished) return -1;
-			if (a.history.finished < b.history.finished) return 1;
+		typedEntries[type.header] = perWatchlistEntries.flat(2)
+		
+		for (const entry of typedEntries[type.header]) {
+			if (entry.history && entry.history != null && entry.history != "null") {
+				entry.history = JSON.parse(entry.history)
+
+				let latestEntry = {
+					type: null,
+					time: new Date(0)
+				}
+
+				for (const [historyKey, historyValue] of Object.entries(entry.history)) {
+					if (historyValue != null && historyValue != "null" && Object.entries(historyValue).length < 1) {
+						let currentDate = new Date(historyValue)
+
+						if (currentDate > latestEntry.time) {
+							latestEntry = {
+								type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+								time: currentDate
+							}
+						}
+					}
+				}
+
+				entry.history.mostRecent = latestEntry
+			}
+			else {
+				entry.history = {
+					added: null,
+					started: null,
+					finished: null,
+					progress: null,
+					lastUpdated: null,
+					mostRecent: {
+						type: null,
+						time: null
+					}
+				}
+			}
+		}
+
+		typedEntries[type.header].sort(function(a, b) {
+			if (!a.history.mostRecent.time || a.history.mostRecent.time == null)
+				a.history.mostRecent.time = 0
+			if (!b.history.mostRecent.time || b.history.mostRecent.time == null)
+				b.history.mostRecent.time = 0
+
+			if (a.history.mostRecent.time > b.history.mostRecent.time) return -1;
+			if (a.history.mostRecent.time < b.history.mostRecent.time) return 1;
 			return 0;
 		});
-	}
+}
 
 	const favorites = await prisma.userFavorite.findMany({
     where: {
@@ -174,8 +220,11 @@ export default function ProfileRoute() {
 											<span className="user-landing-recent-activity-title">
 												{entry.title}
 											</span>
-											<span className="user-landing-recent-activity-date">
-												{timeSince(new Date(entry.history.finished))}
+											<span className="user-landing-recent-activity-latest-type">
+												{entry.history.mostRecent.type}
+											</span>
+											<span className="user-landing-recent-activity-latest-time">
+												{`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
 											</span>
 										</div>
 									</div>
