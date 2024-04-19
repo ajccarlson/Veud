@@ -51,7 +51,9 @@ export async function loader(params) {
 		},
 	})
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries, watchLists, watchListsSorted, watchListData, watchlistId: watchListData.id });
+  const listEntriesSorted = listEntries.sort((a, b) => a.position - b.position)
+
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, watchListData, watchlistId: watchListData.id });
 };
 
 export function ErrorBoundary() {

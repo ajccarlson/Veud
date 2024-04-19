@@ -90,7 +90,7 @@ export function MediaSearchBar(params) {
 
 
 							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
-								listName: params.columnParams.watchlistName,
+								watchlistId: params.params.data.watchlistId,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 							})))
 							const deleteEmptyData = await deleteEmptyResponse.json();

@@ -6,7 +6,7 @@ export async function loader(params) {
 
     const listID = await prisma.watchlist.findFirst({
       where: {
-        name: searchParams.get('listName').toLowerCase(),
+        id: searchParams.get('watchlistId').toLowerCase(),
       },
     })
 

@@ -4,9 +4,9 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
-    const listID = await prisma.watchlist.findFirst({
+    const listID = await prisma.watchlist.findUnique({
       where: {
-        name: searchParams.get('listName').toLowerCase(),
+        id: searchParams.get('watchlistId').toLowerCase(),
       },
     })
 

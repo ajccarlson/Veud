@@ -66,7 +66,7 @@ function createEmptyRow(watchlistId, position, listTypeData) {
 
 export async function refreshGrid(columnParams) {
   const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
-    listName: columnParams.watchListData.name,
+    watchlistId: columnParams.watchlistId,
     listTypeData: JSON.stringify(columnParams.listTypeData),
   })))
   const listEntriesData = await listEntriesResponse.json();
@@ -182,7 +182,6 @@ export function columnDefs(columnParams) {
   return [
     {
       field: 'position',
-      sort: "asc",
       headerName: '#',
       valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
