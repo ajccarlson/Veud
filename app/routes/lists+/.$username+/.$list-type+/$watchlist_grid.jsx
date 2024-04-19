@@ -71,7 +71,11 @@ export async function refreshGrid(columnParams) {
   })))
   const listEntriesData = await listEntriesResponse.json();
 
-  columnParams.setListEntries(listEntriesData)
+  columnParams.setListEntries(listEntriesData.sort(function(a, b) {
+		if (a.position < b.position) return -1;
+		if (a.position > b.position) return 1;
+		return 0;
+	}))
 
   let emptyRow = columnParams.emptyRow
   if (!emptyRow && columnParams.watchlistId) {
