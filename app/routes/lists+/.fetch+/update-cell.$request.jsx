@@ -44,11 +44,11 @@ export async function loader(params) {
       }
       catch(e) {
         parsedObject = {
-          added: null,
+          added: Date.now(),
           started: null,
           finished: null,
           progress: null,
-          lastUpdated: null,
+          lastUpdated: Date.now(),
         }
       }
 

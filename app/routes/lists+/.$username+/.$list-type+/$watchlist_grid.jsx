@@ -58,11 +58,11 @@ function createEmptyRow(watchlistId, position, listTypeData) {
     }
     else if (value == "history") {
       emptyRow[key] = JSON.stringify({
-        added: null,
+        added: Date.now(),
         started: null,
         finished: null,
         progress: null,
-        lastUpdated: null,
+        lastUpdated: Date.now(),
       })
     }
   }
@@ -96,6 +96,19 @@ export async function refreshGrid(columnParams) {
     listEntriesData.push(emptyRow)
     columnParams.setListEntries(listEntriesData)
   }
+}
+
+export async function reformatHistory(params, columnParams, newValue) {
+  const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
+    listTypeData: JSON.stringify(columnParams.listTypeData),
+    colId: params.column.colId,
+    type: "history",
+    filter: "agDateColumnFilter",
+    rowIndex: params.node.data.id,
+    newValue: newValue,
+  })))
+  const updateCellData = await updateCellResponse.json();
+  return updateCellData
 }
 
 function rowDragEnd(params) {
@@ -425,9 +438,22 @@ export function columnDefs(columnParams) {
       headerName: 'Start Date',
       valueGetter: (params) => {
         try {
-          return JSON.parse(params.data.historyd).starte
+          return JSON.parse(params.data.history).started
         }
-        catch(e) {}
+        catch(e) {
+          try {
+            const parsedDate = Date.parse(params.data.history)
+
+            reformatHistory(params, columnParams, params.data.history).then(val => {
+              console.log(val);
+            }).catch(e => {
+              console.log(e);
+            })
+
+            return parsedDate
+          }
+          catch(e) {}
+        }
       },
       valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
@@ -448,7 +474,20 @@ export function columnDefs(columnParams) {
         try {
           return JSON.parse(params.data.history).finished
         }
-        catch(e) {}
+        catch(e) {
+          try {
+            const parsedDate = Date.parse(params.data.history)
+
+            reformatHistory(params, columnParams, params.data.history).then(val => {
+              console.log(val);
+            }).catch(e => {
+              console.log(e);
+            })
+
+            return parsedDate
+          }
+          catch(e) {}
+        }
       },
       valueSetter: params => {setterFunction(params, columnParams)},
       valueFormatter: params => dateFormatter(params.value),
