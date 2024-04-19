@@ -8,7 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
+import { dateFormatter, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -498,6 +498,74 @@ export function columnDefs(columnParams) {
       cellDataType: 'date',
       editable: true,
       hide: !columnParams.displayedColumns['finishedDate'],
+    },
+
+
+    {
+      field: 'added',
+      headerName: 'Date Added',
+      valueGetter: (params) => {
+        try {
+          return JSON.parse(params.data.history).added
+        }
+        catch(e) {
+          try {
+            const parsedDate = Date.parse(params.data.history)
+
+            reformatHistory(params, columnParams, params.data.history).then(val => {
+              // console.log(val);
+            }).catch(e => {
+              // console.log(e);
+            })
+
+            return parsedDate
+          }
+          catch(e) {}
+        }
+      },
+      valueSetter: params => {setterFunction(params, columnParams)},
+      valueFormatter: params => dateFormatter(params.value),
+      flex: 1,
+      resizable: false,
+      minWidth: 85,
+      maxWidth: 120,
+      cellDataType: 'date',
+      editable: true,
+      hide: !columnParams.displayedColumns['dateAdded'],
+    },
+
+
+    {
+      field: 'lastUpdated',
+      headerName: 'Last Updated',
+      valueGetter: (params) => {
+        try {
+          return JSON.parse(params.data.history).lastUpdated
+        }
+        catch(e) {
+          try {
+            const parsedDate = Date.parse(params.data.history)
+
+            reformatHistory(params, columnParams, params.data.history).then(val => {
+              // console.log(val);
+            }).catch(e => {
+              // console.log(e);
+            })
+
+            return parsedDate
+          }
+          catch(e) {}
+        }
+      },
+      valueSetter: params => {setterFunction(params, columnParams)},
+      valueFormatter: params => timeSince(params.value),
+      flex: 1,
+      resizable: false,
+      minWidth: 85,
+      maxWidth: 120,
+      cellDataType: 'date',
+      editable: true,
+      hide: !columnParams.displayedColumns['lastUpdated'],
     },
 
 
