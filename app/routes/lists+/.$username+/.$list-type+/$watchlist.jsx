@@ -67,10 +67,12 @@ export function ErrorBoundary() {
 }
 
 export default function watchList() {
+  const loaderData = useLoaderData()
+
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(useLoaderData()['listEntries'], useLoaderData()['watchListData'], useLoaderData()['listTypeData'], useLoaderData()['watchlistId'] )}
-      {listNavButtons(useLoaderData()['watchListsSorted'], useLoaderData()['username'], useLoaderData()['listTypes'], useLoaderData()['listTypeData'], useLoaderData()['watchListData'])}
+      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId )}
+      {listNavButtons(loaderData.watchListsSorted, loaderData.username, loaderData.listTypes, loaderData.listTypeData, loaderData.watchListData)}
     </main>
   )
 }

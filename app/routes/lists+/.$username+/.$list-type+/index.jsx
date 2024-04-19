@@ -2,11 +2,11 @@ import { json } from "@remix-run/node"
 import { Form, useLoaderData } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
-import { timeSince } from "#app/utils/lists/column-functions.tsx"
+import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
 import { Icon } from '#app/components/ui/icon.tsx'
+import { Spacer } from '#app/components/spacer.tsx'
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import {hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
 import "#app/styles/list-landing.scss"
 
 async function createNewList(listParams) {
@@ -84,8 +84,7 @@ function getWatchlistNav(entryData, listParams) {
           Settings
         </button>
       </div>
-      <br></br>
-      <br></br>
+      <Spacer size="xs" />
     </div>
   )
 }
@@ -266,8 +265,7 @@ function getWatchlistSettings(entryData, listParams) {
           </button>
         </div>
       </div> 
-      <br></br>
-      <br></br>
+      <Spacer size="xs" />
     </Form>
   )
 }
@@ -357,14 +355,10 @@ export function ErrorBoundary() {
 export default function lists() {
   const [shownSettings, setShownSettings] = useState([])
   const [navItems, setNavItems] = useState([])
+  const loaderData = useLoaderData()
 
-  const watchListData = useLoaderData()['watchListData']
-  const currentUser = useLoaderData()['currentUser']
-  const username = useLoaderData()['username']
-  const listTypeData = useLoaderData()['listTypeData']
-
-  const sameType = watchListData.filter(item => item.watchlist.typeId === listTypeData.id)
-  const listParams = {watchListData, sameType, currentUser, username, listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
+  const sameType = loaderData.watchListData.filter(item => item.watchlist.typeId === loaderData.listTypeData.id)
+  const listParams = {watchListData: loaderData.watchListData, sameType, currentUser: loaderData.currentUser, username: loaderData.username, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))
@@ -378,9 +372,9 @@ export default function lists() {
   return (
     <main class="list-landing" style={{ width: '100%', height: '100%' }}>
       <div class="list-landing-sidebar-container">
-        <a href={"/lists/" + username + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
-        <a href={"/lists/" + username + "/anime"} className="list-landing-sidebar-item">Anime</a>
-        <a href={"/lists/" + username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
+        <a href={"/lists/" + loaderData.username + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
+        <a href={"/lists/" + loaderData.username + "/anime"} className="list-landing-sidebar-item">Anime</a>
+        <a href={"/lists/" + loaderData.username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
       </div>
       <div class="list-landing-nav-main">
         <div class="list-landing-nav-container">
