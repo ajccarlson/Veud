@@ -1,7 +1,15 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { json } from '@remix-run/node'
+import { useEffect, useState } from 'react'
 import { Form, Link, useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuPortal,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -11,8 +19,207 @@ import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
-export async function loader(params) {
+function SideData() {
+	const loaderData = useLoaderData()
+	const user = loaderData.user
+	const loggedInUser = useOptionalUser()
+	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
+	return (
+		<div className="user-landing-side-container">
+			<div className="user-landing-personal-container">
+				<img
+					src={getUserImgSrc(loaderData.user.image?.id)}
+					alt={user.username}
+					className="user-landing-profile-image"
+				/>
+				<h1 className="user-landing-username">{user.username}</h1>
+				<p className="user-landing-join-date">
+					Joined {loaderData.userJoinedDisplay}
+				</p>
+			</div>
+			<div className="user-landing-nav-container-main">
+				<Button asChild>
+					<Link to={`../../lists/${user.username}`} prefetch="intent">
+						Watchlists
+					</Link>
+				</Button>
+				<Button asChild>
+					<Link to="notes" prefetch="intent">
+						Notes
+					</Link>
+				</Button>
+				{isLoggedInUser ? (
+					<Button asChild>
+						<Link to="/settings/profile" prefetch="intent">
+							Edit profile
+						</Link>
+					</Button>
+				) : null}
+			</div>
+			<div className="user-landing-nav-container-sub">
+				<Button asChild>
+					<Link to="" prefetch="intent">
+						Stats
+					</Link>
+				</Button>
+				<Button asChild>
+					<Link to="" prefetch="intent">
+						History
+					</Link>
+				</Button>
+			</div>
+			<div className="user-landing-nav-container-social">
+				<Button asChild>
+					<Link to="" prefetch="intent">
+						Friends
+					</Link>
+				</Button>
+				{isLoggedInUser ? (
+					<Button asChild>
+						<Link to="" prefetch="intent">
+							Messages
+						</Link>
+					</Button>
+				) : 
+				<Button asChild>
+					<Link to="" prefetch="intent">
+						Message
+					</Link>
+				</Button>
+				}
+			</div>
+		</div>
+	)
+}
+
+function RecentActivityData() {
+	const loaderData = useLoaderData()
+	const user = loaderData.user
+	const loggedInUser = useOptionalUser()
+	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+
+	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[0]);
+
+	return (
+		<div className="user-landing-recent-activity-container">
+			<h1 className="user-landing-body-header">Recent Activity</h1>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<div className="user-landing-dropdown-trigger"> 
+						{selectedLatestUpdate.header}
+					</div>
+				</DropdownMenuTrigger>
+				<DropdownMenuPortal className="user-landing-dropdown-portal">
+					<DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+						{loaderData.listTypes.filter(function(e) { return e.header !== selectedLatestUpdate.header }).map(listType =>
+							<DropdownMenuItem className="user-landing-dropdown-item" onClick={() => {setSelectedLatestUpdate(listType)}}>
+								{listType.header}
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenuPortal>
+			</DropdownMenu>
+			<div className="user-landing-body-list-container">
+				<div className="user-landing-body-item-container">
+					{loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 10).map(entry =>
+					<div className="user-landing-body-item">
+						<div className="user-landing-body-thumbnail-container">
+							{hyperlinkRenderer(entry.thumbnail, "thumbnail")}
+						</div>
+						<div className="user-landing-body-text-container">
+							<span className="user-landing-body-title">
+								{entry.title}
+							</span>
+							<span className="user-landing-body-latest-type">
+								{entry.history.mostRecent.type}
+							</span>
+							<span className="user-landing-body-latest-time">
+								{`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+							</span>
+						</div>
+					</div>
+					)}
+				</div>
+			</div>
+		</div>
+	)
+}
+
+function FavoritesData() {
+	const loaderData = useLoaderData()
+	const user = loaderData.user
+	const loggedInUser = useOptionalUser()
+	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+
+	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
+    (x[y.typeId] = x[y.typeId] || []).push(y);
+     return x;
+  },{});
+
+	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[0]);
+
+	return (
+		<div className="user-landing-favorites-container">
+			<h1 className="user-landing-body-header">Favorites</h1>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<div className="user-landing-dropdown-trigger"> 
+						{selectedFavorite.header}
+					</div>
+				</DropdownMenuTrigger>
+				<DropdownMenuPortal className="user-landing-dropdown-portal">
+					<DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+						{loaderData.listTypes.filter(function(e) { return e.header !== selectedFavorite.header }).map(listType =>
+							<DropdownMenuItem className="user-landing-dropdown-item" onClick={() => {setSelectedFavorite(listType)}}>
+								{listType.header}
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuContent>
+				</DropdownMenuPortal>
+			</DropdownMenu>
+			{typedFavorites[selectedFavorite.id].slice(0, 10).map(entry =>
+				<div className="user-landing-body-list-container">
+					<h1 className="user-landing-body-header">{loaderData.listTypes?.find(listType => listType.id == selectedFavorite.header)}</h1>
+					<div className="user-landing-body-item-container">
+						<div className="user-landing-body-item">
+							<div className="user-landing-body-thumbnail-container">
+								{hyperlinkRenderer(entry.thumbnail, "thumbnail")}
+							</div>
+							<div className="user-landing-body-text-container">
+								<span className="user-landing-body-title">
+									{entry.title}
+								</span>
+								<span className="user-landing-body-media-type">
+									{entry.mediaType}
+								</span>
+								<span className="user-landing-start-year">
+									{new Date(entry.startYear).getFullYear()}
+								</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+function BodyData() {
+	const loaderData = useLoaderData()
+	const user = loaderData.user
+	const loggedInUser = useOptionalUser()
+	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+
+	return (
+		<div className="user-landing-body-container">
+			{RecentActivityData()}
+			{FavoritesData()}
+		</div>
+	)
+}
+
+export async function loader(params) {
 	const user = await prisma.user.findFirst({
 		select: {
 			id: true,
@@ -130,208 +337,14 @@ export default function ProfileRoute() {
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
-	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
-    (x[y.typeId] = x[y.typeId] || []).push(y);
-     return x;
-  },{});
-
 	return (
 		<main className="user-landing" style={{ width: '100%', height: '100%' }}>
 			<div className="user-landing-main">
-				<div className="user-landing-side-container">
-					<div className="user-landing-personal-container">
-						<img
-							src={getUserImgSrc(loaderData.user.image?.id)}
-							alt={user.username}
-							className="user-landing-profile-image"
-						/>
-						<h1 className="user-landing-username">{user.username}</h1>
-						<p className="user-landing-join-date">
-							Joined {loaderData.userJoinedDisplay}
-						</p>
-					</div>
-					<div className="user-landing-nav-container-main">
-						<Button asChild>
-							<Link to={`../../lists/${user.username}`} prefetch="intent">
-								Watchlists
-							</Link>
-						</Button>
-						<Button asChild>
-							<Link to="notes" prefetch="intent">
-								Notes
-							</Link>
-						</Button>
-						{isLoggedInUser ? (
-							<Button asChild>
-								<Link to="/settings/profile" prefetch="intent">
-									Edit profile
-								</Link>
-							</Button>
-						) : null}
-					</div>
-					<div className="user-landing-nav-container-sub">
-						<Button asChild>
-							<Link to="" prefetch="intent">
-								Stats
-							</Link>
-						</Button>
-						<Button asChild>
-							<Link to="" prefetch="intent">
-								History
-							</Link>
-						</Button>
-					</div>
-					<div className="user-landing-nav-container-social">
-						<Button asChild>
-							<Link to="" prefetch="intent">
-								Friends
-							</Link>
-						</Button>
-						{isLoggedInUser ? (
-							<Button asChild>
-								<Link to="" prefetch="intent">
-									Messages
-								</Link>
-							</Button>
-						) : 
-						<Button asChild>
-							<Link to="" prefetch="intent">
-								Message
-							</Link>
-						</Button>
-						}
-					</div>
-				</div>
-				<div className="user-landing-body-container">
-					<div className="user-landing-recent-activity-container">
-						<h1 className="user-landing-recent-activity-header">Recent Activity</h1>
-						{Object.entries(loaderData.typedEntries)?.map(([listKey, listValue]) =>
-							<div className="user-landing-recent-activity-list-container">
-								<h1 className="user-landing-recent-activity-header">
-									{`${listKey}`}
-								</h1>
-								<div className="user-landing-recent-activity-item-container">
-									{listValue.slice(0, 10).map(entry =>
-									<div className="user-landing-recent-activity-item">
-										<div className="user-landing-recent-activity-thumbnail-container">
-											{hyperlinkRenderer(entry.thumbnail, "thumbnail")}
-										</div>
-										<div className="user-landing-recent-activity-text-container">
-											<span className="user-landing-recent-activity-title">
-												{entry.title}
-											</span>
-											<span className="user-landing-recent-activity-latest-type">
-												{entry.history.mostRecent.type}
-											</span>
-											<span className="user-landing-recent-activity-latest-time">
-												{`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
-											</span>
-										</div>
-									</div>
-									)}
-								</div>
-							</div>
-						)}
-					</div>
-					<div className="user-landing-favorites-container">
-						<h1 className="user-landing-favorites-header">Favorites</h1>
-						{Object.entries(typedFavorites)?.map(([typeKey, typeValue]) =>
-							<div className="user-landing-favorites-list-container">
-								<h1 className="user-landing-favorites-header">{loaderData.listTypes?.find(listType => listType.id == typeKey).header}</h1>
-								<div className="user-landing-favorites-item-container">
-									{typeValue.map(favorite =>
-									<div className="user-landing-favorites-item">
-										<div className="user-landing-favorites-thumbnail-container">
-											{hyperlinkRenderer(favorite.thumbnail, "thumbnail")}
-										</div>
-										<div className="user-landing-favorites-text-container">
-											<span className="user-landing-favorites-title">
-												{favorite.title}
-											</span>
-											<span className="user-landing-favorites-media-type">
-												{favorite.mediaType}
-											</span>
-											<span className="user-landing-start-year">
-												{new Date(favorite.startYear).getFullYear()}
-											</span>
-										</div>
-									</div>
-									)}
-								</div>
-							</div>
-						)}
-					</div>
-				</div>
+				{SideData()}
+				{BodyData()}
 			</div>
 		</main>
 	)
-
-	// return (
-	// 	<div className="container mb-48 mt-36 flex flex-col items-center justify-center">
-	// 		<Spacer size="4xs" />
-
-	// 		<div className="container flex flex-col items-center rounded-3xl bg-muted p-12">
-	// 			<div className="relative w-52">
-	// 				<div className="absolute -top-40">
-	// 					<div className="relative">
-	// 						<img
-	// 							src={getUserImgSrc(loaderData.user.image?.id)}
-	// 							alt={userDisplayName}
-	// 							className="h-52 w-52 rounded-full object-cover"
-	// 						/>
-	// 					</div>
-	// 				</div>
-	// 			</div>
-
-	// 			<Spacer size="sm" />
-
-	// 			<div className="flex flex-col items-center">
-	// 				<div className="flex flex-wrap items-center justify-center gap-4">
-	// 					<h1 className="text-center text-h2">{userDisplayName}</h1>
-	// 				</div>
-	// 				<p className="mt-2 text-center text-muted-foreground">
-	// 					Joined {loaderData.userJoinedDisplay}
-	// 				</p>
-	// 				{isLoggedInUser ? (
-	// 					<Form action="/logout" method="POST" className="mt-3">
-	// 						<Button type="submit" variant="link" size="pill">
-	// 							<Icon name="exit" className="scale-125 max-md:scale-150">
-	// 								Logout
-	// 							</Icon>
-	// 						</Button>
-	// 					</Form>
-	// 				) : null}
-	// 				<div className="mt-10 flex gap-4">
-	// 					{isLoggedInUser ? (
-	// 						<>
-	// 							<Button asChild>
-	// 								<Link to="../../lists" prefetch="intent">
-	// 									My lists
-	// 								</Link>
-	// 							</Button>
-	// 							<Button asChild>
-	// 								<Link to="notes" prefetch="intent">
-	// 									My notes
-	// 								</Link>
-	// 							</Button>
-	// 							<Button asChild>
-	// 								<Link to="/settings/profile" prefetch="intent">
-	// 									Edit profile
-	// 								</Link>
-	// 							</Button>
-	// 						</>
-	// 					) : (
-	// 						<Button asChild>
-	// 							<Link to="notes" prefetch="intent">
-	// 								{userDisplayName}'s notes
-	// 							</Link>
-	// 						</Button>
-	// 					)}
-	// 				</div>
-	// 			</div>
-	// 		</div>
-	// 	</div>
-	// )
 }
 
 export const meta = ({ data, params }) => {

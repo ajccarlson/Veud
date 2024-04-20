@@ -14,79 +14,68 @@
     );
   }
 
-  .user-landing-recent-activity-container{
+  .user-landing-dropdown-trigger {
+    background-color: black;
+    align-self: center;
+    width: fit-content;
+    height: fit-content;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+    cursor: pointer;
+  }
+
+  .user-landing-body-header {
+    align-self: center;
+  }
+
+  .user-landing-body-container{
     display: flex;
     flex-direction: column;
   }
 
-  .user-landing-recent-activity-list-container {
+  .user-landing-body-list-container {
     display: flex;
     flex-direction: column;
   }
 
-  .user-landing-recent-activity-item-container {
+  .user-landing-body-item-container {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
   }
 
-  .user-landing-recent-activity-item {
+  .user-landing-body-item {
     display: flex;
     flex-direction: column;
     width: 5rem;
   }
 
-  .user-landing-recent-activity-text-container {
+  .user-landing-body-text-container {
     display: flex;
     flex-direction: column;
   }
 
-  .user-landing-recent-activity-thumbnail-container {
+  .user-landing-body-thumbnail-container {
     width: 5rem;
     filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
     transition: all .1s ease-in-out;
   }
 
-  .user-landing-recent-activity-thumbnail-container:hover {
+  .user-landing-body-thumbnail-container:hover {
     transform: scale(1.1);
     filter: drop-shadow(5px 5px 6px rgba(0, 0, 0, 0.42));
   }
+
+  .user-landing-recent-activity-container{
+    display: flex;
+    flex-direction: row;
+  }
+
 
   .user-landing-favorites-container{
     display: flex;
-    flex-direction: column;
-  }
-
-  .user-landing-favorites-list-container {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .user-landing-favorites-item-container {
-    display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .user-landing-favorites-item {
-    display: flex;
-    flex-direction: column;
-    width: 5rem;
-  }
-
-  .user-landing-favorites-text-container {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .user-landing-favorites-thumbnail-container {
-    width: 5rem;
-    filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
-    transition: all .1s ease-in-out;
-  }
-
-  .user-landing-favorites-thumbnail-container:hover {
-    transform: scale(1.1);
-    filter: drop-shadow(5px 5px 6px rgba(0, 0, 0, 0.42));
   }
 }
