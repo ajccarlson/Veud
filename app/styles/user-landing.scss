@@ -59,13 +59,13 @@
 
   .user-landing-body-thumbnail-container {
     width: 5rem;
-    filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(3px 2px 6px #66563d);
     transition: all .1s ease-in-out;
   }
 
   .user-landing-body-thumbnail-container:hover {
     transform: scale(1.1);
-    filter: drop-shadow(5px 5px 6px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(0px 0px 10px #66563d);
   }
 
   .user-landing-recent-activity-container{
