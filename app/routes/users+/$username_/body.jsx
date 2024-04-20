@@ -1,8 +1,4 @@
-import { invariantResponse } from '@epic-web/invariant'
-import { json } from '@remix-run/node'
-import { useEffect, useState } from 'react'
-import { Form, Link, useLoaderData } from '@remix-run/react'
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { useState } from 'react'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -10,20 +6,10 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
-import { Button } from '#app/components/ui/button.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
-import { prisma } from '#app/utils/db.server.ts'
-import { getUserImgSrc } from '#app/utils/misc.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
-import "#app/styles/user-landing.scss"
 
 function RecentActivityData(loaderData) {
-	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
-
 	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[0]);
 
 	return (
@@ -72,10 +58,6 @@ function RecentActivityData(loaderData) {
 }
 
 function FavoritesData(loaderData) {
-	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
-
 	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
@@ -130,10 +112,6 @@ function FavoritesData(loaderData) {
 }
 
 export function BodyData(loaderData) {
-	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
-
 	return (
 		<div className="user-landing-body-container">
 			{RecentActivityData(loaderData)}
