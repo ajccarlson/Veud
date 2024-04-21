@@ -14,6 +14,11 @@
     );
   }
 
+  .user-landing-stats-container {
+    width: 100%;
+    height: 100%;
+  }
+
   .user-landing-dropdown-trigger {
     background-color: black;
     align-self: center;
@@ -28,6 +33,8 @@
 
   .user-landing-body-header {
     align-self: center;
+    width: fit-content;
+    height: fit-content;
   }
 
   .user-landing-body-container{
@@ -68,13 +75,22 @@
     filter: drop-shadow(0px 0px 10px #66563d);
   }
 
-  .user-landing-recent-activity-container{
+  .user-landing-recent-activity-container {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .user-landing-recent-activity-content {
     display: flex;
     flex-direction: row;
   }
 
+  .user-landing-favorites-container {
+    display: flex;
+    flex-direction: column;
+  }
 
-  .user-landing-favorites-container{
+  .user-landing-favorites-content {
     display: flex;
     flex-direction: row;
   }
