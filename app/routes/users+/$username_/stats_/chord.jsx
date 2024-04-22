@@ -44,6 +44,21 @@ function MyResponsiveChord(data, keys) {
         }}
         colors={{ scheme: 'nivo' }}
         motionConfig="stiff"
+        arcTooltip={(point) => {
+          // console.log(point.arc)
+          return (
+            <div
+              style={{
+                background: 'black',
+                color: point.arc.color,
+                padding: '9px 12px',
+                border: '1px solid #ccc',
+              }}
+            >
+              <div>{`${point.arc.label}: ${point.arc.value}`}</div>
+            </div>
+          )
+        }} 
         ribbonTooltip={(point) => {
           // console.log(point.ribbon)
           return (
@@ -116,6 +131,10 @@ export function renderChordChart(loaderData) {
         }
         
         genreIndices.forEach(iteratedGenre => {
+          if (genreIndices.length > 1 && genreIndex == iteratedGenre) {
+            return
+          }
+
           if (!chordMatrix[genreIndex][iteratedGenre] && chordMatrix[genreIndex][iteratedGenre] != 0) {
             chordMatrix[genreIndex][iteratedGenre] = 0
           }
