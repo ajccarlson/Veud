@@ -51,6 +51,7 @@
     "@epic-web/totp": "^1.1.2",
     "@nasa-gcn/remix-seo": "^2.0.0",
     "@nivo/bar": "^0.85.1",
+    "@nivo/boxplot": "^0.85.1",
     "@nivo/chord": "^0.85.1",
     "@nivo/core": "^0.85.1",
     "@nivo/heatmap": "^0.85.1",
