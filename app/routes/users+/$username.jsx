@@ -37,7 +37,6 @@ export async function loader(params) {
      return x;
   },{});
 
-	let listEntries = []
 	let typedEntries = {}
 
 	for (const type of listTypes) {
@@ -103,11 +102,11 @@ export async function loader(params) {
 			if (a.history.mostRecent.time < b.history.mostRecent.time) return 1;
 			return 0;
 		});
-}
+  }
 
 	const favorites = await prisma.userFavorite.findMany({
     where: {
-      ownerId: user.id,
+      ownerId: user.id, 
     },
   })
 	
@@ -117,7 +116,7 @@ export async function loader(params) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, listEntries, typedEntries, favorites: favoritesSorted })
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, typedEntries, favorites: favoritesSorted })
 }
 
 export default function ProfileRoute() {
