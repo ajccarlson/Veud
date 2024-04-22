@@ -100,7 +100,7 @@ export function renderPieChart(loaderData) {
   const fillTypes = ["none", "lines", "dots"]
   let fillIndex = 0
 
-  Object.entries(loaderData.typedEntries).map(([key, value]) => {
+  Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
     pieData.push({
         id: key,
         label: key,

@@ -53,6 +53,7 @@
     "@nivo/chord": "^0.85.1",
     "@nivo/core": "^0.85.1",
     "@nivo/heatmap": "^0.85.1",
+    "@nivo/line": "^0.85.1",
     "@nivo/pie": "^0.85.1",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^5.10.2",
