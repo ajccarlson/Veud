@@ -7,6 +7,7 @@ export function StatsData(loaderData) {
     <div className="user-landing-stats-container">
       {renderPieChart(loaderData)}
       {renderLineChart(loaderData, "release")}
+      {renderLineChart(loaderData, "watched")}
       {renderChordChart(loaderData)}
     </div>
   )

@@ -47,7 +47,7 @@ function MyResponsiveLine(data) {
         enableTouchCrosshair={true}
         useMesh={true}
         tooltip={(point) => {
-          console.log(point.point)
+          // console.log(point.point)
           return (
             <div
               style={{
@@ -138,6 +138,60 @@ export function renderLineChart(loaderData, chartType) {
               y: 1
             })
           }
+        }
+      })
+
+      lineData.data = entryData.sort(function(a, b) {
+        var keyA = new Date(a.x),
+        keyB = new Date(b.x);
+
+        if (keyA < keyB) return -1;
+        if (keyA > keyB) return 1;
+        return 0;
+      })
+
+      typedLines.push(lineData)
+    })
+  }
+  else if (chartType == "watched") {
+    let lineData = {}
+
+
+    Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
+      lineData = {
+        id: key,
+        data: []
+      }
+
+      let entryData = []
+
+      value.forEach(typedEntry => {
+        let parsedYear
+
+        try {
+          if (typedEntry.history.finished == null || typedEntry.history.finished == 0)
+            throw new Error
+
+          parsedYear = new Date (typedEntry.history.finished).getFullYear()
+
+          if (isNaN(parsedYear)) {
+            throw new Error
+          }
+        }
+        catch(e) {
+          return
+        }
+
+        const foundIndex = entryData.findIndex((element) => element.x == parsedYear)
+        
+        if (foundIndex != -1) {
+          entryData[foundIndex].y++
+        }
+        else {
+          entryData.push ({
+            x: Number(parsedYear),
+            y: 1
+          })
         }
       })
 
