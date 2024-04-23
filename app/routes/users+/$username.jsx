@@ -63,15 +63,45 @@ export async function loader(params) {
 				}
 
 				for (const [historyKey, historyValue] of Object.entries(entry.history)) {
-					if (historyValue != null && historyValue != "null" && Object.entries(historyValue).length < 1) {
-						let currentDate = new Date(historyValue)
+          if (historyValue != null && historyValue != "null") {
+            let currentDate
 
-						if (currentDate > latestEntry.time) {
-							latestEntry = {
-								type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-								time: currentDate
-							}
-						}
+            if (historyKey == "progress") {
+              let lastWatched = {
+                episode: 0,
+                date: 0
+              }
+
+              Object.entries(historyValue).forEach(([progressKey, progressValue]) => {
+                let currentMax = Math.max(...progressValue.watchDate)
+        
+                if (currentMax && currentMax > lastWatched.date) {
+                  lastWatched = {
+                    episode: Number(progressKey),
+                    date: currentMax
+                  }
+                }
+              })
+        
+              currentDate = lastWatched.date
+
+              if (currentDate > latestEntry.time) {
+                latestEntry = {
+                  type: `Completed Episode ${lastWatched.episode}`,
+                  time: currentDate
+                }
+              }
+            }
+            else {
+              currentDate = new Date(historyValue)
+
+              if (currentDate > latestEntry.time) {
+                latestEntry = {
+                  type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                  time: currentDate
+                }
+              }
+            }
 					}
 				}
 
