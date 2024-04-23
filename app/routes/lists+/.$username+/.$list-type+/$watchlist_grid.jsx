@@ -183,6 +183,13 @@ async function setterFunction(params, columnParams) {
     if (params.column.colId.toLowerCase() == ("finished") || params.column.colId.toLowerCase() == ("started")) {
       cellType = "history"
     }
+    else if (params.column.colId.toLowerCase() == ("length")) {
+      const lengthRegex = /\d+\s*\/\s*\d+ eps/g
+      
+      if (lengthRegex.test(params.oldValue) && !isNaN(params.newValue)) {
+        params.newValue = params.oldValue.replace(/[0-9]+/, params.newValue)
+      }
+    }
 
     params.data[params.column.colId] = params.newValue
 
@@ -203,6 +210,10 @@ async function setterFunction(params, columnParams) {
     })))
 
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
+
+    if (params.column.colId.toLowerCase() == ("length")) {
+      updatePositions(params, columnParams)
+    }
   }
   else {
     console.log("value unchanged")
@@ -382,6 +393,43 @@ export function columnDefs(columnParams) {
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
+        }
+        else if (params.value.includes("eps")) {
+          const epsTotal =  [...params.value.matchAll(/\d+/g)]
+          let matchResult, epsProgress
+
+          try {
+            const historyObject = JSON.parse(params.data.history)
+            let lastWatched = {
+              episode: 0,
+              date: 0
+            }
+            
+            Object.entries(historyObject.progress).forEach(([progressKey, progressValue]) => {
+              let currentMax = Math.max(...progressValue.watchDate)
+
+              if (currentMax && currentMax > lastWatched.date) {
+                lastWatched = {
+                  episode: progressKey,
+                  date: currentMax
+                }
+              }
+            })
+
+            epsProgress = lastWatched.episode
+          } catch(e) {
+            epsProgress = 0
+          }
+          
+          try {
+            matchResult = epsTotal.slice(-1)[0][0]
+          } catch(e) {
+            return params.value
+          }
+
+          if (matchResult) {
+            return (`${epsProgress} / ${matchResult} eps`)
+          }
         }
       },
       flex: 1,

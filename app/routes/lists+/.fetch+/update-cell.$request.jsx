@@ -36,14 +36,54 @@ export async function loader(params) {
         throw new Error
 
       parsedHistoryObject.lastUpdated = Date.now()
+
+      if (searchParams.get('colId') == "length") {
+        const lengthRegex = /\d+\s*\/\s*\d+ eps/g
+
+        if (lengthRegex.test(searchParams.get('newValue'))) {
+          const epsTotal = [...searchParams.get('newValue').matchAll(/\d+/g)]
+          let matchResult
+
+          try {
+            matchResult = epsTotal[0][0]
+          } catch(e) {}
+
+          if (matchResult) {
+            if (!parsedHistoryObject.progress) {
+              parsedHistoryObject.progress = {}
+            }
+
+            if (!parsedHistoryObject.progress[matchResult]) {
+              parsedHistoryObject.progress[matchResult] = {
+                completed: false,
+                watchDate: []
+              }
+            }
+            
+            parsedHistoryObject.progress[matchResult].completed = true
+            parsedHistoryObject.progress[matchResult].watchDate.push(Date.now())
+          }
+        }
+
+        return await prisma[typeFormatted].update({
+          where: {
+            id: searchParams.get('rowIndex'),
+          },
+          data: {
+            history: JSON.stringify(parsedHistoryObject),
+          },
+        })
+      }
     }
     catch(e) {
-      parsedHistoryObject = {
-        added: Date.now(),
-        started: null,
-        finished: null,
-        progress: null,
-        lastUpdated: Date.now(),
+      if (!parsedHistoryObject) {
+        parsedHistoryObject = {
+          added: Date.now(),
+          started: null,
+          finished: null,
+          progress: null,
+          lastUpdated: Date.now(),
+        }
       }
     }
 
@@ -83,7 +123,7 @@ export async function loader(params) {
           [columnName]: valueFormatted,
           history: JSON.stringify(parsedHistoryObject),
         },
-      });
+      })
     }
   }
   catch(e) {
