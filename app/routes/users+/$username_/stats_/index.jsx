@@ -15,8 +15,8 @@ export function StatsData(loaderData) {
       {renderLineChart(loaderData, "release")}
       {renderLineChart(loaderData, "watched")}
       {renderChordChart(loaderData)}
-      {renderRadialBar(loaderData, "type")}
-      {renderCalendarChart(loaderData, "episode history")} */}
+      {renderRadialBar(loaderData, "type")} */}
+      {renderCalendarChart(loaderData, "episode history")}
     </div>
   )
 }

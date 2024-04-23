@@ -1,12 +1,12 @@
 import { ResponsiveCalendar } from '@nivo/calendar'
 
-function MyResponsiveCalendar(data) {
+function MyResponsiveCalendar(data, startDate, endDate) {
   return (
     <div class="user-landing-stats-calendar-chart">
       <ResponsiveCalendar
           data={data}
-          from="2023-03-01"
-          to="2024-04-23"
+          from={startDate}
+          to={endDate}
           emptyColor="#eeeeee"
           colors={[ '#61cdbb', '#97e3d5', '#e8c1a0', '#f47560' ]}
           margin={{ top: 40, right: 40, bottom: 40, left: 40 }}
@@ -97,5 +97,18 @@ export function renderCalendarChart(loaderData, chartType) {
     })
   }
 
-  return (MyResponsiveCalendar(calendarHistory))
+  let startDate = new Date(calendarHistory.reduce((acc, curr) => curr.day < acc.day ? curr : acc, calendarHistory[0] || undefined).day)
+  let endDate = (new Date())
+
+  let yearIterator = startDate.getFullYear()
+  let endYear = endDate.getFullYear()
+
+  let calendarArray = []
+
+  while (yearIterator <= endYear) {
+    calendarArray.push(MyResponsiveCalendar(calendarHistory, `${yearIterator}-01-01`, `${yearIterator + 1}-01-01`))
+    yearIterator += 2
+  }
+
+  return (calendarArray)
 }
