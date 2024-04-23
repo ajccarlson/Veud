@@ -7,7 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
-import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
+import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
 
 function RecentActivityData(loaderData) {
 	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[0]);

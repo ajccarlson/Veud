@@ -8,7 +8,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.tsx"
+import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.jsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -173,6 +173,7 @@ async function updatePositions(params, columnParams) {
 }
 
 async function setterFunction(params, columnParams) {
+  console.log(params)
   let returnValue = true
 
   if (params.column.colId == "position") {
@@ -184,10 +185,24 @@ async function setterFunction(params, columnParams) {
       cellType = "history"
     }
     else if (params.column.colId.toLowerCase() == ("length")) {
-      const lengthRegex = /\d+\s*\/\s*\d+ eps/g
+      const fullLengthRegex = /\d+\s*\/\s*\d+ eps/g
+      const partialLengthRegex = /\d*\s*\/*\s*\d+ eps/g
       
-      if (lengthRegex.test(params.oldValue) && !isNaN(params.newValue)) {
-        params.newValue = params.oldValue.replace(/[0-9]+/, params.newValue)
+      if (!isNaN(params.newValue)) {
+        try {
+          if (lengthRegex.test(params.oldValue)) {
+            params.newValue = params.oldValue.replace(/[0-9]+/, params.newValue)
+          }
+          else {
+            throw new Error
+          }
+        }
+        catch(e) {
+          if (partialLengthRegex.test(params.oldValue)) {
+            params.newValue = episodeProgressParser(params, params.oldValue, params.newValue)
+            console.log(params.newValue)
+          }
+        }
       }
     }
 
@@ -203,8 +218,6 @@ async function setterFunction(params, columnParams) {
     })))
     const updateCellData = await updateCellResponse.json();
 
-    console.log(updateCellData)
-
     const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       watchlistId: params.data.watchlistId
     })))
@@ -212,7 +225,7 @@ async function setterFunction(params, columnParams) {
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
 
     if (params.column.colId.toLowerCase() == ("length")) {
-      updatePositions(params, columnParams)
+      refreshGrid(columnParams)
     }
   }
   else {
@@ -395,41 +408,7 @@ export function columnDefs(columnParams) {
             return ""
         }
         else if (params.value.includes("eps")) {
-          const epsTotal =  [...params.value.matchAll(/\d+/g)]
-          let matchResult, epsProgress
-
-          try {
-            const historyObject = JSON.parse(params.data.history)
-            let lastWatched = {
-              episode: 0,
-              date: 0
-            }
-            
-            Object.entries(historyObject.progress).forEach(([progressKey, progressValue]) => {
-              let currentMax = Math.max(...progressValue.watchDate)
-
-              if (currentMax && currentMax > lastWatched.date) {
-                lastWatched = {
-                  episode: progressKey,
-                  date: currentMax
-                }
-              }
-            })
-
-            epsProgress = lastWatched.episode
-          } catch(e) {
-            epsProgress = 0
-          }
-          
-          try {
-            matchResult = epsTotal.slice(-1)[0][0]
-          } catch(e) {
-            return params.value
-          }
-
-          if (matchResult) {
-            return (`${epsProgress} / ${matchResult} eps`)
-          }
+          return episodeProgressParser(params, params.value, undefined)
         }
       },
       flex: 1,

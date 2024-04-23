@@ -2,7 +2,7 @@ import { json } from "@remix-run/node"
 import { Form, useLoaderData } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
-import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.tsx"
+import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { invariantResponse } from '@epic-web/invariant'
