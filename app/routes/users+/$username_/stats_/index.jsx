@@ -8,13 +8,13 @@ import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar
 export function StatsData(loaderData) {
   return (
     <div className="user-landing-stats-container">
-      {renderPieChart(loaderData)}
+      {/* {renderPieChart(loaderData)}
       {renderBarChart(loaderData, "score")}
       {renderBoxPlotChart(loaderData, "objective scores")}
       {renderLineChart(loaderData, "release")}
       {renderLineChart(loaderData, "watched")}
       {renderChordChart(loaderData)}
-      {renderRadialBar(loaderData, "type")}
+      {renderRadialBar(loaderData, "type")} */}
     </div>
   )
 }
