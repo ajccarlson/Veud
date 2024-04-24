@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -6,33 +6,25 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
 import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
 
 function RecentActivityData(loaderData) {
-	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[0]);
+  const [headerIndex, setHeaderIndex] = useState(0);
+	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[headerIndex]);
+
+  useEffect(() => {
+  	setSelectedLatestUpdate(loaderData.listTypes[headerIndex])
+  }, [headerIndex, loaderData.listTypes]);
+
+  const listHeaders = loaderData.listTypes.map(listType => listType.header)
 
 	return (
 		<div className="user-landing-recent-activity-container">
 			<h1 className="user-landing-body-header">Recent Activity</h1>
 			<div className="user-landing-recent-activity-content">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<div className="user-landing-dropdown-trigger"> 
-							{selectedLatestUpdate.header}
-						</div>
-					</DropdownMenuTrigger>
-					<DropdownMenuPortal className="user-landing-dropdown-portal">
-						<DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-							{loaderData.listTypes.filter(function(e) { return e.header !== selectedLatestUpdate.header }).map(listType =>
-								<DropdownMenuItem className="user-landing-dropdown-item" onClick={() => {setSelectedLatestUpdate(listType)}}>
-									{listType.header}
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenuPortal>
-				</DropdownMenu>
-				<div className="user-landing-body-list-container">
+        <div className="user-landing-body-list-container">
 					<div className="user-landing-body-item-container">
 						{loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 10).map(entry =>
 						<div className="user-landing-body-item">
@@ -55,38 +47,61 @@ function RecentActivityData(loaderData) {
 					</div>
 				</div>
 			</div>
+      <div className="user-landing-nav-button-container">
+        <div className="user-landing-selection-nav-container">
+          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="user-landing-dropdown-trigger"> 
+                {selectedLatestUpdate.header}
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuPortal className="user-landing-dropdown-portal">
+              <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                {listHeaders.filter(function(e) { return e !== selectedLatestUpdate.header }).map(listType =>
+                  <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                    {
+                      setHeaderIndex(listHeaders.indexOf(listType))
+                    }}>
+                    {listType}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenu>
+          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+          </button>
+        </div>
+        <button className="user-landing-reveal-button">
+          <Icon name="caret-down" className="user-landing-nav-arrow"></Icon>
+        </button>
+      </div>
 		</div>
 	)
 }
 
 function FavoritesData(loaderData) {
-	const typedFavorites = loaderData.favorites?.reduce((x, y) => {
+  const [headerIndex, setHeaderIndex] = useState(0);
+	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[headerIndex]);
+
+  useEffect(() => {
+  	setSelectedFavorite(loaderData.listTypes[headerIndex])
+  }, [headerIndex, loaderData.listTypes]);
+
+  const typedFavorites = loaderData.favorites?.reduce((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
   },{});
 
-	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[0]);
+  const listHeaders = loaderData.listTypes.map(listType => listType.header)
 
 	return (
 		<div className="user-landing-favorites-container">
 			<h1 className="user-landing-body-header">Favorites</h1>
 			<div className="user-landing-favorites-content">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<div className="user-landing-dropdown-trigger"> 
-							{selectedFavorite.header}
-						</div>
-					</DropdownMenuTrigger>
-					<DropdownMenuPortal className="user-landing-dropdown-portal">
-						<DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-							{loaderData.listTypes.filter(function(e) { return e.header !== selectedFavorite.header }).map(listType =>
-								<DropdownMenuItem className="user-landing-dropdown-item" onClick={() => {setSelectedFavorite(listType)}}>
-									{listType.header}
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenuPortal>
-				</DropdownMenu>
 				{typedFavorites[selectedFavorite.id].slice(0, 10).map(entry =>
 					<div className="user-landing-body-list-container">
 						<h1 className="user-landing-body-header">{loaderData.listTypes?.find(listType => listType.id == selectedFavorite.header)}</h1>
@@ -111,6 +126,38 @@ function FavoritesData(loaderData) {
 					</div>
 				)}
 			</div>
+      <div className="user-landing-nav-button-container">
+        <div className="user-landing-selection-nav-container">
+          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="user-landing-dropdown-trigger"> 
+                {selectedFavorite.header}
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuPortal className="user-landing-dropdown-portal">
+              <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                {listHeaders.filter(function(e) { return e !== selectedFavorite.header }).map(listType =>
+                  <DropdownMenuItem className="user-landing-dropdown-item" onClick={() => 
+                    {
+                      setHeaderIndex(listHeaders.indexOf(listType))
+                    }}>
+                    {listType}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenu>
+          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+          </button>
+        </div>
+        <button className="user-landing-reveal-button">
+          <Icon name="caret-down" className="user-landing-nav-arrow"></Icon>
+        </button>
+      </div>
 		</div>
 	)
 }

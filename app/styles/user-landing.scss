@@ -55,6 +55,27 @@
     height: 100%;
   }
 
+  .user-landing-nav-button-container {
+    display: flex;
+    flex-direction: column;
+    align-self: center;
+    align-items: center;
+  }
+
+  .user-landing-selection-nav-container {
+    display: flex;
+    flex-direction: row;
+    align-self: center;
+  }
+
+  .user-landing-nav-arrow {
+    font-size: 35px;
+  }
+
+  .user-landing-reveal-button {
+    width: fit-content;
+  }
+
   .user-landing-dropdown-trigger {
     background-color: black;
     align-self: center;
@@ -114,6 +135,7 @@
   .user-landing-recent-activity-container {
     display: flex;
     flex-direction: column;
+    align-self: center;
   }
 
   .user-landing-recent-activity-content {
@@ -124,6 +146,7 @@
   .user-landing-favorites-container {
     display: flex;
     flex-direction: column;
+    align-self: center;
   }
 
   .user-landing-favorites-content {
