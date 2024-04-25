@@ -51,15 +51,15 @@ function RecentActivityData(loaderData) {
 
 	return (
 		<div className="user-landing-recent-activity-container">
-			<h1 className="user-landing-body-header">Recent Activity</h1>
       <div className="user-landing-recent-activity-content">
+        <h1 className="user-landing-body-header">Recent Activity</h1>
         { displayAll == 1 ?
           <div className="user-landing-body-list-container">
             {listHeaders.map(listHeader => {return(
               <div className="user-landing-body-list-full-display-container">
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
-                  {loaderData.typedEntries[listHeader].slice(0, 10).map(entry =>
+                  {loaderData.typedEntries[listHeader].slice(0, 12).map(entry =>
                     <div className="user-landing-recent-activity-body-item">
                     <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                       <span className="user-landing-thumbnail-header">
@@ -86,7 +86,7 @@ function RecentActivityData(loaderData) {
           </div>
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">
-            {loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 10).map(entry =>
+            {loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 12).map(entry =>
               <div className="user-landing-recent-activity-body-item">
                 <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
@@ -169,15 +169,15 @@ function FavoritesData(loaderData) {
 
 	return (
 		<div className="user-landing-favorites-container">
-			<h1 className="user-landing-body-header">Favorites</h1>
 			<div className="user-landing-favorites-content">
+        <h1 className="user-landing-body-header">Favorites</h1>
         { displayAll == 1 ?
           <div className="user-landing-body-list-container">
             {listHeaders.map(listHeader => {return(
               <div className="user-landing-body-list-full-display-container">
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
-                  {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].slice(0, 10).map(entry =>
+                  {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].slice(0, 12).map(entry =>
                     <div className="user-landing-favorites-body-item">
                       <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                         <span className="user-landing-thumbnail-header">
@@ -204,7 +204,7 @@ function FavoritesData(loaderData) {
           </div>
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">  
-            {typedFavorites[selectedFavorite.id].slice(0, 10).map(entry =>
+            {typedFavorites[selectedFavorite.id].slice(0, 12).map(entry =>
               <div className="user-landing-favorites-body-item">
                 <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">

@@ -52,8 +52,8 @@ export function StatsData(loaderData) {
       chart: renderLineChart(loaderData, "watched"),
       typed: false
     },
-    genres: {
-      header: "Genre Distribution",
+    genreChords: {
+      header: "Genre Overlap",
       chart: renderChordChart(loaderData, selectedHeader),
       typed: true
     },
