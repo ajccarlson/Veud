@@ -7,16 +7,36 @@ import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.jsx'
 import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.jsx'
 
 export function StatsData(loaderData) {
+  function userStats(chartType, params = undefined) {
+    if (chartType == "pie") {
+      return renderPieChart(loaderData)
+    }
+    else if (chartType == "score") {
+      return renderBarChart(loaderData, "score", params)
+    } 
+    else if (chartType == "objectiveScores") {
+      return renderBoxPlotChart(loaderData, "objective scores", params)
+    } 
+    else if (chartType == "release") {
+      return renderLineChart(loaderData, "release")
+    } 
+    else if (chartType == "watched") {
+      return renderLineChart(loaderData, "watched")
+    } 
+    else if (chartType == "genres") {
+      return renderChordChart(loaderData, params)
+    } 
+    else if (chartType == "type") {
+      return renderRadialBar(loaderData, "type")
+    } 
+    else if (chartType == "episodeHistory") {
+      renderCalendarChart(loaderData, "episode history")
+    } 
+  }
+
   return (
     <div className="user-landing-stats-container">
-      {renderPieChart(loaderData)}
-      {/* {renderBarChart(loaderData, "score")}
-      {renderBoxPlotChart(loaderData, "objective scores")}
-      {renderLineChart(loaderData, "release")}
-      {renderLineChart(loaderData, "watched")}
-      {renderChordChart(loaderData)}
-      {renderRadialBar(loaderData, "type")}
-      {renderCalendarChart(loaderData, "episode history")} */}
+      {userStats("score", "Live Action")}
     </div>
   )
 }

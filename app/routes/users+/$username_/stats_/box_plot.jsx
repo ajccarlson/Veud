@@ -80,7 +80,7 @@ function MyResponsiveBoxPlot(data) {
           }}
           motionConfig="stiff"
           tooltip={(point) => {
-            console.log(point)
+            //console.log(point)
             return (
               <div
                 style={{
@@ -127,65 +127,61 @@ function MyResponsiveBoxPlot(data) {
   )
 }
 
-export function renderBoxPlotChart(loaderData, chartType) {
-  let typedBoxes = []
-
+export function renderBoxPlotChart(loaderData, chartType, listType) {
   if (chartType == "objective scores") {
-    Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-      let scoredBars = []
-      for (let i = 0; i < 10; i++) {
-        scoredBars[i] = {
-          value: (i + 1),
-          personal: []
-        }
-      }
+    const typedEntry = loaderData.typedEntries[listType]
 
-      let objectiveType
-      if (value[0]) {
-        if ("tmdbScore" in value[0]) {
-          objectiveType = "tmdbScore"
-        }
-        else if ("malScore" in value[0]) {
-          objectiveType = "malScore"
-        }
+    let scoredBars = []
+    for (let i = 0; i < 10; i++) {
+      scoredBars[i] = {
+        value: (i + 1),
+        personal: []
       }
-      else {
-        return
+    }
+
+    let objectiveType
+    if (typedEntry[0]) {
+      if ("tmdbScore" in typedEntry[0]) {
+        objectiveType = "tmdbScore"
       }
-
-      if (!objectiveType) {
-        throw new Error ("No objective score type found!")
+      else if ("malScore" in typedEntry[0]) {
+        objectiveType = "malScore"
       }
+    }
+    else {
+      return
+    }
 
-      value.forEach(typedEntry => {
-        if ((!isNaN(typedEntry[objectiveType]) && !isNaN(typedEntry["personal"])) && ((typedEntry[objectiveType] >= 1 && typedEntry[objectiveType] <= 10)  && (typedEntry["personal"] >= 1 && typedEntry["personal"] <= 10))) {
-          scoredBars[Math.floor(typedEntry[objectiveType])]["personal"].push(typedEntry["personal"])
-        }
-      })
+    if (!objectiveType) {
+      throw new Error ("No objective score type found!")
+    }
 
-      let scoresFormatted = []
-      for (const scoreBar of scoredBars) {
-        if (scoreBar.personal.length > 0) {
-          const dataLength = scoreBar.personal.length
-          const dataAverage = scoreBar.personal.reduce((a, b) => Number(a) + Number(b)) / dataLength
-          const stdDeviation = Math.sqrt(scoreBar.personal.map(x => Math.pow(x - dataAverage, 2)).reduce((a, b) => Number(a) + Number(b)) / dataLength)
-
-          for (const personalScore of scoreBar.personal) {
-            scoresFormatted.push({
-              group: scoreBar.value,
-              subgroup: scoreBar.value,
-              value: personalScore,
-              mu: dataAverage,
-              sd: stdDeviation,
-              n: dataLength,
-            })
-          }
-        }
+    typedEntry.forEach(typedEntry => {
+      if ((!isNaN(typedEntry[objectiveType]) && !isNaN(typedEntry["personal"])) && ((typedEntry[objectiveType] >= 1 && typedEntry[objectiveType] <= 10)  && (typedEntry["personal"] >= 1 && typedEntry["personal"] <= 10))) {
+        scoredBars[Math.floor(typedEntry[objectiveType])]["personal"].push(typedEntry["personal"])
       }
-      
-      typedBoxes.push(MyResponsiveBoxPlot(scoresFormatted))
     })
-  }
 
-  return (typedBoxes)
+    let scoresFormatted = []
+    for (const scoreBar of scoredBars) {
+      if (scoreBar.personal.length > 0) {
+        const dataLength = scoreBar.personal.length
+        const dataAverage = scoreBar.personal.reduce((a, b) => Number(a) + Number(b)) / dataLength
+        const stdDeviation = Math.sqrt(scoreBar.personal.map(x => Math.pow(x - dataAverage, 2)).reduce((a, b) => Number(a) + Number(b)) / dataLength)
+
+        for (const personalScore of scoreBar.personal) {
+          scoresFormatted.push({
+            group: scoreBar.value,
+            subgroup: scoreBar.value,
+            value: personalScore,
+            mu: dataAverage,
+            sd: stdDeviation,
+            n: dataLength,
+          })
+        }
+      }
+    }
+    
+    return MyResponsiveBoxPlot(scoresFormatted)
+  }
 }

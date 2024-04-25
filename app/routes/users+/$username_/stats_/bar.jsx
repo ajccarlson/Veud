@@ -124,42 +124,37 @@ function MyResponsiveBar(data, barKeys) {
   )
 }
 
-export function renderBarChart(loaderData, chartType) {
-  let typedBars = []
-
+export function renderBarChart(loaderData, chartType, listType) {
   if (chartType == "score") {
-    Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-      let scoredBars = [], barKeys= []
-      for (let i = 0; i < 10; i++) {
-        scoredBars[i] = {
-          score: (i + 1)
-        }
+    const typedEntry = loaderData.typedEntries[listType]
+    let scoredBars = [], barKeys= []
+    for (let i = 0; i < 10; i++) {
+      scoredBars[i] = {
+        score: (i + 1)
       }
+    }
 
-      value.forEach(typedEntry => {
-        Object.entries(typedEntry).forEach(([columnKey, columnValue]) => {
-          if (!isNaN(columnValue) && !columnKey.toLowerCase().includes("date") && !columnKey.toLowerCase().includes("position") && !columnKey.toLowerCase().includes("volumes") && !columnKey.toLowerCase().includes("chapters") && !columnKey.toLowerCase().includes("episodes") && !columnKey.toLowerCase().includes("tmdb") && !columnKey.toLowerCase().includes("mal") && !columnKey.toLowerCase().includes("difference")) {
-            if (!columnValue || columnValue == "null" || columnValue == 0)
-              return
+    typedEntry.forEach(typedEntry => {
+      Object.entries(typedEntry).forEach(([columnKey, columnValue]) => {
+        if (!isNaN(columnValue) && !columnKey.toLowerCase().includes("date") && !columnKey.toLowerCase().includes("position") && !columnKey.toLowerCase().includes("volumes") && !columnKey.toLowerCase().includes("chapters") && !columnKey.toLowerCase().includes("episodes") && !columnKey.toLowerCase().includes("tmdb") && !columnKey.toLowerCase().includes("mal") && !columnKey.toLowerCase().includes("difference")) {
+          if (!columnValue || columnValue == "null" || columnValue == 0)
+            return
 
-            if (columnValue >= 1 && columnValue <= 10) {
-              if (barKeys.indexOf(columnKey) === -1)
-                barKeys.push(columnKey)
+          if (columnValue >= 1 && columnValue <= 10) {
+            if (barKeys.indexOf(columnKey) === -1)
+              barKeys.push(columnKey)
 
-              if (columnKey in scoredBars[Math.floor(columnValue - 1)]) {
-                scoredBars[Math.floor(columnValue - 1)][columnKey]++
-              }
-              else {
-                scoredBars[Math.floor(columnValue - 1)][columnKey] = 1
-              }
+            if (columnKey in scoredBars[Math.floor(columnValue - 1)]) {
+              scoredBars[Math.floor(columnValue - 1)][columnKey]++
+            }
+            else {
+              scoredBars[Math.floor(columnValue - 1)][columnKey] = 1
             }
           }
-        })
+        }
       })
-
-      typedBars.push(MyResponsiveBar(scoredBars, barKeys))
     })
-  }
 
-  return (typedBars)
+    return MyResponsiveBar(scoredBars, barKeys)
+  }
 }

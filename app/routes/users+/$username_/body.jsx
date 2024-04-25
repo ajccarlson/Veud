@@ -10,7 +10,7 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
-import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
+import { timeSince } from "#app/utils/lists/column-functions.jsx"
 
 function getThumbnailInfo(thumbnail) {
   const separatorIndex = thumbnail.indexOf("|")
@@ -65,7 +65,7 @@ function RecentActivityData(loaderData) {
                       <span className="user-landing-thumbnail-header">
                         {getStartYear(entry, listHeader, loaderData.listTypes)}
                       </span>
-                      <span className="user-landing-thumbnail-footer">
+                      <span className="user-landing-activity-thumbnail-footer">
                         {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
                       </span>
                     </Link>
@@ -92,7 +92,7 @@ function RecentActivityData(loaderData) {
                   <span className="user-landing-thumbnail-header">
                     {getStartYear(entry, selectedLatestUpdate.header, loaderData.listTypes)}
                   </span>
-                  <span className="user-landing-thumbnail-footer">
+                  <span className="user-landing-activity-thumbnail-footer">
                     {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
                   </span>
                 </Link>

@@ -143,6 +143,7 @@
     display: flex;
     flex-direction: row;
     width: 15rem;
+    background-color: #000;
   }
 
   .user-landing-favorites-body-item {
@@ -194,6 +195,10 @@
     visibility: visible;
   }
 
+  .user-landing-body-thumbnail-image:hover .user-landing-activity-thumbnail-footer {
+    background-color: rgba(0, 0, 0, 0.885);
+  }
+
   .user-landing-thumbnail-header {
     visibility: hidden;
     display: flex;
@@ -211,6 +216,22 @@
 
   .user-landing-thumbnail-footer {
     visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    font-size: 0.75rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    background-color: rgba(0, 0, 0, 0.342);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .user-landing-activity-thumbnail-footer {
+    visibility: visible;
+    color: yellow;
     display: flex;
     flex-direction: column;
     text-align: left;

@@ -104,57 +104,52 @@ function MyResponsiveChord(data, keys) {
   )
 }
 
-export function renderChordChart(loaderData) {
-  let typedChords = []
-
-  Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-    let chordMatrix = []
-    let chordIndices = []
+export function renderChordChart(loaderData, listType) {
+  const typedEntry = loaderData.typedEntries[listType]
+  let chordMatrix = []
+  let chordIndices = []
 
 
-    value.forEach(typedEntry => {
-      let genreIndices = []
+  typedEntry.forEach(typedEntry => {
+    let genreIndices = []
 
-      typedEntry.genres.split(", ").forEach(entryGenre => {
-        let genreIndex = chordIndices.indexOf(entryGenre)
+    typedEntry.genres.split(", ").forEach(entryGenre => {
+      let genreIndex = chordIndices.indexOf(entryGenre)
 
-        if (genreIndex == -1) {
-          genreIndex = chordIndices.push(entryGenre) - 1
-        }
-
-        genreIndices.push(genreIndex)
-      })
-
-      genreIndices.forEach(genreIndex => {
-        if (!chordMatrix[genreIndex]) {
-          chordMatrix[genreIndex] = []
-        }
-        
-        genreIndices.forEach(iteratedGenre => {
-          if (genreIndices.length > 1 && genreIndex == iteratedGenre) {
-            return
-          }
-
-          if (!chordMatrix[genreIndex][iteratedGenre] && chordMatrix[genreIndex][iteratedGenre] != 0) {
-            chordMatrix[genreIndex][iteratedGenre] = 0
-          }
-          else {
-            chordMatrix[genreIndex][iteratedGenre]++
-          }
-        })
-      })
-    })
-
-    chordMatrix.forEach(matrixRow => {
-      for (let i = 0; i < chordMatrix.length; i++) {
-        if (!matrixRow[i]) {
-          matrixRow[i] = 0
-        }
+      if (genreIndex == -1) {
+        genreIndex = chordIndices.push(entryGenre) - 1
       }
+
+      genreIndices.push(genreIndex)
     })
-  
-    typedChords.push(MyResponsiveChord(chordMatrix, chordIndices))
+
+    genreIndices.forEach(genreIndex => {
+      if (!chordMatrix[genreIndex]) {
+        chordMatrix[genreIndex] = []
+      }
+      
+      genreIndices.forEach(iteratedGenre => {
+        if (genreIndices.length > 1 && genreIndex == iteratedGenre) {
+          return
+        }
+
+        if (!chordMatrix[genreIndex][iteratedGenre] && chordMatrix[genreIndex][iteratedGenre] != 0) {
+          chordMatrix[genreIndex][iteratedGenre] = 0
+        }
+        else {
+          chordMatrix[genreIndex][iteratedGenre]++
+        }
+      })
+    })
   })
 
-  return typedChords
+  chordMatrix.forEach(matrixRow => {
+    for (let i = 0; i < chordMatrix.length; i++) {
+      if (!matrixRow[i]) {
+        matrixRow[i] = 0
+      }
+    }
+  })
+
+  return MyResponsiveChord(chordMatrix, chordIndices)
 }
