@@ -16,10 +16,15 @@ import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.jsx'
 import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.jsx'
 
 export function StatsData(loaderData) {
+  const listHeaders = loaderData.listTypes.map(listType => listType.header)
+
   const [chartIndex, setChartIndex] = useState(0);
   const [headerIndex, setHeaderIndex] = useState(0);
+  const [selectedHeader, setSelectedHeader] = useState(listHeaders[headerIndex]);
 
-  const listHeaders = loaderData.listTypes.map(listType => listType.header)
+  useEffect(() => {
+  	setSelectedHeader(listHeaders[headerIndex])
+  }, [headerIndex, listHeaders]);
 
   const userStats = {
     listTypeDistribution: {
@@ -29,12 +34,12 @@ export function StatsData(loaderData) {
     },
     score: {
       header: "Score Distribution",
-      chart: renderBarChart(loaderData, "score", listHeaders[headerIndex]),
+      chart: renderBarChart(loaderData, "score", selectedHeader),
       typed: true
     },
     objectiveScores: {
       header: "Public Score Deviation",
-      chart: renderBoxPlotChart(loaderData, "objective scores", listHeaders[headerIndex]),
+      chart: renderBoxPlotChart(loaderData, "objective scores", selectedHeader),
       typed: true
     },
     release: {
@@ -49,7 +54,7 @@ export function StatsData(loaderData) {
     },
     genres: {
       header: "Genre Distribution",
-      chart: renderChordChart(loaderData, listHeaders[headerIndex]),
+      chart: renderChordChart(loaderData, selectedHeader),
       typed: true
     },
     type: {
@@ -102,6 +107,35 @@ export function StatsData(loaderData) {
           <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
         </button>
       </div>
+      {userStats[selectedChart].typed ?
+        <div className="user-landing-selection-nav-container">
+          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="user-landing-dropdown-trigger"> 
+                {selectedHeader}
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuPortal className="user-landing-dropdown-portal">
+              <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                {listHeaders.filter(function(e) { return e !== selectedHeader }).map(listType =>
+                  <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                    {
+                      setHeaderIndex(listHeaders.indexOf(listType))
+                    }}>
+                    {listType}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenu>
+          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+          </button>
+        </div>
+      : null }
     </div>
   )
 }
