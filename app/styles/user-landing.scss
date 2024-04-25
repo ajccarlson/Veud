@@ -15,6 +15,7 @@
   }
 
   .user-landing-stats-container {
+    grid-area: stats;
     width: 100%;
     height: 100%;
     display: flex;
@@ -88,6 +89,24 @@
     cursor: pointer;
   }
 
+  .user-landing-favorite-insert {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 7.5rem;
+    width: 5rem;
+    color: #FF4200;
+    font-size: 45px;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all .1s ease-in; 
+  }
+
+  .user-landing-favorite-insert:hover {
+    border: 2px solid #FF4200;
+  }
+
   .user-landing-body-header {
     align-self: center;
     width: fit-content;
@@ -95,35 +114,59 @@
   }
 
   .user-landing-body-container{
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-areas:
+    'stats activity'
+    'favorites favorites';
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .user-landing-body-list-container {
     display: flex;
     flex-direction: column;
+    width: 100%;
   }
 
   .user-landing-list-type-header {
-    text-align: center;
+    text-align: left;
   }
 
   .user-landing-body-item-container {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
+    align-items: center; 
     gap: 0.5rem;
   }
 
-  .user-landing-body-item {
+  .user-landing-recent-activity-body-item {
     display: flex;
-    flex-direction: column;
-    width: 5rem;
+    flex-direction: row;
+    width: 15rem;
+  }
+
+  .user-landing-favorites-body-item {
+    
   }
 
   .user-landing-body-text-container {
     display: flex;
     flex-direction: column;
+    position:relative;
+    width: 9.5rem;
+    padding-left: 0.5rem;
+    display: grid;
+    grid-template-rows: 80% 20%;
+  }
+
+  .user-landing-body-latest-type {
+    align-content: center;
+  }
+
+  .user-landing-body-latest-time {
+    position: absolute;
+    bottom: 0;
+    right: 0;
   }
 
   .user-landing-body-thumbnail-image {
@@ -131,11 +174,11 @@
     flex-direction: column;
     height: 7.5rem;
     width: 5rem;
-    background-size:     cover;
-    background-repeat:   no-repeat;
+    background-size: cover;
+    background-repeat: no-repeat;
     background-position: center center; 
     filter: drop-shadow(3px 2px 6px #66563d);
-    transition: all .1s ease-in-out;
+    transition: transform .1s ease-in-out;
   }
 
   .user-landing-body-thumbnail-image:hover {
@@ -182,24 +225,30 @@
   }
 
   .user-landing-recent-activity-container {
+    grid-area: activity;
     display: flex;
     flex-direction: column;
     align-self: center;
+    width: 100%;
   }
 
   .user-landing-recent-activity-content {
     display: flex;
     flex-direction: row;
+    padding: 0.75rem;
   }
 
   .user-landing-favorites-container {
+    grid-area: favorites;
     display: flex;
     flex-direction: column;
     align-self: center;
+    width: 100%;
   }
 
   .user-landing-favorites-content {
     display: flex;
     flex-direction: row;
+    padding: 0.75rem;
   }
 }

@@ -91,7 +91,7 @@ function getWatchlistNav(entryData, listParams) {
           Settings
         </button>
       </div>
-      <Spacer size="xs" />
+      <Spacer size="xs"/>
     </div>
   )
 }

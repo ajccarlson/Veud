@@ -1,5 +1,6 @@
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
+import { Spacer } from '#app/components/spacer.tsx'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -59,7 +60,7 @@ function RecentActivityData(loaderData) {
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
                   {loaderData.typedEntries[listHeader].slice(0, 10).map(entry =>
-                    <div className="user-landing-body-item">
+                    <div className="user-landing-recent-activity-body-item">
                     <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                       <span className="user-landing-thumbnail-header">
                         {getStartYear(entry, listHeader, loaderData.listTypes)}
@@ -79,13 +80,14 @@ function RecentActivityData(loaderData) {
                   </div>
                   )}
                 </div>
+                <Spacer size="2xs"/>
               </div>
             )})}
           </div>
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">
             {loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 10).map(entry =>
-              <div className="user-landing-body-item">
+              <div className="user-landing-recent-activity-body-item">
                 <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
                     {getStartYear(entry, selectedLatestUpdate.header, loaderData.listTypes)}
@@ -176,7 +178,7 @@ function FavoritesData(loaderData) {
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
                   {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].slice(0, 10).map(entry =>
-                    <div className="user-landing-body-item">
+                    <div className="user-landing-favorites-body-item">
                       <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                         <span className="user-landing-thumbnail-header">
                           <div className="user-landing-thumbnail-start-year">
@@ -192,6 +194,10 @@ function FavoritesData(loaderData) {
                       </Link>
                     </div>
                   )}
+                  <span className='user-landing-favorite-insert'>
+                    <Icon name="plus"></Icon>
+                  </span>
+                  <Spacer size="2xs"/>
                 </div>
               </div>
             )})}
@@ -199,26 +205,25 @@ function FavoritesData(loaderData) {
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">  
             {typedFavorites[selectedFavorite.id].slice(0, 10).map(entry =>
-              <div className="user-landing-body-list-container">
-                <div className="user-landing-body-item-container">
-                  <div className="user-landing-body-item">
-                    <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
-                      <span className="user-landing-thumbnail-header">
-                        <div className="user-landing-thumbnail-start-year">
-                          {entry.startYear}
-                        </div>
-                        <div className="user-landing-thumbnail-media-type">
-                          {entry.mediaType}
-                        </div>
-                      </span>
-                      <span className="user-landing-thumbnail-footer">
-                        {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
-                      </span>
-                    </Link>
-                  </div>
-                </div>
+              <div className="user-landing-favorites-body-item">
+                <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                  <span className="user-landing-thumbnail-header">
+                    <div className="user-landing-thumbnail-start-year">
+                      {entry.startYear}
+                    </div>
+                    <div className="user-landing-thumbnail-media-type">
+                      {entry.mediaType}
+                    </div>
+                  </span>
+                  <span className="user-landing-thumbnail-footer">
+                    {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
+                  </span>
+                </Link>
               </div>
             )}
+            <span className='user-landing-favorite-insert'>
+              <Icon name="plus"></Icon>
+            </span>
           </div>
         </div> }
 			</div>
