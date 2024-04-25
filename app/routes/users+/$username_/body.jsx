@@ -1,3 +1,4 @@
+import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import {
 	DropdownMenu,
@@ -9,6 +10,32 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
 import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
+
+function getThumbnailInfo(thumbnail) {
+  const separatorIndex = thumbnail.indexOf("|")
+
+  return {
+    content: thumbnail.slice(0, separatorIndex),
+    url: thumbnail.slice(separatorIndex + 1)
+  }
+}
+
+function getStartYear(entry, listHeader, listTypes) {
+  const typeData = listTypes.find((listType) => listType.header == listHeader)
+
+  if (Object.keys(JSON.parse(typeData.columns)).includes("airYear")) {
+    return entry.airYear
+  }
+  else if (Object.keys(JSON.parse(typeData.columns)).includes("startSeason")) {
+    return entry.startSeason
+  }
+  else if (Object.keys(JSON.parse(typeData.columns)).includes("startYear")) {
+    return entry.startYear
+  }
+  else {
+    return false
+  }
+}
 
 function RecentActivityData(loaderData) {
   const [headerIndex, setHeaderIndex] = useState(0);
@@ -33,21 +60,23 @@ function RecentActivityData(loaderData) {
                 <div className="user-landing-body-item-container">
                   {loaderData.typedEntries[listHeader].slice(0, 10).map(entry =>
                     <div className="user-landing-body-item">
-                      <div className="user-landing-body-thumbnail-container">
-                        {hyperlinkRenderer(entry.thumbnail, "thumbnail")}
-                      </div>
-                      <div className="user-landing-body-text-container">
-                        <span className="user-landing-body-title">
-                          {entry.title}
-                        </span>
-                        <span className="user-landing-body-latest-type">
-                          {entry.history.mostRecent.type}
-                        </span>
-                        <span className="user-landing-body-latest-time">
-                          {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
-                        </span>
-                      </div>
+                    <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                      <span className="user-landing-thumbnail-header">
+                        {getStartYear(entry, listHeader, loaderData.listTypes)}
+                      </span>
+                      <span className="user-landing-thumbnail-footer">
+                        {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
+                      </span>
+                    </Link>
+                    <div className="user-landing-body-text-container">
+                      <span className="user-landing-body-latest-type">
+                        {entry.history.mostRecent.type}
+                      </span>
+                      <span className="user-landing-body-latest-time">
+                        {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+                      </span>
                     </div>
+                  </div>
                   )}
                 </div>
               </div>
@@ -57,13 +86,15 @@ function RecentActivityData(loaderData) {
           <div className="user-landing-body-item-container">
             {loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 10).map(entry =>
               <div className="user-landing-body-item">
-                <div className="user-landing-body-thumbnail-container">
-                  {hyperlinkRenderer(entry.thumbnail, "thumbnail")}
-                </div>
-                <div className="user-landing-body-text-container">
-                  <span className="user-landing-body-title">
-                    {entry.title}
+                <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                  <span className="user-landing-thumbnail-header">
+                    {getStartYear(entry, selectedLatestUpdate.header, loaderData.listTypes)}
                   </span>
+                  <span className="user-landing-thumbnail-footer">
+                    {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
+                  </span>
+                </Link>
+                <div className="user-landing-body-text-container">
                   <span className="user-landing-body-latest-type">
                     {entry.history.mostRecent.type}
                   </span>
@@ -144,26 +175,23 @@ function FavoritesData(loaderData) {
               <div className="user-landing-body-list-full-display-container">
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
-                {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].slice(0, 10).map(entry =>
-                  <div className="user-landing-body-list-container">
+                  {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].slice(0, 10).map(entry =>
                     <div className="user-landing-body-item">
-                      <div className="user-landing-body-thumbnail-container">
-                        {hyperlinkRenderer(entry.thumbnail, "thumbnail")}
-                      </div>
-                      <div className="user-landing-body-text-container">
-                        <span className="user-landing-body-title">
-                          {entry.title}
+                      <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                        <span className="user-landing-thumbnail-header">
+                          <div className="user-landing-thumbnail-start-year">
+                            {entry.startYear}
+                          </div>
+                          <div className="user-landing-thumbnail-media-type">
+                            {entry.mediaType}
+                          </div>
                         </span>
-                        <span className="user-landing-body-media-type">
-                          {entry.mediaType}
+                        <span className="user-landing-thumbnail-footer">
+                          {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
                         </span>
-                        <span className="user-landing-start-year">
-                          {new Date(entry.startYear).getFullYear()}
-                        </span>
-                      </div>
+                      </Link>
                     </div>
-                  </div>
-                )}
+                  )}
                 </div>
               </div>
             )})}
@@ -174,20 +202,19 @@ function FavoritesData(loaderData) {
               <div className="user-landing-body-list-container">
                 <div className="user-landing-body-item-container">
                   <div className="user-landing-body-item">
-                    <div className="user-landing-body-thumbnail-container">
-                      {hyperlinkRenderer(entry.thumbnail, "thumbnail")}
-                    </div>
-                    <div className="user-landing-body-text-container">
-                      <span className="user-landing-body-title">
-                        {entry.title}
+                    <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                      <span className="user-landing-thumbnail-header">
+                        <div className="user-landing-thumbnail-start-year">
+                          {entry.startYear}
+                        </div>
+                        <div className="user-landing-thumbnail-media-type">
+                          {entry.mediaType}
+                        </div>
                       </span>
-                      <span className="user-landing-body-media-type">
-                        {entry.mediaType}
+                      <span className="user-landing-thumbnail-footer">
+                        {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
                       </span>
-                      <span className="user-landing-start-year">
-                        {new Date(entry.startYear).getFullYear()}
-                      </span>
-                    </div>
+                    </Link>
                   </div>
                 </div>
               </div>
