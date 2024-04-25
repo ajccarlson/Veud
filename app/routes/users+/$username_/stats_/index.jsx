@@ -1,3 +1,12 @@
+import { useState, useEffect } from 'react'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuPortal,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { renderBarChart } from '#app/routes/users+/$username_/stats_/bar.jsx'
 import { renderBoxPlotChart } from '#app/routes/users+/$username_/stats_/box_plot'
 import { renderCalendarChart } from '#app/routes/users+/$username_/stats_/calendar'
@@ -7,36 +16,92 @@ import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.jsx'
 import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.jsx'
 
 export function StatsData(loaderData) {
-  function userStats(chartType, params = undefined) {
-    if (chartType == "pie") {
-      return renderPieChart(loaderData)
-    }
-    else if (chartType == "score") {
-      return renderBarChart(loaderData, "score", params)
-    } 
-    else if (chartType == "objectiveScores") {
-      return renderBoxPlotChart(loaderData, "objective scores", params)
-    } 
-    else if (chartType == "release") {
-      return renderLineChart(loaderData, "release")
-    } 
-    else if (chartType == "watched") {
-      return renderLineChart(loaderData, "watched")
-    } 
-    else if (chartType == "genres") {
-      return renderChordChart(loaderData, params)
-    } 
-    else if (chartType == "type") {
-      return renderRadialBar(loaderData, "type")
-    } 
-    else if (chartType == "episodeHistory") {
-      renderCalendarChart(loaderData, "episode history")
-    } 
+  const [chartIndex, setChartIndex] = useState(0);
+  const [headerIndex, setHeaderIndex] = useState(0);
+
+  const listHeaders = loaderData.listTypes.map(listType => listType.header)
+
+  const userStats = {
+    listTypeDistribution: {
+      header: "List Type Distribution",
+      chart: renderPieChart(loaderData),
+      typed: false
+    },
+    score: {
+      header: "Score Distribution",
+      chart: renderBarChart(loaderData, "score", listHeaders[headerIndex]),
+      typed: true
+    },
+    objectiveScores: {
+      header: "Public Score Deviation",
+      chart: renderBoxPlotChart(loaderData, "objective scores", listHeaders[headerIndex]),
+      typed: true
+    },
+    release: {
+      header: "Release Date Distribution",
+      chart: renderLineChart(loaderData, "release"),
+      typed: false
+    },
+    watched: {
+      header: "Watch Date Distribution",
+      chart: renderLineChart(loaderData, "watched"),
+      typed: false
+    },
+    genres: {
+      header: "Genre Distribution",
+      chart: renderChordChart(loaderData, listHeaders[headerIndex]),
+      typed: true
+    },
+    type: {
+      header: "Media Type Distribution",
+      chart: renderRadialBar(loaderData, "type"),
+      typed: false
+    },
+    /*episodeHistory: {
+      header: "Watch History",
+      chart: renderCalendarChart(loaderData, "episode history"),
+      typed: false
+    },*/
   }
+  
+  const userStatsKeys = Object.keys(userStats)
+  const [selectedChart, setSelectedChart] = useState(userStatsKeys[chartIndex]);
+
+  useEffect(() => {
+  	setSelectedChart(userStatsKeys[chartIndex])
+  }, [chartIndex, userStats, userStatsKeys]);
 
   return (
     <div className="user-landing-stats-container">
-      {userStats("score", "Live Action")}
+      <h1 className="user-landing-body-header">Stats</h1>
+      {userStats[selectedChart].chart}
+      <div className="user-landing-selection-nav-container">
+        <button onClick={() => {setChartIndex(chartIndex == 0 ? userStatsKeys.length - 1 : chartIndex - 1)}}>
+          <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="user-landing-dropdown-trigger"> 
+              {userStats[selectedChart].header}
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuPortal className="user-landing-dropdown-portal">
+            <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+              {Object.entries(userStats).filter(function([eKey, eValue]) { return eValue.header !== userStats[selectedChart].header }).map(([statKey, statValue]) =>
+                <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                  {
+                    setChartIndex(userStatsKeys.indexOf(statKey))
+                  }}>
+                  {statValue.header}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenuPortal>
+        </DropdownMenu>
+        <button onClick={() => {setChartIndex((chartIndex + 1) % (userStatsKeys.length))}}>
+          <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+        </button>
+      </div>
     </div>
   )
 }
