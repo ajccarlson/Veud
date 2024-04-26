@@ -1,6 +1,8 @@
 import { AgGridReact } from '@ag-grid-community/react'
 import { Form } from '@remix-run/react'
 import { Input } from '#app/components/ui/input.tsx'
+import { searchMAL, getAnimeInfo, getMangaInfo } from "#app/routes/media+/mal.jsx"
+import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.jsx"
 import { useState, useEffect } from 'react'
 import {
 	DropdownMenu,
@@ -10,7 +12,7 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.jsx"
+import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, getSiteID, titleCellRenderer, TypeCellRenderer } from "#app/utils/lists/column-functions.jsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -294,6 +296,68 @@ export function columnDefs(columnParams) {
                     refreshGrid(columnParams)
                   }}>
                     Delete row
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={async event => {
+                    let entryInfo, rawInfo, resultInfo, updateRow
+
+                    try {
+                      const separatorIndex = params.data.thumbnail.indexOf("|")
+                      const entryUrl = params.data.thumbnail.slice(separatorIndex + 1)
+                      
+                      entryInfo = getSiteID(entryUrl)
+                    }
+                    catch(e) {
+                      if (columnParams.listTypeData.name == "liveaction") {
+                        rawInfo = await searchTMDB(params.data.title, params.data.type, 5)
+                        entryInfo = {
+                          "site": "tmdb",
+                          'id': rawInfo[0].id
+                        }
+                      }
+                      else if (columnParams.listTypeData.name == "anime") {
+                        rawInfo = await searchMAL(params.data.title, 'anime', 5)
+                        entryInfo = {
+                          "site": "mal",
+                          'id': rawInfo[0].id
+                        }
+                      }
+                      else if (columnParams.listTypeData.name == "manga") {
+                        rawInfo = await searchMAL(params.data.title, 'manga', 5)
+                        entryInfo = {
+                          "site": "mal",
+                          'id': rawInfo[0].id
+                        }
+                      }
+                    }
+
+                    if (columnParams.listTypeData.name == "liveaction") {
+                      resultInfo = await getTMDBInfo(entryInfo.id, params.data.type)
+                      updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , language: resultInfo.language, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, tmdbScore: resultInfo.score, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+                    }
+                    else if (columnParams.listTypeData.name == "anime") {
+                      resultInfo = await getAnimeInfo(entryInfo.id)
+                      updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , studios: JSON.stringify(resultInfo.studios), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+                    }
+                    else if (columnParams.listTypeData.name == "manga") {
+                      resultInfo = await getMangaInfo(entryInfo.id)
+                      updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), history: params.data.history, genres: resultInfo.genres , serialization: JSON.stringify(resultInfo.serialization), authors: JSON.stringify(resultInfo.authors), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+                    }
+
+                    const rowUpdateResponse = await fetch('/lists/fetch/update-row/' + encodeURIComponent(new URLSearchParams({
+                      listTypeData: JSON.stringify(columnParams.listTypeData),
+                      rowIndex: params.data.id,
+                      row: JSON.stringify(updateRow)
+                    })))
+                    const rowUpdateData = await rowUpdateResponse.json();
+                    //console.log(rowUpdateData)
+
+                    const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+                      watchlistId: params.data.watchlistId
+                    })))
+
+                    refreshGrid(columnParams);
+                  }}>
+                    Update row info
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenuPortal>

@@ -220,6 +220,32 @@ export function hyperlinkRenderer(params, type = undefined) {
   }
 }
 
+export function getSiteID(url) {
+  try {
+    const linkSplit = url.split('/').filter(Boolean);
+
+    let linkSite
+    if (linkSplit.findIndex(element => element.includes("imdb")) > -1)
+      linkSite = 'imdb';
+    else if (linkSplit.findIndex(element => element.includes("tmdb")) > -1)
+      linkSite = 'tmdb';
+    else if (linkSplit.findIndex(element => element.includes("myanimelist")) > -1)
+      linkSite = 'mal';
+    else
+      throw new Error
+
+    const id = linkSplit.at(-1);
+
+    return {
+      'site': linkSite,
+      'id': id
+    };
+  }
+  catch (e) {
+    throw new Error('Failed to get site ID!\n' + e);
+  }
+}
+
 export function titleCellRenderer(params, columnParams) {
   if (!params.value || params.value.replace(/\W/g, '') === "") {
     return (
