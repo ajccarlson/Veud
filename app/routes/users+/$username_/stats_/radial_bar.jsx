@@ -2,7 +2,7 @@ import { ResponsiveRadialBar } from '@nivo/radial-bar'
 
 function MyResponsiveRadialBar(data)  {
   return (
-    <div class="user-landing-stats-radial-bar-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-radial-bar-chart">
       <ResponsiveRadialBar
         data={data}
         padding={0.4}

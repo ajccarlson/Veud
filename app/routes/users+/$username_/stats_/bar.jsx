@@ -2,7 +2,7 @@ import { ResponsiveBar } from '@nivo/bar'
 
 function MyResponsiveBar(data, barKeys) {
   return (
-    <div class="user-landing-stats-bar-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-bar-chart">
       <ResponsiveBar
         data={data}
         keys={barKeys}

@@ -106,7 +106,10 @@ export function renderCalendarChart(loaderData, chartType) {
   let calendarArray = []
 
   while (yearIterator <= endYear) {
-    calendarArray.push(MyResponsiveCalendar(calendarHistory, `${yearIterator}-01-01`, `${yearIterator + 1}-01-01`))
+    calendarArray.push({
+      year: `${yearIterator} - ${yearIterator + 1}`,
+      chart: MyResponsiveCalendar(calendarHistory, `${yearIterator}-01-01`, `${yearIterator + 1}-01-01`)
+    })
     yearIterator += 2
   }
 

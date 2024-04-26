@@ -2,7 +2,7 @@ import { ResponsiveBoxPlot } from '@nivo/boxplot'
 
 function MyResponsiveBoxPlot(data) {
   return (
-    <div class="user-landing-stats-box-plot-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-box-plot-chart">
       <ResponsiveBoxPlot
           data={data}
           margin={{ top: 60, right: 140, bottom: 60, left: 60 }}

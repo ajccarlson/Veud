@@ -73,9 +73,11 @@ function RecentActivityData(loaderData) {
                       <span className="user-landing-body-latest-type">
                         {entry.history.mostRecent.type}
                       </span>
-                      <span className="user-landing-body-latest-time">
-                        {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
-                      </span>
+                      <div className="user-landing-body-latest-time-container">
+                        <span className="user-landing-body-latest-time">
+                          {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   )}
@@ -100,9 +102,11 @@ function RecentActivityData(loaderData) {
                   <span className="user-landing-body-latest-type">
                     {entry.history.mostRecent.type}
                   </span>
-                  <span className="user-landing-body-latest-time">
-                    {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
-                  </span>
+                  <div className="user-landing-body-latest-time-container">
+                    <span className="user-landing-body-latest-time">
+                      {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

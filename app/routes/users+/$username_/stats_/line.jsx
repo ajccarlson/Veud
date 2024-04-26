@@ -2,7 +2,7 @@ import { ResponsiveLine } from '@nivo/line'
 
 function MyResponsiveLine(data) {
   return (
-    <div class="user-landing-stats-line-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-line-chart">
       <ResponsiveLine
         data={data}
         margin={{ top: 50, right: 110, bottom: 50, left: 60 }}

@@ -2,7 +2,7 @@ import { ResponsiveChord } from '@nivo/chord'
 
 function MyResponsiveChord(data, keys) {
   return (
-    <div class="user-landing-stats-chord-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-chord-chart">
       <ResponsiveChord
         data={data}
         keys={keys}

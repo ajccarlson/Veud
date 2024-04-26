@@ -2,7 +2,7 @@ import { ResponsivePie } from '@nivo/pie'
 
 function MyResponsivePie(data, fill) {
   return (
-    <div class="user-landing-stats-pie-chart">
+    <div class="user-landing-stats-chart-container user-landing-stats-pie-chart">
       <ResponsivePie
         data={data}
         margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
