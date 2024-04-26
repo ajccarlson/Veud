@@ -26,6 +26,14 @@
     align-items: center;
   }
 
+  .user-landing-username {
+    font-size: 1.5rem;
+    line-height: 1rem;
+    font-weight: 600;
+    color: #FF9900;
+    padding: 1rem;
+  }
+
   .user-landing-nav-container-main {
     display: flex;
     flex-direction: row;
@@ -51,7 +59,12 @@
     height: 100%;
   }
 
-  .user-landing-body-container{
+  .user-landing-stats-calendar-chart {
+    width: 100%;
+    height: 100%;
+  }
+
+  .user-landing-body-container {
     display: grid;
     grid-template-areas:
     'stats activity'
@@ -274,7 +287,7 @@
     padding-right: 1rem;
     padding-top: 0.25rem;
     position: sticky;
-    z-index: 10;
+    z-index: 50;
     top: 0px;
     border-top-width: 8px;
     border-left-width: 8px;
@@ -314,7 +327,7 @@
     border-radius: 0 1.5rem 0 0;
 
     transition: transform .1s ease-in-out;
-    z-index: 99;
+    z-index: 10;
 
     border-left-width: 8px;
     border-bottom-width: 8px;
@@ -380,7 +393,7 @@
     background-position: center center; 
     filter: drop-shadow(3px 2px 6px #66563d);
     transition: transform .1s ease-in-out;
-    z-index: 99;
+    z-index: 10;
   }
 
   .user-landing-body-thumbnail-image:hover {
@@ -474,11 +487,6 @@
   }
 
   .user-landing-stats-chord-chart {
-    width: 100%;
-    height: 100%;
-  }
-
-  .user-landing-stats-calendar-chart {
     width: 100%;
     height: 100%;
   }

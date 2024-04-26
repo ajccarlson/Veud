@@ -58,11 +58,17 @@ export function episodeProgressParser(params, oldValue, newValue) {
     try {
       matchResult = epsTotal.slice(-1)[0][0]
     } catch(e) {
-      return oldValue
+      return {
+        progress: null,
+        total: oldValue
+      }
     }
 
     if (matchResult) {
-      return (`${epsProgress} / ${matchResult} eps`)
+      return {
+        progress: epsProgress,
+        total: matchResult
+      }
     }
   }
   catch(e) {

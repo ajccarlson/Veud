@@ -55,7 +55,7 @@ export function MediaSearchBar(params) {
 							defaultValue={searchParams.get('search') ?? ''}
 							placeholder="Search"
 							autoComplete="off"
-							className="w-full"
+							className="w-full watchlist-search-bar"
 						/>
 						<StatusButton
 							type="submit"

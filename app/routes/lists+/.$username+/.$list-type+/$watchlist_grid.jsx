@@ -1,4 +1,6 @@
 import { AgGridReact } from '@ag-grid-community/react'
+import { Form } from '@remix-run/react'
+import { Input } from '#app/components/ui/input.tsx'
 import { useState, useEffect } from 'react'
 import {
 	DropdownMenu,
@@ -173,7 +175,7 @@ async function updatePositions(params, columnParams) {
 }
 
 async function setterFunction(params, columnParams) {
-  console.log(params)
+  // console.log(params)
   let returnValue = true
 
   if (params.column.colId == "position") {
@@ -199,8 +201,8 @@ async function setterFunction(params, columnParams) {
         }
         catch(e) {
           if (partialLengthRegex.test(params.oldValue)) {
-            params.newValue = episodeProgressParser(params, params.oldValue, params.newValue)
-            console.log(params.newValue)
+            const lengthData = episodeProgressParser(params, params.oldValue, params.newValue)
+            params.newValue = `${lengthData.progress} / ${lengthData.total} eps`
           }
         }
       }
@@ -402,19 +404,58 @@ export function columnDefs(columnParams) {
     {
       field: 'length',
       headerName: 'Length',
-      valueSetter: params => {setterFunction(params, columnParams)},
-      valueFormatter: params => {
+      editable: false,
+      cellRenderer: params => {
+        const totalLength = params.value
+        
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-            return ""
+          return ""
         }
         else if (params.value.includes("eps")) {
-          return episodeProgressParser(params, params.value, undefined)
+          const lengthData = episodeProgressParser(params, params.value, undefined)
+
+          return (
+            <div className="ag-length-cell">
+              <Form
+                method="GET"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+
+                  const newParams = {...params, newValue : event.target.lengthInput.value, oldValue : params.value}
+
+                  setterFunction(newParams, columnParams)
+                }}
+                className="ag-length-cell-text-container"
+              >
+                <Input
+                  name="lengthInput"
+                  className="ag-length-cell-input"
+                  id={`${params.rowIndex}-length-input`}
+                  autoComplete='false'
+                  defaultValue={lengthData.progress  ?? ''}
+                  placeholder={lengthData.progress}
+                />
+                <span className='ag-length-increment-button' onClick={(event) => {
+                  const newParams = {...params, newValue : lengthData.progress + 1, oldValue : params.value}
+                  setterFunction(newParams, columnParams)
+                }}>
+                  <Icon name="plus"></Icon>
+                </span>
+                <span className="ag-length-cell-span">{`/`}</span>
+                <span className="ag-length-cell-span">{`${lengthData.total}`}</span>
+                <span className="ag-length-cell-span">{`eps`}</span>
+              </Form>
+            </div>
+          )
+        }
+        else {
+          return totalLength
         }
       },
       flex: 1,
       resizable: false,
-      minWidth: 85,
-      maxWidth: 110,
+      minWidth: 180,
+      maxWidth: 190,
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['length'],
     },

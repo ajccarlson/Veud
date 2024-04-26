@@ -108,9 +108,59 @@
     transition: all .1s ease-out; 
   }
 
+  .ag-drag-handle {
+    visibility: hidden;
+    transition: all .1s ease-out; 
+  }
+
   .ag-position-cell:hover .ag-cell-insert {
     visibility: visible;
     font-size: 25px;
+  }
+
+  .ag-position-cell:hover .ag-drag-handle {
+    visibility: visible;
+  }
+
+  .ag-length-cell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ag-length-cell-text-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ag-length-cell-input {
+    height: 2rem;
+    width: 3rem;
+    text-align: center;
+  }
+
+  .ag-length-increment-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #FF4200;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all .1s ease-out; 
+  }
+
+  .ag-length-increment-button:hover {
+    border: 2px solid #FF4200;
+    border-radius:50%;
+    -moz-border-radius:50%;
+    -webkit-border-radius:50%;
+  }
+
+  .ag-length-cell-span {
+    display: flex;
+    flex-direction: row;
   }
 
   .ag-score-border-left-single {
@@ -123,7 +173,6 @@
 
   .ag-list-odd {
     color: #e7e7e7;
-
   }
 
   .ag-list-even {

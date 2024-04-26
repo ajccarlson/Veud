@@ -27,12 +27,12 @@ export function SideData(loaderData) {
 	return (
 		<div className="user-landing-side-container">
 			<div className="user-landing-personal-container">
+        <h1 className="user-landing-username">{user.username}</h1>
 				<img
 					src={getUserImgSrc(loaderData.user.image?.id)}
 					alt={user.username}
 					className="user-landing-profile-image"
 				/>
-				<h1 className="user-landing-username">{user.username}</h1>
 				<p className="user-landing-join-date">
 					Joined {loaderData.userJoinedDisplay}
 				</p>
@@ -77,6 +77,7 @@ export function SideData(loaderData) {
 				}
 			</div>
       <div className='user-landing-watch-history-container'>
+        <h1 className="user-landing-body-header">Watch History</h1>
         <div className='user-landing-watch-history-chart'>
           {watchHistory[calendarIndex].chart}
         </div>
