@@ -147,15 +147,13 @@
     align-items: center;
     color: #FF4200;
     font-size: 1rem;
+    border-radius: 50%;
     cursor: pointer;
-    transition: all .1s ease-out; 
+    transition: all .1s cubic-bezier(0.1, 0.7, 1, 0.1); 
   }
 
   .ag-length-increment-button:hover {
-    border: 2px solid #FF4200;
-    border-radius:50%;
-    -moz-border-radius:50%;
-    -webkit-border-radius:50%;
+    outline: 2px solid#FF4200;
   }
 
   .ag-length-cell-span {

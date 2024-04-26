@@ -392,14 +392,12 @@
     font-size: 45px;
     margin-top: 1rem;
     margin-bottom: 1rem;
+    border-radius: 50%;
     cursor: pointer;
-    transition: all .1s ease-out; 
+    transition: all .1s cubic-bezier(0.1, 0.7, 1, 0.1); 
   }
 
   .list-landing-nav-insert:hover {
-    border: 2px solid #FF4200;
-    border-radius:50%;
-    -moz-border-radius:50%;
-    -webkit-border-radius:50%;
+    outline: 2px solid#FF4200;
   }
 }

@@ -407,11 +407,21 @@ export function columnDefs(columnParams) {
       editable: false,
       cellRenderer: params => {
         const totalLength = params.value
+
+        let finishedValue
+        try {
+          finishedValue = JSON.parse(params.data.history).finished
+        }
+        catch(e) {}
         
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
         }
-        else if (params.value.includes("eps")) {
+        else if (finishedValue && finishedValue != "null" && finishedValue != "NULL" && finishedValue != 0) {
+          console.log(finishedValue)
+          return totalLength
+        }
+        else if (totalLength.includes("eps")) {
           const lengthData = episodeProgressParser(params, params.value, undefined)
 
           return (
