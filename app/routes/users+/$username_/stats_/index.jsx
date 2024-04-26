@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Spacer } from '#app/components/spacer.tsx'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -82,7 +83,7 @@ export function StatsData(loaderData) {
       {userStats[selectedChart].chart}
       <div className="user-landing-selection-nav-container">
         <button onClick={() => {setChartIndex(chartIndex == 0 ? userStatsKeys.length - 1 : chartIndex - 1)}}>
-          <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+          <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -104,36 +105,39 @@ export function StatsData(loaderData) {
           </DropdownMenuPortal>
         </DropdownMenu>
         <button onClick={() => {setChartIndex((chartIndex + 1) % (userStatsKeys.length))}}>
-          <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+          <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
         </button>
       </div>
       {userStats[selectedChart].typed ?
-        <div className="user-landing-selection-nav-container">
-          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
-            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="user-landing-dropdown-trigger"> 
-                {selectedHeader}
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuPortal className="user-landing-dropdown-portal">
-              <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                {listHeaders.filter(function(e) { return e !== selectedHeader }).map(listType =>
-                  <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
-                    {
-                      setHeaderIndex(listHeaders.indexOf(listType))
-                    }}>
-                    {listType}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenu>
-          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
-            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
-          </button>
+        <div className="user-landing-selection-typed-nav-container">
+          <Spacer size="4xs"/>
+          <div className="user-landing-selection-nav-container">
+            <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-typed-left-arrow"></Icon>
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="user-landing-type-dropdown-trigger"> 
+                  {selectedHeader}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuPortal className="user-landing-dropdown-portal">
+                <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                  {listHeaders.filter(function(e) { return e !== selectedHeader }).map(listType =>
+                    <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                      {
+                        setHeaderIndex(listHeaders.indexOf(listType))
+                      }}>
+                      {listType}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenu>
+            <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-typed-right-arrow"></Icon>
+            </button>
+          </div>
         </div>
       : null }
     </div>

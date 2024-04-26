@@ -40,18 +40,6 @@ export function SideData(loaderData) {
 					</Button>
 				) : null}
 			</div>
-			<div className="user-landing-nav-container-sub">
-				<Button asChild>
-					<Link to="" prefetch="intent">
-						Stats
-					</Link>
-				</Button>
-				<Button asChild>
-					<Link to="" prefetch="intent">
-						History
-					</Link>
-				</Button>
-			</div>
 			<div className="user-landing-nav-container-social">
 				<Button asChild>
 					<Link to="" prefetch="intent">

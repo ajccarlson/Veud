@@ -112,13 +112,13 @@ function RecentActivityData(loaderData) {
       { displayAll == 1 ? 
         <div className="user-landing-nav-button-container">
           <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-            <Icon name="caret-up" className="user-landing-nav-arrow"></Icon>
+            <Icon name="caret-up" className="user-landing-nav-arrow user-landing-up-arrow"></Icon>
           </button>
         </div>
       :<div className="user-landing-nav-button-container">
         <div className="user-landing-selection-nav-container">
           <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
-            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+            <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -140,11 +140,11 @@ function RecentActivityData(loaderData) {
             </DropdownMenuPortal>
           </DropdownMenu>
           <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
-            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+            <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
         </div>
         <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-          <Icon name="caret-down" className="user-landing-nav-arrow"></Icon>
+          <Icon name="caret-down" className="user-landing-nav-arrow user-landing-down-arrow"></Icon>
         </button>
       </div> }
 		</div>
@@ -199,6 +199,7 @@ function FavoritesData(loaderData) {
                   </span>
                   <Spacer size="2xs"/>
                 </div>
+                <Spacer size="2xs"/>
               </div>
             )})}
           </div>
@@ -230,13 +231,13 @@ function FavoritesData(loaderData) {
       { displayAll == 1 ? 
         <div className="user-landing-nav-button-container">
           <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-            <Icon name="caret-up" className="user-landing-nav-arrow"></Icon>
+            <Icon name="caret-up" className="user-landing-nav-arrow user-landing-up-arrow"></Icon>
           </button>
         </div>
       :<div className="user-landing-nav-button-container">
         <div className="user-landing-selection-nav-container">
           <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
-            <Icon name="triangle-left" className="user-landing-nav-arrow"></Icon>
+            <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -258,11 +259,11 @@ function FavoritesData(loaderData) {
             </DropdownMenuPortal>
           </DropdownMenu>
           <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
-            <Icon name="triangle-right" className="user-landing-nav-arrow"></Icon>
+            <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
         </div>
         <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-          <Icon name="caret-down" className="user-landing-nav-arrow"></Icon>
+          <Icon name="caret-down" className="user-landing-nav-arrow user-landing-down-arrow"></Icon>
         </button>
       </div> }
 		</div>
