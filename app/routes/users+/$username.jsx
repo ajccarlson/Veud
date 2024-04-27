@@ -65,14 +65,43 @@ export async function loader(params) {
               continue
             }
             else if (historyKey == "progress") {
-              Object.entries(historyValue).forEach(([progressKey, progressValue]) => {
-                Object.entries(progressValue.watchDate).forEach(([episodeKey, episodeValue]) => {
+              const dayGroups = Object.entries(historyValue).reduce((dayAccumulator, [progressKey, progressValue]) => {
+                const dateArray = progressValue.watchDate
+
+                dateArray.forEach((dateWatched) => {
+                  const dateRaw = new Date(dateWatched);
+                  const dateFull = `${dateRaw.getFullYear()}-${dateRaw.getMonth() + 1}-${dateRaw.getDate()}`
+
+                  if (!dayAccumulator[dateFull]) {
+                    dayAccumulator[dateFull] = [];
+                  }
+
+                  dayAccumulator[dateFull].push(progressKey);
+                })
+                
+                return dayAccumulator;
+              }, {});
+
+              Object.entries(dayGroups).forEach(([groupedKey, groupedValue]) => {
+                const uniqueEpisodes = [...new Set(groupedValue)];
+
+                if (uniqueEpisodes.length > 1) {
+                  const latestEpisode = Math.max(...uniqueEpisodes)
+                  const oldestEpisode = Math.min(...uniqueEpisodes)
+
                   typedHistory[type.header].push({
-                    type: `Completed Episode ${progressKey}`,
-                    time: new Date(episodeValue),
+                    type: `Completed Episodes ${oldestEpisode} - ${latestEpisode}`,
+                    time: new Date(groupedKey),
                     index: index
                   })
-                })
+                }
+                else {
+                  typedHistory[type.header].push({
+                    type: `Completed Episode ${uniqueEpisodes[0]}`,
+                    time: new Date(groupedKey),
+                    index: index
+                  })
+                }
               })
             }
             else {
