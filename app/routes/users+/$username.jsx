@@ -121,11 +121,20 @@ export async function loader(params) {
               })
             }
             else {
-              typedHistory[type.header].push({
-                type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-                time: new Date(historyValue),
-                index: index
-              })
+              if (historyKey == "added") {
+                typedHistory[type.header].push({
+                  type: `Added to ${watchLists.find(e => e.id === entry.watchlistId).header}`,
+                  time: new Date(historyValue),
+                  index: index
+                })
+              }
+              else {
+                typedHistory[type.header].push({
+                  type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                  time: new Date(historyValue),
+                  index: index
+                })
+              }
             }
 					}
 				}
