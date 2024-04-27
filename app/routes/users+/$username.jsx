@@ -114,7 +114,7 @@ export async function loader(params) {
                 else {
                   typedHistory[type.header].push({
                     type: `Completed Episode ${groupedValue[0].episode}`,
-                    time: new Date(groupedKey),
+                    time: new Date(groupedValue[0].date),
                     index: index
                   })
                 }
