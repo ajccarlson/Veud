@@ -49,6 +49,10 @@ function RecentActivityData(loaderData) {
 
   const listHeaders = loaderData.listTypes.map(listType => listType.header)
 
+  function typedEntry(entry) {
+    return loaderData.typedEntries[selectedLatestUpdate.header][entry.index]
+  }
+
 	return (
 		<div className="user-landing-recent-activity-container">
       <div className="user-landing-recent-activity-content">
@@ -59,23 +63,23 @@ function RecentActivityData(loaderData) {
               <div className="user-landing-body-list-full-display-container">
                 <h1 className="user-landing-list-type-header">{listHeader}</h1>
                 <div className="user-landing-body-item-container">
-                  {loaderData.typedEntries[listHeader].slice(0, 12).map(entry =>
+                  {loaderData.typedHistory[listHeader].slice(0, 12).map(entry =>
                     <div className="user-landing-recent-activity-body-item">
-                    <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                    <Link to={getThumbnailInfo(typedEntry(entry).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry).thumbnail).content}")`}}>
                       <span className="user-landing-thumbnail-header">
-                        {getStartYear(entry, listHeader, loaderData.listTypes)}
+                        {getStartYear(typedEntry(entry), listHeader, loaderData.listTypes)}
                       </span>
                       <span className="user-landing-activity-thumbnail-footer">
-                        {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
+                        {typedEntry(entry).title.length > 20 ? `${typedEntry(entry).title.substring(0, 20)}...` : typedEntry(entry).title}
                       </span>
                     </Link>
                     <div className="user-landing-body-text-container">
                       <span className="user-landing-body-latest-type">
-                        {entry.history.mostRecent.type}
+                        {entry.type}
                       </span>
                       <div className="user-landing-body-latest-time-container">
                         <span className="user-landing-body-latest-time">
-                          {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+                          {`${timeSince(new Date(entry.time))} ago`}
                         </span>
                       </div>
                     </div>
@@ -88,23 +92,23 @@ function RecentActivityData(loaderData) {
           </div>
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">
-            {loaderData.typedEntries[selectedLatestUpdate.header].slice(0, 12).map(entry =>
+            {loaderData.typedHistory[selectedLatestUpdate.header].slice(0, 12).map(entry =>
               <div className="user-landing-recent-activity-body-item">
-                <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                <Link to={getThumbnailInfo(typedEntry(entry).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry).thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
-                    {getStartYear(entry, selectedLatestUpdate.header, loaderData.listTypes)}
+                    {getStartYear(typedEntry(entry), selectedLatestUpdate.header, loaderData.listTypes)}
                   </span>
                   <span className="user-landing-activity-thumbnail-footer">
-                    {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
+                    {typedEntry(entry).title.length > 20 ? `${typedEntry(entry).title.substring(0, 20)}...` : typedEntry(entry).title}
                   </span>
                 </Link>
                 <div className="user-landing-body-text-container">
                   <span className="user-landing-body-latest-type">
-                    {entry.history.mostRecent.type}
+                    {entry.type}
                   </span>
                   <div className="user-landing-body-latest-time-container">
                     <span className="user-landing-body-latest-time">
-                      {`${timeSince(new Date(entry.history.mostRecent.time))} ago`}
+                      {`${timeSince(new Date(entry.time))} ago`}
                     </span>
                   </div>
                 </div>

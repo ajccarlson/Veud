@@ -38,6 +38,7 @@ export async function loader(params) {
   },{});
 
 	let typedEntries = {}
+  let typedHistory = {}
 
 	for (const type of listTypes) {
 		const typeFormatted = type.header.replace(/\W/g, '') + "Entry"
@@ -52,60 +53,37 @@ export async function loader(params) {
 		}
 
 		typedEntries[type.header] = perWatchlistEntries.flat(2)
-		
-		for (const entry of typedEntries[type.header]) {
+    typedHistory[type.header] = []
+
+		for (const [index, entry] of typedEntries[type.header].entries()) {
 			if (entry.history && entry.history != null && entry.history != "null") {
 				entry.history = JSON.parse(entry.history)
 
-				let latestEntry = {
-					type: null,
-					time: new Date(0)
-				}
-
 				for (const [historyKey, historyValue] of Object.entries(entry.history)) {
           if (historyValue != null && historyValue != "null") {
-            let currentDate
-
-            if (historyKey == "progress") {
-              let lastWatched = {
-                episode: 0,
-                date: 0
-              }
-
+            if (historyKey == "lastUpdated") {
+              continue
+            }
+            else if (historyKey == "progress") {
               Object.entries(historyValue).forEach(([progressKey, progressValue]) => {
-                let currentMax = Math.max(...progressValue.watchDate)
-        
-                if (currentMax && currentMax > lastWatched.date) {
-                  lastWatched = {
-                    episode: Number(progressKey),
-                    date: currentMax
-                  }
-                }
+                Object.entries(progressValue.watchDate).forEach(([episodeKey, episodeValue]) => {
+                  typedHistory[type.header].push({
+                    type: `Completed Episode ${progressKey}`,
+                    time: new Date(episodeValue),
+                    index: index
+                  })
+                })
               })
-        
-              currentDate = lastWatched.date
-
-              if (currentDate > latestEntry.time) {
-                latestEntry = {
-                  type: `Completed Episode ${lastWatched.episode}`,
-                  time: currentDate
-                }
-              }
             }
             else {
-              currentDate = new Date(historyValue)
-
-              if (currentDate > latestEntry.time) {
-                latestEntry = {
-                  type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-                  time: currentDate
-                }
-              }
+              typedHistory[type.header].push({
+                type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                time: new Date(historyValue),
+                index: index
+              })
             }
 					}
 				}
-
-				entry.history.mostRecent = latestEntry
 			}
 			else {
 				entry.history = {
@@ -114,22 +92,18 @@ export async function loader(params) {
 					finished: null,
 					progress: null,
 					lastUpdated: null,
-					mostRecent: {
-						type: null,
-						time: null
-					}
 				}
 			}
 		}
 
-		typedEntries[type.header].sort(function(a, b) {
-			if (!a.history.mostRecent.time || a.history.mostRecent.time == null)
-				a.history.mostRecent.time = 0
-			if (!b.history.mostRecent.time || b.history.mostRecent.time == null)
-				b.history.mostRecent.time = 0
+		typedHistory[type.header].sort(function(a, b) {
+			if (!a.time || a.time == null)
+				a.time = 0
+			if (!b.time || b.time == null)
+				b.time = 0
 
-			if (a.history.mostRecent.time > b.history.mostRecent.time) return -1;
-			if (a.history.mostRecent.time < b.history.mostRecent.time) return 1;
+			if (a.time > b.time) return -1;
+			if (a.time < b.time) return 1;
 			return 0;
 		});
   }
@@ -139,6 +113,7 @@ export async function loader(params) {
       ownerId: user.id, 
     },
   })
+  
 	
 	const favoritesSorted = favorites?.sort(function(a, b) {
 		if (a.position < b.position) return -1;
@@ -146,7 +121,7 @@ export async function loader(params) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, typedEntries, favorites: favoritesSorted })
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted })
 }
 
 export default function ProfileRoute() {
