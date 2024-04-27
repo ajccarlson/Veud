@@ -75,29 +75,45 @@ export async function loader(params) {
                   if (!dayAccumulator[dateFull]) {
                     dayAccumulator[dateFull] = [];
                   }
+                  else if (dayAccumulator[dateFull].some(e => e.episode === progressKey)) {
+                    try {
+                      const duplicateEpIndex = dayAccumulator[dateFull].findIndex(e => e.episode === progressKey)
 
-                  dayAccumulator[dateFull].push(progressKey);
+                      if (duplicateEpIndex != -1) {
+                        const dupeDay = dayAccumulator[dateFull][duplicateEpIndex]
+
+                        if (dupeDay.date < dateRaw) {
+                          dupeDay.date = dateRaw
+                          return dayAccumulator
+                        }
+                      }
+                    }
+                    catch(e) {}
+                  }
+
+                  dayAccumulator[dateFull].push({
+                    date: dateRaw,
+                    episode: progressKey
+                  });
                 })
                 
                 return dayAccumulator;
               }, {});
 
               Object.entries(dayGroups).forEach(([groupedKey, groupedValue]) => {
-                const uniqueEpisodes = [...new Set(groupedValue)];
-
-                if (uniqueEpisodes.length > 1) {
-                  const latestEpisode = Math.max(...uniqueEpisodes)
-                  const oldestEpisode = Math.min(...uniqueEpisodes)
+                if (Object.entries(groupedValue).length > 1) {
+                  const latestEpisode = groupedValue.reduce((max, day) => max.date > day.date ? max : day);
+                  const oldestEpisode = groupedValue.reduce((max, day) => max.date < day.date ? max : day);
 
                   typedHistory[type.header].push({
-                    type: `Completed Episodes ${oldestEpisode} - ${latestEpisode}`,
-                    time: new Date(groupedKey),
+                    type: `Completed Episodes ${oldestEpisode.episode} - ${latestEpisode.episode}`,
+                    time: new Date(latestEpisode.date),
                     index: index
                   })
                 }
                 else {
                   typedHistory[type.header].push({
-                    type: `Completed Episode ${uniqueEpisodes[0]}`,
+                    type: `Completed Episode ${groupedValue[0].episode}`,
                     time: new Date(groupedKey),
                     index: index
                   })
