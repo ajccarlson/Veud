@@ -276,6 +276,11 @@
     width: 100%;
   }
 
+  .user-landing-list-type-header-container {
+    display: flex;
+    flex-direction: row;
+  }
+
   .user-landing-list-type-header {
     text-align: left;
     width: fit-content;
@@ -297,6 +302,12 @@
     line-height: 1.9rem;
     font-weight: 600;
     color: #ffffb1;
+  }
+
+  .user-landing-favorites-count {
+    align-self: center;
+    margin-left: 1rem;
+    font-size: 1.5rem;
   }
 
   .user-landing-body-item-container {
