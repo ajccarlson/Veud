@@ -8,12 +8,7 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import "#app/styles/list-nav-buttons.scss"
 
-export function listNavButtons(watchLists, username, listTypes, listTypeData, watchListData) {
-  const typedWatchlists = watchLists.reduce((x, y) => {
-    (x[y.typeId] = x[y.typeId] || []).push(y);
-     return x;
-  },{});
-
+export function listNavButtons(typedWatchlists, username, listTypes, listTypeData, watchListData) {
   if (typedWatchlists && Object.keys(typedWatchlists).length > 1) {
     return (
       <main class="list-nav-buttons">
@@ -28,7 +23,7 @@ export function listNavButtons(watchLists, username, listTypes, listTypeData, wa
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuContent sideOffset={8} align="start">
-                    {Object.entries(typedWatchlists).map(([key, value]) => 
+                    {Object.entries(typedWatchlists).filter(function([eKey, eValue]) { return eKey !== listTypeData.id }).map(([key, value]) => 
                       <DropdownMenuItem>
                         <Link to={"../lists/" + username + "/" + listTypes.find(listType => listType.id == key).name + "/" + value.reduce((prev, curr) => prev.position < curr.position ? prev : curr).name}
                           class="list-type-dropdown-button"> 

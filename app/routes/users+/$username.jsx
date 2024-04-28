@@ -106,14 +106,14 @@ export async function loader(params) {
                   const oldestEpisode = groupedValue.reduce((max, day) => max.date < day.date ? max : day);
 
                   typedHistory[type.header].push({
-                    type: `Completed Episodes ${oldestEpisode.episode} - ${latestEpisode.episode}`,
+                    type: `Watched Episodes ${oldestEpisode.episode} - ${latestEpisode.episode}`,
                     time: new Date(latestEpisode.date),
                     index: index
                   })
                 }
                 else {
                   typedHistory[type.header].push({
-                    type: `Completed Episode ${groupedValue[0].episode}`,
+                    type: `Watched Episode ${groupedValue[0].episode}`,
                     time: new Date(groupedValue[0].date),
                     index: index
                   })

@@ -264,14 +264,14 @@ export function titleCellRenderer(params, columnParams) {
   }
 }
 
-export function TypeCellRenderer(params, columnParams) { 
-  if (!params || params.replace(/\W/g, '') === "") {
+export function typeCellRenderer(params, columnParams) { 
+  if (!params.value || params.value.replace(/\W/g, '') === "") {
     return (
-      <MediaTypeDropdown/>
+      <MediaTypeDropdown columnParams={columnParams}/>
     )
   }
   else {
-    return params
+    return params.value
   }
 }
 

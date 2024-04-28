@@ -8,9 +8,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
+  DropdownMenuSubTrigger,
+  DropdownMenuSub
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, TypeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
+import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -263,7 +265,7 @@ export function columnDefs(columnParams) {
               </DropdownMenuTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuContent sideOffset={8} align="start">
-                <DropdownMenuItem onSelect={event => {
+                  <DropdownMenuItem onSelect={event => {
                     createNewRow("Above", params, columnParams)
                   }}>
                     Insert 1 row above
@@ -273,11 +275,49 @@ export function columnDefs(columnParams) {
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
-                  {/* <DropdownMenuItem onSelect={event => {
-                    createNewRow()
-                  }}>
-                    Move row
-                  </DropdownMenuItem> */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      Move Row
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuContent sideOffset={8} align="start">
+                        <Form
+                          method="GET"
+                          onSubmit={async (event) => {
+                            event.preventDefault();
+                            
+                          }}
+                        >
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              {columnParams.watchListData.header}
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuContent sideOffset={8} align="start">
+                                {columnParams.typedWatchlists[columnParams.listTypeData.id].filter(function(e) { return e.id !== columnParams.watchListData.id }).map( list => 
+                                  <DropdownMenuItem onSelect={event => {
+                                    console.log("1")
+                                  }}>
+                                    {list.header}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
+                          <Input
+                            name="lengthInput"
+                            className="ag-length-cell-input"
+                            id="test"
+                            autoComplete='false'
+                            placeholder="Row #"
+                          />
+                          <button type="submit">
+                            Submit 
+                          </button> 
+                        </Form>
+                      </DropdownMenuContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
                   <DropdownMenuItem onSelect={async event => {
                     const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
                       listTypeData: JSON.stringify(columnParams.listTypeData),
@@ -361,7 +401,7 @@ export function columnDefs(columnParams) {
       resizable: false,
       minWidth: 70,
       maxWidth: 125,
-      cellRenderer: params => TypeCellRenderer(params.value),
+      cellRenderer: params => typeCellRenderer(params, columnParams),
       filter: 'agSetColumnFilter',
       cellStyle: function(params) {
         if (params.value) {
@@ -495,6 +535,7 @@ export function columnDefs(columnParams) {
       headerName: 'Chapters',
       valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
+      editable: false,
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
@@ -508,6 +549,7 @@ export function columnDefs(columnParams) {
       headerName: 'Volumes',
       valueSetter: params => {setterFunction(params, columnParams)},
       flex: 1,
+      editable: false,
       resizable: false,
       minWidth: 65,
       maxWidth: 72,
@@ -1326,8 +1368,9 @@ export function columnDefs(columnParams) {
   ]
 }
 
-export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId) {
+export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
+  const [selectedSearchType, setSelectedSearchType] = useState("Type")
 
   const displayedArray = watchListData.displayedColumns.split(', ')
   const displayedColumns = displayedArray.reduce((key,value) => (key[value] = true, key),{});
@@ -1343,8 +1386,12 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
   useEffect(() => {
   	setListEntries(listEntriesPass)
   }, [listEntriesPass]);
+
+  useEffect(() => {
+  	setSelectedSearchType(selectedSearchType)
+  }, [selectedSearchType]);
   
-  const columnParams = {listEntries, setListEntries, watchListData, listTypeData, watchlistId, displayedColumns, emptyRow}
+  const columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>

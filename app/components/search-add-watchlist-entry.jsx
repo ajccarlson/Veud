@@ -1,5 +1,5 @@
 import { Form, useSearchParams } from '@remix-run/react'
-import { useId, useState } from 'react'
+import { useId, useState, useEffect, createContext, useContext } from 'react'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -14,19 +14,33 @@ import { StatusButton } from './ui/status-button.tsx'
 import "#app/styles/watchlist-search.scss"
 import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
 
-function MediaValues() {
-	const [selectedItem, setSelectedItem] = useState("Type");
-	return {selectedItem, setSelectedItem}
+export function MediaTypeDropdown(params) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <div className="bg-[#6F6F6F] hover:bg-[#8CA99D] cursor-pointer text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
+          {params.columnParams.selectedSearchType}
+        </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent sideOffset={8} align="start">
+          <DropdownMenuItem onClick={() => {params.columnParams.setSelectedSearchType('Movie')}}>
+            Movie
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => {params.columnParams.setSelectedSearchType('TV Series')}}>
+            TV Series
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+	)
 }
 
 export function MediaSearchBar(params) {
 	const id = useId()
 	const [searchParams] = useSearchParams()
-	const [mediaResults, setmediaResults] = useState([]);
-	const {selectedItem, setSelectedItem} = MediaValues();
-	const [showDropdown, setShowDropdown] = useState(true);
-
-	// console.log(params)
+	const [mediaResults, setmediaResults] = useState([])
+	const [showDropdown, setShowDropdown] = useState(true)
 
 	return (
 		<Form
@@ -34,7 +48,7 @@ export function MediaSearchBar(params) {
 			onSubmit={async (event) => {
         event.preventDefault();
 				if (params.columnParams.listTypeData.name == "liveaction") {
-					setmediaResults(await searchTMDB(event.target.search.value, selectedItem, 5))
+					setmediaResults(await searchTMDB(event.target.search.value, params.columnParams.selectedSearchType, 5))
 				}
 				else if (params.columnParams.listTypeData.name == "anime") {
 					setmediaResults(await searchMAL(event.target.search.value, 'anime', 5))
@@ -69,7 +83,7 @@ export function MediaSearchBar(params) {
 
 							let resultInfo, addRow
 							if (params.columnParams.listTypeData.name == "liveaction") {
-								resultInfo = await getTMDBInfo(result.id, result.media_type)
+								resultInfo = await getTMDBInfo(result.id, result.media_type ? result.media_type : params.columnParams.selectedSearchType)
 								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), length: resultInfo.length, rating: resultInfo.rating, history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: resultInfo.genres , language: resultInfo.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo.score, differenceObjective: 0, description: resultInfo.description, notes: ""}
 							}
 							else if (params.columnParams.listTypeData.name == "anime") {
@@ -103,7 +117,7 @@ export function MediaSearchBar(params) {
 							refreshGrid(params.columnParams);
 							setShowDropdown(true)
 						}}>
-							{result.title}
+							{result.title ? result.title : result.name}
 						</div>
 					)}
 				</div>
@@ -117,29 +131,5 @@ export function MediaSearchBar(params) {
 			</div>
 		}
 		</Form>
-	)
-}
-
-export function MediaTypeDropdown() {
-	const {selectedItem, setSelectedItem} = MediaValues();
-
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<div className="bg-[#6F6F6F] hover:bg-[#8CA99D] cursor-pointer text-base font-bold py-[0.1rem] px-[0.5rem] rounded"> 
-					{selectedItem}
-				</div>
-			</DropdownMenuTrigger>
-			<DropdownMenuPortal>
-				<DropdownMenuContent sideOffset={8} align="start">
-					<DropdownMenuItem onClick={() => {setSelectedItem('Movie')}}>
-						Movie
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => {setSelectedItem('TV Series')}}>
-						TV Series
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenuPortal>
-		</DropdownMenu>
 	)
 }
