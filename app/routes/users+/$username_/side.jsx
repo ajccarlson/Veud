@@ -59,7 +59,7 @@ export function SideData(loaderData) {
 			<div className="user-landing-nav-container-social">
 				<Button asChild>
 					<Link to="" prefetch="intent">
-						Friends
+						Following
 					</Link>
 				</Button>
 				{isLoggedInUser ? (
