@@ -41,10 +41,17 @@ export const gridOptions = {
   onRowDragEnd: rowDragEnd,
   rowSelection: 'multiple',
   onGridReady: gridReady,
+  suppressScrollOnNewData: true,
 }
 
 function gridReady(e) {
   gridAPI = e.api
+}
+
+function getAllRows() {
+  let rowData = [];
+  gridAPI.forEachNode(node => rowData.push(node.data));
+  return rowData;
 }
 
 function createEmptyRow(watchlistId, position, listTypeData) {
@@ -287,7 +294,30 @@ export function columnDefs(columnParams) {
                           method="GET"
                           onSubmit={async (event) => {
                             event.preventDefault();
+
+                            let agRows = getAllRows()
+                            const agRow = agRows[params.node.id]
+                            console.log(agRow)
+                            const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
                             
+                            let addPosition = event.target.moveRowIndex.value
+                            if (addPosition > agRows.length - 1) {
+                              addPosition = (agRows.length - 1)
+                            }
+                            else if (addPosition < 1) {
+                              addPosition = 1
+                            }
+
+                            let addRow = params.node.data
+                            addRow.position = addPosition
+
+                            const addResponse = gridAPI.applyTransaction({
+                              add: [addRow],
+                              addIndex: addPosition - 1,
+                            })
+
+                            const rowNode = gridAPI.getRowNode(addPosition - 1)
+                            rowNode.setDataValue("position", Number(addPosition))
                           }}
                         >
                           <DropdownMenuSub>
