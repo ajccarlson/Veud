@@ -77,7 +77,7 @@ function getWatchlistNav(entryData, listParams) {
             <div class="list-landing-nav-last-updated-container">
               Last Updated:
               <span class="list-landing-nav-last-updated-span">
-                {timeSince(new Date(entryData.watchlist.updatedAt))}
+                {`${timeSince(new Date(entryData.watchlist.updatedAt))} ago`}
               </span>
             </div>
           </div>

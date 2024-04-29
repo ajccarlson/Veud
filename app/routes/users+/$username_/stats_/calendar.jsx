@@ -113,5 +113,7 @@ export function renderCalendarChart(loaderData, chartType) {
     yearIterator += 2
   }
 
+  calendarArray.unshift(calendarArray.pop())
+
   return (calendarArray)
 }

@@ -254,6 +254,8 @@ export function columnDefs(columnParams) {
       filter: 'agNumberColumnFilter',
       rowDrag: true,
       cellRenderer: params => {
+        const [selectedWatchlist, setSelectedWatchlist] = useState(columnParams.watchListData)
+
         return (
           <div>
             {params.value}
@@ -290,14 +292,12 @@ export function columnDefs(columnParams) {
                         >
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
-                              {columnParams.watchListData.header}
+                              {selectedWatchlist.header}
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
                               <DropdownMenuContent sideOffset={8} align="start">
                                 {columnParams.typedWatchlists[columnParams.listTypeData.id].filter(function(e) { return e.id !== columnParams.watchListData.id }).map( list => 
-                                  <DropdownMenuItem onSelect={event => {
-                                    console.log("1")
-                                  }}>
+                                  <DropdownMenuItem onSelect={() => {setSelectedWatchlist(list)}}>
                                     {list.header}
                                   </DropdownMenuItem>
                                 )}
@@ -305,13 +305,13 @@ export function columnDefs(columnParams) {
                             </DropdownMenuPortal>
                           </DropdownMenuSub>
                           <Input
-                            name="lengthInput"
-                            className="ag-length-cell-input"
-                            id="test"
+                            name="moveRowIndex"
+                            className="ag-move-row-index"
+                            id="moveRowIndex"
                             autoComplete='false'
                             placeholder="Row #"
                           />
-                          <button type="submit">
+                          <button type="submit" className="ag-move-row-submit" name="moveRowSubmit" id="moveRowSubmit">
                             Submit 
                           </button> 
                         </Form>
