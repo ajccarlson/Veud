@@ -20,7 +20,7 @@ import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-mod
 import { ModuleRegistry } from '@ag-grid-community/core'
 
 ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
-let gridAPI
+let gridAPI, columnParams
 
 export const gridOptions = {
   autoSizeStrategy: {
@@ -41,11 +41,45 @@ export const gridOptions = {
   onRowDragEnd: rowDragEnd,
   rowSelection: 'multiple',
   onGridReady: gridReady,
-  suppressScrollOnNewData: true,
 }
 
 function gridReady(e) {
   gridAPI = e.api
+
+  var navButtonContainers = document.querySelectorAll(".list-nav-button")
+
+  navButtonContainers.forEach(navButtonContainer => {
+    var dropZone = {
+      getContainer: () => {
+        return navButtonContainer
+      },
+      onDragStop: async (e) => {
+        e.node.data.watchlistId = navButtonContainer.getAttribute('id')
+
+        // const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+        //   listTypeData: JSON.stringify(columnParams.listTypeData),
+        //   row: JSON.stringify(e.node.data)
+        // })))
+        // const addData = await addResponse.json();
+        // console.log(addData)
+        
+        // const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
+        //   listTypeData: JSON.stringify(columnParams.listTypeData),
+        //   id: e.node.data.id,
+        //   watchlistId: e.node.data.watchlistId,
+        //   position: e.node.data.position,
+        //   change: 1
+        // })))
+
+        // const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+        //   watchlistId: e.node.data.watchlistId
+        // })))
+
+        // refreshGrid(columnParams)
+      },
+    }
+    gridAPI.addRowDropZone(dropZone)
+  })
 }
 
 function getAllRows() {
@@ -58,6 +92,9 @@ function createEmptyRow(watchlistId, position, listTypeData) {
   let emptyRow = {}
 
   for (const [key, value] of Object.entries(JSON.parse(listTypeData.columns))) {
+    if (key == "id") {
+      continue
+    }
     if (value == "string") {
       emptyRow[key] = " "
     }
@@ -68,7 +105,7 @@ function createEmptyRow(watchlistId, position, listTypeData) {
       emptyRow[key] = null
     }
     else if (value == "history") {
-      emptyRow[key] = JSON.stringify({
+      emptyRow["history"] = JSON.stringify({
         added: Date.now(),
         started: null,
         finished: null,
@@ -109,7 +146,7 @@ export async function refreshGrid(columnParams) {
   }
 }
 
-export async function reformatHistory(params, columnParams, newValue) {
+export async function reformatHistory(params, newValue) {
   const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
     listTypeData: JSON.stringify(columnParams.listTypeData),
     colId: params.column.colId,
@@ -131,7 +168,7 @@ const rowDragText = function (params) {
   return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
 };
 
-async function createNewRow(location, params, columnParams) {
+async function createNewRow(location, params, position) {
   let insertPosition = 0
   if (location == "Above") {
     if (params.data.position < 1) {
@@ -144,7 +181,7 @@ async function createNewRow(location, params, columnParams) {
   else
     insertPosition = params.data.position
 
-  const emptyRow = createEmptyRow(params.data.watchlistId, listEntries.length + 1, columnParams.listTypeData)
+  const emptyRow = createEmptyRow(params.data.watchlistId, insertPosition, columnParams.listTypeData)
 
   gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
@@ -152,15 +189,16 @@ async function createNewRow(location, params, columnParams) {
     listTypeData: JSON.stringify(columnParams.listTypeData),
     row: JSON.stringify(emptyRow)
   })))
+  const addData = await addResponse.json();
 
   const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     watchlistId: params.data.watchlistId
   })))
 
-  updatePositions(params, columnParams)
+  updatePositions(params)
 }
 
-async function updatePositions(params, columnParams) {
+async function updatePositions(params) {
   gridAPI.forEachNode(async (rowNode, index) => {
     if (rowNode.data.position != (index + 1)) {
       rowNode.data[params.column.colId] = index + 1
@@ -183,12 +221,12 @@ async function updatePositions(params, columnParams) {
   refreshGrid(columnParams)
 }
 
-async function setterFunction(params, columnParams) {
+async function setterFunction(params) {
   // console.log(params)
   let returnValue = true
 
   if (params.column.colId == "position") {
-    updatePositions(params, columnParams)
+    updatePositions(params)
   }
   else if (params.data != params.newValue) {
     let cellType = params.colDef.cellDataType
@@ -247,12 +285,12 @@ async function setterFunction(params, columnParams) {
   return returnValue
 }
 
-export function columnDefs(columnParams) {
+export function columnDefs() {
   return [
     {
       field: 'position',
       headerName: '#',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -275,16 +313,16 @@ export function columnDefs(columnParams) {
               <DropdownMenuPortal>
                 <DropdownMenuContent sideOffset={8} align="start">
                   <DropdownMenuItem onSelect={event => {
-                    createNewRow("Above", params, columnParams)
+                    createNewRow("Above", params)
                   }}>
                     Insert 1 row above
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={event => {
-                    createNewRow("Below", params, columnParams)
+                    createNewRow("Below", params)
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
-                  <DropdownMenuSub>
+                  {/* <DropdownMenuSub>
                     <DropdownMenuSubTrigger>
                       Move Row
                     </DropdownMenuSubTrigger>
@@ -347,7 +385,7 @@ export function columnDefs(columnParams) {
                         </Form>
                       </DropdownMenuContent>
                     </DropdownMenuPortal>
-                  </DropdownMenuSub>
+                  </DropdownMenuSub> */}
                   <DropdownMenuItem onSelect={async event => {
                     const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
                       listTypeData: JSON.stringify(columnParams.listTypeData),
@@ -377,7 +415,7 @@ export function columnDefs(columnParams) {
                   
                     refreshGrid(columnParams);
                   }}>
-                    Update watchlist rows
+                    Update all watchlist rows
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenuPortal>
@@ -393,7 +431,7 @@ export function columnDefs(columnParams) {
     {
       field: 'thumbnail',
       headerName: 'Thumbnail',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       sortable: false,
@@ -409,7 +447,7 @@ export function columnDefs(columnParams) {
     {
       field: 'title',
       headerName: 'Title',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 2,
       editable: false,
       resizable: false,
@@ -425,7 +463,7 @@ export function columnDefs(columnParams) {
     {
       field: 'type',
       headerName: 'Type',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -452,7 +490,7 @@ export function columnDefs(columnParams) {
     {
       field: 'airYear',
       headerName: 'Air Year',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -466,7 +504,7 @@ export function columnDefs(columnParams) {
     {
       field: 'startSeason',
       headerName: 'Start Season',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -480,7 +518,7 @@ export function columnDefs(columnParams) {
     {
       field: 'startYear',
       headerName: 'Start Year',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -522,7 +560,7 @@ export function columnDefs(columnParams) {
 
                   const newParams = {...params, newValue : event.target.lengthInput.value, oldValue : params.value}
 
-                  setterFunction(newParams, columnParams)
+                  setterFunction(newParams)
                 }}
                 className="ag-length-cell-text-container"
               >
@@ -536,7 +574,7 @@ export function columnDefs(columnParams) {
                 />
                 <span className='ag-length-increment-button' onClick={(event) => {
                   const newParams = {...params, newValue : lengthData.progress + 1, oldValue : params.value}
-                  setterFunction(newParams, columnParams)
+                  setterFunction(newParams)
                 }}>
                   <Icon name="plus"></Icon>
                 </span>
@@ -563,7 +601,7 @@ export function columnDefs(columnParams) {
     {
       field: 'chapters',
       headerName: 'Chapters',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -577,7 +615,7 @@ export function columnDefs(columnParams) {
     {
       field: 'volumes',
       headerName: 'Volumes',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -591,7 +629,7 @@ export function columnDefs(columnParams) {
     {
       field: 'rating',
       headerName: 'Rating',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -613,7 +651,7 @@ export function columnDefs(columnParams) {
           try {
             const parsedDate = Date.parse(params.data.history)
 
-            reformatHistory(params, columnParams, params.data.history).then(val => {
+            reformatHistory(params, params.data.history).then(val => {
               // console.log(val);
             }).catch(e => {
               // console.log(e);
@@ -624,7 +662,7 @@ export function columnDefs(columnParams) {
           catch(e) {}
         }
       },
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       resizable: false,
@@ -647,7 +685,7 @@ export function columnDefs(columnParams) {
           try {
             const parsedDate = Date.parse(params.data.history)
 
-            reformatHistory(params, columnParams, params.data.history).then(val => {
+            reformatHistory(params, params.data.history).then(val => {
               // console.log(val);
             }).catch(e => {
               // console.log(e);
@@ -658,7 +696,7 @@ export function columnDefs(columnParams) {
           catch(e) {}
         }
       },
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       resizable: false,
@@ -681,7 +719,7 @@ export function columnDefs(columnParams) {
           try {
             const parsedDate = Date.parse(params.data.history)
 
-            reformatHistory(params, columnParams, params.data.history).then(val => {
+            reformatHistory(params, params.data.history).then(val => {
               // console.log(val);
             }).catch(e => {
               // console.log(e);
@@ -692,7 +730,7 @@ export function columnDefs(columnParams) {
           catch(e) {}
         }
       },
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
       flex: 1,
       editable: false,
@@ -715,7 +753,7 @@ export function columnDefs(columnParams) {
           try {
             const parsedDate = Date.parse(params.data.history)
 
-            reformatHistory(params, columnParams, params.data.history).then(val => {
+            reformatHistory(params, params.data.history).then(val => {
               // console.log(val);
             }).catch(e => {
               // console.log(e);
@@ -726,7 +764,7 @@ export function columnDefs(columnParams) {
           catch(e) {}
         }
       },
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => timeSince(params.value),
       flex: 1,
       editable: false,
@@ -741,7 +779,7 @@ export function columnDefs(columnParams) {
     {
       field: 'genres',
       headerName: 'Genre(s)',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -795,7 +833,7 @@ export function columnDefs(columnParams) {
     {
       field: 'studios',
       headerName: 'Studios',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -810,7 +848,7 @@ export function columnDefs(columnParams) {
     {
       field: 'serialization',
       headerName: 'Serialization',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -825,7 +863,7 @@ export function columnDefs(columnParams) {
     {
       field: 'authors',
       headerName: 'Authors',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -840,7 +878,7 @@ export function columnDefs(columnParams) {
     {
       field: 'language',
       headerName: 'Language',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       editable: false,
       resizable: false,
@@ -863,7 +901,7 @@ export function columnDefs(columnParams) {
     {
       field: 'priority',
       headerName: 'Priority',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 1,
       resizable: false,
       minWidth: 65,
@@ -876,7 +914,7 @@ export function columnDefs(columnParams) {
     {
       field: 'story',
       headerName: 'Story',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
             return ""
@@ -917,7 +955,7 @@ export function columnDefs(columnParams) {
     {
       field: 'character',
       headerName: 'Character',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -958,7 +996,7 @@ export function columnDefs(columnParams) {
     {
       field: 'presentation',
       headerName: 'Presentation',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return "" 
@@ -1000,7 +1038,7 @@ export function columnDefs(columnParams) {
     {
       field: 'sound',
       headerName: 'Sound',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1041,7 +1079,7 @@ export function columnDefs(columnParams) {
     {
       field: 'performance',
       headerName: 'Performance',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1082,7 +1120,7 @@ export function columnDefs(columnParams) {
     {
       field: 'enjoyment',
       headerName: 'Enjoyment',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1123,7 +1161,7 @@ export function columnDefs(columnParams) {
     {
       field: 'averaged',
       headerName: 'Averaged',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1173,7 +1211,7 @@ export function columnDefs(columnParams) {
     {
       field: 'personal',
       headerName: 'Personal',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1216,7 +1254,7 @@ export function columnDefs(columnParams) {
     {
       field: 'differencePersonal',
       headerName: 'Difference: Personal',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueGetter: params => {
         if (params.data.personal && params.data.personal != 0) {
           return (params.data.personal - ((params.data.story + params.data.character + params.data.presentation + params.data.sound + params.data.performance + params.data.enjoyment) / 6))
@@ -1257,7 +1295,7 @@ export function columnDefs(columnParams) {
     {
       field: 'tmdbScore',
       headerName: 'TMDB Score',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1293,7 +1331,7 @@ export function columnDefs(columnParams) {
     {
       field: 'malScore',
       headerName: 'MAL Score',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueFormatter: params => {
         if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
@@ -1329,7 +1367,7 @@ export function columnDefs(columnParams) {
     {
       field: 'differenceObjective',
       headerName: 'Difference: Objective',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       valueGetter: params => {
         if ((params.data.personal && params.data.personal != 0) && (params.data.tmdbScore && params.data.tmdbScore != 0)) {
           return (params.data.personal - params.data.tmdbScore)
@@ -1373,7 +1411,7 @@ export function columnDefs(columnParams) {
     {
       field: 'description',
       headerName: 'Description',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 2,
       resizable: false,
       minWidth: 90,
@@ -1386,7 +1424,7 @@ export function columnDefs(columnParams) {
     {
       field: 'notes',
       headerName: 'Notes',
-      valueSetter: params => {setterFunction(params, columnParams)},
+      valueSetter: params => {setterFunction(params)},
       flex: 2,
       resizable: false,
       minWidth: 90,
@@ -1421,13 +1459,13 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
   	setSelectedSearchType(selectedSearchType)
   }, [selectedSearchType]);
   
-  const columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, displayedColumns, emptyRow}
+  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
         <AgGridReact
           gridOptions={gridOptions}
-          columnDefs={columnDefs(columnParams)}
+          columnDefs={columnDefs()}
           rowData={listEntries}
           rowDragText={rowDragText}
         ></AgGridReact>
