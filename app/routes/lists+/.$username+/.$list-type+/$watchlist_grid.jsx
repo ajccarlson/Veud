@@ -62,6 +62,10 @@ function gridReady(e) {
         navButtonContainer.style = ""
       },
       onDragStop: async (e) => {
+        console.log(e)
+
+        navButtonContainer.style = ""
+
         let addRow = structuredClone(e.node.data)
         addRow.watchlistId = navButtonContainer.getAttribute('id')
         delete addRow.id
@@ -77,11 +81,36 @@ function gridReady(e) {
         })))
         
 
-        const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+        const updateResponseRemove = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
           watchlistId: e.node.data.watchlistId
         })))
 
-        refreshGrid(columnParams)
+        const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
+          watchlistId: addRow.watchlistId,
+          listTypeData: JSON.stringify(columnParams.listTypeData),
+        })))
+        const listEntriesData = await listEntriesResponse.json()
+
+        const listEntriesSorted = listEntriesData.sort((a, b) => a.position - b.position)
+
+        listEntriesSorted.forEach(async (listEntry, index) => {
+          const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
+            listTypeData: JSON.stringify(columnParams.listTypeData),
+            colId: listEntry.colId,
+            type: "num",
+            filter: "num",
+            rowIndex: listEntry.id,
+            newValue: index + 1,
+          })))
+          const updateCellData = await updateCellResponse.json()
+          console.log(updateCellData)
+        })
+
+        const updateResponseAdd = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+          watchlistId: addRow.watchlistId
+        })))
+
+        updatePositions()
       },
     }
     gridAPI.addRowDropZone(dropZone)
@@ -188,8 +217,6 @@ async function createNewRow(location, params, position) {
     insertPosition = params.data.position
 
   const emptyRow = createEmptyRow(params.data.watchlistId, insertPosition, columnParams.listTypeData)
-
-  gridAPI.applyTransaction({add: [emptyRow], addIndex: insertPosition})
   
   const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
     listTypeData: JSON.stringify(columnParams.listTypeData),
@@ -197,31 +224,31 @@ async function createNewRow(location, params, position) {
   })))
   const addData = await addResponse.json();
 
+  gridAPI.applyTransaction({add: [addData], addIndex: insertPosition})
+
   const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     watchlistId: params.data.watchlistId
   })))
 
-  updatePositions(params)
+  updatePositions()
 }
 
-async function updatePositions(params) {
+async function updatePositions() {
   gridAPI.forEachNode(async (rowNode, index) => {
-    if (rowNode.data.position != (index + 1)) {
-      rowNode.data[params.column.colId] = index + 1
-    }
+    rowNode.data.position = index + 1
 
     const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
       listTypeData: JSON.stringify(columnParams.listTypeData),
-      colId: params.column.colId,
-      type: params.colDef.cellDataType,
-      filter: params.colDef.filter,
+      colId: "position",
+      type: "num",
+      filter: "num",
       rowIndex: rowNode.data.id,
       newValue: index + 1,
     })))
-  });
+  })
 
   const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-    watchlistId: params.data.watchlistId
+    watchlistId: columnParams.watchlistId
   })))
 
   refreshGrid(columnParams)
@@ -232,7 +259,7 @@ async function setterFunction(params) {
   let returnValue = true
 
   if (params.column.colId == "position") {
-    updatePositions(params)
+    updatePositions()
   }
   else if (params.data != params.newValue) {
     let cellType = params.colDef.cellDataType
@@ -402,7 +429,9 @@ export function columnDefs() {
                       watchlistId: params.data.watchlistId
                     })))
 
-                    refreshGrid(columnParams)
+                    const deleteTransaction = gridAPI.applyTransaction({ remove: [params.data] })
+
+                    updatePositions()
                   }}>
                     Delete row
                   </DropdownMenuItem>
