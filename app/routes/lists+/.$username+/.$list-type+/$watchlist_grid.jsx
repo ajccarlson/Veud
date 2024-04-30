@@ -54,28 +54,26 @@ function gridReady(e) {
         return navButtonContainer
       },
       onDragStop: async (e) => {
-        e.node.data.watchlistId = navButtonContainer.getAttribute('id')
+        let addRow = structuredClone(e.node.data)
+        addRow.watchlistId = navButtonContainer.getAttribute('id')
+        delete addRow.id
 
-        // const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
-        //   listTypeData: JSON.stringify(columnParams.listTypeData),
-        //   row: JSON.stringify(e.node.data)
-        // })))
-        // const addData = await addResponse.json();
-        // console.log(addData)
+        const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+          listTypeData: JSON.stringify(columnParams.listTypeData),
+          row: JSON.stringify(addRow)
+        })))
         
-        // const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
-        //   listTypeData: JSON.stringify(columnParams.listTypeData),
-        //   id: e.node.data.id,
-        //   watchlistId: e.node.data.watchlistId,
-        //   position: e.node.data.position,
-        //   change: 1
-        // })))
+        const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
+          listTypeData: JSON.stringify(columnParams.listTypeData),
+          id: e.node.data.id,
+        })))
+        
 
-        // const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-        //   watchlistId: e.node.data.watchlistId
-        // })))
+        const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+          watchlistId: e.node.data.watchlistId
+        })))
 
-        // refreshGrid(columnParams)
+        refreshGrid(columnParams)
       },
     }
     gridAPI.addRowDropZone(dropZone)
@@ -390,9 +388,6 @@ export function columnDefs() {
                     const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
                       listTypeData: JSON.stringify(columnParams.listTypeData),
                       id: params.data.id,
-                      watchlistId: params.data.watchlistId,
-                      position: params.data.position,
-                      change: 1
                     })))
 
                     const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
