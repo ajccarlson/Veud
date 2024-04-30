@@ -53,6 +53,14 @@ function gridReady(e) {
       getContainer: () => {
         return navButtonContainer
       },
+      onDragEnter: () => {
+        navButtonContainer.style.outline = "0.25rem solid #FF9900"
+        navButtonContainer.style.borderColor = "#FF5100";
+        navButtonContainer.style.backgroundColor = "#AA7D39"
+      },
+      onDragLeave: () => {
+        navButtonContainer.style = ""
+      },
       onDragStop: async (e) => {
         let addRow = structuredClone(e.node.data)
         addRow.watchlistId = navButtonContainer.getAttribute('id')
