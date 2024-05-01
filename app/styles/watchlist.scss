@@ -111,11 +111,27 @@
 
   .ag-drag-handle {
     visibility: hidden;
+    margin: 0;
     transition: all .1s ease-out; 
   }
 
+  .ag-move-row-index {
+    width: 2rem;
+    font-size: 1.1rem;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    background-color: #00000000;
+    border-color: #00000000;
+  }
+
+  .ag-move-row-index::placeholder {
+    font-size: 1.1rem;
+    color: white;
+  }
+
   .ag-position-cell {
-    padding-right: 3rem;
+    padding-right: 2.1rem;
   }
 
   .ag-position-cell:hover .ag-cell-insert {
@@ -125,6 +141,15 @@
 
   .ag-position-cell:hover .ag-drag-handle {
     visibility: visible;
+  }
+
+  .ag-position-cell:hover .ag-move-row-index {
+    background-color: hsl(var(--background));
+    border-color: hsl(var(--input));
+  }
+
+  .ag-position-cell:hover .ag-move-row-index::placeholder {
+    color: hsl(var(--muted-foreground));
   }
 
   .ag-progress-cell {

@@ -183,7 +183,7 @@ function rowDragEnd(params) {
 }
 
 const rowDragText = function (params) {
-  return (params.rowNode.data.title + " (" + params.rowNode.rowIndex + ")")
+  return (params.rowNode.data.title + " (" + (params.rowNode.rowIndex + 1) + ")")
 };
 
 async function createNewRow(location, params, position) {
@@ -323,7 +323,44 @@ export function columnDefs() {
 
         return (
           <div>
-            {params.value}
+            <Form
+              method="GET"
+              onSubmit={async (event) => {
+                event.preventDefault();
+
+                let agRows = getAllRows()
+                const agRow = agRows[params.node.id]
+                console.log(agRow)
+                const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
+                
+                let addPosition = event.target.moveRowIndex.value
+                if (addPosition > agRows.length - 1) {
+                  addPosition = (agRows.length - 1)
+                }
+                else if (addPosition < 1) {
+                  addPosition = 1
+                }
+
+                let addRow = params.node.data
+                addRow.position = addPosition
+
+                const addResponse = gridAPI.applyTransaction({
+                  add: [addRow],
+                  addIndex: addPosition - 1,
+                })
+
+                const rowNode = gridAPI.getRowNode(addPosition - 1)
+                rowNode.setDataValue("position", Number(addPosition))
+              }}
+            >
+              <Input
+                name="moveRowIndex"
+                className="ag-move-row-index"
+                id="moveRowIndex"
+                autoComplete='false'
+                placeholder={params.value}
+              />
+            </Form>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <span className='ag-cell-insert'>
@@ -342,70 +379,6 @@ export function columnDefs() {
                   }}>
                     Insert 1 row below
                   </DropdownMenuItem>
-                  {/* <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      Move Row
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuContent sideOffset={8} align="start">
-                        <Form
-                          method="GET"
-                          onSubmit={async (event) => {
-                            event.preventDefault();
-
-                            let agRows = getAllRows()
-                            const agRow = agRows[params.node.id]
-                            console.log(agRow)
-                            const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
-                            
-                            let addPosition = event.target.moveRowIndex.value
-                            if (addPosition > agRows.length - 1) {
-                              addPosition = (agRows.length - 1)
-                            }
-                            else if (addPosition < 1) {
-                              addPosition = 1
-                            }
-
-                            let addRow = params.node.data
-                            addRow.position = addPosition
-
-                            const addResponse = gridAPI.applyTransaction({
-                              add: [addRow],
-                              addIndex: addPosition - 1,
-                            })
-
-                            const rowNode = gridAPI.getRowNode(addPosition - 1)
-                            rowNode.setDataValue("position", Number(addPosition))
-                          }}
-                        >
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>
-                              {selectedWatchlist.header}
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuPortal>
-                              <DropdownMenuContent sideOffset={8} align="start">
-                                {columnParams.typedWatchlists[columnParams.listTypeData.id].filter(function(e) { return e.id !== columnParams.watchListData.id }).map( list => 
-                                  <DropdownMenuItem onSelect={() => {setSelectedWatchlist(list)}}>
-                                    {list.header}
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenuPortal>
-                          </DropdownMenuSub>
-                          <Input
-                            name="moveRowIndex"
-                            className="ag-move-row-index"
-                            id="moveRowIndex"
-                            autoComplete='false'
-                            placeholder="Row #"
-                          />
-                          <button type="submit" className="ag-move-row-submit" name="moveRowSubmit" id="moveRowSubmit">
-                            Submit 
-                          </button> 
-                        </Form>
-                      </DropdownMenuContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub> */}
                   <DropdownMenuItem onSelect={async event => {
                     const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
                       listTypeData: JSON.stringify(columnParams.listTypeData),
@@ -425,7 +398,7 @@ export function columnDefs() {
                   <DropdownMenuItem onSelect={async event => {
                     updateRowInfo(params, columnParams, false)
                   }}>
-                    Update row info
+                    Update entry info
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={async event => {
                     gridAPI.forEachNode(async (rowNode, index) => {
@@ -434,7 +407,7 @@ export function columnDefs() {
                   
                     refreshGrid(columnParams);
                   }}>
-                    Update all watchlist rows
+                    Update all watchlist entries
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenuPortal>
@@ -758,6 +731,7 @@ export function columnDefs() {
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
+      filter: "agDateColumnFilter",
       editable: true,
       hide: !columnParams.displayedColumns['startDate'],
     },
@@ -792,6 +766,7 @@ export function columnDefs() {
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
+      filter: "agDateColumnFilter",
       editable: true,
       hide: !columnParams.displayedColumns['finishedDate'],
     },
@@ -827,6 +802,7 @@ export function columnDefs() {
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
+      filter: "agDateColumnFilter",
       hide: !columnParams.displayedColumns['dateAdded'],
     },
 
@@ -861,6 +837,7 @@ export function columnDefs() {
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
+      filter: "agDateColumnFilter",
       hide: !columnParams.displayedColumns['lastUpdated'],
     },
 
