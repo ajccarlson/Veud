@@ -70,7 +70,23 @@ export async function loader(params) {
             }
             else if (historyKey == "progress") {
               JSON.parse(type.mediaType).forEach(mediaType => {
-                const dayGroups = Object.entries(historyValue).reduce((dayAccumulator, [progressKey, progressValue]) => {
+                let progressObject
+                if (type.columns.includes("length")) {
+                  progressObject = historyValue
+                }
+                else {
+                  progressObject = historyValue[mediaType]
+                }
+
+                if (!progressObject) {
+                  return
+                }
+
+                const dayGroups = Object.entries(progressObject).reduce((dayAccumulator, [progressKey, progressValue]) => {
+                  if (!progressValue.finishDate) {
+                    return dayAccumulator
+                  }
+
                   const dateArray = progressValue.finishDate
   
                   dateArray.forEach((dateCompleted) => {
@@ -102,7 +118,7 @@ export async function loader(params) {
                     });
                   })
                   
-                  return dayAccumulator;
+                  return dayAccumulator
                 }, {});
   
                 Object.entries(dayGroups).forEach(([groupedKey, groupedValue]) => {

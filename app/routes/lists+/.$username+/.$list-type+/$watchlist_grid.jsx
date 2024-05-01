@@ -285,7 +285,7 @@ async function setterFunction(params) {
       rowIndex: params.data.id,
       newValue: params.newValue,
     })))
-    const updateCellData = await updateCellResponse.json();
+    const updateCellData = await updateCellResponse.json()
 
     const updateResponse = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       watchlistId: params.data.watchlistId

@@ -20,8 +20,8 @@ export function SideData(loaderData) {
 
 
 
-  const watchHistory = renderCalendarChart(loaderData, "completion history")
-  const watchYears = Object.keys(watchHistory)
+  const completionHistory = renderCalendarChart(loaderData, "completion history")
+  const completionYears = Object.keys(completionHistory)
   const [calendarIndex, setCalendarIndex] = useState(0);
 
 	return (
@@ -76,27 +76,27 @@ export function SideData(loaderData) {
 				</Button>
 				}
 			</div>
-      <div className='user-landing-watch-history-container'>
-        <h1 className="user-landing-body-header">Watch History</h1>
-        <div className='user-landing-watch-history-chart'>
-          {watchHistory[calendarIndex].chart}
+      <div className='user-landing-completion-history-container'>
+        <h1 className="user-landing-body-header">Completion History</h1>
+        <div className='user-landing-completion-history-chart'>
+          {completionHistory[calendarIndex].chart}
         </div>
         <div className="user-landing-selection-nav-container">
-          <button onClick={() => {setCalendarIndex(calendarIndex == 0 ? watchYears.length - 1 : calendarIndex - 1)}}>
+          <button onClick={() => {setCalendarIndex(calendarIndex == 0 ? completionYears.length - 1 : calendarIndex - 1)}}>
             <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <div className="user-landing-dropdown-trigger"> 
-                {watchHistory[calendarIndex].year}
+                {completionHistory[calendarIndex].year}
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuPortal className="user-landing-dropdown-portal">
               <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                {Object.entries(watchHistory).filter(function([eKey, eValue]) { return eValue.header !== watchHistory[calendarIndex].year }).map(([calendarKey, calendarValue]) =>
+                {Object.entries(completionHistory).filter(function([eKey, eValue]) { return eValue.header !== completionHistory[calendarIndex].year }).map(([calendarKey, calendarValue]) =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setCalendarIndex(watchYears.indexOf(calendarKey))
+                      setCalendarIndex(completionYears.indexOf(calendarKey))
                     }}>
                     {calendarValue.year}
                   </DropdownMenuItem>
@@ -104,7 +104,7 @@ export function SideData(loaderData) {
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenu>
-          <button onClick={() => {setCalendarIndex((calendarIndex + 1) % (watchYears.length))}}>
+          <button onClick={() => {setCalendarIndex((calendarIndex + 1) % (completionYears.length))}}>
             <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
         </div>

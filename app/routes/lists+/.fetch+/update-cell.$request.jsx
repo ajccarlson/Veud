@@ -41,11 +41,11 @@ export async function loader(params) {
         const lengthRegex = /\d+\s*\/\s*\d+ eps/g
 
         if (lengthRegex.test(searchParams.get('newValue')) || searchParams.get('colId') != "length") {
-          const epsTotal = [...searchParams.get('newValue').matchAll(/\d+/g)]
+          const mediaTotal = [...searchParams.get('newValue').matchAll(/\d+/g)]
           let matchResult
 
           try {
-            matchResult = epsTotal[0][0]
+            matchResult = mediaTotal[0][0]
           } catch(e) {}
 
           if (matchResult) {
@@ -53,15 +53,52 @@ export async function loader(params) {
               parsedHistoryObject.progress = {}
             }
 
-            if (!parsedHistoryObject.progress[matchResult]) {
-              parsedHistoryObject.progress[matchResult] = {
-                completed: false,
-                finishDate: []
+            if (searchParams.get('colId') == "length") {
+              if (!parsedHistoryObject.progress[matchResult]) {
+                parsedHistoryObject.progress[matchResult] = {
+                  completed: false,
+                  finishDate: []
+                }
               }
+              
+              parsedHistoryObject.progress[matchResult].completed = true
+              parsedHistoryObject.progress[matchResult].finishDate.push(Date.now())
             }
-            
-            parsedHistoryObject.progress[matchResult].completed = true
-            parsedHistoryObject.progress[matchResult].finishDate.push(Date.now())
+            else {
+              let mediaType
+              const mediaTypeArray = JSON.parse(JSON.parse(searchParams.get('listTypeData')).mediaType)
+              const mediaTypesFormatted = mediaTypeArray.map(mediaTypeRaw => `${mediaTypeRaw}s`)
+              const typeIndex = mediaTypesFormatted.findIndex(e => e === searchParams.get('colId'))
+
+              if (!mediaTypesFormatted || mediaTypesFormatted.length < 1) {
+                mediaType = "episode"
+              }
+              else if (typeIndex > 0) {
+                mediaType = mediaTypeArray[typeIndex]
+              }
+              else {
+                mediaType = mediaTypeArray[0]
+              }
+
+              if (!parsedHistoryObject.progress[mediaType]) {
+                parsedHistoryObject.progress[mediaType] = {
+                  [matchResult]: {
+                    completed: false,
+                    finishDate: []
+                  }
+                }
+              }
+
+              if (!parsedHistoryObject.progress[mediaType][matchResult]) {
+                parsedHistoryObject.progress[mediaType][matchResult] = {
+                  completed: false,
+                  finishDate: []
+                }
+              }
+              
+              parsedHistoryObject.progress[mediaType][matchResult].completed = true
+              parsedHistoryObject.progress[mediaType][matchResult].finishDate.push(Date.now())
+            }
           }
         }
 

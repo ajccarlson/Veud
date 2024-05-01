@@ -24,18 +24,18 @@ export function mediaProgressParser(params, columnParams, oldValue, newValue) {
   let mediaType
 
   try {
-    const mediaTypeObject = JSON.parse(columnParams.listTypeData.mediaType)
-    const mediaTypesFormatted = mediaTypeObject.map(mediaTypeRaw => `${mediaTypeRaw}s`)
+    const mediaTypeArray = JSON.parse(columnParams.listTypeData.mediaType)
+    const mediaTypesFormatted = mediaTypeArray.map(mediaTypeRaw => `${mediaTypeRaw}s`)
     const typeIndex = mediaTypesFormatted.findIndex(e => e === params.column.colId)
 
     if (!mediaTypesFormatted || mediaTypesFormatted.length < 1) {
       mediaType = "episode"
     }
     else if (typeIndex > 0) {
-      mediaType = mediaTypeObject[typeIndex]
+      mediaType = mediaTypeArray[typeIndex]
     }
     else {
-      mediaType = mediaTypeObject[0]
+      mediaType = mediaTypeArray[0]
     }
 
     const mediaTotal =  [...oldValue.matchAll(/\d+/g)]
@@ -53,22 +53,30 @@ export function mediaProgressParser(params, columnParams, oldValue, newValue) {
       try {
         const historyObject = JSON.parse(params.data.history)
         let lastWatched = {
-          [mediaType]: 0,
+          entry: 0,
           date: 0
         }
+
+        let progressObject
+        if (params.column.colId == "length") {
+          progressObject = historyObject.progress
+        }
+        else {
+          progressObject = historyObject.progress[mediaType]
+        }
         
-        Object.entries(historyObject.progress).forEach(([progressKey, progressValue]) => {
+        Object.entries(progressObject).forEach(([progressKey, progressValue]) => {
           let currentMax = Math.max(...progressValue.finishDate)
   
           if (currentMax && currentMax > lastWatched.date) {
             lastWatched = {
-              [mediaType]: Number(progressKey),
+              entry: Number(progressKey),
               date: currentMax
             }
           }
         })
   
-        mediaProgress = lastWatched[mediaType]
+        mediaProgress = lastWatched.entry
       } catch(e) {
         mediaProgress = 0
       }
