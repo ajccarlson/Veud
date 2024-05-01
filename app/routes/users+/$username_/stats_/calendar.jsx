@@ -46,8 +46,8 @@ function MyResponsiveCalendar(data, startDate, endDate) {
   )
 }
 
-function addDate(calendarHistory, watchDate) {
-  const formattedDate = (new Date(watchDate)).toISOString().split('T')[0]
+function addDate(calendarHistory, finishDate) {
+  const formattedDate = (new Date(finishDate)).toISOString().split('T')[0]
   
   let dayWatched
 
@@ -82,8 +82,8 @@ export function renderCalendarChart(loaderData, chartType) {
           }
           else if (typedEntry.history.progress && typedEntry.history.progress != null && typedEntry.history.progress != "null" && Object.keys(typedEntry.history.progress).length > 1) {
             Object.entries(typedEntry.history.progress).forEach(([progressKey, progressValue]) => {
-              progressValue.watchDate.forEach((watchDate) => {
-                calendarHistory.push(addDate(calendarHistory, watchDate))
+              progressValue.finishDate.forEach((finishDate) => {
+                calendarHistory.push(addDate(calendarHistory, finishDate))
               })
             })
           }

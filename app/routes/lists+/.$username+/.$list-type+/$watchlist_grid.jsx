@@ -270,6 +270,10 @@ async function setterFunction(params) {
         }
       }
     }
+    else if (params.column.colId.toLowerCase() == ("chapters") || params.column.colId.toLowerCase() == ("volumes")) {
+      const mediaData = mediaProgressParser(params, columnParams, params.oldValue, params.newValue)
+      params.newValue = `${mediaData.progress} / ${mediaData.total}`
+    }
 
     params.data[params.column.colId] = params.newValue
 
@@ -289,7 +293,7 @@ async function setterFunction(params) {
 
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
 
-    if (params.column.colId.toLowerCase() == ("length")) {
+    if (["length", "chapters", "volumes"].includes(params.column.colId.toLowerCase())) {
       refreshGrid(columnParams)
     }
   }

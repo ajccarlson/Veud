@@ -136,7 +136,7 @@ export function renderBarChart(loaderData, chartType, listType) {
 
     typedEntry.forEach(typedEntry => {
       Object.entries(typedEntry).forEach(([columnKey, columnValue]) => {
-        if (!isNaN(columnValue) && !columnKey.toLowerCase().includes("date") && !columnKey.toLowerCase().includes("position") && !columnKey.toLowerCase().includes("volumes") && !columnKey.toLowerCase().includes("chapters") && !columnKey.toLowerCase().includes("episodes") && !columnKey.toLowerCase().includes("tmdb") && !columnKey.toLowerCase().includes("mal") && !columnKey.toLowerCase().includes("difference")) {
+        if (!isNaN(columnValue) && !["date", "position", "volumes", "chapters", "episodes", "tmdb", "mal", "difference"].includes(columnKey.toLowerCase())) {
           if (!columnValue || columnValue == "null" || columnValue == 0)
             return
 

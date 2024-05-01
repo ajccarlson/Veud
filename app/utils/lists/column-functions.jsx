@@ -58,7 +58,7 @@ export function mediaProgressParser(params, columnParams, oldValue, newValue) {
         }
         
         Object.entries(historyObject.progress).forEach(([progressKey, progressValue]) => {
-          let currentMax = Math.max(...progressValue.watchDate)
+          let currentMax = Math.max(...progressValue.finishDate)
   
           if (currentMax && currentMax > lastWatched.date) {
             lastWatched = {

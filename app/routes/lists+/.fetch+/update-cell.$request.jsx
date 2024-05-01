@@ -37,10 +37,10 @@ export async function loader(params) {
 
       parsedHistoryObject.lastUpdated = Date.now()
 
-      if (searchParams.get('colId') == "length") {
+      if (["length", "chapters", "volumes"].includes(searchParams.get('colId'))) {
         const lengthRegex = /\d+\s*\/\s*\d+ eps/g
 
-        if (lengthRegex.test(searchParams.get('newValue'))) {
+        if (lengthRegex.test(searchParams.get('newValue')) || searchParams.get('colId') != "length") {
           const epsTotal = [...searchParams.get('newValue').matchAll(/\d+/g)]
           let matchResult
 
@@ -56,12 +56,12 @@ export async function loader(params) {
             if (!parsedHistoryObject.progress[matchResult]) {
               parsedHistoryObject.progress[matchResult] = {
                 completed: false,
-                watchDate: []
+                finishDate: []
               }
             }
             
             parsedHistoryObject.progress[matchResult].completed = true
-            parsedHistoryObject.progress[matchResult].watchDate.push(Date.now())
+            parsedHistoryObject.progress[matchResult].finishDate.push(Date.now())
           }
         }
 

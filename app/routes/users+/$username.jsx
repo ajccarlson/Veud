@@ -71,7 +71,7 @@ export async function loader(params) {
             else if (historyKey == "progress") {
               JSON.parse(type.mediaType).forEach(mediaType => {
                 const dayGroups = Object.entries(historyValue).reduce((dayAccumulator, [progressKey, progressValue]) => {
-                  const dateArray = progressValue.watchDate
+                  const dateArray = progressValue.finishDate
   
                   dateArray.forEach((dateCompleted) => {
                     const dateRaw = new Date(dateCompleted);
