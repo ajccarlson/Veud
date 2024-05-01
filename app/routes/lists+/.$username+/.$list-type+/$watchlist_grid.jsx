@@ -314,8 +314,8 @@ export function columnDefs() {
       flex: 1,
       editable: false,
       resizable: false,
-      minWidth: 35,
-      maxWidth: 35,
+      minWidth: 60,
+      maxWidth: 60,
       filter: 'agNumberColumnFilter',
       rowDrag: true,
       cellRenderer: params => {

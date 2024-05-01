@@ -60,6 +60,7 @@
 
   .ag-thumbnail-cell {
     padding-right: 0px;
+    padding-left: 0px;
     filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
     transition: all .1s ease-in-out; 
   }
@@ -111,6 +112,10 @@
   .ag-drag-handle {
     visibility: hidden;
     transition: all .1s ease-out; 
+  }
+
+  .ag-position-cell {
+    padding-right: 3rem;
   }
 
   .ag-position-cell:hover .ag-cell-insert {
