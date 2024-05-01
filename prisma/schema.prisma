@@ -55,6 +55,9 @@ model ListType {
   header            String
   columns           String
 
+  mediaType         String
+  completionType    String
+
   watchlists        Watchlist[]
   userFavorites     UserFavorite[]
 }

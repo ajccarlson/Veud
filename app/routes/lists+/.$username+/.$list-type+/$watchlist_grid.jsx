@@ -12,7 +12,7 @@ import {
   DropdownMenuSub
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, episodeProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
+import { dateFormatter, mediaProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -62,17 +62,26 @@ function gridReady(e) {
         navButtonContainer.style = ""
       },
       onDragStop: async (e) => {
-        console.log(e)
-
         navButtonContainer.style = ""
+
+        const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
+          watchlistId: navButtonContainer.getAttribute('id'),
+          listTypeData: JSON.stringify(columnParams.listTypeData),
+        })))
+        const listEntriesData = await listEntriesResponse.json()
 
         let addRow = structuredClone(e.node.data)
         addRow.watchlistId = navButtonContainer.getAttribute('id')
+        addRow.position = listEntriesData.length + 1
         delete addRow.id
 
         const addResponse = await fetch('../../fetch/add-row/' + encodeURIComponent(new URLSearchParams({
           listTypeData: JSON.stringify(columnParams.listTypeData),
           row: JSON.stringify(addRow)
+        })))
+
+        const updateResponseAdd = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+          watchlistId: addRow.watchlistId
         })))
         
         const deleteResponse = await fetch('../../fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
@@ -80,34 +89,8 @@ function gridReady(e) {
           id: e.node.data.id,
         })))
         
-
         const updateResponseRemove = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
           watchlistId: e.node.data.watchlistId
-        })))
-
-        const listEntriesResponse = await fetch('../../fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
-          watchlistId: addRow.watchlistId,
-          listTypeData: JSON.stringify(columnParams.listTypeData),
-        })))
-        const listEntriesData = await listEntriesResponse.json()
-
-        const listEntriesSorted = listEntriesData.sort((a, b) => a.position - b.position)
-
-        listEntriesSorted.forEach(async (listEntry, index) => {
-          const updateCellResponse = await fetch('../../fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
-            listTypeData: JSON.stringify(columnParams.listTypeData),
-            colId: listEntry.colId,
-            type: "num",
-            filter: "num",
-            rowIndex: listEntry.id,
-            newValue: index + 1,
-          })))
-          const updateCellData = await updateCellResponse.json()
-          console.log(updateCellData)
-        })
-
-        const updateResponseAdd = await fetch('../../fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-          watchlistId: addRow.watchlistId
         })))
 
         updatePositions()
@@ -281,7 +264,7 @@ async function setterFunction(params) {
         }
         catch(e) {
           if (partialLengthRegex.test(params.oldValue)) {
-            const lengthData = episodeProgressParser(params, params.oldValue, params.newValue)
+            const lengthData = mediaProgressParser(params, columnParams, params.oldValue, params.newValue)
             params.newValue = `${lengthData.progress} / ${lengthData.total} eps`
           }
         }
@@ -574,17 +557,17 @@ export function columnDefs() {
         }
         catch(e) {}
         
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
+        /*if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
           return ""
         }
-        else if (finishedValue && finishedValue != "null" && finishedValue != "NULL" && finishedValue != 0) {
+        else */if (finishedValue && finishedValue != "null" && finishedValue != "NULL" && finishedValue != 0) {
           return totalLength
         }
         else if (totalLength.includes("eps")) {
-          const lengthData = episodeProgressParser(params, params.value, undefined)
+          const lengthData = mediaProgressParser(params, columnParams, params.value, undefined)
 
           return (
-            <div className="ag-length-cell">
+            <div className="ag-progress-cell">
               <Form
                 method="GET"
                 onSubmit={async (event) => {
@@ -594,25 +577,25 @@ export function columnDefs() {
 
                   setterFunction(newParams)
                 }}
-                className="ag-length-cell-text-container"
+                className="ag-progress-cell-text-container"
               >
                 <Input
                   name="lengthInput"
-                  className="ag-length-cell-input"
+                  className="ag-progress-cell-input"
                   id={`${params.rowIndex}-length-input`}
                   autoComplete='false'
                   defaultValue={lengthData.progress  ?? ''}
                   placeholder={lengthData.progress}
                 />
-                <span className='ag-length-increment-button' onClick={(event) => {
+                <span className='ag-progress-increment-button' onClick={(event) => {
                   const newParams = {...params, newValue : lengthData.progress + 1, oldValue : params.value}
                   setterFunction(newParams)
                 }}>
                   <Icon name="plus"></Icon>
                 </span>
-                <span className="ag-length-cell-span">{`/`}</span>
-                <span className="ag-length-cell-span">{`${lengthData.total}`}</span>
-                <span className="ag-length-cell-span">{`eps`}</span>
+                <span className="ag-progress-cell-span">{`/`}</span>
+                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
+                <span className="ag-progress-cell-span">{`eps`}</span>
               </Form>
             </div>
           )
@@ -633,12 +616,47 @@ export function columnDefs() {
     {
       field: 'chapters',
       headerName: 'Chapters',
-      valueSetter: params => {setterFunction(params)},
-      flex: 1,
       editable: false,
+      cellRenderer: params => {
+        const chapterData = mediaProgressParser(params, columnParams, params.value, undefined)
+
+        return (
+          <div className="ag-progress-cell">
+            <Form
+              method="GET"
+              onSubmit={async (event) => {
+                event.preventDefault();
+
+                const newParams = {...params, newValue : event.target.chapterInput.value, oldValue : params.value}
+
+                setterFunction(newParams)
+              }}
+              className="ag-progress-cell-text-container"
+            >
+              <Input
+                name="chapterInput"
+                className="ag-progress-cell-input"
+                id={`${params.rowIndex}-chapter-input`}
+                autoComplete='false'
+                defaultValue={chapterData.progress  ?? ''}
+                placeholder={chapterData.progress}
+              />
+              <span className='ag-progress-increment-button' onClick={(event) => {
+                const newParams = {...params, newValue : chapterData.progress + 1, oldValue : params.value}
+                setterFunction(newParams)
+              }}>
+                <Icon name="plus"></Icon>
+              </span>
+              <span className="ag-progress-cell-span">{`/`}</span>
+              <span className="ag-progress-cell-span">{`${chapterData.total}`}</span>
+            </Form>
+          </div>
+        )
+      },
+      flex: 1,
       resizable: false,
-      minWidth: 65,
-      maxWidth: 72,
+      minWidth: 150,
+      maxWidth: 160,
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['chapters'],
     },
@@ -647,12 +665,47 @@ export function columnDefs() {
     {
       field: 'volumes',
       headerName: 'Volumes',
-      valueSetter: params => {setterFunction(params)},
-      flex: 1,
       editable: false,
+      cellRenderer: params => {
+        const volumeData = mediaProgressParser(params, columnParams, params.value, undefined)
+
+        return (
+          <div className="ag-progress-cell">
+            <Form
+              method="GET"
+              onSubmit={async (event) => {
+                event.preventDefault();
+
+                const newParams = {...params, newValue : event.target.volumeInput.value, oldValue : params.value}
+
+                setterFunction(newParams)
+              }}
+              className="ag-progress-cell-text-container"
+            >
+              <Input
+                name="volumeInput"
+                className="ag-progress-cell-input"
+                id={`${params.rowIndex}-volume-input`}
+                autoComplete='false'
+                defaultValue={volumeData.progress  ?? ''}
+                placeholder={volumeData.progress}
+              />
+              <span className='ag-progress-increment-button' onClick={(event) => {
+                const newParams = {...params, newValue : volumeData.progress + 1, oldValue : params.value}
+                setterFunction(newParams)
+              }}>
+                <Icon name="plus"></Icon>
+              </span>
+              <span className="ag-progress-cell-span">{`/`}</span>
+              <span className="ag-progress-cell-span">{`${volumeData.total}`}</span>
+            </Form>
+          </div>
+        )
+      },
+      flex: 1,
       resizable: false,
-      minWidth: 65,
-      maxWidth: 72,
+      minWidth: 140,
+      maxWidth: 150,
       filter: "agTextColumnFilter",
       hide: !columnParams.displayedColumns['volumes'],
     },

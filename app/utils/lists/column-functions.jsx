@@ -20,24 +20,40 @@ export function dateFormatter(params) {
   }
 }
 
-export function episodeProgressParser(params, oldValue, newValue) {
+export function mediaProgressParser(params, columnParams, oldValue, newValue) {
+  let mediaType
+
   try {
-    const epsTotal =  [...oldValue.matchAll(/\d+/g)]
-    let matchResult, epsProgress
+    const mediaTypeObject = JSON.parse(columnParams.listTypeData.mediaType)
+    const mediaTypesFormatted = mediaTypeObject.map(mediaTypeRaw => `${mediaTypeRaw}s`)
+    const typeIndex = mediaTypesFormatted.findIndex(e => e === params.column.colId)
+
+    if (!mediaTypesFormatted || mediaTypesFormatted.length < 1) {
+      mediaType = "episode"
+    }
+    else if (typeIndex > 0) {
+      mediaType = mediaTypeObject[typeIndex]
+    }
+    else {
+      mediaType = mediaTypeObject[0]
+    }
+
+    const mediaTotal =  [...oldValue.matchAll(/\d+/g)]
+    let matchResult, mediaProgress
 
     if (newValue) {
       if (!isNaN(newValue) && newValue > 0) {
-        epsProgress = newValue
+        mediaProgress = newValue
       } 
       else {
-        epsProgress = 0
+        mediaProgress = 0
       }
     }
     else {
       try {
         const historyObject = JSON.parse(params.data.history)
         let lastWatched = {
-          episode: 0,
+          [mediaType]: 0,
           date: 0
         }
         
@@ -46,20 +62,20 @@ export function episodeProgressParser(params, oldValue, newValue) {
   
           if (currentMax && currentMax > lastWatched.date) {
             lastWatched = {
-              episode: Number(progressKey),
+              [mediaType]: Number(progressKey),
               date: currentMax
             }
           }
         })
   
-        epsProgress = lastWatched.episode
+        mediaProgress = lastWatched[mediaType]
       } catch(e) {
-        epsProgress = 0
+        mediaProgress = 0
       }
     }
     
     try {
-      matchResult = epsTotal.slice(-1)[0][0]
+      matchResult = mediaTotal.slice(-1)[0][0]
     } catch(e) {
       return {
         progress: null,
@@ -69,7 +85,7 @@ export function episodeProgressParser(params, oldValue, newValue) {
 
     if (matchResult) {
       return {
-        progress: epsProgress,
+        progress: mediaProgress,
         total: matchResult
       }
     }

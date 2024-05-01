@@ -73,7 +73,7 @@ function addDate(calendarHistory, watchDate) {
 export function renderCalendarChart(loaderData, chartType) {
   let calendarHistory = []
 
-  if (chartType == "episode history") {
+  if (chartType == "completion history") {
     Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
       value.forEach(typedEntry => {
         try {

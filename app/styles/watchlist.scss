@@ -122,12 +122,12 @@
     visibility: visible;
   }
 
-  .ag-length-cell {
+  .ag-progress-cell {
     display: flex;
     flex-direction: column;
   }
 
-  .ag-length-cell-text-container {
+  .ag-progress-cell-text-container {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
@@ -135,13 +135,13 @@
     gap: 0.5rem;
   }
 
-  .ag-length-cell-input {
+  .ag-progress-cell-input {
     height: 2rem;
     width: 3rem;
     text-align: center;
   }
 
-  .ag-length-increment-button {
+  .ag-progress-increment-button {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -152,11 +152,11 @@
     transition: all .1s cubic-bezier(0.1, 0.7, 1, 0.1); 
   }
 
-  .ag-length-increment-button:hover {
+  .ag-progress-increment-button:hover {
     outline: 2px solid#FF4200;
   }
 
-  .ag-length-cell-span {
+  .ag-progress-cell-span {
     display: flex;
     flex-direction: row;
   }

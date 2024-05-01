@@ -8,6 +8,10 @@ import { prisma } from '#app/utils/db.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
+function toTitleCase(inputString) {
+  return inputString.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+}
+
 export async function loader(params) {
 	const user = await prisma.user.findFirst({
 		select: {
@@ -65,59 +69,61 @@ export async function loader(params) {
               continue
             }
             else if (historyKey == "progress") {
-              const dayGroups = Object.entries(historyValue).reduce((dayAccumulator, [progressKey, progressValue]) => {
-                const dateArray = progressValue.watchDate
-
-                dateArray.forEach((dateWatched) => {
-                  const dateRaw = new Date(dateWatched);
-                  const dateFull = `${dateRaw.getFullYear()}-${dateRaw.getMonth() + 1}-${dateRaw.getDate()}`
-
-                  if (!dayAccumulator[dateFull]) {
-                    dayAccumulator[dateFull] = [];
-                  }
-                  else if (dayAccumulator[dateFull].some(e => e.episode === progressKey)) {
-                    try {
-                      const duplicateEpIndex = dayAccumulator[dateFull].findIndex(e => e.episode === progressKey)
-
-                      if (duplicateEpIndex != -1) {
-                        const dupeDay = dayAccumulator[dateFull][duplicateEpIndex]
-
-                        if (dupeDay.date < dateRaw) {
-                          dupeDay.date = dateRaw
-                          return dayAccumulator
+              JSON.parse(type.mediaType).forEach(mediaType => {
+                const dayGroups = Object.entries(historyValue).reduce((dayAccumulator, [progressKey, progressValue]) => {
+                  const dateArray = progressValue.watchDate
+  
+                  dateArray.forEach((dateCompleted) => {
+                    const dateRaw = new Date(dateCompleted);
+                    const dateFull = `${dateRaw.getFullYear()}-${dateRaw.getMonth() + 1}-${dateRaw.getDate()}`
+  
+                    if (!dayAccumulator[dateFull]) {
+                      dayAccumulator[dateFull] = [];
+                    }
+                    else if (dayAccumulator[dateFull].some(e => e[mediaType] === progressKey)) {
+                      try {
+                        const duplicateEpIndex = dayAccumulator[dateFull].findIndex(e => e[mediaType] === progressKey)
+  
+                        if (duplicateEpIndex != -1) {
+                          const dupeDay = dayAccumulator[dateFull][duplicateEpIndex]
+  
+                          if (dupeDay.date < dateRaw) {
+                            dupeDay.date = dateRaw
+                            return dayAccumulator
+                          }
                         }
                       }
+                      catch(e) {}
                     }
-                    catch(e) {}
+  
+                    dayAccumulator[dateFull].push({
+                      date: dateRaw,
+                      [mediaType]: progressKey
+                    });
+                  })
+                  
+                  return dayAccumulator;
+                }, {});
+  
+                Object.entries(dayGroups).forEach(([groupedKey, groupedValue]) => {
+                  if (Object.entries(groupedValue).length > 1) {
+                    const latestMedia = groupedValue.reduce((max, day) => max.date > day.date ? max : day);
+                    const oldestMedia = groupedValue.reduce((max, day) => max.date < day.date ? max : day);
+  
+                    typedHistory[type.header].push({
+                      type: `${toTitleCase(JSON.parse(type.completionType).past)} ${toTitleCase(mediaType)}s ${oldestMedia[mediaType]} - ${latestMedia[mediaType]}`,
+                      time: new Date(latestMedia.date),
+                      index: index
+                    })
                   }
-
-                  dayAccumulator[dateFull].push({
-                    date: dateRaw,
-                    episode: progressKey
-                  });
+                  else {
+                    typedHistory[type.header].push({
+                      type: `${toTitleCase(JSON.parse(type.completionType).past)} ${toTitleCase(mediaType)} ${groupedValue[0][mediaType]}`,
+                      time: new Date(groupedValue[0].date),
+                      index: index
+                    })
+                  }
                 })
-                
-                return dayAccumulator;
-              }, {});
-
-              Object.entries(dayGroups).forEach(([groupedKey, groupedValue]) => {
-                if (Object.entries(groupedValue).length > 1) {
-                  const latestEpisode = groupedValue.reduce((max, day) => max.date > day.date ? max : day);
-                  const oldestEpisode = groupedValue.reduce((max, day) => max.date < day.date ? max : day);
-
-                  typedHistory[type.header].push({
-                    type: `Watched Episodes ${oldestEpisode.episode} - ${latestEpisode.episode}`,
-                    time: new Date(latestEpisode.date),
-                    index: index
-                  })
-                }
-                else {
-                  typedHistory[type.header].push({
-                    type: `Watched Episode ${groupedValue[0].episode}`,
-                    time: new Date(groupedValue[0].date),
-                    index: index
-                  })
-                }
               })
             }
             else {
@@ -130,7 +136,7 @@ export async function loader(params) {
               }
               else {
                 typedHistory[type.header].push({
-                  type: historyKey.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                  type: toTitleCase(historyKey),
                   time: new Date(historyValue),
                   index: index
                 })

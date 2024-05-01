@@ -62,11 +62,6 @@ export function StatsData(loaderData) {
       chart: renderRadialBar(loaderData, "type"),
       typed: false
     },
-    /*episodeHistory: {
-      header: "Watch History",
-      chart: renderCalendarChart(loaderData, "episode history"),
-      typed: false
-    },*/
   }
   
   const userStatsKeys = Object.keys(userStats)

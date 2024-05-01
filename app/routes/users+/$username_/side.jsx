@@ -20,7 +20,7 @@ export function SideData(loaderData) {
 
 
 
-  const watchHistory = renderCalendarChart(loaderData, "episode history")
+  const watchHistory = renderCalendarChart(loaderData, "completion history")
   const watchYears = Object.keys(watchHistory)
   const [calendarIndex, setCalendarIndex] = useState(0);
 
