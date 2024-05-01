@@ -49,8 +49,8 @@ function RecentActivityData(loaderData) {
 
   const listHeaders = loaderData.listTypes.map(listType => listType.header)
 
-  function typedEntry(entry) {
-    return loaderData.typedEntries[selectedLatestUpdate.header][entry.index]
+  function typedEntry(entry, selectedHeader) {
+    return loaderData.typedEntries[selectedHeader][entry.index]
   }
 
 	return (
@@ -65,12 +65,12 @@ function RecentActivityData(loaderData) {
                 <div className="user-landing-body-item-container">
                   {loaderData.typedHistory[listHeader].slice(0, 12).map(entry =>
                     <div className="user-landing-recent-activity-body-item">
-                    <Link to={getThumbnailInfo(typedEntry(entry).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry).thumbnail).content}")`}}>
+                    <Link to={getThumbnailInfo(typedEntry(entry, listHeader).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, listHeader).thumbnail).content}")`}}>
                       <span className="user-landing-thumbnail-header">
-                        {getStartYear(typedEntry(entry), listHeader, loaderData.listTypes)}
+                        {getStartYear(typedEntry(entry, listHeader), listHeader, loaderData.listTypes)}
                       </span>
                       <span className="user-landing-activity-thumbnail-footer">
-                        {typedEntry(entry).title.length > 20 ? `${typedEntry(entry).title.substring(0, 20)}...` : typedEntry(entry).title}
+                        {typedEntry(entry, listHeader).title.length > 20 ? `${typedEntry(entry, listHeader).title.substring(0, 20)}...` : typedEntry(entry, listHeader).title}
                       </span>
                     </Link>
                     <div className="user-landing-body-text-container">
@@ -94,12 +94,12 @@ function RecentActivityData(loaderData) {
           <div className="user-landing-body-item-container">
             {loaderData.typedHistory[selectedLatestUpdate.header].slice(0, 12).map(entry =>
               <div className="user-landing-recent-activity-body-item">
-                <Link to={getThumbnailInfo(typedEntry(entry).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry).thumbnail).content}")`}}>
+                <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate.header).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate.header).thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
-                    {getStartYear(typedEntry(entry), selectedLatestUpdate.header, loaderData.listTypes)}
+                    {getStartYear(typedEntry(entry, selectedLatestUpdate.header), selectedLatestUpdate.header, loaderData.listTypes)}
                   </span>
                   <span className="user-landing-activity-thumbnail-footer">
-                    {typedEntry(entry).title.length > 20 ? `${typedEntry(entry).title.substring(0, 20)}...` : typedEntry(entry).title}
+                    {typedEntry(entry, selectedLatestUpdate.header).title.length > 20 ? `${typedEntry(entry, selectedLatestUpdate.header).title.substring(0, 20)}...` : typedEntry(entry, selectedLatestUpdate.header).title}
                   </span>
                 </Link>
                 <div className="user-landing-body-text-container">
