@@ -12,7 +12,7 @@ import {
   DropdownMenuSub
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, mediaProgressParser, timeSince, differenceFormatter, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
+import { dateFormatter, mediaProgressParser, timeSince, differenceFormatter, getSiteID, getThumbnailInfo, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -405,10 +405,38 @@ export function columnDefs() {
                       await updateRowInfo(rowNode, columnParams, true)
                     });
                   
-                    refreshGrid(columnParams);
+                    refreshGrid(columnParams)
                   }}>
                     Update all watchlist entries
                   </DropdownMenuItem>
+                  {columnParams.typedFavorites[columnParams.listTypeData.id].some(favorite => getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
+                    <DropdownMenuItem onSelect={async event => {
+                      const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
+                        return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
+                      })
+
+                      const deleteResponse = await fetch('../../fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
+                        id: deleteRow[0].id,
+                      })))
+                    }}>
+                      Remove from favorites
+                    </DropdownMenuItem>
+                  :
+                  <DropdownMenuItem onSelect={async event => {
+                    const addPosition = Object.entries(columnParams.typedFavorites[columnParams.listTypeData.id]).length + 1
+                    const typeColumns = JSON.parse(columnParams.listTypeData.columns)
+                    const startTypes = ["airYear", "startYear", "startSeason"]
+                    const startColumn = Object.keys(typeColumns).find((column) => startTypes.includes(column))
+
+                    const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.currentUser.id}
+
+                    const addResponse = await fetch('../../fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
+                      favorite: JSON.stringify(addRow)
+                    })))
+                  }}>
+                    Add to favorites
+                  </DropdownMenuItem>
+                  }
                 </DropdownMenuContent>
               </DropdownMenuPortal>
             </DropdownMenu>
@@ -1502,7 +1530,7 @@ export function columnDefs() {
   ]
 }
 
-export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists) {
+export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
   const [selectedSearchType, setSelectedSearchType] = useState("Type")
 
@@ -1525,7 +1553,7 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
   	setSelectedSearchType(selectedSearchType)
   }, [selectedSearchType]);
   
-  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, displayedColumns, emptyRow}
+  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>

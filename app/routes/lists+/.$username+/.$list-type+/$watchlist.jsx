@@ -5,6 +5,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import { getThumbnailInfo, getSiteID } from "#app/utils/lists/column-functions.jsx"
 
 export async function loader(params) {
   const currentUser = await prisma.User.findUnique({
@@ -58,7 +59,18 @@ export async function loader(params) {
 
   const listEntriesSorted = listEntries.sort((a, b) => a.position - b.position)
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id });
+  const favorites = await prisma.userFavorite.findMany({
+		where: {
+			ownerId: currentUser.id,
+		},
+	})
+  
+  const typedFavorites = favorites.reduce((x, y) => {
+    (x[y.typeId] = x[y.typeId] || []).push(y);
+    return x;
+  },{})
+
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id, typedFavorites, currentUser });
 };
 
 export function ErrorBoundary() {
@@ -78,7 +90,7 @@ export default function watchList() {
 
   return (
     <main style={{ width: '100%', height: '100%' }}>
-      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists )}
+      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.currentUser )}
       {listNavButtons(loaderData.typedWatchlists, loaderData.username, loaderData.listTypes, loaderData.listTypeData, loaderData.watchListData)}
     </main>
   )

@@ -10,16 +10,7 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
-import { timeSince } from "#app/utils/lists/column-functions.jsx"
-
-function getThumbnailInfo(thumbnail) {
-  const separatorIndex = thumbnail.indexOf("|")
-
-  return {
-    content: thumbnail.slice(0, separatorIndex),
-    url: thumbnail.slice(separatorIndex + 1)
-  }
-}
+import { timeSince, getThumbnailInfo } from "#app/utils/lists/column-functions.jsx"
 
 function getStartYear(entry, listHeader, listTypes) {
   const typeData = listTypes.find((listType) => listType.header == listHeader)

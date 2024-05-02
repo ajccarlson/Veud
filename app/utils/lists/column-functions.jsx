@@ -177,6 +177,15 @@ export function differenceFormatter(params) {
   }
 }
 
+export function getThumbnailInfo(thumbnail) {
+  const separatorIndex = thumbnail.indexOf("|")
+
+  return {
+    content: thumbnail.slice(0, separatorIndex),
+    url: thumbnail.slice(separatorIndex + 1)
+  }
+}
+
 export function hyperlinkRenderer(params, type = undefined) {
   let content, url, inner
 
@@ -187,9 +196,7 @@ export function hyperlinkRenderer(params, type = undefined) {
     let hyperlinkArray = []
 
     for (const item of paramsObject) {
-      const separatorIndex = item.indexOf("|")
-      content = item.slice(0, separatorIndex)
-      url = item.slice(separatorIndex + 1)
+      const [content, url] = getThumbnailInfo(item)
 
       if (itemCount % 2 == 0) {
         inner = <span className='ag-list-odd'>
@@ -254,7 +261,7 @@ export function getSiteID(url) {
     let linkSite
     if (linkSplit.findIndex(element => element.includes("imdb")) > -1)
       linkSite = 'imdb';
-    else if (linkSplit.findIndex(element => element.includes("tmdb")) > -1)
+    else if (linkSplit.findIndex(element => element.includes("tmdb")) || linkSplit.findIndex(element => element.includes("themoviedb")) > -1)
       linkSite = 'tmdb';
     else if (linkSplit.findIndex(element => element.includes("myanimelist")) > -1)
       linkSite = 'mal';
@@ -269,6 +276,7 @@ export function getSiteID(url) {
     };
   }
   catch (e) {
+    console.error(url)
     throw new Error('Failed to get site ID!\n' + e);
   }
 }
