@@ -5,7 +5,6 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
-import { getThumbnailInfo, getSiteID } from "#app/utils/lists/column-functions.jsx"
 
 export async function loader(params) {
   const currentUser = await prisma.User.findUnique({

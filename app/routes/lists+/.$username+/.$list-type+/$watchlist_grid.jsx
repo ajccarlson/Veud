@@ -319,8 +319,6 @@ export function columnDefs() {
       filter: 'agNumberColumnFilter',
       rowDrag: true,
       cellRenderer: params => {
-        const [selectedWatchlist, setSelectedWatchlist] = useState(columnParams.watchListData)
-
         return (
           <div>
             <Form
@@ -409,7 +407,7 @@ export function columnDefs() {
                   }}>
                     Update all watchlist entries
                   </DropdownMenuItem>
-                  {columnParams.typedFavorites[columnParams.listTypeData.id].some(favorite => getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
+                  {columnParams.favoriteIds.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
                     <DropdownMenuItem onSelect={async event => {
                       const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
                         return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
@@ -418,6 +416,8 @@ export function columnDefs() {
                       const deleteResponse = await fetch('../../fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
                         id: deleteRow[0].id,
                       })))
+
+                      columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteID(getThumbnailInfo(params.data.thumbnail).url).id))
                     }}>
                       Remove from favorites
                     </DropdownMenuItem>
@@ -433,6 +433,8 @@ export function columnDefs() {
                     const addResponse = await fetch('../../fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
                       favorite: JSON.stringify(addRow)
                     })))
+
+                    columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
                   }}>
                     Add to favorites
                   </DropdownMenuItem>
@@ -1533,6 +1535,11 @@ export function columnDefs() {
 export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
   const [selectedSearchType, setSelectedSearchType] = useState("Type")
+  const [favoriteIds, setFavoriteIds] =  useState(
+    typedFavorites[listTypeData.id].map(typedFavorite => {
+      return getSiteID(getThumbnailInfo(typedFavorite.thumbnail).url).id
+    })
+  )
 
   const displayedArray = watchListData.displayedColumns.split(', ')
   const displayedColumns = displayedArray.reduce((key,value) => (key[value] = true, key),{});
@@ -1547,13 +1554,17 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
 
   useEffect(() => {
   	setListEntries(listEntriesPass)
-  }, [listEntriesPass]);
+  }, [listEntriesPass])
 
   useEffect(() => {
   	setSelectedSearchType(selectedSearchType)
-  }, [selectedSearchType]);
+  }, [selectedSearchType])
+
+  useEffect(() => {
+  	setFavoriteIds(favoriteIds)
+  }, [favoriteIds])
   
-  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser, displayedColumns, emptyRow}
+  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, favoriteIds, setFavoriteIds, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser, displayedColumns, emptyRow}
 
   return (
     <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
