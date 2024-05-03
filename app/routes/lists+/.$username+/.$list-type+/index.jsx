@@ -378,11 +378,6 @@ export default function lists() {
 
   return (
     <main class="list-landing" style={{ width: '100%', height: '100%' }}>
-      <div class="list-landing-sidebar-container">
-        <a href={"/lists/" + loaderData.username + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
-        <a href={"/lists/" + loaderData.username + "/anime"} className="list-landing-sidebar-item">Anime</a>
-        <a href={"/lists/" + loaderData.username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
-      </div>
       <div class="list-landing-nav-main">
         <div class="list-landing-nav-container">
           { navItems }
@@ -391,6 +386,11 @@ export default function lists() {
             <Icon name="plus"></Icon>
           </span>
         </div>
+      </div>
+      <div class="list-landing-sidebar-container">
+        <a href={"/lists/" + loaderData.username + "/liveaction"} className="list-landing-sidebar-item">Live Action</a>
+        <a href={"/lists/" + loaderData.username + "/anime"} className="list-landing-sidebar-item">Anime</a>
+        <a href={"/lists/" + loaderData.username + "/manga"} class="list-landing-sidebar-item list-landing-sidebar-item-bottom">Manga</a>
       </div>
     </main>
   )
