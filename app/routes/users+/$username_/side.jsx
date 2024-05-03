@@ -15,8 +15,8 @@ import { useOptionalUser } from '#app/utils/user.ts'
 
 export function SideData(loaderData) {
 	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+	// const loggedInUser = useOptionalUser()
+	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
 
 
@@ -33,9 +33,14 @@ export function SideData(loaderData) {
 					alt={user.username}
 					className="user-landing-profile-image"
 				/>
-				<p className="user-landing-join-date">
-					Joined {loaderData.userJoinedDisplay}
-				</p>
+        <div className='user-landing-join-container'>
+          <span className="user-landing-join-label">
+            Joined
+          </span>
+          <span className="user-landing-join-date">
+            {loaderData.userJoinedDisplay}
+          </span>
+        </div>
 			</div>
 			<div className="user-landing-nav-container-main">
 				<Button asChild>
@@ -43,20 +48,20 @@ export function SideData(loaderData) {
 						Watchlists
 					</Link>
 				</Button>
-				<Button asChild>
+				{/* <Button asChild>
 					<Link to="notes" prefetch="intent">
 						Notes
 					</Link>
-				</Button>
-				{isLoggedInUser ? (
+				</Button> */}
+				{/* {isLoggedInUser ? (
 					<Button asChild>
 						<Link to="/settings/profile" prefetch="intent">
 							Edit profile
 						</Link>
 					</Button>
-				) : null}
+				) : null} */}
 			</div>
-			<div className="user-landing-nav-container-social">
+			{/* <div className="user-landing-nav-container-social">
 				<Button asChild>
 					<Link to="" prefetch="intent">
 						Following
@@ -75,7 +80,7 @@ export function SideData(loaderData) {
 					</Link>
 				</Button>
 				}
-			</div>
+			</div> */}
       <div className='user-landing-completion-history-container'>
         <h1 className="user-landing-body-header">Completion History</h1>
         <div className='user-landing-completion-history-chart'>

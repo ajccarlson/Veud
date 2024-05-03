@@ -196,9 +196,9 @@ function FavoritesData(loaderData) {
                       </Link>
                     </div>
                   )}
-                  <span className='user-landing-favorite-insert'>
+                  {/* <span className='user-landing-favorite-insert'>
                     <Icon name="plus"></Icon>
-                  </span>
+                  </span> */}
                   <Spacer size="2xs"/>
                 </div>
                 <Spacer size="2xs"/>
@@ -226,9 +226,9 @@ function FavoritesData(loaderData) {
                   </Link>
                 </div>
               )}
-              <span className='user-landing-favorite-insert'>
+              {/* <span className='user-landing-favorite-insert'>
                 <Icon name="plus"></Icon>
-              </span>
+              </span> */}
             </div>
           </div>
         </div> }

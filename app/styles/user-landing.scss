@@ -3,7 +3,7 @@
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-columns: 30% 70%;
+    grid-template-columns: 30rem auto;
     background-color: #2e2f2b;
     // background: linear-gradient(
     //   to right,
@@ -18,12 +18,14 @@
   .user-landing-side-container {
     display: flex;
     flex-direction: column;
+    gap: 2rem;
   }
 
   .user-landing-personal-container {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 1rem;
   }
 
   .user-landing-username {
@@ -32,6 +34,20 @@
     font-weight: 600;
     color: #FF9900;
     padding: 1rem;
+  }
+
+  .user-landing-profile-image {
+
+  }
+
+  .user-landing-join-container {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  .user-landing-join-label {
+    font-weight: 600;
   }
 
   .user-landing-nav-container-main {
@@ -77,7 +93,7 @@
   .user-landing-stats-container {
     grid-area: stats;
     width: 100%;
-    height: 100%;
+    max-height: 40rem;
     display: flex;
     flex-direction: column;
   }
@@ -259,8 +275,8 @@
   }
 
   .user-landing-body-header {
-    border-color: #383040;
-    border-bottom-width: 0.5rem;
+    // border-color: #383040;
+    // border-bottom-width: 0.5rem;
     font-size: 1.5rem;
     line-height: 1rem;
     font-weight: 600;

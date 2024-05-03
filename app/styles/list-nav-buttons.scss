@@ -2,6 +2,38 @@
   height: 100%;
   width: 100%;
 
+  @media (max-width: 65rem) {
+    .list-nav-buttons-main {
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+    }
+
+    .list-nav-buttons-container {
+      display: flex;
+      flex-direction: row;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      gap: 1rem;
+    }
+  }
+
+  @media (min-width: 65rem) {
+    .list-nav-buttons-main {
+      padding-top: 0.75rem;
+      // padding-bottom: 0.25rem;
+    }
+
+    .list-nav-buttons-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      gap: 1rem;
+    }
+  }
+
   .list-nav-buttons-main {
     height: 100%;
     display: grid;
@@ -11,19 +43,7 @@
     color: #FFEFCC;
     border-top-width: 8px;
     border-color: #54806C;
-    padding-top: 0.75rem;
-    // padding-bottom: 0.25rem;
     box-shadow: inset 0 -6px 8px rgba(0,0,0,0.6);
-  }
-
-  .list-nav-buttons-container {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    overflow-x: auto;
-    scroll-behavior: smooth;
-    gap: 1rem;
   }
 
   .list-nav-button {

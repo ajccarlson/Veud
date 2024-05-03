@@ -197,7 +197,7 @@ export async function loader(params) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString(), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted })
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted })
 }
 
 export default function ProfileRoute() {
