@@ -5,6 +5,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import "#app/styles/watchlist.scss"
 
 export async function loader(params) {
   const currentUser = await prisma.User.findUnique({
@@ -88,7 +89,7 @@ export default function watchList() {
   const loaderData = useLoaderData()
 
   return (
-    <main style={{ width: '100%', height: '100%' }}>
+    <main className='user-watchlist'>
       {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.currentUser )}
       {listNavButtons(loaderData.typedWatchlists, loaderData.username, loaderData.listTypes, loaderData.listTypeData, loaderData.watchListData)}
     </main>

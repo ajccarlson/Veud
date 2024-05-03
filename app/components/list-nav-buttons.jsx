@@ -7,18 +7,32 @@ import {
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import "#app/styles/list-nav-buttons.scss"
+import { Icon } from '#app/components/ui/icon.tsx'
 
 export function listNavButtons(typedWatchlists, username, listTypes, listTypeData, watchListData) {
   if (typedWatchlists && Object.keys(typedWatchlists).length > 1) {
     return (
       <main class="list-nav-buttons">
         <div class="list-nav-buttons-main" id="list-nav">
+        <div class="list-nav-buttons-container">
+            {typedWatchlists[listTypeData.id].map( list =>
+              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
+              class="list-nav-button" id={list.id}> 
+                {list.header}
+              </Link>
+            )}
+          </div>
           <div class="list-type-nav-container" id="list-type-nav">
             <div class="list-type-dropdown-container">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div class="list-type-dropdown-trigger"> 
-                    {listTypeData.header}
+                  <span className='list-type-dropdown-icon'>
+                    <Icon name="hamburger-menu"></Icon>
+                  </span>
+                    <span>
+                      {listTypeData.header}
+                    </span>
                   </div>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
@@ -35,14 +49,6 @@ export function listNavButtons(typedWatchlists, username, listTypes, listTypeDat
                 </DropdownMenuPortal>
               </DropdownMenu>
             </div>
-          </div>
-          <div class="list-nav-buttons-container">
-            {typedWatchlists[listTypeData.id].map( list =>
-              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
-              class="list-nav-button" id={list.id}> 
-                {list.header}
-              </Link>
-            )}
           </div>
         </div>
       </main>

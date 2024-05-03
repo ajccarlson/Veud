@@ -22,7 +22,17 @@
 ));
 
 // More kinds of customisation can be made with CSS rules
-.ag-theme-custom-react {
+.user-watchlist {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-rows: minmax(auto, auto) minmax(auto, 5rem);
+
+  .ag-theme-custom-react {
+    height: 100%;
+    width: 100%;
+  }
+
   .ag-header-cell {
     font-family: arial;
     font-size: 13px;

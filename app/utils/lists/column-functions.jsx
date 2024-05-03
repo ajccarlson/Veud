@@ -196,7 +196,7 @@ export function hyperlinkRenderer(params, type = undefined) {
     let hyperlinkArray = []
 
     for (const item of paramsObject) {
-      const [content, url] = getThumbnailInfo(item)
+      const {content, url} = getThumbnailInfo(item)
 
       if (itemCount % 2 == 0) {
         inner = <span className='ag-list-odd'>

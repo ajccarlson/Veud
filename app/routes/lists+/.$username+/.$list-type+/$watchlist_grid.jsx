@@ -1567,7 +1567,7 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
   columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, favoriteIds, setFavoriteIds, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser, displayedColumns, emptyRow}
 
   return (
-    <div style={{ width: '100%', height: '90%' }} className='ag-theme-custom-react'>
+    <div className='ag-theme-custom-react'>
         <AgGridReact
           gridOptions={gridOptions}
           columnDefs={columnDefs()}
