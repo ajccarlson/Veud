@@ -177,6 +177,28 @@ export function differenceFormatter(params) {
   }
 }
 
+export function getStartYear(entry, passedType, listTypes) {
+  try {
+    let typeData = listTypes.find((listType) => listType.id == passedType.id)
+
+    if (Object.keys(JSON.parse(typeData.columns)).includes("airYear")) {
+      return entry.airYear
+    }
+    else if (Object.keys(JSON.parse(typeData.columns)).includes("startSeason")) {
+      return entry.startSeason
+    }
+    else if (Object.keys(JSON.parse(typeData.columns)).includes("startYear")) {
+      return entry.startYear
+    }
+    else {
+      return false
+    }
+  }
+  catch(e) {
+
+  }
+}
+
 export function getThumbnailInfo(thumbnail) {
   const separatorIndex = thumbnail.indexOf("|")
 

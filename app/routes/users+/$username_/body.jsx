@@ -10,38 +10,19 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.jsx'
-import { timeSince, getThumbnailInfo } from "#app/utils/lists/column-functions.jsx"
-
-function getStartYear(entry, listHeader, listTypes) {
-  const typeData = listTypes.find((listType) => listType.header == listHeader)
-
-  if (Object.keys(JSON.parse(typeData.columns)).includes("airYear")) {
-    return entry.airYear
-  }
-  else if (Object.keys(JSON.parse(typeData.columns)).includes("startSeason")) {
-    return entry.startSeason
-  }
-  else if (Object.keys(JSON.parse(typeData.columns)).includes("startYear")) {
-    return entry.startYear
-  }
-  else {
-    return false
-  }
-}
+import { timeSince, getThumbnailInfo, getStartYear } from "#app/utils/lists/column-functions.jsx"
 
 function RecentActivityData(loaderData) {
-  const [headerIndex, setHeaderIndex] = useState(0);
-	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[headerIndex]);
+  const [typeIndex, setTypeIndex] = useState(0);
+	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
 
   useEffect(() => {
-  	setSelectedLatestUpdate(loaderData.listTypes[headerIndex])
-  }, [headerIndex, loaderData.listTypes]);
+  	setSelectedLatestUpdate(loaderData.listTypes[typeIndex])
+  }, [typeIndex, loaderData.listTypes]);
 
-  const listHeaders = loaderData.listTypes.map(listType => listType.header)
-
-  function typedEntry(entry, selectedHeader) {
-    return loaderData.typedEntries[selectedHeader][entry.index]
+  function typedEntry(entry, selectedType) {
+    return loaderData.typedEntries[selectedType.id][entry.index]
   }
 
 	return (
@@ -50,18 +31,18 @@ function RecentActivityData(loaderData) {
         <h1 className="user-landing-body-header">Recent Activity</h1>
         { displayAll == 1 ?
           <div className="user-landing-body-list-container">
-            {listHeaders.map(listHeader => {return(
+            {loaderData.listTypes.map(listType => {return(
               <div className="user-landing-body-list-full-display-container">
-                <h1 className="user-landing-list-type-header">{listHeader}</h1>
+                <h1 className="user-landing-list-type-header">{listType.header}</h1>
                 <div className="user-landing-body-item-container">
-                  {loaderData.typedHistory[listHeader].slice(0, 12).map(entry =>
+                  {loaderData.typedHistory[listType.id].slice(0, 12).map(entry =>
                     <div className="user-landing-recent-activity-body-item">
-                    <Link to={getThumbnailInfo(typedEntry(entry, listHeader).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, listHeader).thumbnail).content}")`}}>
+                    <Link to={getThumbnailInfo(typedEntry(entry, listType).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, listType).thumbnail).content}")`}}>
                       <span className="user-landing-thumbnail-header">
-                        {getStartYear(typedEntry(entry, listHeader), listHeader, loaderData.listTypes)}
+                        {getStartYear(typedEntry(entry, listType), listType, loaderData.listTypes)}
                       </span>
                       <span className="user-landing-activity-thumbnail-footer">
-                        {typedEntry(entry, listHeader).title.length > 20 ? `${typedEntry(entry, listHeader).title.substring(0, 20)}...` : typedEntry(entry, listHeader).title}
+                        {typedEntry(entry, listType).title.length > 20 ? `${typedEntry(entry, listType).title.substring(0, 20)}...` : typedEntry(entry, listType).title}
                       </span>
                     </Link>
                     <div className="user-landing-body-text-container">
@@ -83,14 +64,14 @@ function RecentActivityData(loaderData) {
           </div>
         : <div className="user-landing-body-list-container">
           <div className="user-landing-body-item-container">
-            {loaderData.typedHistory[selectedLatestUpdate.header].slice(0, 12).map(entry =>
+            {loaderData.typedHistory[selectedLatestUpdate.id].slice(0, 12).map(entry =>
               <div className="user-landing-recent-activity-body-item">
-                <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate.header).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate.header).thumbnail).content}")`}}>
+                <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
-                    {getStartYear(typedEntry(entry, selectedLatestUpdate.header), selectedLatestUpdate.header, loaderData.listTypes)}
+                    {getStartYear(typedEntry(entry, selectedLatestUpdate), selectedLatestUpdate.id, loaderData.listTypes)}
                   </span>
                   <span className="user-landing-activity-thumbnail-footer">
-                    {typedEntry(entry, selectedLatestUpdate.header).title.length > 20 ? `${typedEntry(entry, selectedLatestUpdate.header).title.substring(0, 20)}...` : typedEntry(entry, selectedLatestUpdate.header).title}
+                    {typedEntry(entry, selectedLatestUpdate).title.length > 20 ? `${typedEntry(entry, selectedLatestUpdate).title.substring(0, 20)}...` : typedEntry(entry, selectedLatestUpdate).title}
                   </span>
                 </Link>
                 <div className="user-landing-body-text-container">
@@ -116,7 +97,7 @@ function RecentActivityData(loaderData) {
         </div>
       :<div className="user-landing-nav-button-container">
         <div className="user-landing-selection-nav-container">
-          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+          <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
             <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
@@ -127,18 +108,18 @@ function RecentActivityData(loaderData) {
             </DropdownMenuTrigger>
             <DropdownMenuPortal className="user-landing-dropdown-portal">
               <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                {listHeaders.filter(function(e) { return e !== selectedLatestUpdate.header }).map(listType =>
+                {loaderData.listTypes.filter(function(e) { return e.id !== selectedLatestUpdate.id }).map(listType =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setHeaderIndex(listHeaders.indexOf(listType))
+                      setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
                     }}>
-                    {listType}
+                    {listType.header}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenu>
-          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+          <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
             <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
         </div>
@@ -151,20 +132,18 @@ function RecentActivityData(loaderData) {
 }
 
 function FavoritesData(loaderData) {
-  const [headerIndex, setHeaderIndex] = useState(0);
-	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[headerIndex]);
+  const [typeIndex, setTypeIndex] = useState(0);
+	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
 
   useEffect(() => {
-  	setSelectedFavorite(loaderData.listTypes[headerIndex])
-  }, [headerIndex, loaderData.listTypes]);
+  	setSelectedFavorite(loaderData.listTypes[typeIndex])
+  }, [typeIndex, loaderData.listTypes]);
 
   const typedFavorites = loaderData.favorites?.reduce((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
   },{});
-
-  const listHeaders = loaderData.listTypes.map(listType => listType.header)
 
 	return (
 		<div className="user-landing-favorites-container">
@@ -172,14 +151,14 @@ function FavoritesData(loaderData) {
         <h1 className="user-landing-body-header">Favorites</h1>
         { displayAll == 1 ?
           <div className="user-landing-body-list-container">
-            {listHeaders.map(listHeader => {return(
+            {loaderData.listTypes.map(mappedType => {return(
               <div className="user-landing-body-list-full-display-container">
                 <div className="user-landing-list-type-header-container">
-                  <h1 className="user-landing-list-type-header">{listHeader}</h1>
-                  <h1 className="user-landing-favorites-count">{`(${typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].length})`}</h1>
+                  <h1 className="user-landing-list-type-header">{mappedType.header}</h1>
+                  <h1 className="user-landing-favorites-count">{`(${typedFavorites[loaderData.listTypes.find((listType) => listType.id == mappedType.id).id].length})`}</h1>
                 </div>
                 <div className="user-landing-body-item-container">
-                  {typedFavorites[loaderData.listTypes.find((listType) => listType.header == listHeader).id].map(entry =>
+                  {typedFavorites[loaderData.listTypes.find((listType) => listType.id == mappedType.id).id].map(entry =>
                     <div className="user-landing-favorites-body-item">
                       <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                         <span className="user-landing-thumbnail-header">
@@ -241,7 +220,7 @@ function FavoritesData(loaderData) {
         </div>
       :<div className="user-landing-nav-button-container">
         <div className="user-landing-selection-nav-container">
-          <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+          <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
             <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
@@ -252,18 +231,18 @@ function FavoritesData(loaderData) {
             </DropdownMenuTrigger>
             <DropdownMenuPortal className="user-landing-dropdown-portal">
               <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                {listHeaders.filter(function(e) { return e !== selectedFavorite.header }).map(listType =>
+                {loaderData.listTypes.filter(function(e) { return e !== selectedFavorite.header }).map(listType =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setHeaderIndex(listHeaders.indexOf(listType))
+                      setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
                     }}>
-                    {listType}
+                    {listType.header}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenu>
-          <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+          <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
             <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
         </div>

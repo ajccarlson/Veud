@@ -64,8 +64,10 @@ export function renderRadialBar(loaderData, chartType) {
     let barData = {}
 
     Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
+      const foundListType = loaderData.listTypes.find(listType => listType.id == key)
+
       barData = {
-        id: key,
+        id: foundListType.header,
         data: []
       }
 

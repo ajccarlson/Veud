@@ -105,7 +105,7 @@ function MyResponsiveChord(data, keys) {
 }
 
 export function renderChordChart(loaderData, listType) {
-  const typedEntry = loaderData.typedEntries[listType]
+  const typedEntry = loaderData.typedEntries[listType.id]
   let chordMatrix = []
   let chordIndices = []
 

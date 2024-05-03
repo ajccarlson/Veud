@@ -1,8 +1,9 @@
 import { json } from "@remix-run/node"
 import { Form, useLoaderData } from '@remix-run/react'
+import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
-import { timeSince, hyperlinkRenderer } from "#app/utils/lists/column-functions.jsx"
+import { timeSince, getStartYear, getThumbnailInfo } from "#app/utils/lists/column-functions.jsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { invariantResponse } from '@epic-web/invariant'
@@ -68,7 +69,19 @@ function getWatchlistNav(entryData, listParams) {
                 <div class="list-landing-nav-thumbnail-container">
                   {entryData.listEntries.slice(0, 5).map(listEntry => 
                     <div class="list-landing-nav-thumbnail-item">
-                      {hyperlinkRenderer(listEntry.thumbnail, "thumbnail")}
+                      <Link to={getThumbnailInfo(listEntry.thumbnail).url} className="list-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(listEntry.thumbnail).content}")`}}>
+                        <span className="list-landing-thumbnail-header">
+                          <div className="list-landing-thumbnail-start-year">
+                            {getStartYear(listEntry, listParams.listTypeData,  listParams.listTypes)}
+                          </div>
+                          <div className="list-landing-thumbnail-media-type">
+                            {listEntry.type}
+                          </div>
+                        </span>
+                        <span className="list-landing-thumbnail-footer">
+                          {listEntry.title.length > 20 ? `${listEntry.title.substring(0, 20)}...` : listEntry.title}
+                        </span>
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -301,13 +314,9 @@ export async function loader(params) {
 
   invariantResponse(currentUser, 'User not found', { status: 404 }) 
 
+  const listTypes = await prisma.listType.findMany()
   const listType = params['params']['list-type']
-
-  const listTypeData = await prisma.ListType.findUnique({
-    where: {
-      name: listType,
-    },
-  })
+  const listTypeData = listTypes.find(type => type.name === listType)
 
   const typeFormatted = listTypeData.header.replace(/\W/g, '') + "Entry"
 
@@ -326,7 +335,7 @@ export async function loader(params) {
 
   const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
   
-  for (let watchlist of watchListsSorted) {
+  for (const watchlist of watchListsSorted) {
     const listEntries = await prisma[typeFormatted].findMany({
       where: {
         watchlistId: watchlist.id,
@@ -344,7 +353,7 @@ export async function loader(params) {
   if (watchListNavs.length < 1) {
     watchListNavs = [`<h1">No lists found</h1>`]
   }
-  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listTypeData });
+  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listTypes, listTypeData });
 };
 
 export function ErrorBoundary() {
@@ -365,7 +374,7 @@ export default function lists() {
   const loaderData = useLoaderData()
 
   const sameType = loaderData.watchListData.filter(item => item.watchlist.typeId === loaderData.listTypeData.id)
-  const listParams = {watchListData: loaderData.watchListData, sameType, currentUser: loaderData.currentUser, username: loaderData.username, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
+  const listParams = {watchListData: loaderData.watchListData, sameType, currentUser: loaderData.currentUser, username: loaderData.username, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))

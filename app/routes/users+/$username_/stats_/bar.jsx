@@ -35,7 +35,7 @@ function MyResponsiveBar(data, barKeys) {
         ]}
         // fill={fill}
         tooltip={(point) => {
-          console.log(point)
+          // console.log(point)
           return (
             <div
               style={{
@@ -126,7 +126,7 @@ function MyResponsiveBar(data, barKeys) {
 
 export function renderBarChart(loaderData, chartType, listType) {
   if (chartType == "score") {
-    const typedEntry = loaderData.typedEntries[listType]
+    const typedEntry = loaderData.typedEntries[listType.id]
     let scoredBars = [], barKeys= []
     for (let i = 0; i < 10; i++) {
       scoredBars[i] = {

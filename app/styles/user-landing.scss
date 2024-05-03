@@ -1,18 +1,61 @@
 .user-landing {
-  .user-landing-main {
-    width: 100%;
-    height: 100%;
-    display: grid;
-    grid-template-columns: 30rem auto;
-    background-color: #2e2f2b;
-    // background: linear-gradient(
-    //   to right,
-    //   #403530 0% 1%,
-    //   #383040 1% 10%,
-    //   #2e2f2b 10% 90%,
-    //   #54806C 90% 99%,
-    //   #403530 99% 100%
-    // );
+  @media (max-width: 65rem) {
+    .user-landing-main {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background-color: #2e2f2b;
+      // background: linear-gradient(
+      //   to right,
+      //   #403530 0% 1%,
+      //   #383040 1% 10%,
+      //   #2e2f2b 10% 90%,
+      //   #54806C 90% 99%,
+      //   #403530 99% 100%
+      // );
+    }
+
+    .user-landing-body-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .user-landing-thumbnail-footer {
+      visibility: visible;
+    }
+  }
+
+  @media (min-width: 65rem) {
+    .user-landing-main {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 30rem auto;
+      background-color: #2e2f2b;
+      // background: linear-gradient(
+      //   to right,
+      //   #403530 0% 1%,
+      //   #383040 1% 10%,
+      //   #2e2f2b 10% 90%,
+      //   #54806C 90% 99%,
+      //   #403530 99% 100%
+      // );
+    }
+
+    .user-landing-body-container {
+      display: grid;
+      grid-template-areas:
+      'stats activity'
+      'favorites favorites';
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .user-landing-thumbnail-footer {
+      visibility: hidden;
+    }
   }
 
   .user-landing-side-container {
@@ -81,15 +124,6 @@
     height: 16rem;
   }
 
-  .user-landing-body-container {
-    display: grid;
-    grid-template-areas:
-    'stats activity'
-    'favorites favorites';
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-
   .user-landing-stats-container {
     grid-area: stats;
     width: 100%;
@@ -115,6 +149,8 @@
   }
 
   .user-landing-stats-chart-container {
+    width: 100%;
+    height: 100%;
     background-color: #383040;
     border-radius: 1rem;
   }
@@ -457,7 +493,6 @@
   }
 
   .user-landing-thumbnail-footer {
-    visibility: hidden;
     display: flex;
     flex-direction: column;
     width: 100%;

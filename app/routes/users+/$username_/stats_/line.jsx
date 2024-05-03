@@ -1,4 +1,5 @@
 import { ResponsiveLine } from '@nivo/line'
+import { getStartYear } from "#app/utils/lists/column-functions.jsx"
 
 function MyResponsiveLine(data) {
   return (
@@ -96,30 +97,21 @@ export function renderLineChart(loaderData, chartType) {
   let typedLines = []
 
   if (chartType == "release") {
-    let releaseType
     let lineData = {}
 
 
     Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-      if (key == "Live Action") {
-        releaseType = "airYear"
-      }
-      else if (key == "Anime") {
-        releaseType = "startSeason"
-      }
-      else if (key == "Manga") {
-        releaseType = "startYear"
-      }
+      const foundListType = loaderData.listTypes.find(listType => listType.id == key)
 
       lineData = {
-        id: key,
+        id: foundListType.header,
         data: []
       }
 
       let entryData = []
 
       value.forEach(typedEntry => {
-        let yearMatch =  [...typedEntry[releaseType].matchAll(/\d{4}/g)]
+        let yearMatch =  [...getStartYear(typedEntry, foundListType, loaderData.listTypes).matchAll(/\d{4}/g)]
         let matchResult
 
         try {
@@ -158,8 +150,10 @@ export function renderLineChart(loaderData, chartType) {
 
 
     Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
+      const foundListType = loaderData.listTypes.find(listType => listType.id == key)
+
       lineData = {
-        id: key,
+        id: foundListType.header,
         data: []
       }
 

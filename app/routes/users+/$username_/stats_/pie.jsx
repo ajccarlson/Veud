@@ -101,15 +101,17 @@ export function renderPieChart(loaderData) {
   let fillIndex = 0
 
   Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
+    const foundListType = loaderData.listTypes.find(listType => listType.id == key)
+
     pieData.push({
-        id: key,
-        label: key,
+        id: foundListType.header,
+        label: foundListType.header,
         value: Object.entries(value).length
     })
 
     fill.push({
         match: {
-        id: key
+        id: foundListType.header
         },
         id: fillTypes[fillIndex]
     })

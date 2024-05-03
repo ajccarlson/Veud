@@ -56,10 +56,10 @@ export async function loader(params) {
 			}))
 		}
 
-		typedEntries[type.header] = perWatchlistEntries.flat(2)
-    typedHistory[type.header] = []
+		typedEntries[type.id] = perWatchlistEntries.flat(2)
+    typedHistory[type.id] = []
 
-		for (const [index, entry] of typedEntries[type.header].entries()) {
+		for (const [index, entry] of typedEntries[type.id].entries()) {
 			if (entry.history && entry.history != null && entry.history != "null") {
 				entry.history = JSON.parse(entry.history)
 
@@ -126,14 +126,14 @@ export async function loader(params) {
                     const latestMedia = groupedValue.reduce((max, day) => max.date > day.date ? max : day);
                     const oldestMedia = groupedValue.reduce((max, day) => max.date < day.date ? max : day);
   
-                    typedHistory[type.header].push({
+                    typedHistory[type.id].push({
                       type: `${toTitleCase(JSON.parse(type.completionType).past)} ${toTitleCase(mediaType)}s ${oldestMedia[mediaType]} - ${latestMedia[mediaType]}`,
                       time: new Date(latestMedia.date),
                       index: index
                     })
                   }
                   else {
-                    typedHistory[type.header].push({
+                    typedHistory[type.id].push({
                       type: `${toTitleCase(JSON.parse(type.completionType).past)} ${toTitleCase(mediaType)} ${groupedValue[0][mediaType]}`,
                       time: new Date(groupedValue[0].date),
                       index: index
@@ -144,14 +144,14 @@ export async function loader(params) {
             }
             else {
               if (historyKey == "added") {
-                typedHistory[type.header].push({
+                typedHistory[type.id].push({
                   type: `Added to ${watchLists.find(e => e.id === entry.watchlistId).header}`,
                   time: new Date(historyValue),
                   index: index
                 })
               }
               else {
-                typedHistory[type.header].push({
+                typedHistory[type.id].push({
                   type: toTitleCase(historyKey),
                   time: new Date(historyValue),
                   index: index
@@ -172,7 +172,7 @@ export async function loader(params) {
 			}
 		}
 
-		typedHistory[type.header].sort(function(a, b) {
+		typedHistory[type.id].sort(function(a, b) {
 			if (!a.time || a.time == null)
 				a.time = 0
 			if (!b.time || b.time == null)

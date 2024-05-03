@@ -129,7 +129,7 @@ function MyResponsiveBoxPlot(data) {
 
 export function renderBoxPlotChart(loaderData, chartType, listType) {
   if (chartType == "objective scores") {
-    const typedEntry = loaderData.typedEntries[listType]
+    const typedEntry = loaderData.typedEntries[listType.id]
 
     let scoredBars = []
     for (let i = 0; i < 10; i++) {

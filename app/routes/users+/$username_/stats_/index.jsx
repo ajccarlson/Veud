@@ -14,19 +14,23 @@ import { renderChordChart } from '#app/routes/users+/$username_/stats_/chord.jsx
 import { renderLineChart } from '#app/routes/users+/$username_/stats_/line.jsx'
 import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.jsx'
 import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.jsx'
+import { watchlistStats } from '#app/routes/users+/$username_/stats_/watchlist.jsx'
 
 export function StatsData(loaderData) {
-  const listHeaders = loaderData.listTypes.map(listType => listType.header)
-
   const [chartIndex, setChartIndex] = useState(0);
-  const [headerIndex, setHeaderIndex] = useState(0);
-  const [selectedHeader, setSelectedHeader] = useState(listHeaders[headerIndex]);
+  const [typeIndex, setTypeIndex] = useState(0);
+  const [selectedType, setSelectedType] = useState(loaderData.listTypes[typeIndex]);
 
   useEffect(() => {
-  	setSelectedHeader(listHeaders[headerIndex])
-  }, [headerIndex, listHeaders]);
+  	setSelectedType(loaderData.listTypes[typeIndex])
+  }, [typeIndex, loaderData.listTypes]);
 
   const userStats = {
+    watchlist: {
+      header: "Watchlist Stats",
+      chart: watchlistStats(loaderData, selectedType),
+      typed: true
+    },
     listTypeDistribution: {
       header: "List Type Distribution",
       chart: renderPieChart(loaderData),
@@ -34,12 +38,12 @@ export function StatsData(loaderData) {
     },
     score: {
       header: "Score Distribution",
-      chart: renderBarChart(loaderData, "score", selectedHeader),
+      chart: renderBarChart(loaderData, "score", selectedType),
       typed: true
     },
     objectiveScores: {
       header: "Public Score Deviation",
-      chart: renderBoxPlotChart(loaderData, "objective scores", selectedHeader),
+      chart: renderBoxPlotChart(loaderData, "objective scores", selectedType),
       typed: true
     },
     release: {
@@ -54,7 +58,7 @@ export function StatsData(loaderData) {
     },
     genreChords: {
       header: "Genre Overlap",
-      chart: renderChordChart(loaderData, selectedHeader),
+      chart: renderChordChart(loaderData, selectedType),
       typed: true
     },
     type: {
@@ -106,29 +110,29 @@ export function StatsData(loaderData) {
         <div className="user-landing-selection-typed-nav-container">
           <Spacer size="4xs"/>
           <div className="user-landing-selection-nav-container">
-            <button onClick={() => {setHeaderIndex(headerIndex == 0 ? listHeaders.length - 1 : headerIndex - 1)}}>
+            <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
               <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-typed-left-arrow"></Icon>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="user-landing-type-dropdown-trigger"> 
-                  {selectedHeader}
+                  {selectedType.header}
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuPortal className="user-landing-dropdown-portal">
                 <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                  {listHeaders.filter(function(e) { return e !== selectedHeader }).map(listType =>
+                  {loaderData.listTypes.filter(function(e) { return e.id !== selectedType.id }).map(listType =>
                     <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                       {
-                        setHeaderIndex(listHeaders.indexOf(listType))
+                        setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
                       }}>
-                      {listType}
+                      {listType.header}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenuPortal>
             </DropdownMenu>
-            <button onClick={() => {setHeaderIndex((headerIndex + 1) % (listHeaders.length))}}>
+            <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
               <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-typed-right-arrow"></Icon>
             </button>
           </div>

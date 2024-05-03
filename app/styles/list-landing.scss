@@ -68,6 +68,10 @@
       filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
       background-color: #ffb70019; 
     }
+
+    .list-landing-thumbnail-footer {
+      visibility: visible;
+    }
   }
   
   @media (min-width: 65rem) {
@@ -134,6 +138,10 @@
       transform: scale(1);
       filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
       background-color: #ffb70019; 
+    }
+
+    .list-landing-thumbnail-footer {
+      visibility: hidden;
     }
   }
 
@@ -240,12 +248,77 @@
   .list-landing-nav-thumbnail-container {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
     text-align: center;
     padding-left: 0.375rem;
     padding-right: 0.375rem;
     padding-bottom: 0.75rem;
+  }
+
+  .list-landing-nav-thumbnail-item {
+    padding: 0.375rem;
+  }
+
+  .list-landing-body-thumbnail-image {
+    display: flex;
+    flex-direction: column;
+    height: 12rem;
+    width: 8rem;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center; 
+    filter: drop-shadow(9px 2px 6px #66563d);
+    transition: all .1s ease-in-out; 
+    z-index: 10;
+  }
+
+  .list-landing-body-thumbnail-image:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0px 0px 10px #66563d);
+  }
+
+  .list-landing-body-thumbnail-image:hover .list-landing-thumbnail-header {
+    visibility: visible;
+  }
+
+  .list-landing-body-thumbnail-image:hover .list-landing-thumbnail-footer {
+    visibility: visible;
+  }
+
+  .list-landing-body-thumbnail-image:hover .list-landing-activity-thumbnail-footer {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.436), black);
+  }
+
+  .list-landing-thumbnail-header {
+    visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+    font-size: 0.75rem;
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    background-color: rgba(0, 0, 0, 0.342);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .list-landing-thumbnail-footer {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-align: left;
+    font-size: 0.75rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.156), black);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
   }
 
   .ag-thumbnail-image {
