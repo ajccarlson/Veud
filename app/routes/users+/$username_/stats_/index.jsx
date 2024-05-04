@@ -14,7 +14,7 @@ import { renderChordChart } from '#app/routes/users+/$username_/stats_/chord.jsx
 import { renderLineChart } from '#app/routes/users+/$username_/stats_/line.jsx'
 import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.jsx'
 import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.jsx'
-import { watchlistStats } from '#app/routes/users+/$username_/stats_/watchlist.jsx'
+import { watchlistOverview} from '#app/routes/users+/$username_/stats_/watchlist.jsx'
 
 export function StatsData(loaderData) {
   const [chartIndex, setChartIndex] = useState(0);
@@ -27,8 +27,8 @@ export function StatsData(loaderData) {
 
   const userStats = {
     watchlist: {
-      header: "Watchlist Stats",
-      chart: watchlistStats(loaderData, selectedType),
+      header: "Watchlist Overview",
+      chart: watchlistOverview(loaderData, selectedType),
       typed: true
     },
     listTypeDistribution: {

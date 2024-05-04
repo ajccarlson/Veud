@@ -68,7 +68,7 @@ function RecentActivityData(loaderData) {
               <div className="user-landing-recent-activity-body-item">
                 <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).content}")`}}>
                   <span className="user-landing-thumbnail-header">
-                    {getStartYear(typedEntry(entry, selectedLatestUpdate), selectedLatestUpdate.id, loaderData.listTypes)}
+                    {getStartYear(typedEntry(entry, selectedLatestUpdate), selectedLatestUpdate, loaderData.listTypes)}
                   </span>
                   <span className="user-landing-activity-thumbnail-footer">
                     {typedEntry(entry, selectedLatestUpdate).title.length > 20 ? `${typedEntry(entry, selectedLatestUpdate).title.substring(0, 20)}...` : typedEntry(entry, selectedLatestUpdate).title}

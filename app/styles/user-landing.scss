@@ -524,6 +524,30 @@
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
   }
 
+  .user-landing-stats-waffle-chart-container {
+    display: flex;
+    flex-direction: column;
+  }
+  .user-landing-stats-waffle-chart-text-container {
+    display: grid;
+    grid-template-columns: 50% 50%;
+  }
+
+  .user-landing-stats-waffle-chart-text-left {
+    align-content: center;
+    justify-self: center;
+  }
+
+  .user-landing-stats-waffle-chart-text-right {
+    align-content: center;
+    justify-self: center;
+  }
+
+  .user-landing-stats-waffle-chart {
+    width: 100%;
+    height: 90%;
+  }
+
   .user-landing-stats-pie-chart {
     width: 100%;
     height: 100%;

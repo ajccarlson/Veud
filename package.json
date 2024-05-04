@@ -59,6 +59,7 @@
     "@nivo/line": "^0.85.1",
     "@nivo/pie": "^0.85.1",
     "@nivo/radial-bar": "^0.85.1",
+    "@nivo/waffle": "^0.86.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^5.10.2",
     "@radix-ui/react-checkbox": "^1.0.4",

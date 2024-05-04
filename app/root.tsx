@@ -230,9 +230,9 @@ function App() {
 						<div className='hover:-rotate-6'>
 							<Logo />
 						</div>
-						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
+						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
-						</div>
+						</div> */}
 						<div className="flex items-center gap-10">
 							{user ? (
 								<UserDropdown />
