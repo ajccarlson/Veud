@@ -309,3 +309,45 @@ export function getTMDBScores(entryPass, typePass = 'movie', currentScore = null
     return currentScore ? currentScore : "?";
   }
 }
+
+export async function getTMDBTrending (type, numResults) {
+  type = type.toLowerCase().replace(/[^0-9a-z]/gi, '');
+
+  if (type.includes('movie'))
+    type = 'movie'
+  else if (type.includes('tv'))
+    type = 'tv'
+  else if (type.includes('person'))
+    type = 'person'
+  else
+    type = 'multi'
+
+  const url = "https://api.themoviedb.org/3/trending/" + type + "/day?language=en-US";
+  let response, data
+
+  try {
+    response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      fetchMethod: 'get',
+      url: url,
+      authorization: 'tmdb',
+      fetchBody: undefined,
+      sleepTime: 1500,
+    })))
+    data = await response.json();
+    data.map(e => data = e ? {...data, ...e} : data)
+
+    if (!response || !data)
+      throw new Error("Error: no data found!");
+  }
+  catch (e) {
+    console.error('Failed to fetch trending ' + type + ' data!\n' + e);
+    return;
+  }
+
+  if (numResults) {
+    return data.results.slice(0, numResults);
+  }
+  else {
+    return data.results;
+  }
+}

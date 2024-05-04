@@ -1,6 +1,6 @@
 import { type Config } from 'tailwindcss'
 
-export const marketingPreset = {
+export const trendingPreset = {
 	theme: {
 		extend: {
 			keyframes: {
