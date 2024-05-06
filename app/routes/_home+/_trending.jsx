@@ -77,7 +77,7 @@ export function TrendingData() {
         {Object.entries(trendingItems).map(([trendingKey, trendingValue]) => {
           return (
             <div class="trending-item-container">
-              <h1>{trendingValue.header}</h1>
+              <h1 class="trending-item-header">{trendingValue.header}</h1>
               <div class="trending-nav-thumbnail-container">
                 {trendingValue.data?.length > 1 ?
                   trendingValue.data.map(trendingItem => {

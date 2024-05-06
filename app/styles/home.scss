@@ -20,24 +20,30 @@
   }
 
   .trending-item-container {
-    display: flex;
-    flex-direction: column;
+    display: block;
+    align-self: center;
+  }
+
+  .trending-item-header {
+    height: 2rem;
+    font-size: 1.3rem;
+    line-height: 1.9rem;
+    font-weight: 600;
+    color: #ffffb1;
   }
 
   .trending-nav-thumbnail-container {
-    display: flex;
+    display: inline-flex;
     flex-direction: row;
     flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
+    gap: 0.75rem;
+    justify-content: start;
+    align-items: start;
     text-align: center;
-    padding-left: 0.375rem;
-    padding-right: 0.375rem;
-    padding-bottom: 0.75rem;
   }
 
   .trending-nav-thumbnail-item {
-    padding: 0.375rem;
+    
   }
 
   .trending-body-thumbnail-image {
