@@ -76,13 +76,13 @@ export function TrendingData() {
       <div class="trending-container">
         {Object.entries(trendingItems).map(([trendingKey, trendingValue]) => {
           return (
-            <div class="trending-item-container">
-              <h1 class="trending-item-header">{trendingValue.header}</h1>
-              <div class="trending-nav-thumbnail-container">
-                {trendingValue.data?.length > 1 ?
-                  trendingValue.data.map(trendingItem => {
+            trendingValue.data?.length > 1 ?
+              <div class="trending-item-container">
+                <h1 class="trending-item-header animate-slide-top [animation-fill-mode:backwards] ">{trendingValue.header}</h1>
+                <div class="trending-nav-thumbnail-container">
+                  {trendingValue.data.map((trendingItem, index) => {
                     return (
-                      <div class="trending-nav-thumbnail-item">
+                      <div class="trending-nav-thumbnail-item animate-roll-reveal [animation-fill-mode:backwards]" style={{ animationDelay: `${index * 0.07}s` }}>
                         <Link to={getThumbnailInfo(trendingItem.thumbnail).url} className="trending-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(trendingItem.thumbnail).content}")`}}>
                           {/* <span className="trending-thumbnail-header">
                             <div className="trending-thumbnail-start-year">
@@ -95,10 +95,16 @@ export function TrendingData() {
                         </Link>
                       </div>
                     )
-                  })
-                :
-                  null
-                }
+                  })}
+                </div>
+              </div>
+            :
+            <div class="trending-loader-main">
+              <div class="trending-loader-container">
+                <div class="trending-loader-item trending-loader-item-1"></div>
+                <div class="trending-loader-item trending-loader-item-2"></div>
+                <div class="trending-loader-item trending-loader-item-3"></div>
+                <div class="trending-loader-item trending-loader-item-4"></div>
               </div>
             </div>
           )

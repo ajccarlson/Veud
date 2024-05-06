@@ -5,18 +5,30 @@
   .home-main {
     height: 100%;
     width: 100%;
-    background-color: #2e2f2b;
+    background: linear-gradient(
+      to right,
+      #403530 0% 1%,
+      #383040 1% 10%,
+      #2e2f2b 10% 90%,
+      #54806C 90% 99%,
+      #403530 99% 100%
+    );
   }
 
   .trending-main {
     height: 100%;
     width: 100%;
+    display: flex;
+    justify-content: center;
   }
 
   .trending-container {
     display: flex;
     flex-direction: column;
     gap: 2rem;
+    background-color: #222222;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 
   .trending-item-container {
@@ -105,5 +117,85 @@
     padding-right: 0.25rem;
     background-image: linear-gradient(rgba(0, 0, 0, 0.156), black);
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .trending-loader-main {
+    width: 50rem;
+    background-color: #222222;
+  }
+
+  .trending-loader-container {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+  }
+  
+  .trending-loader-item {
+    width: 100px;
+    height: 100px;
+    position: absolute;
+  }
+  
+  .trending-loader-item-1 {
+    background-color: #FFB0A3;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    animation: trending-loader-item-1_move 1.8s cubic-bezier(.6,.01,.4,1) infinite;
+  }
+  
+  .trending-loader-item-2 {
+    background-color: #E5A3FF;
+    top: 0;
+    right: 0;
+    animation: trending-loader-item-2_move 1.8s cubic-bezier(.6,.01,.4,1) infinite;
+  }
+  
+  .trending-loader-item-3 {
+    background-color: #A2FFD5;
+    bottom: 0;
+    right: 0;
+    z-index: 1;
+    animation: trending-loader-item-3_move 1.8s cubic-bezier(.6,.01,.4,1) infinite;
+  }
+  
+  .trending-loader-item-4 {
+    background-color: #FFF4A3;
+    bottom: 0;
+    left: 0;
+    animation: trending-loader-item-4_move 1.8s cubic-bezier(.6,.01,.4,1) infinite;
+  }
+  
+  @keyframes trending-loader-item-1_move {
+    0%, 100% {transform: translate(0, 0)} 
+    25% {transform: translate(0, 100px)} 
+    50% {transform: translate(100px, 100px)} 
+    75% {transform: translate(100px, 0)} 
+  }
+  
+  @keyframes trending-loader-item-2_move {
+    0%, 100% {transform: translate(0, 0)} 
+    25% {transform: translate(-100px, 0)} 
+    50% {transform: translate(-100px, 100px)} 
+    75% {transform: translate(0, 100px)} 
+  }
+  
+  @keyframes trending-loader-item-3_move {
+    0%, 100% {transform: translate(0, 0)} 
+    25% {transform: translate(0, -100px)} 
+    50% {transform: translate(-100px, -100px)} 
+    75% {transform: translate(-100px, 0)} 
+  }
+  
+  @keyframes trending-loader-item-4_move {
+    0%, 100% {transform: translate(0, 0)} 
+    25% {transform: translate(100px, 0)} 
+    50% {transform: translate(100px, -100px)} 
+    75% {transform: translate(0, -100px)} 
   }
 }
