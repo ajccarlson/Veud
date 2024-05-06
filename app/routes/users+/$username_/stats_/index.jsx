@@ -124,7 +124,7 @@ export function StatsData(loaderData) {
                   {loaderData.listTypes.filter(function(e) { return e.id !== selectedType.id }).map(listType =>
                     <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                       {
-                        setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
+                        setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                       }}>
                       {listType.header}
                     </DropdownMenuItem>

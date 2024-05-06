@@ -111,7 +111,7 @@ function RecentActivityData(loaderData) {
                 {loaderData.listTypes.filter(function(e) { return e.id !== selectedLatestUpdate.id }).map(listType =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
+                      setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                     }}>
                     {listType.header}
                   </DropdownMenuItem>
@@ -234,7 +234,7 @@ function FavoritesData(loaderData) {
                 {loaderData.listTypes.filter(function(e) { return e !== selectedFavorite.header }).map(listType =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setTypeIndex(loaderData.listTypes.indexOf(type => type.id == listType.id))
+                      setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                     }}>
                     {listType.header}
                   </DropdownMenuItem>
