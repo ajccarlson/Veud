@@ -1,7 +1,7 @@
 import { type Config } from 'tailwindcss'
 import animatePlugin from 'tailwindcss-animate'
 import radixPlugin from 'tailwindcss-radix'
-import { trendingPreset } from './app/routes/_trending+/tailwind-preset'
+import { homePreset } from './app/routes/_home+/tailwind-preset.ts'
 import { extendedTheme } from './app/utils/extended-theme.ts'
 
 export default {
@@ -18,6 +18,6 @@ export default {
 		},
 		extend: extendedTheme,
 	},
-	presets: [trendingPreset],
+	presets: [homePreset],
 	plugins: [animatePlugin, radixPlugin],
 } satisfies Config

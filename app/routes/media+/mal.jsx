@@ -24,32 +24,8 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   return data.data.map(entry => entry.node).slice(0, numResults)
 }
 
-export async function getAnimeInfo(entryID) {
-  const url = "https://api.myanimelist.net/v2/anime/" + entryID + "?fields=id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics"
-  let response, data
-
+async function formatAnimeInfo(data) {
   try {
-    try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
-        fetchMethod: 'get',
-        url: url,
-        authorization: 'mal',
-        fetchBody: undefined,
-        sleepTime: 1500,
-      })))
-      data = await response.json()
-      data.map(e => data = e ? {...data, ...e} : data)
-  
-      if (!response || !data)
-        throw new Error("Error: no data found!")
-    }
-    catch (e) {
-      console.error('Failed to fetch data for ' + entryID + '!\n' + e)
-      return
-    }
-
-    console.log(data)
-    
     let typeFormatted = data['media_type'].replace('_', ' ')
     if (typeFormatted.length <= 3)
       typeFormatted = typeFormatted.toUpperCase()
@@ -122,9 +98,38 @@ export async function getAnimeInfo(entryID) {
       'description': data['synopsis']
     }
 
-    console.log(malInfo)
-
     return malInfo
+  }
+  catch(e) {
+    console.error(e)
+  }
+}
+
+export async function getAnimeInfo(entryID) {
+  const url = "https://api.myanimelist.net/v2/anime/" + entryID + "?fields=id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics"
+  let response, data
+
+  try {
+    try {
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'mal',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      })))
+      data = await response.json()
+      data.map(e => data = e ? {...data, ...e} : data)
+  
+      if (!response || !data)
+        throw new Error("Error: no data found!")
+    }
+    catch (e) {
+      console.error('Failed to fetch data for ' + entryID + '!\n' + e)
+      return
+    }
+
+    return formatAnimeInfo(data)
   }
   catch (e) {
     throw new Error('Error: failed to fetch MAL info!\n' + e)
@@ -212,5 +217,88 @@ export async function getMangaInfo(entryID) {
   }
   catch (e) {
     throw new Error('Error: failed to fetch MAL info!\n' + e)
+  }
+}
+
+function getSeasonMonth(month) {
+  if ([1, 2, 3].includes(month)) {
+    return "winter"
+  }
+  else if ([4, 5, 6].includes(month)) {
+    return "spring"
+  }
+  else if ([7, 8, 9].includes(month)) {
+    return "spring"
+  }
+  else {
+    return "fall"
+  }
+}
+
+function getCurrentDate() {
+  const date = new Date()
+
+  return {
+    yearNum: date.getFullYear(),
+    monthNum: date.getMonth()
+  }
+}
+
+export async function getSeasonalAnime(year = undefined, month = undefined, numResults = 10) {
+  try {
+    let yearNum = year
+    let monthNum = month
+    if (isNaN(monthNum) && !isNaN(yearNum)) {
+      const date = new Date(`${monthNum} 1, 2000`)
+
+      if (isNaN(date)) {
+        [yearNum, monthNum] = getCurrentDate()
+      }
+      else {
+        monthNum = date.getMonth() + 1
+      }
+    }
+    else if (isNaN(new Date(`${monthNum} 1, ${yearNum}`))) {
+      const currentDate = getCurrentDate()
+      yearNum = currentDate.yearNum
+      monthNum = currentDate.monthNum
+    }
+    const seasonalMonth = getSeasonMonth(monthNum)
+
+    const fields = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics"
+    const url = "https://api.myanimelist.net/v2/anime/season/" + yearNum + "/" + seasonalMonth + "?fields=" + fields + "&sort=anime_num_list_users&limit=" + numResults
+    let response, data
+
+    try {
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'mal',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      })))
+      data = await response.json()
+      data.map(e => data = e ? {...data, ...e} : data)
+
+      if (!response || !data)
+        throw new Error("Error: no data found!")
+    }
+    catch (e) {
+      console.error('Failed to fetch data for ' + seasonalMonth + ' ' + year + ' !\n' + e)
+      return
+    }
+
+    let resultArray = []
+
+    const dataResults = data.data.map(entry => entry.node).slice(0, numResults)
+
+    for (const [index, result] of dataResults.entries()) {
+      resultArray.push(await formatAnimeInfo(result))
+    }
+
+    return resultArray
+  }
+  catch(e) {
+    throw new Error('Error: failed to fetch anime season!\n' + e)
   }
 }

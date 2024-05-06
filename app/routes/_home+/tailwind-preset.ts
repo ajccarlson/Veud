@@ -1,6 +1,6 @@
 import { type Config } from 'tailwindcss'
 
-export const trendingPreset = {
+export const homePreset = {
 	theme: {
 		extend: {
 			keyframes: {
