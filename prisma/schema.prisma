@@ -102,6 +102,7 @@ model LiveActionEntry {
   title		            String
   type	  	          String?
   airYear	            String?
+  nextEpisode         String?
   length		          String?
   rating	            String?
   history	            String?
@@ -136,6 +137,7 @@ model AnimeEntry {
   title		            String
   type	  	          String?
   startSeason	        String?
+  airInfo             String?
   length		          String?
   rating	            String?
   history	            String?
@@ -171,6 +173,7 @@ model MangaEntry {
   title		            String
   type	  	          String?
   startYear	          String?
+  publishInfo         String?
   chapters		        String?
   volumes		          String?
   history	            String?

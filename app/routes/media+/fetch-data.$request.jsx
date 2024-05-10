@@ -1,10 +1,12 @@
 export async function loader(params) {
   try {
-    const tmdbAPIKey = process.env.tmdbAPIKey
-    const traktAPIKey = process.env.traktAPIKey
-    const traktAccessTokenMain = process.env.traktAccessTokenMain
-    const traktAccessTokenBackup = process.env.traktAccessTokenBackup
-    const MALClientID = process.env.MALClientID
+    const TMDB_API_KEY = process.env.TMDB_API_KEY
+    const TRAKT_API_KEY = process.env.TRAKT_API_KEY
+    const TRAKT_CLIENT_SECRET = process.env.TRAKT_CLIENT_SECRET
+    const TRAKT_ACCESS_TOKEN_MAIN = process.env.TRAKT_ACCESS_TOKEN_MAIN
+    const TRAKT_ACCESS_TOKEN_BACKUP = process.env.TRAKT_ACCESS_TOKEN_BACKUP
+    const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID
+    const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET
 
     const searchParams = new URLSearchParams(params.params.request)
     const fetchMethod = searchParams.get('fetchMethod')
@@ -26,22 +28,22 @@ export async function loader(params) {
     let fetchAuthorization;
     
     if (authorization.toLowerCase().includes('mal')) {
-      fetchAuthorization = MALClientID;
+      fetchAuthorization = MAL_CLIENT_ID;
 
       fetchHeaders["X-MAL-CLIENT-ID"] = fetchAuthorization;
     }
     else {
       if (authorization.toLowerCase().includes('trakt')) {
         if (authorization.toLowerCase().includes('main'))
-          fetchAuthorization = traktAccessTokenMain;
+          fetchAuthorization = TRAKT_ACCESS_TOKEN_MAIN;
         else if (authorization.toLowerCase().includes('backup'))
-          fetchAuthorization = traktAccessTokenBackup;
+          fetchAuthorization = TRAKT_ACCESS_TOKEN_BACKUP;
 
         fetchHeaders['trakt-api-version'] = '2'
-        fetchHeaders['trakt-api-key'] = traktAPIKey;
+        fetchHeaders['trakt-api-key'] = TRAKT_API_KEY;
       }
       else if (authorization.toLowerCase().includes('tmdb'))
-        fetchAuthorization = tmdbAPIKey;
+        fetchAuthorization = TMDB_API_KEY;
       // else if (authorization.toLowerCase().includes('google')) {
       //   fetchHeaders = {};
       //   fetchAuthorization = ScriptApp.getOAuthToken();

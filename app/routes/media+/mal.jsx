@@ -50,7 +50,7 @@ async function formatAnimeInfo(data) {
     }
 
 
-    let lengthFormatted
+    let lengthFormatted, airInfo
     if (data['num_episodes'] == 1) {
       const seconds = data['average_episode_duration']
       const hours = Math.floor(seconds / 3600)
@@ -68,6 +68,13 @@ async function formatAnimeInfo(data) {
         typeFormatted = "TV Series"
 
       lengthFormatted = (data['num_episodes'] + " eps")
+
+      if (data['broadcast']) {
+        airInfo = {
+          day: data['broadcast']['day_of_the_week'],
+          time: data['broadcast']['start_time']
+        }
+      }
     }
 
 
@@ -90,6 +97,7 @@ async function formatAnimeInfo(data) {
       'title': data['title'],
       'type': typeFormatted,
       'startSeason': seasonFormatted,
+      'airInfo': airInfo,
       'length': lengthFormatted,
       'rating': ratingFormatted,
       'genres': genres,
