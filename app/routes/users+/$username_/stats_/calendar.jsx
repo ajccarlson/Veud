@@ -1,17 +1,16 @@
-import { ResponsiveCalendar } from '@nivo/calendar'
+import { ResponsiveTimeRange } from '@nivo/calendar'
 
-function MyResponsiveCalendar(data, startDate, endDate) {
+function MyResponsiveTimeRange(data, startDate, endDate) {
   return (
     <div class="user-landing-stats-calendar-chart">
-      <ResponsiveCalendar
+      <ResponsiveTimeRange
           data={data}
           from={startDate}
           to={endDate}
           emptyColor="#eeeeee"
           colors={[ '#61cdbb', '#97e3d5', '#e8c1a0', '#f47560' ]}
-          margin={{ top: 40, right: 40, bottom: 40, left: 40 }}
-          yearSpacing={40}
-          monthBorderColor="#ffffff"
+          // margin={{ top: 40, right: 40, bottom: 40, left: 40 }}
+          direction="vertical"
           dayBorderWidth={2}
           dayBorderColor="#ffffff"
           tooltip={(point) => {
@@ -101,19 +100,28 @@ export function renderCalendarChart(loaderData, chartType) {
   let endDate = (new Date())
 
   let yearIterator = startDate.getFullYear()
+  let monthIterator = startDate.getMonth()
   let endYear = endDate.getFullYear()
+  let endMonth = endDate.getMonth() + 1
 
-  let calendarArray = []
-
+  let yearObject = {}
+  
   while (yearIterator <= endYear) {
-    calendarArray.push({
-      year: `${yearIterator} - ${yearIterator + 1}`,
-      chart: MyResponsiveCalendar(calendarHistory, `${yearIterator}-01-01`, `${yearIterator + 1}-01-01`)
-    })
-    yearIterator += 2
+    let monthObject = {}
+
+    while (monthIterator <= 12) {
+      if (monthIterator > endMonth && yearIterator >= endYear) {
+        break
+      }
+
+      monthObject[monthIterator] = MyResponsiveTimeRange(calendarHistory, `${yearIterator}-${monthIterator}-01`, `${yearIterator}-${monthIterator}-31`)
+      monthIterator++
+    }
+    
+    yearObject[yearIterator] = monthObject
+    yearIterator++
+    monthIterator = 1
   }
 
-  calendarArray.unshift(calendarArray.pop())
-
-  return (calendarArray)
+  return (yearObject)
 }

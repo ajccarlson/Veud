@@ -179,7 +179,7 @@
     gap: 1rem;
   }
 
-  .user-landing-selection-typed-nav-container {
+  .user-landing-selection-secondary-nav-container {
     display: flex;
     flex-direction: column;
     align-self: center;
@@ -199,14 +199,14 @@
     background-color: #8CA99D;
   }
 
-  .user-landing-typed-left-arrow {
+  .user-landing-secondary-left-arrow {
     color: #2e2f2b;
     background-color: #A2FFD5;
     border-radius: 0 0 0 0.5rem;
     transition: all .1s ease-out; 
   }
 
-  .user-landing-typed-left-arrow:hover {
+  .user-landing-secondary-left-arrow:hover {
     background-color: rgb(116, 222, 174);
   }
 
@@ -223,14 +223,14 @@
     background-color: #416756;
   }
 
-  .user-landing-typed-right-arrow {
+  .user-landing-secondary-right-arrow {
     background-color: #6F6F6F;
     border-radius: 0 0 0.5rem 0;
     border-radius: 0 0 0.5rem 0;
     transition: all .1s ease-out; 
   }
 
-  .user-landing-typed-right-arrow:hover {
+  .user-landing-secondary-right-arrow:hover {
     background-color: #8CA99D;
   }
 
@@ -269,7 +269,7 @@
     border-color: #507b68;
   }
 
-  .user-landing-type-dropdown-trigger {
+  .user-landing-secondary-dropdown-trigger {
     align-self: center;
     width: fit-content;
     height: fit-content;
@@ -289,7 +289,7 @@
     transition: all .1s ease-out; 
   }
 
-  .user-landing-type-dropdown-trigger:hover {
+  .user-landing-secondary-dropdown-trigger:hover {
     background-color: #8CA99D;
     border-color: rgb(116, 222, 174);
   }
@@ -329,12 +329,12 @@
     width: 100%;
   }
 
-  .user-landing-list-type-header-container {
+  .user-landing-list-secondary-header-container {
     display: flex;
     flex-direction: row;
   }
 
-  .user-landing-list-type-header {
+  .user-landing-list-secondary-header {
     text-align: left;
     width: fit-content;
     background-color: #121212;

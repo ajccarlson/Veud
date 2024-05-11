@@ -1,7 +1,7 @@
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
+import { Spacer } from '#app/components/spacer.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -9,9 +9,15 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { renderCalendarChart } from '#app/routes/users+/$username_/stats_/calendar'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
-import { useOptionalUser } from '#app/utils/user.ts'
+// import { useOptionalUser } from '#app/utils/user.ts'
+
+function getMonthName(monthNum) {
+  const date = new Date(2000, monthNum - 1, 1)
+  return date.toLocaleString('default', { month: 'long' })
+}
 
 export function SideData(loaderData) {
 	const user = loaderData.user
@@ -19,10 +25,17 @@ export function SideData(loaderData) {
 	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
 
-
   const completionHistory = renderCalendarChart(loaderData, "completion history")
   const completionYears = Object.keys(completionHistory)
-  const [calendarIndex, setCalendarIndex] = useState(0);
+
+  const [completionMonths, setCompletionMonths] = useState(Object.keys(completionHistory[completionYears[completionYears.length - 1]]))
+  const [yearIndex, setYearIndex] = useState(completionYears.length - 1)
+  const [monthIndex, setMonthIndex] = useState(completionMonths.length - 1)
+
+  useEffect(() => {
+    setMonthIndex(0)
+    setCompletionMonths(Object.keys(completionHistory[completionYears[yearIndex]]))
+  }, [yearIndex]);
 
 	return (
 		<div className="user-landing-side-container">
@@ -84,34 +97,64 @@ export function SideData(loaderData) {
       <div className='user-landing-completion-history-container'>
         <h1 className="user-landing-body-header">Completion History</h1>
         <div className='user-landing-completion-history-chart'>
-          {completionHistory[calendarIndex].chart}
+          {completionHistory[completionYears[yearIndex]][completionMonths[monthIndex]]}
         </div>
         <div className="user-landing-selection-nav-container">
-          <button onClick={() => {setCalendarIndex(calendarIndex == 0 ? completionYears.length - 1 : calendarIndex - 1)}}>
+          <button onClick={() => {setYearIndex(yearIndex == 0 ? completionYears.length - 1 : yearIndex - 1)}}>
             <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <div className="user-landing-dropdown-trigger"> 
-                {completionHistory[calendarIndex].year}
+                {completionYears[yearIndex]}
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuPortal className="user-landing-dropdown-portal">
               <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                {Object.entries(completionHistory).filter(function([eKey, eValue]) { return eValue.header !== completionHistory[calendarIndex].year }).map(([calendarKey, calendarValue]) =>
+                {completionYears.filter((year) => year !== completionYears[yearIndex]).map(completionYear =>
                   <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                     {
-                      setCalendarIndex(completionYears.indexOf(calendarKey))
+                      setYearIndex(completionYears.indexOf(completionYear))
                     }}>
-                    {calendarValue.year}
+                    {completionYear}
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenu>
-          <button onClick={() => {setCalendarIndex((calendarIndex + 1) % (completionYears.length))}}>
+          <button onClick={() => {setYearIndex((yearIndex + 1) % (completionYears.length))}}>
             <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
           </button>
+        </div>
+        <div className="user-landing-selection-secondary-nav-container">
+          <Spacer size="4xs"/>
+          <div className="user-landing-selection-nav-container">
+            <button onClick={() => {setMonthIndex(monthIndex == 0 ? completionMonths.length - 1 : monthIndex - 1)}}>
+              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-secondary-left-arrow"></Icon>
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="user-landing-secondary-dropdown-trigger"> 
+                  {getMonthName(completionMonths[monthIndex])}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuPortal className="user-landing-dropdown-portal">
+                <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                  {completionMonths.filter((month) => month !== completionMonths[monthIndex] ).map(completionMonth =>
+                    <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                      {
+                        setMonthIndex(completionMonths.indexOf(completionMonth))
+                      }}>
+                      {getMonthName(completionMonth)}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenuPortal>
+            </DropdownMenu>
+            <button onClick={() => {setMonthIndex((monthIndex + 1) % (completionMonths.length))}}>
+              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-secondary-right-arrow"></Icon>
+            </button>
+          </div>
         </div>
       </div>
 		</div>

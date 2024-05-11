@@ -107,15 +107,15 @@ export function StatsData(loaderData) {
         </button>
       </div>
       {userStats[selectedChart].typed ?
-        <div className="user-landing-selection-typed-nav-container">
+        <div className="user-landing-selection-secondary-nav-container">
           <Spacer size="4xs"/>
           <div className="user-landing-selection-nav-container">
             <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
-              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-typed-left-arrow"></Icon>
+              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-secondary-left-arrow"></Icon>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="user-landing-type-dropdown-trigger"> 
+                <div className="user-landing-secondary-dropdown-trigger"> 
                   {selectedType.header}
                 </div>
               </DropdownMenuTrigger>
@@ -133,7 +133,7 @@ export function StatsData(loaderData) {
               </DropdownMenuPortal>
             </DropdownMenu>
             <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
-              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-typed-right-arrow"></Icon>
+              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-secondary-right-arrow"></Icon>
             </button>
           </div>
         </div>
