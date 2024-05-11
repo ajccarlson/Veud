@@ -552,6 +552,36 @@ export function columnDefs() {
 
 
     {
+      field: 'releaseStart',
+      headerName: 'Release Start',
+      valueSetter: params => {setterFunction(params)},
+      valueFormatter: params => dateFormatter(params.value),
+      flex: 1,
+      editable: false,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agDateColumnFilter",
+      hide: !columnParams.displayedColumns['releaseStart'],
+    },
+
+
+    {
+      field: 'releaseEnd',
+      headerName: 'Release End',
+      valueSetter: params => {setterFunction(params)},
+      valueFormatter: params => dateFormatter(params.value),
+      flex: 1,
+      editable: false,
+      resizable: false,
+      minWidth: 65,
+      maxWidth: 72,
+      filter: "agDateColumnFilter",
+      hide: !columnParams.displayedColumns['releaseEnd'],
+    },
+
+
+    {
       field: 'length',
       headerName: 'Length',
       editable: false,

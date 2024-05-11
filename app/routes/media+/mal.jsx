@@ -41,6 +41,17 @@ async function formatAnimeInfo(data) {
     }
 
 
+    let releaseStart, releaseEnd
+    try {
+      releaseStart = new Date (data['start_date'])
+    }
+    catch(e) {}
+    try {
+      releaseEnd = new Date (data['end_date'])
+    }
+    catch(e) {}
+
+
     const seasonInfo = data['start_season']
     const seasonURL = "https://myanimelist.net/anime/season/" + seasonInfo['year'] + "/" + seasonInfo['season']
     const seasonText = seasonInfo['season'].charAt(0).toUpperCase() + seasonInfo['season'].slice(1) + ' ' + seasonInfo['year']
@@ -97,6 +108,8 @@ async function formatAnimeInfo(data) {
       'title': data['title'],
       'type': typeFormatted,
       'startSeason': seasonFormatted,
+      'releaseStart': releaseStart,
+      'releaseEnd': releaseEnd,
       'airInfo': airInfo,
       'length': lengthFormatted,
       'rating': ratingFormatted,
@@ -182,9 +195,17 @@ export async function getMangaInfo(entryID) {
     }
 
 
-    const startYear = new Date (data['start_date']).getFullYear()
-    console.log(data['start_date'])
-    console.log(startYear)
+    let releaseStart, releaseEnd
+    try {
+      releaseStart = new Date (data['start_date'])
+    }
+    catch(e) {}
+    try {
+      releaseEnd = new Date (data['end_date'])
+    }
+    catch(e) {}
+
+    const startYear = releaseStart.getFullYear()
 
 
     let genresList = []

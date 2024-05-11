@@ -53,16 +53,28 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
     const description = data.overview;
 
     if (type != 'person') {
-      let title, year, length;
+      let title, year, releaseStart, releaseEnd, length;
 
       if (type == "tv") {
         title = data.name;
-        year = new Date(data.first_air_date).getFullYear();
+
+        try {
+          releaseStart = new Date(data.first_air_date);
+        }
+        catch(e) {}
+        try {
+          releaseEnd = new Date(data.last_air_date);
+        }
+        catch(e) {}
+        year = releaseStart.getFullYear();
+
         length = (data.number_of_episodes + " eps");
       }
       else {
         title = data.title;
-        year = new Date(data.release_date).getFullYear();
+
+        releaseStart = releaseEnd = new Date(data.release_date);
+        year = releaseStart.getFullYear();
 
         const lengthRaw = data.runtime;
         const hours = Math.floor(lengthRaw / 60);
@@ -178,6 +190,8 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
         'title': title,
         'type': typeFormatted,
         'year': year,
+        'releaseStart': releaseStart,
+        'releaseEnd': releaseEnd,
         'language': language,
         'description': description,
         'length': length,
