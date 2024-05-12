@@ -1,12 +1,18 @@
 export async function loader(params) {
   try {
     const TMDB_API_KEY = process.env.TMDB_API_KEY
+
     const TRAKT_API_KEY = process.env.TRAKT_API_KEY
     const TRAKT_CLIENT_SECRET = process.env.TRAKT_CLIENT_SECRET
     const TRAKT_ACCESS_TOKEN_MAIN = process.env.TRAKT_ACCESS_TOKEN_MAIN
     const TRAKT_ACCESS_TOKEN_BACKUP = process.env.TRAKT_ACCESS_TOKEN_BACKUP
+
     const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID
     const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET
+
+    const ANIME_SCHEDULE_ID = process.env.ANIME_SCHEDULE_ID
+    const ANIME_SCHEDULE_SECRET = process.env.ANIME_SCHEDULE_SECRET
+    const ANIME_SCHEDULE_TOKEN = process.env.ANIME_SCHEDULE_TOKEN
 
     const searchParams = new URLSearchParams(params.params.request)
     const fetchMethod = searchParams.get('fetchMethod')
@@ -20,9 +26,6 @@ export async function loader(params) {
     }
   
     const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-    // if (!checkTime() && !override && !Boolean(getVariable('devMode')))
-    //   throw new Error("Error: fetch called outside of working time range (>= 12 && <= 24)");
 
     let fetchHeaders = {'Content-Type': 'application/json'};
     let fetchAuthorization;
@@ -44,10 +47,8 @@ export async function loader(params) {
       }
       else if (authorization.toLowerCase().includes('tmdb'))
         fetchAuthorization = TMDB_API_KEY;
-      // else if (authorization.toLowerCase().includes('google')) {
-      //   fetchHeaders = {};
-      //   fetchAuthorization = ScriptApp.getOAuthToken();
-      // }
+      else if (authorization.toLowerCase().includes('animeschedule'))
+        fetchAuthorization = ANIME_SCHEDULE_TOKEN;
 
       fetchHeaders['Authorization'] = ('Bearer ' + fetchAuthorization);
     }
@@ -78,10 +79,6 @@ export async function loader(params) {
     return [response, data];
   }
   catch (e) {
-    // if (String(e).includes('too many times'))
-    //   setVariable('fetchAvailable', false);
-
-    // Utilities.sleep(sleepTime);
     throw new Error('Failed to fetch data!\n' + e);
   }
 }

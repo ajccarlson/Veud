@@ -16,14 +16,21 @@ const schema = z.object({
 	GITHUB_CLIENT_ID: z.string().default('MOCK_GITHUB_CLIENT_ID'),
 	GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
 	GITHUB_TOKEN: z.string(),
+
 	TMDB_API_KEY: z.string(),
+
 	TRAKT_API_KEY: z.string(),
   TRAKT_CLIENT_SECRET: z.string(),
 	TRAKT_ACCESS_TOKEN_MAIN: z.string(),
 	TRAKT_ACCESS_TOKEN_BACKUP: z.string(),
+
 	MAL_CLIENT_ID: z.string(),
   MAL_CLIENT_SECRET: z.string(),
-	MAL_USER: z.string()
+	MAL_USER: z.string(),
+  
+  ANIME_SCHEDULE_ID: z.string(),
+  ANIME_SCHEDULE_SECRET: z.string(),
+  ANIME_SCHEDULE_TOKEN: z.string(),
 })
 
 declare global {

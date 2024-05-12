@@ -24,8 +24,45 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   return data.data.map(entry => entry.node).slice(0, numResults)
 }
 
+async function getAnimeScheduleEntry(title) {
+  try {
+    let response, data
+
+    try {
+      const url = "https://animeschedule.net/api/v3/anime/" + title.replace(/\s+/g, '-')
+      console.log(url)
+
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'animeSchedule',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      })))
+      data = await response.json()
+      data.map(e => data = e ? {...data, ...e} : data)
+  
+      if (!response || !data)
+        throw new Error("Error: no data found!")
+    }
+    catch (e) {
+      console.error('Failed to fetch schedule data for ' + title + '!\n' + e)
+      return
+    }
+
+    console.log(data)
+
+    return data
+  }
+  catch (e) {
+    throw new Error('Error: failed to fetch anime schedule!\n' + e)
+  }
+}
+
 async function formatAnimeInfo(data) {
   try {
+    getAnimeScheduleEntry(data['title'])
+
     let typeFormatted = data['media_type'].replace('_', ' ')
     if (typeFormatted.length <= 3)
       typeFormatted = typeFormatted.toUpperCase()
