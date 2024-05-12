@@ -24,44 +24,98 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   return data.data.map(entry => entry.node).slice(0, numResults)
 }
 
-async function getAnimeScheduleEntry(title) {
+async function getAnilistSchedule(entryID) {
   try {
     let response, data
 
     try {
-      const url = "https://animeschedule.net/api/v3/anime/" + title.replace(/\s+/g, '-')
-      console.log(url)
+      const url = `https://graphql.anilist.co`
+
+      const query = `
+        query ($id: Int) {
+          Media (idMal: $id, type: ANIME) {
+            nextAiringEpisode {
+              airingAt
+              timeUntilAiring
+              episode
+              mediaId
+            }
+            streamingEpisodes {
+              title
+              thumbnail
+              url
+              site
+            }
+            duration
+            coverImage {
+              extraLarge
+              large
+              medium
+              color
+            }
+          }
+        }
+      `;
+      
+      var variables = {
+        id: entryID
+      };
 
       response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
-        fetchMethod: 'get',
+        fetchMethod: 'POST',
         url: url,
-        authorization: 'animeSchedule',
-        fetchBody: undefined,
+        authorization: 'anilist',
+        fetchBody: JSON.stringify({
+          query: query,
+          variables: variables
+        }),
         sleepTime: 1500,
       })))
       data = await response.json()
-      data.map(e => data = e ? {...data, ...e} : data)
+      data = data[1].data.Media
   
       if (!response || !data)
         throw new Error("Error: no data found!")
     }
     catch (e) {
-      console.error('Failed to fetch schedule data for ' + title + '!\n' + e)
+      console.error('Failed to fetch anilist schedule data for ' + entryID + '!\n' + e)
       return
     }
 
-    console.log(data)
+    let currentEpisode, releaseDate
+    if (data.nextAiringEpisode) {
+      if (data.streamingEpisodes) {
+        const foundEpisode = data.streamingEpisodes.find(episode => episode.title.includes(`Episode ${data.nextAiringEpisode.episode} - `))
+        currentEpisode = foundEpisode ? foundEpisode.title : null
+      }
 
-    return data
+      const date = new Date();
+      const milliseconds = data.nextAiringEpisode.timeUntilAiring * 1000
+      releaseDate = new Date(date.getTime() + milliseconds)
+    }
+
+    return {
+      id: data.nextAiringEpisode.mediaId ? data.nextAiringEpisode.mediaId : null,
+      name: currentEpisode,
+      overview: null,
+      releaseDate: releaseDate,
+      episode: data.nextAiringEpisode.episode ? data.nextAiringEpisode.episode : null,
+      season: null,
+      runtime: data.duration ? data.duration : null,
+      image: data.coverImage.extraLarge ? `${String(data.coverImage.extraLarge)}|https://myanimelist.net/anime/${entryID}/${entryID}/episode` : null,
+    }
   }
   catch (e) {
-    throw new Error('Error: failed to fetch anime schedule!\n' + e)
+    console.error('Error: failed to fetch anilist schedule!\n' + e)
   }
 }
 
-async function formatAnimeInfo(data) {
+async function formatAnimeInfo(data, full = true) {
   try {
-    getAnimeScheduleEntry(data['title'])
+    let nextRelease = null
+    if (full) {
+      nextRelease = await getAnilistSchedule(data['id'])
+    }
 
     let typeFormatted = data['media_type'].replace('_', ' ')
     if (typeFormatted.length <= 3)
@@ -98,7 +152,7 @@ async function formatAnimeInfo(data) {
     }
 
 
-    let lengthFormatted, airInfo
+    let lengthFormatted
     if (data['num_episodes'] == 1) {
       const seconds = data['average_episode_duration']
       const hours = Math.floor(seconds / 3600)
@@ -116,13 +170,6 @@ async function formatAnimeInfo(data) {
         typeFormatted = "TV Series"
 
       lengthFormatted = (data['num_episodes'] + " eps")
-
-      if (data['broadcast']) {
-        airInfo = {
-          day: data['broadcast']['day_of_the_week'],
-          time: data['broadcast']['start_time']
-        }
-      }
     }
 
 
@@ -147,7 +194,7 @@ async function formatAnimeInfo(data) {
       'startSeason': seasonFormatted,
       'releaseStart': releaseStart,
       'releaseEnd': releaseEnd,
-      'airInfo': airInfo,
+      'nextRelease': nextRelease,
       'length': lengthFormatted,
       'rating': ratingFormatted,
       'genres': genres,
@@ -187,7 +234,7 @@ export async function getAnimeInfo(entryID) {
       return
     }
 
-    return formatAnimeInfo(data)
+    return formatAnimeInfo(data, true)
   }
   catch (e) {
     throw new Error('Error: failed to fetch MAL info!\n' + e)
@@ -217,8 +264,6 @@ export async function getMangaInfo(entryID) {
       console.error('Failed to fetch data for ' + entryID + '!\n' + e)
       return
     }
-
-    console.log(data)
     
     let typeFormatted = data['media_type'].replace('_', ' ')
     if (typeFormatted.length <= 3)
@@ -276,8 +321,6 @@ export async function getMangaInfo(entryID) {
       'malScore': data['mean'],
       'description': data['synopsis']
     }
-
-    console.log(malInfo)
 
     return malInfo
   }
@@ -359,7 +402,7 @@ export async function getSeasonalAnime(year = undefined, month = undefined, numR
     const dataResults = data.data.map(entry => entry.node).slice(0, numResults)
 
     for (const [index, result] of dataResults.entries()) {
-      resultArray.push(await formatAnimeInfo(result))
+      resultArray.push(await formatAnimeInfo(result, false))
     }
 
     return resultArray

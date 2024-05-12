@@ -28,9 +28,8 @@ const schema = z.object({
   MAL_CLIENT_SECRET: z.string(),
 	MAL_USER: z.string(),
   
-  ANIME_SCHEDULE_ID: z.string(),
-  ANIME_SCHEDULE_SECRET: z.string(),
-  ANIME_SCHEDULE_TOKEN: z.string(),
+  ANILIST_CLIENT_ID: z.string(),
+  ANILIST_CLIENT_SECRET: z.string(),
 })
 
 declare global {

@@ -88,7 +88,7 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
         }
       }
 
-      let language, genres, nextEpisode = {}, rating = "NR"
+      let language, genres, nextRelease = null, rating = "NR"
 
       const score = data.vote_average;
 
@@ -109,15 +109,15 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
         if (type == "tv") {
           try {
             if (data.next_episode_to_air) {
-              nextEpisode = {
+              nextRelease = {
                 id: data.next_episode_to_air.id,
                 name: data.next_episode_to_air.name,
                 overview: data.next_episode_to_air.overview,
-                airDate: data.next_episode_to_air.air_date,
+                releaseDate: data.next_episode_to_air.air_date,
                 episode: data.next_episode_to_air.episode_number,
                 season: data.next_episode_to_air.season_number,
                 runtime: data.next_episode_to_air.runtime,
-                image: data.next_episode_to_air.still_path,
+                image: `https://www.themoviedb.org/t/p/original${data.next_episode_to_air.still_path}|https://www.themoviedb.org/${type}/${entryID}/watch`,
               }
             }
           }
@@ -195,7 +195,7 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
         'language': language,
         'description': description,
         'length': length,
-        'nextEpisode': nextEpisode,
+        'nextRelease': nextRelease,
         'genres': genres,
         'rating': rating,
         'score': score

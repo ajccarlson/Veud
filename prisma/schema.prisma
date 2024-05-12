@@ -104,7 +104,7 @@ model LiveActionEntry {
   airYear	            String?
   releaseStart        DateTime?
   releaseEnd          DateTime?
-  nextEpisode         String?
+  nextRelease         String?
   length		          String?
   rating	            String?
   history	            String?
@@ -141,7 +141,7 @@ model AnimeEntry {
   startSeason	        String?
   releaseStart        DateTime?
   releaseEnd          DateTime?
-  airInfo             String?
+  nextRelease         String?
   length		          String?
   rating	            String?
   history	            String?
@@ -179,7 +179,7 @@ model MangaEntry {
   startYear	          String?
   releaseStart        DateTime?
   releaseEnd          DateTime?
-  publishInfo         String?
+  nextRelease         String?
   chapters		        String?
   volumes		          String?
   history	            String?

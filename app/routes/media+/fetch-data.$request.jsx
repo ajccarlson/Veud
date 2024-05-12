@@ -10,9 +10,8 @@ export async function loader(params) {
     const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID
     const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET
 
-    const ANIME_SCHEDULE_ID = process.env.ANIME_SCHEDULE_ID
-    const ANIME_SCHEDULE_SECRET = process.env.ANIME_SCHEDULE_SECRET
-    const ANIME_SCHEDULE_TOKEN = process.env.ANIME_SCHEDULE_TOKEN
+    const ANILIST_CLIENT_ID = process.env.ANILIST_CLIENT_ID
+    const ANILIST_CLIENT_SECRET = process.env.ANILIST_CLIENT_SECRET
 
     const searchParams = new URLSearchParams(params.params.request)
     const fetchMethod = searchParams.get('fetchMethod')
@@ -35,7 +34,7 @@ export async function loader(params) {
 
       fetchHeaders["X-MAL-CLIENT-ID"] = fetchAuthorization;
     }
-    else {
+    else if (!authorization.toLowerCase().includes('anilist')) {
       if (authorization.toLowerCase().includes('trakt')) {
         if (authorization.toLowerCase().includes('main'))
           fetchAuthorization = TRAKT_ACCESS_TOKEN_MAIN;
@@ -47,8 +46,6 @@ export async function loader(params) {
       }
       else if (authorization.toLowerCase().includes('tmdb'))
         fetchAuthorization = TMDB_API_KEY;
-      else if (authorization.toLowerCase().includes('animeschedule'))
-        fetchAuthorization = ANIME_SCHEDULE_TOKEN;
 
       fetchHeaders['Authorization'] = ('Bearer ' + fetchAuthorization);
     }
@@ -58,10 +55,8 @@ export async function loader(params) {
       "headers": fetchHeaders
     };
 
-    //console.log(options);
-
-    if (fetchBody)
-      options['payload'] = JSON.stringify(fetchBody);
+    if (fetchBody && fetchBody != "undefined")
+      options['body'] = fetchBody;
 
     let response, data;
     try {

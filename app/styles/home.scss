@@ -1,18 +1,25 @@
 .home{
+  display: flex;
+  flex-direction: column;
   height: 100%;
   width: 100%;
+  align-items: center;
+  background: linear-gradient(
+    to right,
+    #403530 0% 1%,
+    #383040 1% 10%,
+    #2e2f2b 10% 90%,
+    #54806C 90% 99%,
+    #403530 99% 100%
+  );
 
   .home-main {
-    height: 100%;
-    width: 100%;
-    background: linear-gradient(
-      to right,
-      #403530 0% 1%,
-      #383040 1% 10%,
-      #2e2f2b 10% 90%,
-      #54806C 90% 99%,
-      #403530 99% 100%
-    );
+    display: flex;
+    flex-direction: column;
+    gap: 8rem;
+    height: fit-content;
+    width: auto;
+    background-color: #222222;
   }
 
   .trending-main {
@@ -26,7 +33,6 @@
     display: flex;
     flex-direction: column;
     gap: 2rem;
-    background-color: #222222;
     padding-left: 2rem;
     padding-right: 2rem;
   }
@@ -140,6 +146,7 @@
     width: 100px;
     height: 100px;
     position: absolute;
+    z-index: 99;
   }
   
   .trending-loader-item-1 {
@@ -198,5 +205,106 @@
     25% {transform: translate(100px, 0)} 
     50% {transform: translate(100px, -100px)} 
     75% {transform: translate(0, -100px)} 
+  }
+
+  .upcoming-main {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    gap: 4rem;
+    justify-content: center;
+    align-items: center
+  }
+
+  .upcoming-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: fit-content;
+    gap: 0.5rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  .upcoming-date {
+    text-align: center;
+  }
+
+  .upcoming-time {
+    text-align: center;
+  }
+
+  .upcoming-item-container {
+    display: block;
+    align-self: center;
+  }
+
+  .upcoming-item-header {
+    font-size: 1.3rem;
+    line-height: 1.9rem;
+    font-weight: 600;
+    color: #ffffb1;
+    text-align: center;
+  }
+
+  .upcoming-nav-thumbnail-container {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: start;
+    align-items: start;
+    text-align: center;
+  }
+
+  .upcoming-nav-thumbnail-item {
+    
+  }
+
+  .upcoming-item-thumbnail-image {
+    display: flex;
+    flex-direction: column;
+    height: 12rem;
+    min-width: 8rem;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center; 
+    filter: drop-shadow(9px 2px 6px #66563d);
+    transition: all .1s ease-in-out; 
+    z-index: 10;
+  }
+
+  .upcoming-item-thumbnail-image:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0px 0px 10px #66563d);
+  }
+
+  .upcoming-item-thumbnail-image:hover .upcoming-thumbnail-footer {
+    visibility: visible;
+  }
+
+  .upcoming-item-thumbnail-image:hover .upcoming-activity-thumbnail-footer {
+    background-image: linear-gradient(rgba(0, 0, 0, 0.436), black);
+  }
+
+  .upcoming-thumbnail-footer {
+    visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-align: left;
+    font-size: 0.75rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.156), black);
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .upcoming-entry-header {
+    text-align: center;
   }
 }
