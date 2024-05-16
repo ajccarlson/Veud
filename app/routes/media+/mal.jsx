@@ -24,7 +24,7 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   return data.data.map(entry => entry.node).slice(0, numResults)
 }
 
-async function getAnilistSchedule(entryID) {
+export async function getAnilistSchedule(entryID) {
   try {
     let response, data
 

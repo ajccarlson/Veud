@@ -242,7 +242,7 @@ function App() {
 								</Button>
 							)}
 						</div>
-						<div className="block w-full sm:hidden">{searchBar}</div>
+						{/* <div className="block w-full sm:hidden">{searchBar}</div> */}
 					</nav>
 				</header>
 

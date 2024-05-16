@@ -385,7 +385,7 @@ export async function getTMDBTrending(type, numResults) {
 export function getFavoriteInfo(entryPass, typePass) {
   try {
     typePass = typePass.toLowerCase();
-    const rowData = getTMDBInfo(entryPass, typePass, true);
+    const rowData = getTMDBInfo(entryPass, typePass);
     console.log(rowData)
 
     if (typePass.includes('person'))
@@ -400,7 +400,7 @@ export function getFavoriteInfo(entryPass, typePass) {
 
 export function getTMDBScores(entryPass, typePass = 'movie', currentScore = null) {
   try {
-    const rowData = getTMDBInfo(entryPass, typePass, false);
+    const rowData = getTMDBInfo(entryPass, typePass);
     const formattedScore = rowData['score'].toFixed(1);
     return parseFloat(formattedScore);
   }

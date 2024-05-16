@@ -1,4 +1,6 @@
 .list-landing {
+  overflow: auto;
+  
   @media (max-width: 65rem) {
     .list-landing-sidebar-container {
       height: 8rem;
