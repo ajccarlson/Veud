@@ -61,7 +61,7 @@ export function UpcomingData(params) {
             nextEntry = `Episode ${parsedNext.episode}`
           }
 
-          const formattedDate = `${dateObject.getUTCFullYear()}/${dateObject.getUTCMonth() + 1}/${dateObject.getUTCDate()}`
+          const formattedDate = `${dateObject.getUTCFullYear()}/${dateObject.getMonth() + 1}/${dateObject.getDate()}`
 
           if (!upcomingReleases[formattedDate]) {
             upcomingReleases[formattedDate] = []
@@ -85,6 +85,9 @@ export function UpcomingData(params) {
       <div class="upcoming-container">
         {Object.entries(upcomingReleases).map(([upcomingDateKey, upcomingDateValue], index) => {
           const dateObject = new Date(upcomingDateKey)
+          const sortedReleases = upcomingDateValue.sort((a, b) => {
+            return new Date(a.nextRelease.releaseDate) - new Date(b.nextRelease.releaseDate)
+          })
 
           return (
             <div class="upcoming-date-container animate-slide-top [animation-fill-mode:backwards]" style={{ animationDelay: `${index * 0.07}s` }}> 
@@ -93,7 +96,7 @@ export function UpcomingData(params) {
                 <h1 class="upcoming-date-number">{dateObject.toLocaleString('en-US', {weekday: "long"})}</h1>
               </div>
               <div class="upcoming-array-container">
-                {upcomingDateValue.map((upcomingItem) => {
+                {sortedReleases.map((upcomingItem) => {
                   return (
                     <div class="upcoming-item-container">
                       <h1 class="upcoming-time">{String(upcomingItem.releaseTime)}</h1>
