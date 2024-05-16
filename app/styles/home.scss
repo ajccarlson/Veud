@@ -19,7 +19,7 @@
     flex-direction: column;
     gap: 8rem;
     height: fit-content;
-    width: auto;
+    width: inherit;
     background-color: #222222;
   }
 
@@ -211,7 +211,7 @@
   .upcoming-main {
     display: flex;
     flex-direction: column;
-    align-self: center;
+    align-self: safe center;
     height: 100%;
     width: fit-content;
   }

@@ -72,7 +72,7 @@ export function UpcomingData(params) {
             nextEntry: nextEntry,
             nextSet: nextSet,
             nextRelease: parsedNext,
-            releaseTime: `${dateObject.toLocaleDateString()} ${dateObject.getHours()}:${String(dateObject.getMinutes()).padStart(2, "0")}`
+            releaseTime: `${dateObject.getHours()}:${String(dateObject.getMinutes()).padStart(2, "0")} ${dateObject.toLocaleTimeString('en-us',{timeZoneName:'short'}).split(' ')[2]}`
           })
         }
       }
