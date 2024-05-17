@@ -63,11 +63,13 @@ export default function Index() {
   }
 
   return (
-    <main class="home">
-      <div class="home-main">
-        {TrendingData()}
-        {UpcomingData(loaderData)}
-      </div>
-    </main>
+    <div class="home">
+      <main class="home-main">
+        <div class="home-container">
+          {TrendingData()}
+          {UpcomingData(loaderData)}
+        </div>
+      </main>
+    </div>
   )
 }
