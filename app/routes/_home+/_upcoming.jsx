@@ -88,7 +88,7 @@ export function UpcomingData(params) {
     <div class="upcoming-main">
       <h1 class="upcoming-header">Upcoming Releases</h1>
       <div class="upcoming-container">
-        {Object.entries(sortedDays).map(([upcomingDateKey, upcomingDateValue], index) => {
+        {Object.entries(sortedDays).slice(0, 7).map(([upcomingDateKey, upcomingDateValue], index) => {
           const dateObject = new Date(upcomingDateKey)
           const sortedReleases = upcomingDateValue.sort((a, b) => {
             return new Date(a.nextRelease.releaseDate) - new Date(b.nextRelease.releaseDate)
