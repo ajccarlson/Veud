@@ -28,7 +28,9 @@ export const gridOptions = {
     defaultMinWidth: 70
   },
   defaultColDef: {
-    editable: true,
+    editable: false,
+    resizable: false,
+    flex: 1,
     suppressMovable: true,
     wrapHeaderText: true,
     autoHeaderHeight: true,
@@ -311,137 +313,144 @@ export function columnDefs() {
       field: 'position',
       headerName: '#',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
       editable: false,
       resizable: false,
       minWidth: 60,
       maxWidth: 60,
       filter: 'agNumberColumnFilter',
-      rowDrag: true,
+      rowDrag: columnParams.currentUserId == columnParams.listOwner.id,
       cellRenderer: params => {
         return (
           <div>
-            <Form
-              method="GET"
-              onSubmit={async (event) => {
-                event.preventDefault();
+            {columnParams.currentUserId == columnParams.listOwner.id ?
+              <div>
+                <Form
+                  method="GET"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
 
-                let agRows = getAllRows()
-                const agRow = agRows[params.node.id]
-                console.log(agRow)
-                const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
-                
-                let addPosition = event.target.moveRowIndex.value
-                if (addPosition > agRows.length - 1) {
-                  addPosition = (agRows.length - 1)
-                }
-                else if (addPosition < 1) {
-                  addPosition = 1
-                }
+                    let agRows = getAllRows()
+                    const agRow = agRows[params.node.id]
+                    console.log(agRow)
+                    const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
+                    
+                    let addPosition = event.target.moveRowIndex.value
+                    if (addPosition > agRows.length - 1) {
+                      addPosition = (agRows.length - 1)
+                    }
+                    else if (addPosition < 1) {
+                      addPosition = 1
+                    }
 
-                let addRow = params.node.data
-                addRow.position = addPosition
+                    let addRow = params.node.data
+                    addRow.position = addPosition
 
-                const addResponse = gridAPI.applyTransaction({
-                  add: [addRow],
-                  addIndex: addPosition - 1,
-                })
+                    const addResponse = gridAPI.applyTransaction({
+                      add: [addRow],
+                      addIndex: addPosition - 1,
+                    })
 
-                const rowNode = gridAPI.getRowNode(addPosition - 1)
-                rowNode.setDataValue("position", Number(addPosition))
-              }}
-            >
-              <Input
-                name="moveRowIndex"
-                className="ag-move-row-index"
-                id="moveRowIndex"
-                autoComplete='false'
-                placeholder={params.value}
-              />
-            </Form>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <span className='ag-cell-insert'>
-                  <Icon name="plus"></Icon>
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuContent sideOffset={8} align="start">
-                  <DropdownMenuItem onSelect={event => {
-                    createNewRow("Above", params)
-                  }}>
-                    Insert 1 row above
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={event => {
-                    createNewRow("Below", params)
-                  }}>
-                    Insert 1 row below
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={async event => {
-                    const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
-                      listTypeData: JSON.stringify(columnParams.listTypeData),
-                      id: params.data.id,
-                    })))
+                    const rowNode = gridAPI.getRowNode(addPosition - 1)
+                    rowNode.setDataValue("position", Number(addPosition))
+                  }}
+                >
+                  <Input
+                    name="moveRowIndex"
+                    className="ag-row-index ag-move-row-input"
+                    id="moveRowIndex"
+                    autoComplete='false'
+                    placeholder={params.value}
+                  />
+                </Form>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <span className='ag-cell-insert'>
+                      <Icon name="plus"></Icon>
+                    </span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuContent sideOffset={8} align="start">
+                      <DropdownMenuItem onSelect={event => {
+                        createNewRow("Above", params)
+                      }}>
+                        Insert 1 row above
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={event => {
+                        createNewRow("Below", params)
+                      }}>
+                        Insert 1 row below
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={async event => {
+                        const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
+                          listTypeData: JSON.stringify(columnParams.listTypeData),
+                          id: params.data.id,
+                        })))
 
-                    const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-                      watchlistId: params.data.watchlistId
-                    })))
+                        const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+                          watchlistId: params.data.watchlistId
+                        })))
 
-                    const deleteTransaction = gridAPI.applyTransaction({ remove: [params.data] })
+                        const deleteTransaction = gridAPI.applyTransaction({ remove: [params.data] })
 
-                    updatePositions()
-                  }}>
-                    Delete row
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={async event => {
-                    updateRowInfo(params, columnParams, false)
-                  }}>
-                    Update entry info
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={async event => {
-                    gridAPI.forEachNode(async (rowNode, index) => {
-                      await updateRowInfo(rowNode, columnParams, true)
-                    });
-                  
-                    refreshGrid(columnParams)
-                  }}>
-                    Update all watchlist entries
-                  </DropdownMenuItem>
-                  {columnParams.favoriteIds.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
-                    <DropdownMenuItem onSelect={async event => {
-                      const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
-                        return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
-                      })
+                        updatePositions()
+                      }}>
+                        Delete row
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={async event => {
+                        updateRowInfo(params, columnParams, false)
+                      }}>
+                        Update entry info
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={async event => {
+                        gridAPI.forEachNode(async (rowNode, index) => {
+                          await updateRowInfo(rowNode, columnParams, true)
+                        });
+                      
+                        refreshGrid(columnParams)
+                      }}>
+                        Update all watchlist entries
+                      </DropdownMenuItem>
+                      {columnParams.favoriteIds.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
+                        <DropdownMenuItem onSelect={async event => {
+                          const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
+                            return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
+                          })
 
-                      const deleteResponse = await fetch('/lists/fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
-                        id: deleteRow[0].id,
-                      })))
+                          const deleteResponse = await fetch('/lists/fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
+                            id: deleteRow[0].id,
+                          })))
 
-                      columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteID(getThumbnailInfo(params.data.thumbnail).url).id))
-                    }}>
-                      Remove from favorites
-                    </DropdownMenuItem>
-                  :
-                  <DropdownMenuItem onSelect={async event => {
-                    const addPosition = Object.entries(columnParams.typedFavorites[columnParams.listTypeData.id]).length + 1
-                    const typeColumns = JSON.parse(columnParams.listTypeData.columns)
-                    const startTypes = ["airYear", "startYear", "startSeason"]
-                    const startColumn = Object.keys(typeColumns).find((column) => startTypes.includes(column))
+                          columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteID(getThumbnailInfo(params.data.thumbnail).url).id))
+                        }}>
+                          Remove from favorites
+                        </DropdownMenuItem>
+                      :
+                      <DropdownMenuItem onSelect={async event => {
+                        const addPosition = Object.entries(columnParams.typedFavorites[columnParams.listTypeData.id]).length + 1
+                        const typeColumns = JSON.parse(columnParams.listTypeData.columns)
+                        const startTypes = ["airYear", "startYear", "startSeason"]
+                        const startColumn = Object.keys(typeColumns).find((column) => startTypes.includes(column))
 
-                    const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.currentUser.id}
+                        const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.listOwner.id}
 
-                    const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
-                      favorite: JSON.stringify(addRow)
-                    })))
+                        const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
+                          favorite: JSON.stringify(addRow)
+                        })))
 
-                    columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
-                  }}>
-                    Add to favorites
-                  </DropdownMenuItem>
-                  }
-                </DropdownMenuContent>
-              </DropdownMenuPortal>
-            </DropdownMenu>
+                        columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
+                      }}>
+                        Add to favorites
+                      </DropdownMenuItem>
+                      }
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
+                </DropdownMenu>
+              </div>
+            :
+              <div className="ag-row-index">
+                {params.value}
+              </div>
+            } 
           </div>
         )
       },
@@ -454,10 +463,7 @@ export function columnDefs() {
       field: 'thumbnail',
       headerName: 'Thumbnail',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
       sortable: false,
-      resizable: false,
       minWidth: 80,
       maxWidth: 120,
       cellRenderer: params => hyperlinkRenderer(params.value, "thumbnail"),
@@ -471,7 +477,6 @@ export function columnDefs() {
       headerName: 'Title',
       valueSetter: params => {setterFunction(params)},
       flex: 2,
-      editable: false,
       resizable: false,
       minWidth: 90,
       maxWidth: 200,
@@ -486,9 +491,6 @@ export function columnDefs() {
       field: 'type',
       headerName: 'Type',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 70,
       maxWidth: 125,
       cellRenderer: params => typeCellRenderer(params, columnParams),
@@ -513,9 +515,6 @@ export function columnDefs() {
       field: 'airYear',
       headerName: 'Air Year',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: 'agDateColumnFilter',
@@ -527,9 +526,6 @@ export function columnDefs() {
       field: 'startSeason',
       headerName: 'Start Season',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
@@ -541,9 +537,6 @@ export function columnDefs() {
       field: 'startYear',
       headerName: 'Start Year',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
@@ -556,9 +549,6 @@ export function columnDefs() {
       headerName: 'Release Start',
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agDateColumnFilter",
@@ -571,9 +561,6 @@ export function columnDefs() {
       headerName: 'Release End',
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       filter: "agDateColumnFilter",
@@ -584,7 +571,6 @@ export function columnDefs() {
     {
       field: 'length',
       headerName: 'Length',
-      editable: false,
       cellRenderer: params => {
         const totalLength = params.value
 
@@ -605,35 +591,44 @@ export function columnDefs() {
 
           return (
             <div className="ag-progress-cell">
-              <Form
-                method="GET"
-                onSubmit={async (event) => {
-                  event.preventDefault();
+              {columnParams.currentUserId == columnParams.listOwner.id ?
+                <Form
+                  method="GET"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
 
-                  const newParams = {...params, newValue : event.target.lengthInput.value, oldValue : params.value}
+                    const newParams = {...params, newValue : event.target.lengthInput.value, oldValue : params.value}
 
-                  setterFunction(newParams)
-                }}
-                className="ag-progress-cell-text-container"
-              >
-                <Input
-                  name="lengthInput"
-                  className="ag-progress-cell-input"
-                  id={`${params.rowIndex}-length-input`}
-                  autoComplete='false'
-                  defaultValue={lengthData.progress  ?? ''}
-                  placeholder={lengthData.progress}
-                />
-                <span className='ag-progress-increment-button' onClick={(event) => {
-                  const newParams = {...params, newValue : lengthData.progress + 1, oldValue : params.value}
-                  setterFunction(newParams)
-                }}>
-                  <Icon name="plus"></Icon>
-                </span>
-                <span className="ag-progress-cell-span">{`/`}</span>
-                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
-                <span className="ag-progress-cell-span">{`eps`}</span>
-              </Form>
+                    setterFunction(newParams)
+                  }}
+                  className="ag-progress-cell-text-container"
+                >
+                  <Input
+                    name="lengthInput"
+                    className="ag-progress-cell-input"
+                    id={`${params.rowIndex}-length-input`}
+                    autoComplete='false'
+                    defaultValue={lengthData.progress  ?? ''}
+                    placeholder={lengthData.progress}
+                  />
+                  <span className='ag-progress-increment-button' onClick={(event) => {
+                    const newParams = {...params, newValue : lengthData.progress + 1, oldValue : params.value}
+                    setterFunction(newParams)
+                  }}>
+                    <Icon name="plus"></Icon>
+                  </span>
+                  <span className="ag-progress-cell-span">{`/`}</span>
+                  <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
+                  <span className="ag-progress-cell-span">{`eps`}</span>
+                </Form>
+              :
+                <div className="ag-progress-cell-text-container">
+                  <span className="ag-progress-cell-span">{`${lengthData.progress}`}</span>
+                  <span className="ag-progress-cell-span">{`/`}</span>
+                  <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
+                  <span className="ag-progress-cell-span">{`eps`}</span>
+                </div>
+              }
             </div>
           )
         }
@@ -641,8 +636,6 @@ export function columnDefs() {
           return totalLength
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 180,
       maxWidth: 190,
       filter: "agTextColumnFilter",
@@ -653,45 +646,51 @@ export function columnDefs() {
     {
       field: 'chapters',
       headerName: 'Chapters',
-      editable: false,
       cellRenderer: params => {
         const chapterData = mediaProgressParser(params, columnParams, params.value, undefined)
 
         return (
           <div className="ag-progress-cell">
-            <Form
-              method="GET"
-              onSubmit={async (event) => {
-                event.preventDefault();
+            {columnParams.currentUserId == columnParams.listOwner.id ?
+              <Form
+                method="GET"
+                onSubmit={async (event) => {
+                  event.preventDefault();
 
-                const newParams = {...params, newValue : event.target.chapterInput.value, oldValue : params.value}
+                  const newParams = {...params, newValue : event.target.chapterInput.value, oldValue : params.value}
 
-                setterFunction(newParams)
-              }}
-              className="ag-progress-cell-text-container"
-            >
-              <Input
-                name="chapterInput"
-                className="ag-progress-cell-input"
-                id={`${params.rowIndex}-chapter-input`}
-                autoComplete='false'
-                defaultValue={chapterData.progress  ?? ''}
-                placeholder={chapterData.progress}
-              />
-              <span className='ag-progress-increment-button' onClick={(event) => {
-                const newParams = {...params, newValue : chapterData.progress + 1, oldValue : params.value}
-                setterFunction(newParams)
-              }}>
-                <Icon name="plus"></Icon>
-              </span>
-              <span className="ag-progress-cell-span">{`/`}</span>
-              <span className="ag-progress-cell-span">{`${chapterData.total}`}</span>
-            </Form>
+                  setterFunction(newParams)
+                }}
+                className="ag-progress-cell-text-container"
+              >
+                <Input
+                  name="chapterInput"
+                  className="ag-progress-cell-input"
+                  id={`${params.rowIndex}-chapter-input`}
+                  autoComplete='false'
+                  defaultValue={chapterData.progress  ?? ''}
+                  placeholder={chapterData.progress}
+                />
+                <span className='ag-progress-increment-button' onClick={(event) => {
+                  const newParams = {...params, newValue : chapterData.progress + 1, oldValue : params.value}
+                  setterFunction(newParams)
+                }}>
+                  <Icon name="plus"></Icon>
+                </span>
+                <span className="ag-progress-cell-span">{`/`}</span>
+                <span className="ag-progress-cell-span">{`${chapterData.total}`}</span>
+              </Form>
+            :
+              <div className="ag-progress-cell-text-container">
+                <span className="ag-progress-cell-span">{`${lengthData.progress}`}</span>
+                <span className="ag-progress-cell-span">{`/`}</span>
+                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
+                <span className="ag-progress-cell-span">{`eps`}</span>
+              </div>
+            }
           </div>
         )
       },
-      flex: 1,
-      resizable: false,
       minWidth: 150,
       maxWidth: 160,
       filter: "agTextColumnFilter",
@@ -702,45 +701,51 @@ export function columnDefs() {
     {
       field: 'volumes',
       headerName: 'Volumes',
-      editable: false,
       cellRenderer: params => {
         const volumeData = mediaProgressParser(params, columnParams, params.value, undefined)
 
         return (
           <div className="ag-progress-cell">
-            <Form
-              method="GET"
-              onSubmit={async (event) => {
-                event.preventDefault();
+            {columnParams.currentUserId == columnParams.listOwner.id ?
+              <Form
+                method="GET"
+                onSubmit={async (event) => {
+                  event.preventDefault();
 
-                const newParams = {...params, newValue : event.target.volumeInput.value, oldValue : params.value}
+                  const newParams = {...params, newValue : event.target.volumeInput.value, oldValue : params.value}
 
-                setterFunction(newParams)
-              }}
-              className="ag-progress-cell-text-container"
-            >
-              <Input
-                name="volumeInput"
-                className="ag-progress-cell-input"
-                id={`${params.rowIndex}-volume-input`}
-                autoComplete='false'
-                defaultValue={volumeData.progress  ?? ''}
-                placeholder={volumeData.progress}
-              />
-              <span className='ag-progress-increment-button' onClick={(event) => {
-                const newParams = {...params, newValue : volumeData.progress + 1, oldValue : params.value}
-                setterFunction(newParams)
-              }}>
-                <Icon name="plus"></Icon>
-              </span>
-              <span className="ag-progress-cell-span">{`/`}</span>
-              <span className="ag-progress-cell-span">{`${volumeData.total}`}</span>
-            </Form>
+                  setterFunction(newParams)
+                }}
+                className="ag-progress-cell-text-container"
+              >
+                <Input
+                  name="volumeInput"
+                  className="ag-progress-cell-input"
+                  id={`${params.rowIndex}-volume-input`}
+                  autoComplete='false'
+                  defaultValue={volumeData.progress  ?? ''}
+                  placeholder={volumeData.progress}
+                />
+                <span className='ag-progress-increment-button' onClick={(event) => {
+                  const newParams = {...params, newValue : volumeData.progress + 1, oldValue : params.value}
+                  setterFunction(newParams)
+                }}>
+                  <Icon name="plus"></Icon>
+                </span>
+                <span className="ag-progress-cell-span">{`/`}</span>
+                <span className="ag-progress-cell-span">{`${volumeData.total}`}</span>
+              </Form>
+            :
+              <div className="ag-progress-cell-text-container">
+                <span className="ag-progress-cell-span">{`${lengthData.progress}`}</span>
+                <span className="ag-progress-cell-span">{`/`}</span>
+                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
+                <span className="ag-progress-cell-span">{`eps`}</span>
+              </div>
+            }
           </div>
         )
       },
-      flex: 1,
-      resizable: false,
       minWidth: 140,
       maxWidth: 150,
       filter: "agTextColumnFilter",
@@ -752,9 +757,6 @@ export function columnDefs() {
       field: 'rating',
       headerName: 'Rating',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 80,
       maxWidth: 90,
       filter: "agSetColumnFilter",
@@ -786,13 +788,12 @@ export function columnDefs() {
       },
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
       filter: "agDateColumnFilter",
-      editable: true,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       hide: !columnParams.displayedColumns['startDate'],
     },
 
@@ -821,13 +822,12 @@ export function columnDefs() {
       },
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
       filter: "agDateColumnFilter",
-      editable: true,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       hide: !columnParams.displayedColumns['finishedDate'],
     },
 
@@ -856,9 +856,6 @@ export function columnDefs() {
       },
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => dateFormatter(params.value),
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
@@ -891,9 +888,6 @@ export function columnDefs() {
       },
       valueSetter: params => {setterFunction(params)},
       valueFormatter: params => timeSince(params.value),
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 85,
       maxWidth: 120,
       cellDataType: 'date',
@@ -906,8 +900,6 @@ export function columnDefs() {
       field: 'genres',
       headerName: 'Genre(s)',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
       resizable: false,
       minWidth: 100,
       maxWidth: 200,
@@ -960,9 +952,6 @@ export function columnDefs() {
       field: 'studios',
       headerName: 'Studios',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       cellRenderer: params => hyperlinkRenderer(params.value, undefined),
@@ -975,9 +964,6 @@ export function columnDefs() {
       field: 'serialization',
       headerName: 'Serialization',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       cellRenderer: params => hyperlinkRenderer(params.value, undefined),
@@ -990,9 +976,6 @@ export function columnDefs() {
       field: 'authors',
       headerName: 'Authors',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 65,
       maxWidth: 72,
       cellRenderer: params => hyperlinkRenderer(params.value, undefined),
@@ -1005,9 +988,6 @@ export function columnDefs() {
       field: 'language',
       headerName: 'Language',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      editable: false,
-      resizable: false,
       minWidth: 90,
       maxWidth: 135,
       filter: "agSetColumnFilter",
@@ -1028,8 +1008,7 @@ export function columnDefs() {
       field: 'priority',
       headerName: 'Priority',
       valueSetter: params => {setterFunction(params)},
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 65,
       maxWidth: 72,
       filter: "agTextColumnFilter",
@@ -1046,8 +1025,7 @@ export function columnDefs() {
             return ""
         }
       },
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 52,
       maxWidth: 80,
       filter: "agNumberColumnFilter",
@@ -1087,8 +1065,7 @@ export function columnDefs() {
           return ""
         }
       },
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 52,
       maxWidth: 80,
       filter: "agNumberColumnFilter",
@@ -1128,10 +1105,10 @@ export function columnDefs() {
           return "" 
         }
       },
-      flex: 1,
-      resizable:
-      false, minWidth: 52,
-      maxWidth: 80, filter:
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
+      minWidth: 52,
+      maxWidth: 80,
+      filter:
       'agNumberColumnFilter',
       cellEditor: 'agNumberCellEditor',
       cellEditorParams: {
@@ -1170,8 +1147,7 @@ export function columnDefs() {
           return ""
         }
       },
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 52,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1211,8 +1187,7 @@ export function columnDefs() {
           return ""
         }
       },
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 52,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1252,8 +1227,7 @@ export function columnDefs() {
           return ""
         }
       },
-      flex: 1,
-      resizable: false,
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 52,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1309,8 +1283,6 @@ export function columnDefs() {
 
         return (sum / foundScores)
       },
-      flex: 1,
-      resizable: false,
       minWidth: 62,
       maxWidth: 90,
       filter: 'agNumberColumnFilter',
@@ -1345,8 +1317,6 @@ export function columnDefs() {
           return Number(params.value).toFixed(1)
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 55,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1393,8 +1363,6 @@ export function columnDefs() {
           return differenceFormatter(params.value)
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 70,
       maxWidth: 90,
       filter: 'agNumberColumnFilter',
@@ -1429,8 +1397,6 @@ export function columnDefs() {
           return Number(params.value).toFixed(1)
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 55,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1465,8 +1431,6 @@ export function columnDefs() {
           return Number(params.value).toFixed(1)
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 55,
       maxWidth: 80,
       filter: 'agNumberColumnFilter',
@@ -1509,8 +1473,6 @@ export function columnDefs() {
           return differenceFormatter(params.value)
         }
       },
-      flex: 1,
-      resizable: false,
       minWidth: 70,
       maxWidth: 90,
       filter: 'agNumberColumnFilter',
@@ -1539,7 +1501,6 @@ export function columnDefs() {
       headerName: 'Description',
       valueSetter: params => {setterFunction(params)},
       flex: 2,
-      resizable: false,
       minWidth: 90,
       maxWidth: 500,
       filter: 'agTextColumnFilter',
@@ -1552,7 +1513,6 @@ export function columnDefs() {
       headerName: 'Notes',
       valueSetter: params => {setterFunction(params)},
       flex: 2,
-      resizable: false,
       minWidth: 90,
       maxWidth: 500,
       filter: 'agTextColumnFilter',
@@ -1562,7 +1522,7 @@ export function columnDefs() {
   ]
 }
 
-export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser) {
+export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, listOwner, currentUser, currentUserId) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
   const [selectedSearchType, setSelectedSearchType] = useState("Type")
   const [favoriteIds, setFavoriteIds] =  useState(
@@ -1594,7 +1554,7 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
   	setFavoriteIds(favoriteIds)
   }, [favoriteIds])
   
-  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, favoriteIds, setFavoriteIds, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, currentUser, displayedColumns, emptyRow}
+  columnParams = {listEntries, setListEntries, selectedSearchType, setSelectedSearchType, favoriteIds, setFavoriteIds, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, listOwner, currentUser, currentUserId, displayedColumns, emptyRow}
 
   return (
     <div className='ag-theme-custom-react'>

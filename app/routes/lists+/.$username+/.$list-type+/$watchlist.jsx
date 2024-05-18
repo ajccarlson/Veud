@@ -5,16 +5,17 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/watchlist.scss"
 
 export async function loader(params) {
-  const currentUser = await prisma.User.findUnique({
+  const listOwner = await prisma.User.findUnique({
     where: {
       username: params['params']['username'],
     },
   })
 
-  invariantResponse(currentUser, 'User not found', { status: 404 }) 
+  invariantResponse(listOwner, 'User not found', { status: 404 }) 
 
   const listType = params['params']['list-type']
   const listTypes = await prisma.ListType.findMany()
@@ -25,7 +26,7 @@ export async function loader(params) {
 
   const watchLists = await prisma.watchlist.findMany({
 		where: {
-			ownerId: currentUser.id,
+			ownerId: listOwner.id,
 		},
 	})
 
@@ -61,7 +62,7 @@ export async function loader(params) {
 
   const favorites = await prisma.userFavorite.findMany({
 		where: {
-			ownerId: currentUser.id,
+			ownerId: listOwner.id,
 		},
 	})
   
@@ -70,7 +71,7 @@ export async function loader(params) {
     return x;
   },{})
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id, typedFavorites, currentUser });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id, typedFavorites, listOwner });
 };
 
 export function ErrorBoundary() {
@@ -85,12 +86,14 @@ export function ErrorBoundary() {
 	)
 }
 
-export default function watchList() {
+export default function WatchList() {
+  const currentUser = useOptionalUser()
+  const currentUserId = currentUser ? currentUser.id : null
   const loaderData = useLoaderData()
 
   return (
     <main className='user-watchlist'>
-      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.currentUser )}
+      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.listOwner, currentUser, currentUserId )}
       {listNavButtons(loaderData.typedWatchlists, loaderData.username, loaderData.listTypes, loaderData.listTypeData, loaderData.watchListData)}
     </main>
   )

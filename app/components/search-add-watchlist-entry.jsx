@@ -61,7 +61,7 @@ export function MediaSearchBar(params) {
 		>
 			{ showDropdown ? 
 				<div>
-					<div className="flex flex-row gap-2">
+					<div className="flex flex-row flex-wrap gap-2">
 						<input
 							type="search"
 							name="search"

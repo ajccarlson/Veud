@@ -1,7 +1,14 @@
 .watchlist-search {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-items: center;
+
   .watchlist-search-bar {
     text-align: center;
     border-radius: 0.25rem;
+    min-width: 3rem;
+    max-width: 6rem;
   }
 
   .watchlist-search-item {

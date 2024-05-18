@@ -87,7 +87,7 @@
 
   .ag-title-cell {
     font-style: italic;
-    font-weight:bold;
+    font-weight: bold;
     color: #ffffb1;
   }
 
@@ -146,17 +146,20 @@
     transition: all .1s ease-out; 
   }
 
-  .ag-move-row-index {
-    width: 2rem;
+  .ag-row-index {
     font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .ag-move-row-input {
+    width: 2rem;
     margin: 0;
     padding: 0;
-    text-align: center;
     background-color: #00000000;
     border-color: #00000000;
   }
 
-  .ag-move-row-index::placeholder {
+  .ag-move-row-input::placeholder {
     font-size: 1.1rem;
     color: white;
   }
@@ -174,12 +177,12 @@
     visibility: visible;
   }
 
-  .ag-position-cell:hover .ag-move-row-index {
+  .ag-position-cell:hover .ag-move-row-input {
     background-color: hsl(var(--background));
     border-color: hsl(var(--input));
   }
 
-  .ag-position-cell:hover .ag-move-row-index::placeholder {
+  .ag-position-cell:hover .ag-move-row-input::placeholder {
     color: hsl(var(--muted-foreground));
   }
 

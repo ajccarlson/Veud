@@ -1,5 +1,5 @@
 .list-landing {
-  overflow: auto;
+  //overflow: auto;
   
   @media (max-width: 65rem) {
     .list-landing-sidebar-container {
@@ -236,10 +236,7 @@
     line-height: 1.5rem;
     color: white;
     font-family: "Playfair Display";
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-    padding-top: 0.75rem; 
-    padding-bottom: 0.75rem;
+    padding: 0.75rem;
   }
 
   .list-landing-nav-entry-preview-separator {
