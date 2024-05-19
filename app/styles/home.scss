@@ -10,6 +10,18 @@
     #403530 99% 100%
   );
 
+  @media (max-width: 65rem) {
+    .home-signup-container {
+      width: 100%;
+    }
+  }
+
+  @media (min-width: 65rem) {
+    .home-signup-container {
+      width: 47.3rem;
+    }
+  }
+
   .home-main {
     overflow: auto;
     height: 100%;
@@ -44,9 +56,32 @@
   .home-signup-container {
     display: flex;
     flex-direction: column;
-    height: fit-content;
-    width: fit-content;
-    background-color: black;
+    align-self: center;
+  }
+
+  .home-signup-header {
+    font-size: 1.3rem;
+    line-height: 1.9rem;
+    font-weight: 900;
+    color: #FF9900;
+    padding-right: 1rem;
+  }
+
+  .home-signup-items {
+    display: flex;
+    flex-direction: column;
+    font-size: 1.2rem;
+    height: 20rem;
+    font-family: "Playfair Display";
+    justify-content: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center; 
+    background-blend-mode: luminosity;
+    background-color: #383040;
+    gap: 1rem;
+    padding: 3rem;
+    border-radius: 0.5rem 0 0 0.5rem;
   }
 
   .home-signup-message {
@@ -54,8 +89,12 @@
   }
 
   .home-signup-button {
-    padding: 0.25rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
     font-weight: 600;
+    text-align: -webkit-center;
+    width: 20%;
+    margin-left: auto;
     background-color: #6F6F6F;
     color: #FFEFCC;
     border-top-width: 8px;
