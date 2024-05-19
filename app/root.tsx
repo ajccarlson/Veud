@@ -124,12 +124,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		// them in the database. Maybe they were deleted? Let's log them out.
 		await logout({ request, redirectTo: '/' })
 	}
+
+  const listTypes = await prisma.listType.findMany()
+
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = honeypot.getInputProps()
 
 	return json(
 		{
 			user,
+      listTypes,
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
@@ -237,6 +241,7 @@ function App() {
 						</div> */}
             {user ? (
               <div className="root-user-links">
+                <ListsDropdown/>
                 <UserDropdown/>
                 <Link
                   to={`/users/${user.username}`}
@@ -292,6 +297,40 @@ function AppWithProviders() {
 
 export default withSentry(AppWithProviders)
 
+function ListsDropdown() {
+  const user = useUser()
+  const data = useLoaderData<typeof loader>()
+
+	return (
+    <DropdownMenu>
+			<DropdownMenuTrigger asChild>
+        <Button asChild variant="secondary">
+          <Link
+            className="root-user-lists"
+            prefetch="intent"
+            to={`/lists/${user.username}`}
+          >
+            <Icon name="list-bullet"></Icon>
+          </Link>
+        </Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuPortal>
+				<DropdownMenuContent sideOffset={8} align="start">
+          {data.listTypes.map(listType => {
+            return (
+              <DropdownMenuItem asChild>
+                <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`}>
+                  {listType.header}
+                </Link>
+              </DropdownMenuItem>
+            )
+          })}
+				</DropdownMenuContent>
+			</DropdownMenuPortal>
+		</DropdownMenu>
+	)
+}
+
 function UserDropdown() {
 	const user = useUser()
 	const submit = useSubmit()
@@ -323,10 +362,10 @@ function UserDropdown() {
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
 					<Link prefetch="intent" to={`/lists/${user.username}`}>
-							<Icon className="text-body-md" name="pencil-1">
+							<Icon className="text-body-md" name="list-bullet">
 								Lists
 							</Icon>
-						</Link>
+					</Link>
 					</DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link to="/settings/profile" prefetch="intent">
