@@ -402,9 +402,13 @@ export default function Lists() {
         <div class="list-landing-nav-container">
           { navItems }
           <div class="list-landing-starting-message"> { firstListMessage } </div>
-          <span className='list-landing-nav-insert' onClick={(e) => {createNewList(listParams)}}>
-            <Icon name="plus"></Icon>
-          </span>
+          {listParams.currentUserId == listParams.listOwner.id ? 
+            <span className='list-landing-nav-insert' onClick={(e) => {createNewList(listParams)}}>
+              <Icon name="plus"></Icon>
+            </span>
+          :
+            null
+          }
         </div>
       </div>
       <div class="list-landing-sidebar-container">
