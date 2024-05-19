@@ -23,6 +23,7 @@ import {
 	useMatches,
 	useSubmit,
 } from '@remix-run/react'
+import "#app/styles/root.scss"
 import { withSentry } from '@sentry/remix'
 import { useRef } from 'react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
@@ -224,24 +225,36 @@ function App() {
 
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
-			<div className="flex h-screen flex-col justify-between">
+      {/* root-main */}
+			<div className="root flex h-screen flex-col justify-between">
 				<header className="container py-6">
-					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
-						<div className='hover:-rotate-6'>
-							<Logo />
+					<nav className="root-header">
+						<div className='root-logo'>
+							<Logo/>
 						</div>
 						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
 						</div> */}
-						<div className="flex items-center gap-10">
-							{user ? (
-								<UserDropdown />
-							) : (
-								<Button asChild variant="default" size="lg">
-									<Link to="/login">Log In</Link>
-								</Button>
-							)}
-						</div>
+            {user ? (
+              <div className="root-user-links">
+                <UserDropdown/>
+                <Link
+                  to={`/users/${user.username}`}
+                >
+                  <img
+                    className="root-user-image"
+                    alt={user.username}
+                    src={getUserImgSrc(user.image?.id)}
+                  />
+                </Link>
+              </div>
+            ) : (
+              <div className="root-user-links">
+                <Button asChild variant="default" size="lg">
+                  <Link to="/login">Log In</Link>
+                </Button>
+              </div>
+            )}
 						{/* <div className="block w-full sm:hidden">{searchBar}</div> */}
 					</nav>
 				</header>
@@ -293,13 +306,8 @@ function UserDropdown() {
 						onClick={e => e.preventDefault()}
 						className="flex items-center gap-2"
 					>
-						<img
-							className="h-8 w-8 rounded-full object-cover"
-							alt={user.name ?? user.username}
-							src={getUserImgSrc(user.image?.id)}
-						/>
 						<span className="text-body-sm font-bold">
-							{user.name ?? user.username}
+							{user.username}
 						</span>
 					</Link>
 				</Button>

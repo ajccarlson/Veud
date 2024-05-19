@@ -217,7 +217,7 @@ export default function ProfileRoute() {
 }
 
 export const meta = ({ data, params }) => {
-	const displayName = data?.user.name ?? params.params['username']
+	const displayName = params['username']
 	return [
 		{ title: `${displayName} | Epic Notes` },
 		{

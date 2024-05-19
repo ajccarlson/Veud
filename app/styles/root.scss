@@ -1,0 +1,56 @@
+.root {
+  @media (min-width: 640px) {
+    .root-header {
+      flex-wrap: nowrap;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .root-header {
+      gap: 2rem;
+    }
+  }
+
+  .root-main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    justify-content: space-between;
+  }
+
+  .root-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .root-logo {
+    
+  }
+
+  .root-logo:hover {
+    transform: rotate(-6deg);
+  }
+
+  .root-user-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .root-user-links {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .root-user-image {
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 9999px;
+    object-fit: cover;
+    background-color: white;
+  }
+}

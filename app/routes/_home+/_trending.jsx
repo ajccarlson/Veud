@@ -78,7 +78,7 @@ export function TrendingData(currentUser) {
   return (
     <div class="trending-main">
       <div class="trending-container">
-        {currentUser ? 
+        {!currentUser ? 
           <div class="home-signup-container">
             <h1 class="home-signup-header">Join Today</h1>
             <div class="home-signup-items" style={{backgroundImage: `linear-gradient(rgba(27, 23, 30, 0.7), rgba(27, 23, 30, 0.7)), url("${thumbnailArray[chosenThumbnail]}")`}}>
