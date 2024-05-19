@@ -343,17 +343,18 @@
     float: right;
     width: 40%;
     height: 2.7rem;
-    display: grid;
-    grid-template-columns: 50% 50%;
+    display: flex;
+    flex-direction: row;
     /*border-width: 8px;
     border-color: #383040;*/
     background-color: #6F6F6F;
     border-radius: 0 0 0.5rem 0;
   }
 
-  .list-landing-nav-link-open {
+  .list-landing-nav-link-item {
     display: flex;
     justify-content: center;
+    flex: 1;
     align-items: center;
     text-align: center;
     font-weight: 600;
@@ -364,14 +365,15 @@
     transition: all .1s ease-out; 
   }
 
-  .list-landing-nav-link-open:hover {
+  .list-landing-nav-link-item:hover {
     background-color: #8CA99D;
     border-color: #507b68;
   }
 
-  .list-landing-nav-link-settings {
+  .list-landing-nav-link-end {
     display: flex;
     justify-content: center;
+    flex: 1;
     align-items: center;
     text-align: center;
     font-weight: 600;
@@ -384,7 +386,7 @@
     transition: all .1s ease-out; 
   }
 
-  .list-landing-nav-link-settings:hover {
+  .list-landing-nav-link-end:hover {
     background-color: #8CA99D;
     border-color: #507b68;
   }

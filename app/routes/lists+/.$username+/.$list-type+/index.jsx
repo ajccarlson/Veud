@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node"
 import { Form, useLoaderData } from '@remix-run/react'
+import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
@@ -26,7 +27,7 @@ async function createNewList(listParams) {
     displayedColumns: {value: Object.keys(JSON.parse(listParams.listTypeData.columns)).filter(entry => entry !== "id" && entry !== "watchlistId"  && entry !== "watchlist").join(", "), type: "string"},
     createdAt: {value: Date.now(), type: "date"},
     updatedAt: {value: Date.now(), type: "date"},
-    ownerId: {value: listParams.currentUser.id, type: "string"},
+    ownerId: {value: listParams.listOwner.id, type: "string"},
     description: {value: " ", type: "string"}
   }
 
@@ -96,14 +97,22 @@ function getWatchlistNav(entryData, listParams) {
           </div>
         </div>
       </div>
-      <div class="list-landing-nav-link-container">
-        <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-open-button" class="list-landing-nav-link-open">
-          Open
-        </a>
-        <button id="list-landing-nav-link-settings-button" class="list-landing-nav-link-settings" onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}>
-          Settings
-        </button>
-      </div>
+      {listParams.currentUserId == listParams.listOwner.id ? 
+        <div class="list-landing-nav-link-container">
+          <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-item-button" class="list-landing-nav-link-item">
+            Open
+          </a>
+          <button id="list-landing-nav-link-end-button" class="list-landing-nav-link-end" onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}>
+            Settings
+          </button>
+        </div>
+      :
+        <div class="list-landing-nav-link-container">
+          <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-end-button" class="list-landing-nav-link-end">
+            Open
+          </a>
+        </div>
+      }
       <Spacer size="xs"/>
     </div>
   )
@@ -186,7 +195,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
     settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
     listId: watchlist.id,
     listTypeData: JSON.stringify(listParams.listTypeData),
-    ownerId: listParams.currentUser.id
+    ownerId: listParams.listOwner.id
   })))
   const updateSettingsData = await updateSettingsResponse.json()
   
@@ -250,7 +259,7 @@ function getWatchlistSettings(entryData, listParams) {
                     await fetch('/lists/fetch/delete-watchlist/' + encodeURIComponent(new URLSearchParams({
                       id: entryData.watchlist.id,
                       listTypeData: JSON.stringify(listParams.listTypeData),
-                      ownerId: listParams.currentUser.id
+                      ownerId: listParams.listOwner.id
                     })))
 
                     listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)
@@ -283,8 +292,8 @@ function getWatchlistSettings(entryData, listParams) {
               ⓧ
             </span>
           </button>
-        </div>
-      </div> 
+        </div> 
+      </div>
       <Spacer size="xs" />
     </Form>
   )
@@ -306,13 +315,13 @@ function listNavigationDisplayer(listParams) {
 }
 
 export async function loader(params) {
-  const currentUser = await prisma.User.findUnique({
+  const listOwner = await prisma.User.findUnique({
     where: {
       username: params['params']['username'],
     },
   })
 
-  invariantResponse(currentUser, 'User not found', { status: 404 }) 
+  invariantResponse(listOwner, 'User not found', { status: 404 }) 
 
   const listTypes = await prisma.listType.findMany()
   const listType = params['params']['list-type']
@@ -325,7 +334,7 @@ export async function loader(params) {
   const watchLists = await prisma.watchlist.findMany({
     where: {
       typeId: listTypeData.id,
-      ownerId: currentUser.id,
+      ownerId: listOwner.id,
     },
   })
 
@@ -353,7 +362,7 @@ export async function loader(params) {
   if (watchListNavs.length < 1) {
     watchListNavs = [`<h1">No lists found</h1>`]
   }
-  return json({ watchListData, watchListNavs, watchListSettings, currentUser, username: params['params']['username'], listTypes, listTypeData });
+  return json({ watchListData, watchListNavs, watchListSettings, listOwner, username: params['params']['username'], listTypes, listTypeData });
 };
 
 export function ErrorBoundary() {
@@ -368,13 +377,15 @@ export function ErrorBoundary() {
 	)
 }
 
-export default function lists() {
+export default function Lists() {
   const [shownSettings, setShownSettings] = useState([])
   const [navItems, setNavItems] = useState([])
   const loaderData = useLoaderData()
+  const currentUser = useOptionalUser()
+  const currentUserId = currentUser ? currentUser.id : null
 
   const sameType = loaderData.watchListData.filter(item => item.watchlist.typeId === loaderData.listTypeData.id)
-  const listParams = {watchListData: loaderData.watchListData, sameType, currentUser: loaderData.currentUser, username: loaderData.username, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
+  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))

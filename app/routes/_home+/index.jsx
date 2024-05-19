@@ -42,12 +42,13 @@ export async function loader() {
 }
 
 export default function Index() {
-  const user = useOptionalUser()
   const loaderData = useLoaderData()
+  const currentUser = useOptionalUser()
+  loaderData["user"] = currentUser
   loaderData["userTypedEntries"] = {}
   
-  if (user) {
-    const watchListIds = loaderData.userWatchLists[user.id].map(userWatchList => userWatchList.id)
+  if (currentUser) {
+    const watchListIds = loaderData.userWatchLists[currentUser.id].map(userWatchList => userWatchList.id)
 
     Object.entries(loaderData.typedEntries).forEach(([typedEntryKey, typedEntryValue]) => {
       if (!loaderData["userTypedEntries"][typedEntryKey]) {
@@ -66,7 +67,7 @@ export default function Index() {
     <div class="home">
       <main class="home-main">
         <div class="home-container">
-          {TrendingData()}
+          {TrendingData(currentUser)}
           {UpcomingData(loaderData)}
         </div>
       </main>

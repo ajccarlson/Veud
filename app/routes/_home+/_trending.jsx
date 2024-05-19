@@ -30,7 +30,7 @@ function setTrending(trendingParams) {
   }
 }
 
-export function TrendingData() {
+export function TrendingData(currentUser) {
   const [trendingMovies, setTrendingMovies] = useState()
   const [trendingTV, setTrendingTV] = useState()
   const [seasonalAnime, setSeasonalAnime] = useState()
@@ -38,7 +38,7 @@ export function TrendingData() {
 
   useEffect(() => {
     if (!trendingMovies || trendingMovies.length < 1) {
-      getTrending("tmdb", {mediaType: "movie", numResults: 10}).then(val => {
+      getTrending("tmdb", {mediaType: "movie", numResults: 50}).then(val => {
         setTrendingMovies(val)
       }).catch(e => {
         console.log(e)
@@ -48,7 +48,7 @@ export function TrendingData() {
 
   useEffect(() => {
     if (!trendingTV || trendingTV.length < 1) {
-      getTrending("tmdb", {mediaType: "tv", numResults: 10}).then(val => {
+      getTrending("tmdb", {mediaType: "tv", numResults: 50}).then(val => {
         setTrendingTV(val)
       }).catch(e => {
         console.log(e)
@@ -59,7 +59,7 @@ export function TrendingData() {
   useEffect(() => {
     if (!seasonalAnime || seasonalAnime.length < 1) {
       const date = new Date()
-      getTrending("mal", {year: date.getFullYear(), month: date.getMonth(), numResults: 10}).then(val => {
+      getTrending("mal", {year: date.getFullYear(), month: date.getMonth(), numResults: 50}).then(val => {
         setSeasonalAnime(val)
       }).catch(e => {
         console.log(e)
@@ -74,13 +74,25 @@ export function TrendingData() {
   return (
     <div class="trending-main">
       <div class="trending-container">
+        {currentUser ? 
+          <div class="home-signup-container">
+            <div class="home-signup-message">
+              Test
+            </div>
+            <Link to={'/signup'} class="home-signup-button">
+              Sign Up
+            </Link>
+          </div>
+        :
+          null
+        }
         {Object.entries(trendingItems).map(([trendingKey, trendingValue]) => {
           return (
             trendingValue.data?.length > 1 ?
               <div class="trending-item-container">
                 <h1 class="trending-item-header animate-slide-top [animation-fill-mode:backwards] ">{trendingValue.header}</h1>
                 <div class="trending-nav-thumbnail-container">
-                  {trendingValue.data.map((trendingItem, index) => {
+                  {trendingValue.data.slice(0, 10).map((trendingItem, index) => {
                     return (
                       <div class="trending-nav-thumbnail-item animate-roll-reveal [animation-fill-mode:backwards]" style={{ animationDelay: `${index * 0.07}s` }}>
                         <Link to={getThumbnailInfo(trendingItem.thumbnail).url} className="trending-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(trendingItem.thumbnail).content}")`}}>

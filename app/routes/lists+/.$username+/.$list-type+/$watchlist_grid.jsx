@@ -793,7 +793,6 @@ export function columnDefs() {
       maxWidth: 120,
       cellDataType: 'date',
       filter: "agDateColumnFilter",
-      editable: columnParams.currentUserId == columnParams.listOwner.id,
       hide: !columnParams.displayedColumns['startDate'],
     },
 
