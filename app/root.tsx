@@ -239,15 +239,30 @@ function App() {
 						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
 						</div> */}
+            {/* <div className="root-community-links">
+              <div className="root-logo-separator"/>
+              <Link
+                className="root-community-link-item"
+                prefetch="intent"
+                to={`/users`}
+              >
+                Users
+              </Link>
+            </div> */}
+            <div className="root-community-links">
+              <div className="root-logo-separator"/>
+              <CommunityDropdown/>
+            </div>
             {user ? (
               <div className="root-user-links">
                 <ListsDropdown/>
+                <div className="root-header-separator"/>
                 <UserDropdown/>
                 <Link
+                  className="root-user-image"
                   to={`/users/${user.username}`}
                 >
                   <img
-                    className="root-user-image"
                     alt={user.username}
                     src={getUserImgSrc(user.image?.id)}
                   />
@@ -297,6 +312,38 @@ function AppWithProviders() {
 
 export default withSentry(AppWithProviders)
 
+function CommunityDropdown() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button asChild variant="secondary">
+          <div className="root-header-community-links-dropdown">
+            <span className="text-body-sm font-bold">
+              Community
+            </span>
+            <Icon name="triangle-down"/>
+          </div>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent sideOffset={8} align="start">
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
+              to={`/users`}
+            >
+              <Icon className="text-body-md" name="person">
+                Users
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+  )
+}
+
 function ListsDropdown() {
   const user = useUser()
   const data = useLoaderData<typeof loader>()
@@ -319,7 +366,7 @@ function ListsDropdown() {
           {data.listTypes.map(listType => {
             return (
               <DropdownMenuItem asChild>
-                <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`}>
+                <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`} reloadDocument>
                   {listType.header}
                 </Link>
               </DropdownMenuItem>
@@ -335,6 +382,7 @@ function UserDropdown() {
 	const user = useUser()
 	const submit = useSubmit()
 	const formRef = useRef<HTMLFormElement>(null)
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -343,11 +391,12 @@ function UserDropdown() {
 						to={`/users/${user.username}`}
 						// this is for progressive enhancement
 						onClick={e => e.preventDefault()}
-						className="flex items-center gap-2"
+						className="root-user-links-dropdown"
 					>
 						<span className="text-body-sm font-bold">
 							{user.username}
 						</span>
+            <Icon name="triangle-down"/>
 					</Link>
 				</Button>
 			</DropdownMenuTrigger>

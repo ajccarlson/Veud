@@ -97,8 +97,10 @@ export function renderCalendarChart(loaderData, chartType) {
     })
   }
 
-  let startDate = new Date(calendarHistory.reduce((acc, curr) => curr.day < acc.day ? curr : acc, calendarHistory[0] || undefined).day)
+  let startDate
   let endDate = (new Date())
+
+  startDate = calendarHistory.length > 0 ? new Date(calendarHistory.reduce((acc, curr) => curr.day < acc.day ? curr : acc, calendarHistory[0] || undefined).day) : new Date()
 
   let yearIterator = startDate.getFullYear()
   let monthIterator = startDate.getMonth()

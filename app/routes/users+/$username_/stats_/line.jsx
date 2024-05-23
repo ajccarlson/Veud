@@ -16,26 +16,26 @@ function MyResponsiveLine(data) {
             reverse: false
         }}
         curve="monotoneX"
-        axisTop={null}
-        axisRight={null}
-        axisBottom={{
-            tickSize: 5,
-            tickPadding: 5,
-            tickRotation: 0,
-            legend: 'transportation',
-            legendOffset: 36,
-            legendPosition: 'middle',
-            truncateTickAt: 0
-        }}
-        axisLeft={{
-            tickSize: 5,
-            tickPadding: 5,
-            tickRotation: 0,
-            legend: 'count',
-            legendOffset: -40,
-            legendPosition: 'middle',
-            truncateTickAt: 0
-        }}
+        // axisTop={null}
+        // axisRight={null}
+        // axisBottom={{
+        //     tickSize: 5,
+        //     tickPadding: 5,
+        //     tickRotation: 0,
+        //     legend: 'transportation',
+        //     legendOffset: 36,
+        //     legendPosition: 'middle',
+        //     truncateTickAt: 0
+        // }}
+        // axisLeft={{
+        //     tickSize: 5,
+        //     tickPadding: 5,
+        //     tickRotation: 0,
+        //     legend: 'count',
+        //     legendOffset: -40,
+        //     legendPosition: 'middle',
+        //     truncateTickAt: 0
+        // }}
         enableGridX={false}
         enableGridY={false}
         pointSize={10}

@@ -83,7 +83,7 @@ export function TrendingData(currentUser) {
             <h1 class="home-signup-header">Join Today</h1>
             <div class="home-signup-items" style={{backgroundImage: `linear-gradient(rgba(27, 23, 30, 0.7), rgba(27, 23, 30, 0.7)), url("${thumbnailArray[chosenThumbnail]}")`}}>
               <div class="home-signup-message">
-                Gain access to manage your own personalized lists, keep track of your viewing history, and effortlessly discover your next watch.
+                Manage your own personalized lists, keep track of your viewing history, and discover a new obsession.
               </div>
             </div>
             <Link to={'/signup'} class="home-signup-button">

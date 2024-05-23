@@ -79,65 +79,75 @@ export function StatsData(loaderData) {
     <div className="user-landing-stats-container">
       <h1 className="user-landing-body-header">Stats</h1>
       {userStats[selectedChart].chart}
-      <div className="user-landing-selection-nav-container">
-        <button onClick={() => {setChartIndex(chartIndex == 0 ? userStatsKeys.length - 1 : chartIndex - 1)}}>
-          <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="user-landing-dropdown-trigger"> 
-              {userStats[selectedChart].header}
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuPortal className="user-landing-dropdown-portal">
-            <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-              {Object.entries(userStats).filter(function([eKey, eValue]) { return eValue.header !== userStats[selectedChart].header }).map(([statKey, statValue]) =>
-                <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
-                  {
-                    setChartIndex(userStatsKeys.indexOf(statKey))
-                  }}>
-                  {statValue.header}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenuPortal>
-        </DropdownMenu>
-        <button onClick={() => {setChartIndex((chartIndex + 1) % (userStatsKeys.length))}}>
-          <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
-        </button>
-      </div>
-      {userStats[selectedChart].typed ?
-        <div className="user-landing-selection-secondary-nav-container">
-          <Spacer size="4xs"/>
+      {loaderData.typedEntries && Object.entries(loaderData.typedEntries).length > 0 ?
+        <div className="user-landing-selection-nav-items">
           <div className="user-landing-selection-nav-container">
-            <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
-              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-secondary-left-arrow"></Icon>
+            <button onClick={() => {setChartIndex(chartIndex == 0 ? userStatsKeys.length - 1 : chartIndex - 1)}}>
+              <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="user-landing-secondary-dropdown-trigger"> 
-                  {selectedType.header}
+                <div className="user-landing-dropdown-trigger"> 
+                  {userStats[selectedChart].header}
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuPortal className="user-landing-dropdown-portal">
                 <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                  {loaderData.listTypes.filter(function(e) { return e.id !== selectedType.id }).map(listType =>
+                  {Object.entries(userStats).filter(function([eKey, eValue]) { return eValue.header !== userStats[selectedChart].header }).map(([statKey, statValue]) =>
                     <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
                       {
-                        setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
+                        setChartIndex(userStatsKeys.indexOf(statKey))
                       }}>
-                      {listType.header}
+                      {statValue.header}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenuPortal>
             </DropdownMenu>
-            <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
-              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-secondary-right-arrow"></Icon>
+            <button onClick={() => {setChartIndex((chartIndex + 1) % (userStatsKeys.length))}}>
+              <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
             </button>
           </div>
+          {userStats[selectedChart].typed ?
+            <div className="user-landing-selection-secondary-nav-container">
+              <Spacer size="4xs"/>
+              <div className="user-landing-selection-nav-container">
+                <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
+                  <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-secondary-left-arrow"></Icon>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="user-landing-secondary-dropdown-trigger"> 
+                      {selectedType.header}
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuPortal className="user-landing-dropdown-portal">
+                    <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
+                      {loaderData.listTypes.filter(function(e) { return e.id !== selectedType.id }).map(listType =>
+                        <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                          {
+                            setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
+                          }}>
+                          {listType.header}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
+                </DropdownMenu>
+                <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
+                  <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-secondary-right-arrow"></Icon>
+                </button>
+              </div>
+            </div>
+          :
+            null
+          }
         </div>
-      : null }
+      :
+        <div className="user-landing-dropdown-trigger"> 
+          {userStats[selectedChart].header}
+        </div>
+      }
     </div>
   )
 }

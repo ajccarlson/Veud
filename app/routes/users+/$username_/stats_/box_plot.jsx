@@ -140,7 +140,7 @@ export function renderBoxPlotChart(loaderData, chartType, listType) {
     }
 
     let objectiveType
-    if (typedEntry[0]) {
+    if (typedEntry && typedEntry.length >= 1 && typedEntry[0]) {
       if ("tmdbScore" in typedEntry[0]) {
         objectiveType = "tmdbScore"
       }

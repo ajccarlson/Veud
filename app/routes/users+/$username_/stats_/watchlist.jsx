@@ -75,87 +75,89 @@ export function watchlistOverview(loaderData, listType) {
   let typedLists = {}
   let mediaCount = {}
 
-  loaderData.typedEntries[listType.id].forEach(typedEntry => {
-    if (!typedLists[typedEntry.watchlistId] && typedLists[typedEntry.watchlistId] != 0) {
-      typedLists[typedEntry.watchlistId] = 1
-    }
-    else {
-      typedLists[typedEntry.watchlistId]++
-    }
-
-    if (typedEntry.personal && typedEntry.personal > 0) {
-      scoredEntries++
-    }
-
-    JSON.parse(listType.mediaType).forEach(mediaIter => {
-      let historyLength = 0, finishedLength = 0, seriesLength = 1
-      const iterPlural = (String(mediaIter) + 's')
-      let iterType = typedEntry[iterPlural] ? iterPlural : "length"
-
-      // typedEntry[iterType].match(/(\d+h+)*\s*(\d+m+)*/g)
-
-      if (typedEntry[iterType]) {
-        if (typedEntry.type != "Movie") {
-          try {
-            seriesLength = Math.max(Number([...typedEntry[iterType].matchAll(/\d+/g)].slice(-1)[0][0]), seriesLength)
-          }
-          catch(e) {}
-        }
+  if (loaderData.typedEntries[listType.id] && loaderData.typedEntries[listType.id].length > 0) {
+    loaderData.typedEntries[listType.id].forEach(typedEntry => {
+      if (!typedLists[typedEntry.watchlistId] && typedLists[typedEntry.watchlistId] != 0) {
+        typedLists[typedEntry.watchlistId] = 1
       }
-
-      if (!seriesLength || isNaN(seriesLength)) {
-        seriesLength = 1
+      else {
+        typedLists[typedEntry.watchlistId]++
       }
-
-      if(typedEntry.history.finished && typedEntry.history.finished != "null" && typedEntry.history.finished != "NULL" && typedEntry.history.finished != 0) {
-        finishedLength = seriesLength
-      }
-
-      if (typedEntry.history.progress) {
-        let maxHistory = 0
-        let maxRewatch = {
-          latest: 0,
-          times: 0
-        }
-
-        const progressType = iterType == "length" ? typedEntry.history.progress : typedEntry.history.progress[mediaIter]
-
-        if (progressType && Object.entries(progressType).length > 0) {
-          Object.entries(progressType).findLast(([progressKey, progressValue]) => {
-            const progressNum = Number(progressKey)
   
-            maxHistory = progressNum > maxHistory ? progressNum : maxHistory
+      if (typedEntry.personal && typedEntry.personal > 0) {
+        scoredEntries++
+      }
   
-            if (progressValue.finishDate && progressValue.finishDate.length > 1) {
-              if (!typedEntry.history.finished || typedEntry.history.finished == null || typedEntry.history.finished == 0) {
-                historyLength += (progressValue.finishDate.length - 1)
-              }
-              else if (progressValue.finishDate.length > maxRewatch.times && progressNum > maxRewatch.latest) {
-                maxRewatch.latest = progressNum
-                maxRewatch.times = progressValue.finishDate.length
-              }
+      JSON.parse(listType.mediaType).forEach(mediaIter => {
+        let historyLength = 0, finishedLength = 0, seriesLength = 1
+        const iterPlural = (String(mediaIter) + 's')
+        let iterType = typedEntry[iterPlural] ? iterPlural : "length"
+  
+        // typedEntry[iterType].match(/(\d+h+)*\s*(\d+m+)*/g)
+  
+        if (typedEntry[iterType]) {
+          if (typedEntry.type != "Movie") {
+            try {
+              seriesLength = Math.max(Number([...typedEntry[iterType].matchAll(/\d+/g)].slice(-1)[0][0]), seriesLength)
             }
-          })
+            catch(e) {}
+          }
         }
-
-        const additionalRewatches = maxRewatch.times > 0 ? ((maxRewatch.times - 1) * seriesLength) : 0
-
-        historyLength += (maxHistory + (maxRewatch.latest + additionalRewatches))
-      }
-
-      if (!mediaCount[mediaIter] && mediaCount[mediaIter] != 0) {
-        mediaCount[mediaIter] = 0
-      }
-
-      const entryMax = Math.max(historyLength, finishedLength)
-
-      if (!isNaN(entryMax) && entryMax > 0) {
-        mediaCount[mediaIter] += entryMax
-      }
+  
+        if (!seriesLength || isNaN(seriesLength)) {
+          seriesLength = 1
+        }
+  
+        if(typedEntry.history.finished && typedEntry.history.finished != "null" && typedEntry.history.finished != "NULL" && typedEntry.history.finished != 0) {
+          finishedLength = seriesLength
+        }
+  
+        if (typedEntry.history.progress) {
+          let maxHistory = 0
+          let maxRewatch = {
+            latest: 0,
+            times: 0
+          }
+  
+          const progressType = iterType == "length" ? typedEntry.history.progress : typedEntry.history.progress[mediaIter]
+  
+          if (progressType && Object.entries(progressType).length > 0) {
+            Object.entries(progressType).findLast(([progressKey, progressValue]) => {
+              const progressNum = Number(progressKey)
+    
+              maxHistory = progressNum > maxHistory ? progressNum : maxHistory
+    
+              if (progressValue.finishDate && progressValue.finishDate.length > 1) {
+                if (!typedEntry.history.finished || typedEntry.history.finished == null || typedEntry.history.finished == 0) {
+                  historyLength += (progressValue.finishDate.length - 1)
+                }
+                else if (progressValue.finishDate.length > maxRewatch.times && progressNum > maxRewatch.latest) {
+                  maxRewatch.latest = progressNum
+                  maxRewatch.times = progressValue.finishDate.length
+                }
+              }
+            })
+          }
+  
+          const additionalRewatches = maxRewatch.times > 0 ? ((maxRewatch.times - 1) * seriesLength) : 0
+  
+          historyLength += (maxHistory + (maxRewatch.latest + additionalRewatches))
+        }
+  
+        if (!mediaCount[mediaIter] && mediaCount[mediaIter] != 0) {
+          mediaCount[mediaIter] = 0
+        }
+  
+        const entryMax = Math.max(historyLength, finishedLength)
+  
+        if (!isNaN(entryMax) && entryMax > 0) {
+          mediaCount[mediaIter] += entryMax
+        }
+      })
+  
+      listSum += Number(typedEntry.personal)
     })
-
-    listSum += Number(typedEntry.personal)
-  })
+  }
 
   let listAverage = listSum / scoredEntries
   listAverage = isNaN(listAverage) ? "N/A": listAverage.toFixed(2)
@@ -189,7 +191,7 @@ export function watchlistOverview(loaderData, listType) {
     <div class="user-landing-stats-chart-container user-landing-stats-waffle-chart-container">
       <div class="user-landing-stats-waffle-chart-text-container">
         <div class="user-landing-stats-waffle-chart-text-left">
-          <span>{`Total Entries: ${loaderData.typedEntries[listType.id].length}`}</span>
+          <span>{`Total Entries: ${loaderData.typedEntries[listType.id] ? loaderData.typedEntries[listType.id].length : 0}`}</span>
         </div>
         <div class="user-landing-stats-waffle-chart-text-right">
           {`Mean Score: ${listAverage}`}

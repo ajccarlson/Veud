@@ -16,7 +16,7 @@ export function listNavButtons(typedWatchlists, username, listTypes, listTypeDat
         <div class="list-nav-buttons-main" id="list-nav">
         <div class="list-nav-buttons-container">
             {typedWatchlists[listTypeData.id].map( list =>
-              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
+              <Link to={"/lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button" id={list.id}> 
                 {list.header}
               </Link>
@@ -39,7 +39,7 @@ export function listNavButtons(typedWatchlists, username, listTypes, listTypeDat
                   <DropdownMenuContent sideOffset={8} align="start">
                     {Object.entries(typedWatchlists).filter(function([eKey, eValue]) { return eKey !== listTypeData.id }).map(([key, value]) => 
                       <DropdownMenuItem>
-                        <Link to={"../lists/" + username + "/" + listTypes.find(listType => listType.id == key).name + "/" + value.reduce((prev, curr) => prev.position < curr.position ? prev : curr).name}
+                        <Link to={"/lists/" + username + "/" + listTypes.find(listType => listType.id == key).name + "/" + value.reduce((prev, curr) => prev.position < curr.position ? prev : curr).name}
                           class="list-type-dropdown-button"> 
                             {listTypes.find(listType => listType.id == key).header}
                         </Link>

@@ -134,26 +134,28 @@ export function renderBarChart(loaderData, chartType, listType) {
       }
     }
 
-    typedEntry.forEach(typedEntry => {
-      Object.entries(typedEntry).forEach(([columnKey, columnValue]) => {
-        if (!isNaN(columnValue) && !["date", "position", "volumes", "chapters", "episodes", "tmdb", "mal", "difference"].includes(columnKey.toLowerCase())) {
-          if (!columnValue || columnValue == "null" || columnValue == 0)
-            return
-
-          if (columnValue >= 1 && columnValue <= 10) {
-            if (barKeys.indexOf(columnKey) === -1)
-              barKeys.push(columnKey)
-
-            if (columnKey in scoredBars[Math.floor(columnValue - 1)]) {
-              scoredBars[Math.floor(columnValue - 1)][columnKey]++
-            }
-            else {
-              scoredBars[Math.floor(columnValue - 1)][columnKey] = 1
+    if (typedEntry && typedEntry.length > 0) {
+      typedEntry.forEach(typedEntry => {
+        Object.entries(typedEntry).forEach(([columnKey, columnValue]) => {
+          if (!isNaN(columnValue) && !["date", "position", "volumes", "chapters", "episodes", "tmdb", "mal", "difference"].includes(columnKey.toLowerCase())) {
+            if (!columnValue || columnValue == "null" || columnValue == 0)
+              return
+  
+            if (columnValue >= 1 && columnValue <= 10) {
+              if (barKeys.indexOf(columnKey) === -1)
+                barKeys.push(columnKey)
+  
+              if (columnKey in scoredBars[Math.floor(columnValue - 1)]) {
+                scoredBars[Math.floor(columnValue - 1)][columnKey]++
+              }
+              else {
+                scoredBars[Math.floor(columnValue - 1)][columnKey] = 1
+              }
             }
           }
-        }
+        })
       })
-    })
+    }
 
     return MyResponsiveBar(scoredBars, barKeys)
   }

@@ -73,6 +73,10 @@
     gap: 1rem;
   }
 
+  .user-landing-empty-message {
+    text-align: center;
+  }
+
   .user-landing-username {
     font-size: 1.3rem;
     line-height: 1.9rem;
@@ -82,7 +86,7 @@
   }
 
   .user-landing-profile-image {
-
+    height: 15rem;
   }
 
   .user-landing-join-container {
@@ -138,7 +142,7 @@
     grid-area: activity;
     display: flex;
     flex-direction: column;
-    align-self: center;
+    align-self: baseline;
     width: 100%;
   }
 
@@ -146,7 +150,7 @@
     grid-area: favorites;
     display: flex;
     flex-direction: column;
-    align-self: center;
+    align-self: baseline;
     width: 100%;
   }
 
@@ -172,6 +176,10 @@
     flex-direction: column;
     align-self: center;
     align-items: center;
+  }
+
+  .user-landing-selection-nav-items {
+    align-self: center;
   }
 
   .user-landing-selection-nav-container {

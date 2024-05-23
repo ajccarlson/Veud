@@ -318,7 +318,7 @@
   .upcoming-date-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: fit-content;
     width: fit-content;
     padding: 0.75rem;
     transition: transform .1s ease-in-out;
@@ -326,6 +326,10 @@
 
   .upcoming-date-container:hover {
     filter: drop-shadow(9px 2px 30px #E6CBA1);
+  }
+
+  .upcoming-date-container:hover .upcoming-date-header-container {
+    transform: scale(1.03);
   }
 
   .upcoming-date-header-container {
