@@ -1,8 +1,8 @@
-import { Form, useActionData, useSearchParams } from '@remix-run/react'
+import { Form } from '@remix-run/react'
 import { timeSince } from "#app/utils/lists/column-functions.jsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
-import { useIsPending } from '#app/utils/misc.tsx'
+import { listNavigationDisplayer } from '#app/routes/lists+/.$username+/.$list-type+/index.jsx'
 
 function checkDisplayedColumns(columns, displayedColumns) {
   let checkedColumns = []
@@ -77,34 +77,47 @@ async function handleSubmit(e, columns, watchlist, listParams) {
   const foundColumns = columnArray.join(", ")
   settingsObject["displayedColumns"] = foundColumns
 
-  const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + encodeURIComponent(new URLSearchParams({
-    settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
-    listId: watchlist.id,
-    listTypeData: JSON.stringify(listParams.listTypeData),
-    ownerId: listParams.listOwner.id
-  })))
-  const updateSettingsData = await updateSettingsResponse.json()
+  let errorArray = []
+
+  if (!settingsObject["header"] || settingsObject["header"].length < 3) {
+    errorArray.push("header")
+  }
+
+  if (!foundColumns || foundColumns.length < 1) {
+    errorArray.push("displayedColumns")
+  }
+
+  if (errorArray.length > 0) {
+    listParams.setSettingsErrors({...listParams.settingsErrors,  [watchlist.id]: errorArray})
+  }
+  else {
+    listParams.setSettingsErrors({...listParams.settingsErrors,  [watchlist.id]: null})
+
+    const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + encodeURIComponent(new URLSearchParams({
+      settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
+      listId: watchlist.id,
+      listTypeData: JSON.stringify(listParams.listTypeData),
+      ownerId: listParams.listOwner.id
+    })))
+    const updateSettingsData = await updateSettingsResponse.json()
+    
+    const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+      watchlistId: watchlist.id
+    })))
   
-  const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-    watchlistId: watchlist.id
-  })))
-
-  listParams.watchListData.find((object, index) => {
-    if (object.watchlist.id === watchlist.id) {
-      listParams.watchListData[index].watchlist = updateSettingsData.slice(-1)[0]
-      return true;
-    }
-  })
-
-  listParams.setShownSettings(oldValues => { return oldValues.filter(setting => setting !== watchlist.id) })
-  listParams.setNavItems(listNavigationDisplayer(listParams))
+    listParams.watchListData.find((object, index) => {
+      if (object.watchlist.id === watchlist.id) {
+        listParams.watchListData[index].watchlist = updateSettingsData.slice(-1)[0]
+        return true;
+      }
+    })
+  
+    listParams.setShownSettings(oldValues => { return oldValues.filter(setting => setting !== watchlist.id) })
+    listParams.setNavItems(listNavigationDisplayer(listParams))
+  }
 }
 
 export function GetWatchlistSettings(entryData, listParams) {
-  // const actionData = useActionData()
-	// const isPending = useIsPending()
-	// const [searchParams] = useSearchParams()
-
   const columns = Object.keys(JSON.parse(listParams.listTypeData.columns))
   const displayedColumns = entryData.watchlist.displayedColumns.split(', ')
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
@@ -129,6 +142,9 @@ export function GetWatchlistSettings(entryData, listParams) {
                     Name *
                   </div>
                   <input class="list-landing-settings-input-item" id="name-input" name="name-input" defaultValue={entryData.watchlist.header}/>
+                  {listParams.settingsErrors[entryData.watchlist.id]?.includes("header") ? (
+                    <em>Name must be at least 3 characters long</em>
+                  ) : null}
                 </div>
                 <div class="list-landing-settings-input-row"> 
                   <div> 
@@ -143,6 +159,9 @@ export function GetWatchlistSettings(entryData, listParams) {
                   <div class="list-landing-settings-checkbox-container"> 
                     {checkedColumns} 
                   </div> 
+                  {listParams.settingsErrors[entryData.watchlist.id]?.includes("displayedColumns") ? (
+                    <em>Must display at least one column</em>
+                  ) : null}
                 </div>
                 <button type="button" class="list-landing-settings-delete-button"
                   onClick={async () => {

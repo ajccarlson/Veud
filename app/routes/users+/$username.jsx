@@ -221,10 +221,10 @@ export default function ProfileRoute() {
 export const meta = ({ data, params }) => {
 	const displayName = params['username']
 	return [
-		{ title: `${displayName} | Epic Notes` },
+		{ title: `${displayName} | Veud` },
 		{
 			name: 'description',
-			content: `Profile of ${displayName} on Epic Notes`,
+			content: `Profile of ${displayName} on Veud`,
 		},
 	]
 }

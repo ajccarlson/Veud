@@ -39,6 +39,7 @@ export function MediaTypeDropdown(params) {
 export function MediaSearchBar(params) {
 	const id = useId()
 	const [searchParams] = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState() 
 	const [mediaResults, setmediaResults] = useState([])
 	const [showDropdown, setShowDropdown] = useState(true)
 
@@ -47,15 +48,17 @@ export function MediaSearchBar(params) {
 			method="GET"
 			onSubmit={async (event) => {
         event.preventDefault();
-				if (params.columnParams.listTypeData.name == "liveaction") {
-					setmediaResults(await searchTMDB(event.target.search.value, params.columnParams.selectedSearchType, 5))
-				}
-				else if (params.columnParams.listTypeData.name == "anime") {
-					setmediaResults(await searchMAL(event.target.search.value, 'anime', 5))
-				}
-				else if (params.columnParams.listTypeData.name == "manga") {
-					setmediaResults(await searchMAL(event.target.search.value, 'manga', 5))
-				}
+        if (searchQuery && searchQuery.length >= 3) {
+          if (params.columnParams.listTypeData.name == "liveaction") {
+            setmediaResults(await searchTMDB(searchQuery, params.columnParams.selectedSearchType, 5))
+          }
+          else if (params.columnParams.listTypeData.name == "anime") {
+            setmediaResults(await searchMAL(searchQuery, 'anime', 5))
+          }
+          else if (params.columnParams.listTypeData.name == "manga") {
+            setmediaResults(await searchMAL(searchQuery, 'manga', 5))
+          }
+        }
       }}
 			className="watchlist-search flex flex-wrap items-center justify-center"
 		>
@@ -67,15 +70,22 @@ export function MediaSearchBar(params) {
 							name="search"
 							id={id}
 							defaultValue={searchParams.get('search') ?? ''}
+              value={searchQuery}
 							placeholder="Search"
 							autoComplete="off"
 							className="w-full watchlist-search-bar"
+              onChange={(e) => {setSearchQuery(e.target.value)}}
 						/>
 						<StatusButton
 							type="submit"
 						>
 							<Icon name="magnifying-glass" size="md" />
 						</StatusButton>
+            {searchQuery && searchQuery.length < 3 ? 
+              <em class="watchlist-search-error-message">Must be at least 3 characters long</em>
+            :
+              null
+            }
 					</div>
 					{mediaResults.map( result =>
 						<div className="watchlist-search-item" onClick={async () => {

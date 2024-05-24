@@ -1,4 +1,17 @@
 .root {
+  @media (max-width: 42.5rem) {
+    .root-logo-separator {
+      visibility: hidden;
+      position: absolute;
+    }
+  }
+
+  @media (min-width: 42.5rem) {
+    .root-logo-separator {
+      visibility: visible;
+    }
+  }
+
   @media (min-width: 640px) {
     .root-header {
       flex-wrap: nowrap;
@@ -30,6 +43,14 @@
     width: fit-content;
     border-color: #7196aa;
     border-right-width: 0.25rem;
+  }
+
+  .root-logo-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 1rem;
   }
 
   .root-logo {
@@ -65,6 +86,7 @@
 
   .root-header-community-links-dropdown:hover {
     background-color: #302937;
+    cursor: pointer;
   }
 
   .root-user-links {

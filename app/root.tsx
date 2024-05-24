@@ -233,24 +233,16 @@ function App() {
 			<div className="root flex h-screen flex-col justify-between">
 				<header className="container py-6">
 					<nav className="root-header">
-						<div className='root-logo'>
-							<Logo/>
-						</div>
+            <div className="root-logo-container">
+              <div className='root-logo'>
+                <Logo/>
+              </div>
+              <div className="root-logo-separator"/>
+            </div>
 						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
 						</div> */}
-            {/* <div className="root-community-links">
-              <div className="root-logo-separator"/>
-              <Link
-                className="root-community-link-item"
-                prefetch="intent"
-                to={`/users`}
-              >
-                Users
-              </Link>
-            </div> */}
             <div className="root-community-links">
-              <div className="root-logo-separator"/>
               <CommunityDropdown/>
             </div>
             {user ? (

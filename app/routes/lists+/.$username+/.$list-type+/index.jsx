@@ -119,7 +119,7 @@ function getWatchlistNav(entryData, listParams) {
   )
 }
 
-function listNavigationDisplayer(listParams) {
+export function listNavigationDisplayer(listParams) {
   let navigationItems = []
 
   for (const entryData of listParams.watchListData) {
@@ -199,13 +199,18 @@ export function ErrorBoundary() {
 
 export default function Lists() {
   const [shownSettings, setShownSettings] = useState([])
+  const [settingsErrors, setSettingsErrors] = useState([])
   const [navItems, setNavItems] = useState([])
   const loaderData = useLoaderData()
   const currentUser = useOptionalUser()
   const currentUserId = currentUser ? currentUser.id : null
 
   const sameType = loaderData.watchListData.filter(item => item.watchlist.typeId === loaderData.listTypeData.id)
-  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems}
+  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems, settingsErrors, setSettingsErrors}
+
+  useEffect(() => {
+  	setSettingsErrors(settingsErrors)
+  }, [settingsErrors])
 
   useEffect(() => {
   	setNavItems(listNavigationDisplayer(listParams))
@@ -213,7 +218,12 @@ export default function Lists() {
 
   let firstListMessage
   if (!sameType || sameType.length < 1) {
-    firstListMessage = "Create your first list"
+    if (listParams.currentUserId == listParams.listOwner.id) {
+      firstListMessage = "Create your first list"
+    }
+    else {
+      firstListMessage = "User has no lists"
+    }
   }
 
   return (
