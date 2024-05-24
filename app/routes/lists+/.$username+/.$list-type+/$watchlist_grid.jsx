@@ -410,7 +410,7 @@ export function columnDefs() {
                       }}>
                         Update all watchlist entries
                       </DropdownMenuItem>
-                      {columnParams.favoriteIds.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
+                      {columnParams.favoriteIds?.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
                         <DropdownMenuItem onSelect={async event => {
                           const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
                             return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
@@ -425,22 +425,22 @@ export function columnDefs() {
                           Remove from favorites
                         </DropdownMenuItem>
                       :
-                      <DropdownMenuItem onSelect={async event => {
-                        const addPosition = Object.entries(columnParams.typedFavorites[columnParams.listTypeData.id]).length + 1
-                        const typeColumns = JSON.parse(columnParams.listTypeData.columns)
-                        const startTypes = ["airYear", "startYear", "startSeason"]
-                        const startColumn = Object.keys(typeColumns).find((column) => startTypes.includes(column))
+                        <DropdownMenuItem onSelect={async event => {
+                          const addPosition = Object.entries(columnParams.typedFavorites[columnParams.listTypeData.id]).length + 1
+                          const typeColumns = JSON.parse(columnParams.listTypeData.columns)
+                          const startTypes = ["airYear", "startYear", "startSeason"]
+                          const startColumn = Object.keys(typeColumns).find((column) => startTypes.includes(column))
 
-                        const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.listOwner.id}
+                          const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.listOwner.id}
 
-                        const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
-                          favorite: JSON.stringify(addRow)
-                        })))
+                          const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
+                            favorite: JSON.stringify(addRow)
+                          })))
 
-                        columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
-                      }}>
-                        Add to favorites
-                      </DropdownMenuItem>
+                          columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
+                        }}>
+                          Add to favorites
+                        </DropdownMenuItem>
                       }
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
@@ -1514,6 +1514,7 @@ export function columnDefs() {
       minWidth: 90,
       maxWidth: 500,
       filter: 'agTextColumnFilter',
+      editable: true,
       cellClass: "ag-description-cell",
       hide: !columnParams.displayedColumns['notes'],
     }
@@ -1523,6 +1524,11 @@ export function columnDefs() {
 export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watchlistId, typedWatchlists, typedFavorites, listOwner, currentUser, currentUserId) {
   const [listEntries, setListEntries] = useState(listEntriesPass)
   const [selectedSearchType, setSelectedSearchType] = useState("Type")
+
+  if (!typedFavorites[listTypeData.id]) {
+    typedFavorites[listTypeData.id] = []
+  }
+
   const [favoriteIds, setFavoriteIds] =  useState(
     typedFavorites[listTypeData.id].map(typedFavorite => {
       return getSiteID(getThumbnailInfo(typedFavorite.thumbnail).url).id

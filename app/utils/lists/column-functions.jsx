@@ -38,7 +38,18 @@ export function mediaProgressParser(params, columnParams, oldValue, newValue) {
       mediaType = mediaTypeArray[0]
     }
 
-    const mediaTotal =  [...oldValue.matchAll(/\d+/g)]
+    let mediaTotal
+    try {
+      mediaTotal = [...oldValue.matchAll(/\d+/g)]
+    }
+    catch(e) {
+      mediaTotal = 0
+    }
+
+    if (!oldValue) {
+      oldValue = 0
+    }
+    
     let matchResult, mediaProgress
 
     if (newValue) {
@@ -86,7 +97,7 @@ export function mediaProgressParser(params, columnParams, oldValue, newValue) {
       matchResult = mediaTotal.slice(-1)[0][0]
     } catch(e) {
       return {
-        progress: null,
+        progress: 0,
         total: oldValue
       }
     }

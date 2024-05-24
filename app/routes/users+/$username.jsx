@@ -49,12 +49,14 @@ export async function loader(params) {
       const typeFormatted = type.header.replace(/\W/g, '') + "Entry"
       let perWatchlistEntries = []
   
-      for (const typedList of typedWatchlists[type.id]) {
-        perWatchlistEntries.push(await prisma[typeFormatted].findMany({
-          where: {
-            watchlistId: typedList.id,
-          },
-        }))
+      if (typedWatchlists[type.id] && typedWatchlists[type.id].length > 0) {
+        for (const typedList of typedWatchlists[type.id]) {
+          perWatchlistEntries.push(await prisma[typeFormatted].findMany({
+            where: {
+              watchlistId: typedList.id,
+            },
+          }))
+        }
       }
   
       typedEntries[type.id] = perWatchlistEntries.flat(2)

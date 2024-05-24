@@ -47,7 +47,7 @@ export default function Index() {
   loaderData["user"] = currentUser
   loaderData["userTypedEntries"] = {}
   
-  if (currentUser) {
+  if (currentUser && (loaderData.typedEntries && Object.entries(loaderData.typedEntries).length > 0) && (loaderData.userWatchLists[currentUser.id] && loaderData.userWatchLists[currentUser.id].length > 0)) {
     const watchListIds = loaderData.userWatchLists[currentUser.id].map(userWatchList => userWatchList.id)
 
     Object.entries(loaderData.typedEntries).forEach(([typedEntryKey, typedEntryValue]) => {
