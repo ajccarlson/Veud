@@ -93,7 +93,7 @@ export function TrendingData(currentUser) {
         :
           null
         }
-        {Object.entries(trendingItems).map(([trendingKey, trendingValue]) => {
+        {Object.entries(trendingItems).map(([trendingKey, trendingValue], trendingIndex) => {
           return (
             trendingValue.data?.length > 1 ?
               <div class="trending-item-container">
@@ -119,7 +119,9 @@ export function TrendingData(currentUser) {
               </div>
             :
             <div class="trending-loader-main">
-              <div class="trending-loader-container">
+              <div class="trending-loader-container"style={{
+                transform: `rotate(${90 * trendingIndex}deg)`
+              }}>
                 <div class="trending-loader-item trending-loader-item-1"></div>
                 <div class="trending-loader-item trending-loader-item-2"></div>
                 <div class="trending-loader-item trending-loader-item-3"></div>

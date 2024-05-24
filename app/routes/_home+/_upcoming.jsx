@@ -9,7 +9,7 @@ export function UpcomingData(params) {
 
     Object.entries(params.userTypedEntries).forEach(([typedEntryKey, typedEntryValue]) => {
       typedEntryValue.forEach(async (listEntry) => {
-        if (listEntry.nextRelease) {
+        if (listEntry?.nextRelease) {
           let parsedNext = JSON.parse(listEntry.nextRelease)
           const formattedEndDate = new Date(listEntry.releaseEnd).setHours(0,0,0,0)
           const formattedCurrentDate = new Date().setHours(0,0,0,0)
