@@ -1,0 +1,124 @@
+.root {
+  @media (max-width: 42.5rem) {
+    .root-logo-separator {
+      visibility: hidden;
+      position: absolute;
+    }
+  }
+
+  @media (min-width: 42.5rem) {
+    .root-logo-separator {
+      visibility: visible;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .root-header {
+      flex-wrap: nowrap;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .root-header {
+      gap: 2rem;
+    }
+  }
+
+  .root-main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    justify-content: space-between;
+  }
+
+  .root-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .root-header-separator {
+    height: 2.5rem;
+    width: fit-content;
+    border-color: #7196aa;
+    border-right-width: 0.25rem;
+  }
+
+  .root-logo-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .root-logo {
+    
+  }
+
+  .root-logo-separator {
+    height: 0.75rem;
+    width: 2.5rem;
+    background-image: linear-gradient(to right, #FF9900, white);
+    border-radius: 0.5rem;
+  }
+
+  .root-logo:hover {
+    transform: rotate(-6deg);
+  }
+
+  .root-community-links {
+    display: flex;
+    flex-direction: row;
+    align-self: center;
+    align-items: center;
+    margin-right: auto;
+    gap: 1rem;
+  }
+
+  .root-header-community-links-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #383040;
+  }
+
+  .root-header-community-links-dropdown:hover {
+    background-color: #302937;
+    cursor: pointer;
+  }
+
+  .root-user-links {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .root-user-links-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #54806C;
+  }
+
+  .root-user-links-dropdown:hover {
+    background-color: #476b5b;
+  }
+
+  .root-user-lists {
+    display: flex;
+    font-size: 2.5rem;
+    padding: 0;
+    background-color: transparent;
+  }
+
+  .root-user-image {
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 9999px;
+    object-fit: cover;
+    background-color: white;
+  }
+}

@@ -11,11 +11,25 @@ const schema = z.object({
 	// If you plan on using Sentry, uncomment this line
 	// SENTRY_DSN: z.string(),
 	// If you plan to use Resend, uncomment this line
-	// RESEND_API_KEY: z.string(),
+	RESEND_API_KEY: z.string(),
 	// If you plan to use GitHub auth, remove the default:
 	GITHUB_CLIENT_ID: z.string().default('MOCK_GITHUB_CLIENT_ID'),
 	GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
 	GITHUB_TOKEN: z.string(),
+
+	TMDB_API_KEY: z.string(),
+
+	TRAKT_API_KEY: z.string(),
+  TRAKT_CLIENT_SECRET: z.string(),
+	TRAKT_ACCESS_TOKEN_MAIN: z.string(),
+	TRAKT_ACCESS_TOKEN_BACKUP: z.string(),
+
+	MAL_CLIENT_ID: z.string(),
+  MAL_CLIENT_SECRET: z.string(),
+	MAL_USER: z.string(),
+  
+  ANILIST_CLIENT_ID: z.string(),
+  ANILIST_CLIENT_SECRET: z.string(),
 })
 
 declare global {

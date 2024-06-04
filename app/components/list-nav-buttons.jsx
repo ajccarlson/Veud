@@ -1,14 +1,73 @@
 import { Link } from "@remix-run/react"
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuPortal,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
+import "#app/styles/list-nav-buttons.scss"
+import { Icon } from '#app/components/ui/icon.tsx'
 
-export function listNavButtons(params) {
-  return (
-    <div class="flex flex-row gap-4 justify-center bg-[#464646] border-t-8 border-t-[#54806C] pt-3 pb-1 shadow-[inset_0_-6px_8px_rgba(0,0,0,0.6)]" id="list-nav">
-      {params.map( list =>
-        <Link to={"../lists/" + list.name}
-        class="bg-[#6F6F6F] hover:bg-[#8CA99D] text-[#FFEFCC] font-family: arial text-s font-bold py-5 px-16 border-b-4 border-[#A2FFD5] hover:border-[#80FFC6] rounded"> 
-          {list.header}
-        </Link>
-      )}
-    </div>
-  )
+export function listNavButtons(typedWatchlists, username, listTypes, listTypeData, watchListData) {
+  if (typedWatchlists && Object.keys(typedWatchlists).length > 1) {
+    return (
+      <main class="list-nav-buttons">
+        <div class="list-nav-buttons-main" id="list-nav">
+        <div class="list-nav-buttons-container">
+            {typedWatchlists[listTypeData.id].map( list =>
+              <Link to={"/lists/" + username + "/" + listTypeData.name + "/" + list.name}
+              class="list-nav-button" id={list.id}> 
+                {list.header}
+              </Link>
+            )}
+          </div>
+          <div class="list-type-nav-container" id="list-type-nav">
+            <div class="list-type-dropdown-container">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div class="list-type-dropdown-trigger"> 
+                  <span className='list-type-dropdown-icon'>
+                    <Icon name="hamburger-menu"></Icon>
+                  </span>
+                    <span>
+                      {listTypeData.header}
+                    </span>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuContent sideOffset={8} align="start">
+                    {Object.entries(typedWatchlists).filter(function([eKey, eValue]) { return eKey !== listTypeData.id }).map(([key, value]) => 
+                      <DropdownMenuItem>
+                        <Link to={"/lists/" + username + "/" + listTypes.find(listType => listType.id == key).name + "/" + value.reduce((prev, curr) => prev.position < curr.position ? prev : curr).name}
+                          class="list-type-dropdown-button"> 
+                            {listTypes.find(listType => listType.id == key).header}
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
+  else {
+    return (
+      <main class="list-nav-buttons">
+        <div class="list-nav-buttons-main" id="list-nav">
+          <div class="list-nav-buttons-container">
+            {typedWatchlists[listTypeData.id].map( list =>
+              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
+              class="list-nav-button"> 
+                {list.header}
+              </Link>
+            )}
+          </div>
+        </div>
+      </main>
+    )
+  }
 }
