@@ -59,6 +59,8 @@ export default function Index() {
         if (watchListIds.includes(entryValue.watchlistId)) {
           return entryValue
         }
+
+        return null
       })
     }) 
   }

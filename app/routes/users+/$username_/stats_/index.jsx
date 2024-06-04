@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Spacer } from '#app/components/spacer.tsx'
 import {
 	DropdownMenu,
@@ -25,48 +25,50 @@ export function StatsData(loaderData) {
   	setSelectedType(loaderData.listTypes[typeIndex])
   }, [typeIndex, loaderData.listTypes]);
 
-  const userStats = {
-    watchlist: {
-      header: "Watchlist Overview",
-      chart: watchlistOverview(loaderData, selectedType),
-      typed: true
-    },
-    listTypeDistribution: {
-      header: "List Type Distribution",
-      chart: renderPieChart(loaderData),
-      typed: false
-    },
-    score: {
-      header: "Score Distribution",
-      chart: renderBarChart(loaderData, "score", selectedType),
-      typed: true
-    },
-    objectiveScores: {
-      header: "Public Score Deviation",
-      chart: renderBoxPlotChart(loaderData, "objective scores", selectedType),
-      typed: true
-    },
-    release: {
-      header: "Release Date Distribution",
-      chart: renderLineChart(loaderData, "release"),
-      typed: false
-    },
-    watched: {
-      header: "Watch Date Distribution",
-      chart: renderLineChart(loaderData, "watched"),
-      typed: false
-    },
-    genreChords: {
-      header: "Genre Overlap",
-      chart: renderChordChart(loaderData, selectedType),
-      typed: true
-    },
-    type: {
-      header: "Media Type Distribution",
-      chart: renderRadialBar(loaderData, "type"),
-      typed: false
-    },
-  }
+  const userStats = useMemo(() => {
+    return {
+      watchlist: {
+        header: "Watchlist Overview",
+        chart: watchlistOverview(loaderData, selectedType),
+        typed: true
+      },
+      listTypeDistribution: {
+        header: "List Type Distribution",
+        chart: renderPieChart(loaderData),
+        typed: false
+      },
+      score: {
+        header: "Score Distribution",
+        chart: renderBarChart(loaderData, "score", selectedType),
+        typed: true
+      },
+      objectiveScores: {
+        header: "Public Score Deviation",
+        chart: renderBoxPlotChart(loaderData, "objective scores", selectedType),
+        typed: true
+      },
+      release: {
+        header: "Release Date Distribution",
+        chart: renderLineChart(loaderData, "release"),
+        typed: false
+      },
+      watched: {
+        header: "Watch Date Distribution",
+        chart: renderLineChart(loaderData, "watched"),
+        typed: false
+      },
+      genreChords: {
+        header: "Genre Overlap",
+        chart: renderChordChart(loaderData, selectedType),
+        typed: true
+      },
+      type: {
+        header: "Media Type Distribution",
+        chart: renderRadialBar(loaderData, "type"),
+        typed: false
+      },
+    }
+  }, [loaderData, selectedType])
   
   const userStatsKeys = Object.keys(userStats)
   const [selectedChart, setSelectedChart] = useState(userStatsKeys[chartIndex]);
@@ -94,7 +96,7 @@ export function StatsData(loaderData) {
               <DropdownMenuPortal className="user-landing-dropdown-portal">
                 <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                   {Object.entries(userStats).filter(function([eKey, eValue]) { return eValue.header !== userStats[selectedChart].header }).map(([statKey, statValue]) =>
-                    <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                    <DropdownMenuItem className="user-landing-dropdown-item" key={statKey} onClick={() =>
                       {
                         setChartIndex(userStatsKeys.indexOf(statKey))
                       }}>
@@ -124,7 +126,7 @@ export function StatsData(loaderData) {
                   <DropdownMenuPortal className="user-landing-dropdown-portal">
                     <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                       {loaderData.listTypes.filter(function(e) { return e.id !== selectedType.id }).map(listType =>
-                        <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                        <DropdownMenuItem className="user-landing-dropdown-item" key={listType.id} onClick={() =>
                           {
                             setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                           }}>

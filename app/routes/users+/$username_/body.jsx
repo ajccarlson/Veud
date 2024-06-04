@@ -34,12 +34,12 @@ function RecentActivityData(loaderData) {
             { displayAll == 1 ?
               <div className="user-landing-body-list-container">
                 {loaderData.listTypes.map(listType => {return(
-                  <div className="user-landing-body-list-full-display-container">
+                  <div className="user-landing-body-list-full-display-container" key={listType.id}>
                     <h1 className="user-landing-list-type-header">{listType.header}</h1>
                     <div className="user-landing-body-item-container">
                       {loaderData.typedHistory[listType.id] && loaderData.typedHistory[listType.id].length > 0 ?
                         loaderData.typedHistory[listType.id].slice(0, 12).map(entry =>
-                          <div className="user-landing-recent-activity-body-item">
+                          <div className="user-landing-recent-activity-body-item" key={listType.id}>
                           <Link to={getThumbnailInfo(typedEntry(entry, listType).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, listType).thumbnail).content}")`}}>
                             <span className="user-landing-thumbnail-header">
                               {getStartYear(typedEntry(entry, listType), listType, loaderData.listTypes)}
@@ -73,7 +73,7 @@ function RecentActivityData(loaderData) {
                 <div className="user-landing-body-item-container">
                   {loaderData.typedHistory[selectedLatestUpdate.id] && loaderData.typedHistory[selectedLatestUpdate.id].length > 0 ? 
                     loaderData.typedHistory[selectedLatestUpdate.id].slice(0, 12).map(entry =>
-                      <div className="user-landing-recent-activity-body-item">
+                      <div className="user-landing-recent-activity-body-item" key={entry.id}>
                         <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             {getStartYear(typedEntry(entry, selectedLatestUpdate), selectedLatestUpdate, loaderData.listTypes)}
@@ -122,7 +122,7 @@ function RecentActivityData(loaderData) {
                   <DropdownMenuPortal className="user-landing-dropdown-portal">
                     <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                       {loaderData.listTypes.filter(function(e) { return e.id !== selectedLatestUpdate.id }).map(listType =>
-                        <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                        <DropdownMenuItem className="user-landing-dropdown-item" key={listType.id} onClick={() =>
                           {
                             setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                           }}>
@@ -172,14 +172,14 @@ function FavoritesData(loaderData) {
           { displayAll == 1 ?
             <div className="user-landing-body-list-container">
               {loaderData.listTypes.map(mappedType => {return(
-                <div className="user-landing-body-list-full-display-container">
+                <div className="user-landing-body-list-full-display-container" key={mappedType.id}>
                   <div className="user-landing-list-type-header-container">
                     <h1 className="user-landing-list-type-header">{mappedType.header}</h1>
                     <h1 className="user-landing-favorites-count">{`(${typedFavorites[loaderData.listTypes.find((listType) => listType.id == mappedType.id).id].length})`}</h1>
                   </div>
                   <div className="user-landing-body-item-container">
                     {typedFavorites[loaderData.listTypes.find((listType) => listType.id == mappedType.id).id].map(entry =>
-                      <div className="user-landing-favorites-body-item">
+                      <div className="user-landing-favorites-body-item" key={entry.id}>
                         <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             <div className="user-landing-thumbnail-start-year">
@@ -210,7 +210,7 @@ function FavoritesData(loaderData) {
                 <div className="user-landing-body-list-container">
                   <div className="user-landing-body-item-container">  
                     {typedFavorites[selectedFavorite.id].map(entry =>
-                      <div className="user-landing-favorites-body-item">
+                      <div className="user-landing-favorites-body-item" key={entry.id}>
                         <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             <div className="user-landing-thumbnail-start-year">
@@ -257,7 +257,7 @@ function FavoritesData(loaderData) {
                 <DropdownMenuPortal className="user-landing-dropdown-portal">
                   <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                     {loaderData.listTypes.filter(function(e) { return e !== selectedFavorite.header }).map(listType =>
-                      <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                      <DropdownMenuItem className="user-landing-dropdown-item" key={listType.id} onClick={() =>
                         {
                           setTypeIndex(loaderData.listTypes.findIndex(type => type.id == listType.id))
                         }}>
