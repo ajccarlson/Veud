@@ -1,11 +1,12 @@
 import { type Config } from 'tailwindcss'
 import animatePlugin from 'tailwindcss-animate'
 import radixPlugin from 'tailwindcss-radix'
-import { marketingPreset } from './app/routes/_marketing+/tailwind-preset'
+import { homePreset } from './app/routes/_home+/tailwind-preset.ts'
 import { extendedTheme } from './app/utils/extended-theme.ts'
 
 export default {
-	content: ['./app/**/*.{ts,tsx,jsx,js}'],
+	content: ['./app/**/*.{js,jsx,ts,tsx}'],
+	mode: 'jit',
 	darkMode: 'class',
 	theme: {
 		container: {
@@ -17,6 +18,6 @@ export default {
 		},
 		extend: extendedTheme,
 	},
-	presets: [marketingPreset],
+	presets: [homePreset],
 	plugins: [animatePlugin, radixPlugin],
 } satisfies Config

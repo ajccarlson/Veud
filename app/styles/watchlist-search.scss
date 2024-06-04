@@ -1,0 +1,33 @@
+.watchlist-search {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-items: center;
+
+  .watchlist-search-bar {
+    text-align: center;
+    border-radius: 0.25rem;
+    min-width: 3rem;
+    max-width: 6rem;
+  }
+
+  .watchlist-search-item {
+    background-color: #6F6F6F;
+  }
+
+  .watchlist-search-item:hover {
+    cursor: pointer;
+    background-color: #464646;
+  }
+
+  .watchlist-search-error-message {
+    color: #FF5100;
+    position: absolute;
+    right: -16rem;
+    z-index: 10;
+    background-color: white;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-radius: 0.25rem;
+  }
+}

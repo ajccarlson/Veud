@@ -19,13 +19,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image       UserImage?
-  password    Password?
-  notes       Note[]
-  watchlists  Watchlist[]
-  roles       Role[]
-  sessions    Session[]
-  connections Connection[]
+  image         UserImage?
+  password      Password?
+  notes         Note[]
+  watchlists    Watchlist[]
+  userFavorites UserFavorite[]
+  roles         Role[]
+  sessions      Session[]
+  connections   Connection[]
 }
 
 model Note {
@@ -47,28 +48,47 @@ model Note {
   @@index([ownerId, updatedAt])
 }
 
+model ListType {
+  id                String @id @default(cuid())
+  
+  name              String @unique
+  header            String
+  columns           String
+
+  mediaType         String
+  completionType    String
+
+  watchlists        Watchlist[]
+  userFavorites     UserFavorite[]
+}
+
 model Watchlist {
-  id            String @id @default(cuid())
-  name          String
-  header        String
-  type          String
-  columns       String?
-  description   String?
+  id                String @id @default(cuid())
+  
+  position 	        Int @default(1)
+  name              String
+  header            String
+  type              ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId            String
+  displayedColumns  String?
+  description       String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  owner         User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId       String
+  owner             User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId           String
 
-  liveActionEntries  LiveActionEntry[]
-  animeEntries  AnimeEntry[]
-  mangaEntries  MangaEntry[]
+  liveActionEntries LiveActionEntry[]
+  animeEntries      AnimeEntry[]
+  mangaEntries      MangaEntry[]
 
   // non-unique foreign key
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
+  
+  @@index([typeId])
 }
 
 model LiveActionEntry {
@@ -82,9 +102,12 @@ model LiveActionEntry {
   title		            String
   type	  	          String?
   airYear	            String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
   length		          String?
   rating	            String?
-  finishedDate	      DateTime?
+  history	            String?
   genres	            String?
   language	          String?
   story		            Int?
@@ -99,6 +122,7 @@ model LiveActionEntry {
   tmdbScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
@@ -115,11 +139,15 @@ model AnimeEntry {
   title		            String
   type	  	          String?
   startSeason	        String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
   length		          String?
   rating	            String?
-  finishedDate	      DateTime?
+  history	            String?
   genres	            String?
-  studio	            String?
+  studios	            String?
+  priority            String?
   story		            Int?
   character	          Int?
   presentation	      Int?
@@ -132,6 +160,7 @@ model AnimeEntry {
   malScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
@@ -148,13 +177,16 @@ model MangaEntry {
   title		            String
   type	  	          String?
   startYear	          String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
   chapters		        String?
   volumes		          String?
-  rating	            String?
-  finishedDate	      DateTime?
+  history	            String?
   genres	            String?
-  magazine	          String?
-  author	            String?
+  serialization	      String?
+  authors	            String?
+  priority            String?
   story		            Int?
   character	          Int?
   presentation	      Int?
@@ -165,9 +197,29 @@ model MangaEntry {
   malScore	          Decimal?
   differenceObjective Decimal?
   description         String?
+  notes               String?
 
   // non-unique foreign key
   @@index([watchlistId])
+}
+
+model UserFavorite {
+  id          String  @id @default(cuid())
+
+  position 	  Int
+  thumbnail	  String?
+  title		    String
+  type        ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId      String
+  mediaType	  String?
+  startYear	  String?
+
+  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId     String
+
+  // non-unique foreign key
+  @@index([typeId])
+  @@index([ownerId])
 }
 
 model NoteImage {
