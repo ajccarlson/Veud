@@ -206,9 +206,9 @@ export async function loader(params) {
 
 export default function ProfileRoute() {
 	const loaderData = useLoaderData()
-	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+	// const user = loaderData.user
+	// const loggedInUser = useOptionalUser()
+	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
 	return (
 		<main className="user-landing" style={{ width: '100%', height: '100%' }}>

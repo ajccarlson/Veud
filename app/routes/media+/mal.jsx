@@ -188,7 +188,7 @@ async function formatAnimeInfo(data, full = true) {
     }
 
     const malInfo = {
-      'thumbnail': data['main_picture']['large'] + "|" + "https://myanimelist.net/anime/" + data['id'],
+      'thumbnail': `${data['main_picture']['large']}|https://myanimelist.net/anime/${data['id']}`,
       'title': data['title'],
       'type': typeFormatted,
       'startSeason': seasonFormatted,
@@ -277,15 +277,15 @@ export async function getMangaInfo(entryID) {
     }
 
 
-    let releaseStart, releaseEnd
+    let releaseStart/*, releaseEnd*/
     try {
       releaseStart = new Date (data['start_date'])
     }
     catch(e) {}
-    try {
-      releaseEnd = new Date (data['end_date'])
-    }
-    catch(e) {}
+    // try {
+    //   releaseEnd = new Date (data['end_date'])
+    // }
+    // catch(e) {}
 
     const startYear = releaseStart.getFullYear()
 
@@ -309,7 +309,7 @@ export async function getMangaInfo(entryID) {
     }
 
     const malInfo = {
-      'thumbnail': data['main_picture']['large'] + "|" + "https://myanimelist.net/manga/" + data['id'],
+      'thumbnail': `${data['main_picture']['large']}|https://myanimelist.net/manga/${data['id']}`,
       'title': data['title'],
       'type': typeFormatted,
       'startYear': startYear,
@@ -401,7 +401,7 @@ export async function getSeasonalAnime(year = undefined, month = undefined, numR
 
     const dataResults = data.data.map(entry => entry.node).slice(0, numResults)
 
-    for (const [index, result] of dataResults.entries()) {
+    for (const result of dataResults.values()) {
       resultArray.push(await formatAnimeInfo(result, false))
     }
 

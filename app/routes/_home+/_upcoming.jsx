@@ -97,7 +97,7 @@ export function UpcomingData(params) {
               })
   
               return (
-                <div class="upcoming-date-container animate-slide-top [animation-fill-mode:backwards]" style={{ animationDelay: `${index * 0.07}s` }}> 
+                <div class="upcoming-date-container animate-slide-top [animation-fill-mode:backwards]" key={index} style={{ animationDelay: `${index * 0.07}s` }}> 
                   <div class="upcoming-date-header-container">
                     <h1 class="upcoming-date-weekday">{dateObject.toLocaleString('en-US', {month: "long", day: "numeric"})}</h1>
                     <h1 class="upcoming-date-number">{dateObject.toLocaleString('en-US', {weekday: "long"})}</h1>
@@ -105,7 +105,7 @@ export function UpcomingData(params) {
                   <div class="upcoming-array-container">
                     {sortedReleases.map((upcomingItem) => {
                       return (
-                        <div class="upcoming-item-container">
+                        <div class="upcoming-item-container"  key={index}>
                           <h1 class="upcoming-time">{String(upcomingItem.releaseTime)}</h1>
                           <div class="upcoming-item-thumbnail">
                             <Link to={getThumbnailInfo(upcomingItem.listEntry.thumbnail).url} className="upcoming-item-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(upcomingItem.listEntry.thumbnail).content}")`}}>
