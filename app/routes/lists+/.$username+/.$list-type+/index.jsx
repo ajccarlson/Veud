@@ -33,6 +33,7 @@ async function createNewList(listParams) {
   }
 
   const addResponse = await fetch('/lists/fetch/create-watchlist/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     list: JSON.stringify(emptyList)
   })))
   const addData = await addResponse.json();

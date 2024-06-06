@@ -88,7 +88,7 @@ export function MediaSearchBar(params) {
             }
 					</div>
 					{mediaResults.map( result =>
-						<div className="watchlist-search-item" onClick={async () => {
+						<div className="watchlist-search-item" key={result.id} onClick={async () => {
 							setShowDropdown(false)
 
 							let resultInfo, addRow
@@ -106,6 +106,7 @@ export function MediaSearchBar(params) {
 							} 
 
 							const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+                authorization: process.env.VEUD_API_KEY,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 								row: JSON.stringify(addRow)
 							})))
@@ -114,6 +115,7 @@ export function MediaSearchBar(params) {
 
 
 							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
+                authorization: process.env.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 							})))
@@ -121,6 +123,7 @@ export function MediaSearchBar(params) {
 							//console.log(deleteEmptyData)
 
 							const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+                authorization: process.env.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId
 							})))
 

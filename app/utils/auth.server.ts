@@ -238,3 +238,31 @@ export async function verifyUserPassword(
 
 	return { id: userWithPassword.id }
 }
+
+// export async function getAPIKeyHash(key: string) {
+// 	const hash = await bcrypt.hash(key, 10)
+// 	return hash
+// }
+
+// export async function verifyAPIKey(
+// 	where: Pick<User, 'username'> | Pick<User, 'id'>,
+// 	password: Password['hash'],
+// ) {
+// 	const userWithPassword = await prisma.user.findUnique({
+// 		where,
+// 		select: { id: true, password: { select: { hash: true } } },
+// 	})
+
+// 	if (!userWithPassword || !userWithPassword.password) {
+// 		return null
+// 	}
+
+// 	const isValid = await bcrypt.compare(password, userWithPassword.password.hash)
+
+// 	if (!isValid) {
+// 		return null
+// 	}
+
+// 	return { id: userWithPassword.id }
+// }
+
