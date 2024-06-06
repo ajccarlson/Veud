@@ -5,7 +5,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { BodyData } from '#app/routes/users+/$username_/body.jsx'
 import { SideData } from '#app/routes/users+/$username_/side.jsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { useOptionalUser } from '#app/utils/user.ts'
+// import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
 function toTitleCase(inputString) {
