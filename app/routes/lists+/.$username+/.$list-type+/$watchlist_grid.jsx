@@ -1547,7 +1547,8 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
 
   const emptyRow = createEmptyRow(watchlistId, listEntries.length + 1, listTypeData)
   
-  if (listEntries.slice(-1)[0] &&
+  if (currentUserId == listOwner.id &&
+  listEntries.slice(-1)[0] &&
   ((listEntries.slice(-1)[0].title && listEntries.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntries.slice(-1)[0].type && listEntries.slice(-1)[0].type.replace(/\W/g, '') !== "")) ||
   listEntries.length < 1) {
     listEntries.push(emptyRow)
