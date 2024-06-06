@@ -155,11 +155,11 @@ export default function EditUserProfile() {
 						</Icon>
 					</Link>
 				</div>
-				<div>
+				{/* <div>
 					<Link to="connections">
 						<Icon name="link-2">Manage connections</Icon>
 					</Link>
-				</div>
+				</div> */}
 				<div>
 					<Link
 						reloadDocument
