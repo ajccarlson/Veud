@@ -1523,6 +1523,7 @@ export function columnDefs() {
       filter: 'agTextColumnFilter',
       editable: true,
       cellClass: "ag-description-cell",
+      cellEditorParams: { maxLength: 1000 },
       hide: !columnParams.displayedColumns['notes'],
     }
   ]
