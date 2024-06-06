@@ -33,7 +33,7 @@ async function createNewList(listParams) {
   }
 
   const addResponse = await fetch('/lists/fetch/create-watchlist/' + encodeURIComponent(new URLSearchParams({
-    authorization: process.env.VEUD_API_KEY,
+    authorization: listParams.VEUD_API_KEY,
     list: JSON.stringify(emptyList)
   })))
   const addData = await addResponse.json();
@@ -183,7 +183,7 @@ export async function loader(params) {
   if (watchListNavs.length < 1) {
     watchListNavs = [`<h1">No lists found</h1>`]
   }
-  return json({ watchListData, watchListNavs, watchListSettings, listOwner, username: params['params']['username'], listTypes, listTypeData });
+  return json({ watchListData, watchListNavs, watchListSettings, listOwner, username: params['params']['username'], listTypes, listTypeData, VEUD_API_KEY: process.env.VEUD_API_KEY });
 };
 
 export function ErrorBoundary() {
@@ -207,7 +207,7 @@ export default function Lists() {
   const currentUserId = currentUser ? currentUser.id : null
 
   const sameType = loaderData.watchListData.filter(item => item.watchlist.typeId === loaderData.listTypeData.id)
-  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, setShownSettings, navItems, setNavItems, settingsErrors, setSettingsErrors}
+  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, VEUD_API_KEY: loaderData.VEUD_API_KEY, setShownSettings, navItems, setNavItems, settingsErrors, setSettingsErrors}
 
   useEffect(() => {
   	setSettingsErrors(settingsErrors)

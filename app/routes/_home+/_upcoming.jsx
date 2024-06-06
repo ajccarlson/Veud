@@ -30,7 +30,7 @@ export function UpcomingData(params) {
 
               if (nextRelease) {
                 const updateCellResponse = await fetch('/lists/fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
-                  authorization: process.env.VEUD_API_KEY,
+                  authorization: params.VEUD_API_KEY,
                   listTypeData: JSON.stringify(params.listTypes.find(listType => listType.id == typedEntryKey)),
                   colId: "nextRelease",
                   type: "string",
