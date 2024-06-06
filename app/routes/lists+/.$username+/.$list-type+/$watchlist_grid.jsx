@@ -67,6 +67,7 @@ function gridReady(e) {
         navButtonContainer.style = ""
 
         const listEntriesResponse = await fetch('/lists/fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
+          authorization: process.env.VEUD_API_KEY,
           watchlistId: navButtonContainer.getAttribute('id'),
           listTypeData: JSON.stringify(columnParams.listTypeData),
         })))
@@ -78,20 +79,24 @@ function gridReady(e) {
         delete addRow.id
 
         const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+          authorization: process.env.VEUD_API_KEY,
           listTypeData: JSON.stringify(columnParams.listTypeData),
           row: JSON.stringify(addRow)
         })))
 
         const updateResponseAdd = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+          authorization: process.env.VEUD_API_KEY,
           watchlistId: addRow.watchlistId
         })))
         
         const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
+          authorization: process.env.VEUD_API_KEY,
           listTypeData: JSON.stringify(columnParams.listTypeData),
           id: e.node.data.id,
         })))
         
         const updateResponseRemove = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+          authorization: process.env.VEUD_API_KEY,
           watchlistId: e.node.data.watchlistId
         })))
 
@@ -143,6 +148,7 @@ function createEmptyRow(watchlistId, position, listTypeData) {
 
 export async function refreshGrid(columnParams) {
   const listEntriesResponse = await fetch('/lists/fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     watchlistId: columnParams.watchlistId,
     listTypeData: JSON.stringify(columnParams.listTypeData),
   })))
@@ -168,6 +174,7 @@ export async function refreshGrid(columnParams) {
 
 export async function reformatHistory(params, newValue) {
   const updateCellResponse = await fetch('/lists/fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     listTypeData: JSON.stringify(columnParams.listTypeData),
     colId: params.column.colId,
     type: "history",
@@ -204,6 +211,7 @@ async function createNewRow(location, params, position) {
   const emptyRow = createEmptyRow(params.data.watchlistId, insertPosition, columnParams.listTypeData)
   
   const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     listTypeData: JSON.stringify(columnParams.listTypeData),
     row: JSON.stringify(emptyRow)
   })))
@@ -212,6 +220,7 @@ async function createNewRow(location, params, position) {
   gridAPI.applyTransaction({add: [addData], addIndex: insertPosition})
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
   })))
 
@@ -223,6 +232,7 @@ async function updatePositions() {
     rowNode.data.position = index + 1
 
     const updateCellResponse = await fetch('/lists/fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
+      authorization: process.env.VEUD_API_KEY,
       listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: "position",
       type: "num",
@@ -233,6 +243,7 @@ async function updatePositions() {
   })
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     watchlistId: columnParams.watchlistId
   })))
 
@@ -280,6 +291,7 @@ async function setterFunction(params) {
     params.data[params.column.colId] = params.newValue
 
     const updateCellResponse = await fetch('/lists/fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
+      authorization: process.env.VEUD_API_KEY,
       listTypeData: JSON.stringify(columnParams.listTypeData),
       colId: params.column.colId,
       type: cellType,
@@ -290,6 +302,7 @@ async function setterFunction(params) {
     const updateCellData = await updateCellResponse.json()
 
     const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+      authorization: process.env.VEUD_API_KEY,
       watchlistId: params.data.watchlistId
     })))
 
@@ -382,11 +395,13 @@ export function columnDefs() {
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={async event => {
                         const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
+                          authorization: process.env.VEUD_API_KEY,
                           listTypeData: JSON.stringify(columnParams.listTypeData),
                           id: params.data.id,
                         })))
 
                         const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+                          authorization: process.env.VEUD_API_KEY,
                           watchlistId: params.data.watchlistId
                         })))
 
@@ -417,6 +432,7 @@ export function columnDefs() {
                           })
 
                           const deleteResponse = await fetch('/lists/fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
+                            authorization: process.env.VEUD_API_KEY,
                             id: deleteRow[0].id,
                           })))
 
@@ -434,6 +450,7 @@ export function columnDefs() {
                           const addRow = {position: addPosition, thumbnail: params.data.thumbnail, title: params.data.title, typeId: columnParams.listTypeData.id, mediaType: params.data.type, startYear: params.data[startColumn], ownerId: columnParams.listOwner.id}
 
                           const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
+                            authorization: process.env.VEUD_API_KEY,
                             favorite: JSON.stringify(addRow)
                           })))
 

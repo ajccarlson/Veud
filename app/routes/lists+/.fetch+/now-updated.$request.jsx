@@ -4,6 +4,10 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
+    if (!params.params.authorization || params.params.authorization != process.env.VEUD_API_KEY) {
+      throw new Error("Error: invalid authorization!")
+    }
+
     const now = new Date();
 
     return await prisma.watchlist.update({

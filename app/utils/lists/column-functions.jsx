@@ -387,6 +387,7 @@ export async function updateRowInfo(params, columnParams, bulk) {
   }
 
   const rowUpdateResponse = await fetch('/lists/fetch/update-row/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     listTypeData: JSON.stringify(columnParams.listTypeData),
     rowIndex: params.data.id,
     row: JSON.stringify(updateRow)
@@ -395,6 +396,7 @@ export async function updateRowInfo(params, columnParams, bulk) {
   //console.log(rowUpdateData)
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+    authorization: process.env.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
   })))
 
