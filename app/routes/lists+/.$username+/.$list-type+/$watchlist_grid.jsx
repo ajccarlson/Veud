@@ -648,10 +648,14 @@ export function columnDefs() {
       headerName: 'Chapters',
       cellRenderer: params => {
         const chapterData = mediaProgressParser(params, columnParams, params.value, undefined)
-
+        const emptyCell = !(params.data.title.replace(/\W/g, '') && params.data.type.replace(/\W/g, ''))
+        
         return (
           <div className="ag-progress-cell">
-            {columnParams.currentUserId == columnParams.listOwner.id ?
+            {emptyCell ?
+              <div className="ag-progress-cell-text-container">
+              </div>
+            :columnParams.currentUserId == columnParams.listOwner.id && params.data.title.replace(/\W/g, '') && params.data.type.replace(/\W/g, '') ?
               <Form
                 method="GET"
                 onSubmit={async (event) => {
@@ -682,10 +686,9 @@ export function columnDefs() {
               </Form>
             :
               <div className="ag-progress-cell-text-container">
-                <span className="ag-progress-cell-span">{`${lengthData.progress}`}</span>
+                <span className="ag-progress-cell-span">{`${chapterData.progress}`}</span>
                 <span className="ag-progress-cell-span">{`/`}</span>
-                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
-                <span className="ag-progress-cell-span">{`eps`}</span>
+                <span className="ag-progress-cell-span">{`${chapterData.total}`}</span>
               </div>
             }
           </div>
@@ -703,10 +706,15 @@ export function columnDefs() {
       headerName: 'Volumes',
       cellRenderer: params => {
         const volumeData = mediaProgressParser(params, columnParams, params.value, undefined)
-
+        const emptyCell = !(params.data.title.replace(/\W/g, '') && params.data.type.replace(/\W/g, ''))
+        
         return (
           <div className="ag-progress-cell">
-            {columnParams.currentUserId == columnParams.listOwner.id ?
+            {emptyCell ?
+              <div className="ag-progress-cell-text-container">
+              </div>
+            :
+            columnParams.currentUserId == columnParams.listOwner.i && !emptyCell ?
               <Form
                 method="GET"
                 onSubmit={async (event) => {
@@ -737,10 +745,9 @@ export function columnDefs() {
               </Form>
             :
               <div className="ag-progress-cell-text-container">
-                <span className="ag-progress-cell-span">{`${lengthData.progress}`}</span>
+                <span className="ag-progress-cell-span">{`${volumeData.progress}`}</span>
                 <span className="ag-progress-cell-span">{`/`}</span>
-                <span className="ag-progress-cell-span">{`${lengthData.total}`}</span>
-                <span className="ag-progress-cell-span">{`eps`}</span>
+                <span className="ag-progress-cell-span">{`${volumeData.total}`}</span>
               </div>
             }
           </div>
