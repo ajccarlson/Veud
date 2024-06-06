@@ -38,7 +38,7 @@ export async function loader() {
 		typedEntries[type.id] = perWatchlistEntries.flat(2)
   }
 
-	return json({ listTypes, watchLists, userWatchLists, typedWatchlists, typedEntries })
+	return json({ listTypes, watchLists, userWatchLists, typedWatchlists, typedEntries, VEUD_API_KEY: process.env.VEUD_API_KEY })
 }
 
 export default function Index() {

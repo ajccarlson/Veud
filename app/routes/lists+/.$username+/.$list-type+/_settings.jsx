@@ -94,7 +94,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
     listParams.setSettingsErrors({...listParams.settingsErrors,  [watchlist.id]: null})
 
     const updateSettingsResponse = await fetch('/lists/fetch/update-settings/' + encodeURIComponent(new URLSearchParams({
-      authorization: process.env.VEUD_API_KEY,
+      authorization: listParams.VEUD_API_KEY,
       settings: JSON.stringify(Object.keys(settingsObject).map((key) => [key, settingsObject[key]])),
       listId: watchlist.id,
       listTypeData: JSON.stringify(listParams.listTypeData),
@@ -103,7 +103,7 @@ async function handleSubmit(e, columns, watchlist, listParams) {
     const updateSettingsData = await updateSettingsResponse.json()
     
     const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-      authorization: process.env.VEUD_API_KEY,
+      authorization: listParams.VEUD_API_KEY,
       watchlistId: watchlist.id
     })))
   
@@ -168,7 +168,7 @@ export function GetWatchlistSettings(entryData, listParams) {
                 <button type="button" class="list-landing-settings-delete-button"
                   onClick={async () => {
                     await fetch('/lists/fetch/delete-watchlist/' + encodeURIComponent(new URLSearchParams({
-                      authorization: process.env.VEUD_API_KEY,
+                      authorization: listParams.VEUD_API_KEY,
                       id: entryData.watchlist.id,
                       listTypeData: JSON.stringify(listParams.listTypeData),
                       ownerId: listParams.listOwner.id
