@@ -315,7 +315,7 @@ export function getSiteID(url) {
 }
 
 export function titleCellRenderer(params, columnParams) {
-  if (!params.value || params.value.replace(/\W/g, '') === "") {
+  if (!params.value || params.value.replace(/\W/g, '') === "" && (columnParams.currentUserId == columnParams.listOwner.id)) {
     return (
       <span className=''>
         <div className="ml-auto hidden max-w-sm flex-1 sm:block">
@@ -330,7 +330,7 @@ export function titleCellRenderer(params, columnParams) {
 }
 
 export function typeCellRenderer(params, columnParams) { 
-  if ((!params.value || params.value.replace(/\W/g, '') === "") && columnParams.listTypeData.id == "yducsgix") {
+  if ((!params.value || params.value.replace(/\W/g, '') === ""  && (columnParams.currentUserId == columnParams.listOwner.id)) && columnParams.listTypeData.id == "yducsgix") {
     return (
       <MediaTypeDropdown columnParams={columnParams}/>
     )
