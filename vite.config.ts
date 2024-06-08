@@ -34,6 +34,6 @@ export default defineConfig({
 		}),
 	],
   ssr: {
-    noExternal: ["@nivo/*"],
+    noExternal: [/^d3.*$/, /^@nivo.*$/],
   },
 })
