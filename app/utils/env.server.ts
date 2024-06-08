@@ -17,6 +17,8 @@ const schema = z.object({
 	GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
 	GITHUB_TOKEN: z.string(),
 
+  VEUD_API_KEY: z.string(),
+
 	TMDB_API_KEY: z.string(),
 
 	TRAKT_API_KEY: z.string(),

@@ -1,4 +1,4 @@
-import { useForm, getFormProps } from '@conform-to/react'
+// import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import {
@@ -17,10 +17,10 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
-	useFetcher,
+	// useFetcher,
 	useFetchers,
 	useLoaderData,
-	useMatches,
+	// useMatches,
 	useSubmit,
 } from '@remix-run/react'
 import "#app/styles/root.scss"
@@ -31,7 +31,7 @@ import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
-import { SearchBar } from './components/search-bar.tsx'
+// import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
 import {
@@ -222,9 +222,9 @@ function App() {
 	const nonce = useNonce()
 	const user = useOptionalUser()
 	const theme = useTheme()
-	const matches = useMatches()
-	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
-	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
+	// const matches = useMatches()
+	// const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
+	// const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
 
 	return (
@@ -475,50 +475,50 @@ export function useOptimisticThemeMode() {
 	}
 }
 
-function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
-	const fetcher = useFetcher<typeof action>()
+// function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
+// 	const fetcher = useFetcher<typeof action>()
 
-	const [form] = useForm({
-		id: 'theme-switch',
-		lastResult: fetcher.data?.result,
-	})
+// 	const [form] = useForm({
+// 		id: 'theme-switch',
+// 		lastResult: fetcher.data?.result,
+// 	})
 
-	const optimisticMode = useOptimisticThemeMode()
-	const mode = optimisticMode ?? userPreference ?? 'system'
-	const nextMode =
-		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
-	const modeLabel = {
-		light: (
-			<Icon name="sun">
-				<span className="sr-only">Light</span>
-			</Icon>
-		),
-		dark: (
-			<Icon name="moon">
-				<span className="sr-only">Dark</span>
-			</Icon>
-		),
-		system: (
-			<Icon name="laptop">
-				<span className="sr-only">System</span>
-			</Icon>
-		),
-	}
+// 	const optimisticMode = useOptimisticThemeMode()
+// 	const mode = optimisticMode ?? userPreference ?? 'system'
+// 	const nextMode =
+// 		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
+// 	const modeLabel = {
+// 		light: (
+// 			<Icon name="sun">
+// 				<span className="sr-only">Light</span>
+// 			</Icon>
+// 		),
+// 		dark: (
+// 			<Icon name="moon">
+// 				<span className="sr-only">Dark</span>
+// 			</Icon>
+// 		),
+// 		system: (
+// 			<Icon name="laptop">
+// 				<span className="sr-only">System</span>
+// 			</Icon>
+// 		),
+// 	}
 
-	return (
-		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<input type="hidden" name="theme" value={nextMode} />
-			<div className="flex gap-2">
-				<button
-					type="submit"
-					className="flex h-8 w-8 cursor-pointer items-center justify-center"
-				>
-					{modeLabel[mode]}
-				</button>
-			</div>
-		</fetcher.Form>
-	)
-}
+// 	return (
+// 		<fetcher.Form method="POST" {...getFormProps(form)}>
+// 			<input type="hidden" name="theme" value={nextMode} />
+// 			<div className="flex gap-2">
+// 				<button
+// 					type="submit"
+// 					className="flex h-8 w-8 cursor-pointer items-center justify-center"
+// 				>
+// 					{modeLabel[mode]}
+// 				</button>
+// 			</div>
+// 		</fetcher.Form>
+// 	)
+// }
 
 export function ErrorBoundary() {
 	// the nonce doesn't rely on the loader so we can access that

@@ -236,8 +236,17 @@
     line-height: 1.5rem;
     color: white;
     font-family: "Playfair Display";
-    padding: 0.75rem;
+    margin: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
   }
+
+  // .list-landing-nav-item-container:hover .list-landing-nav-description {
+  //   -webkit-line-clamp: unset;
+  // }
 
   .list-landing-nav-entry-preview-separator {
     border-top: dashed #999999 3.5px;

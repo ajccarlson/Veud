@@ -315,7 +315,7 @@ export function getSiteID(url) {
 }
 
 export function titleCellRenderer(params, columnParams) {
-  if (!params.value || params.value.replace(/\W/g, '') === "") {
+  if (!params.value || params.value.replace(/\W/g, '') === "" && (columnParams.currentUserId == columnParams.listOwner.id)) {
     return (
       <span className=''>
         <div className="ml-auto hidden max-w-sm flex-1 sm:block">
@@ -330,7 +330,7 @@ export function titleCellRenderer(params, columnParams) {
 }
 
 export function typeCellRenderer(params, columnParams) { 
-  if ((!params.value || params.value.replace(/\W/g, '') === "") && columnParams.listTypeData.id == "yducsgix") {
+  if ((!params.value || params.value.replace(/\W/g, '') === ""  && (columnParams.currentUserId == columnParams.listOwner.id)) && columnParams.listTypeData.id == "yducsgix") {
     return (
       <MediaTypeDropdown columnParams={columnParams}/>
     )
@@ -387,6 +387,7 @@ export async function updateRowInfo(params, columnParams, bulk) {
   }
 
   const rowUpdateResponse = await fetch('/lists/fetch/update-row/' + encodeURIComponent(new URLSearchParams({
+    authorization: columnParams.VEUD_API_KEY,
     listTypeData: JSON.stringify(columnParams.listTypeData),
     rowIndex: params.data.id,
     row: JSON.stringify(updateRow)
@@ -395,6 +396,7 @@ export async function updateRowInfo(params, columnParams, bulk) {
   //console.log(rowUpdateData)
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+    authorization: columnParams.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
   })))
 

@@ -258,6 +258,11 @@ model Password {
   userId String @unique
 }
 
+model ApiKeys {
+  hash    String @id
+  access  String
+}
+
 model Session {
   id             String   @id @default(cuid())
   expirationDate DateTime

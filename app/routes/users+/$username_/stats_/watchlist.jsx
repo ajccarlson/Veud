@@ -136,6 +136,8 @@ export function watchlistOverview(loaderData, listType) {
                   maxRewatch.times = progressValue.finishDate.length
                 }
               }
+
+              return null
             })
           }
   
@@ -198,7 +200,7 @@ export function watchlistOverview(loaderData, listType) {
           <div>
             {Object.entries(mediaCount).map(([typeKey, typeValue]) => {
               return (
-                <div>
+                <div key={typeKey}>
                   <span>{`${typeValue} ${(typeKey.charAt(0).toUpperCase() + typeKey.substr(1)).split(/(?=[A-Z])/).join(" ")}s ${(JSON.parse(listType.completionType).past.charAt(0).toUpperCase() + JSON.parse(listType.completionType).past.substr(1)).split(/(?=[A-Z])/).join(" ")}`}</span>
                 </div>
               )

@@ -71,7 +71,7 @@ export async function loader(params) {
     return x;
   },{})
 
-  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id, typedFavorites, listOwner });
+  return json({ "watchList": params['params']['watchlist'], "username": params['params']['username'], "listType": params['params']['list-type'], listTypes, listTypeData, listEntries: listEntriesSorted, watchLists, watchListsSorted, typedWatchlists, watchListData, watchlistId: watchListData.id, typedFavorites, listOwner, VEUD_API_KEY: process.env.VEUD_API_KEY });
 };
 
 export function ErrorBoundary() {
@@ -93,7 +93,7 @@ export default function WatchList() {
 
   return (
     <main className='user-watchlist'>
-      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.listOwner, currentUser, currentUserId )}
+      {watchlistGrid(loaderData.listEntries, loaderData.watchListData, loaderData.listTypeData, loaderData.watchlistId, loaderData.typedWatchlists, loaderData.typedFavorites, loaderData.listOwner, currentUser, currentUserId, loaderData.VEUD_API_KEY)}
       {listNavButtons(loaderData.typedWatchlists, loaderData.username, loaderData.listTypes, loaderData.listTypeData, loaderData.watchListData)}
     </main>
   )
