@@ -241,30 +241,8 @@ export async function getAnimeInfo(entryID) {
   }
 }
 
-export async function getMangaInfo(entryID) {
-  const url = "https://api.myanimelist.net/v2/manga/" + entryID + "?fields=id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_volumes,num_chapters,authors{first_name,last_name},pictures,background,related_anime,related_manga,recommendations,serialization{name}"
-  let response, data
-
+export async function formatMangaInfo(data, full = true) {
   try {
-    try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
-        fetchMethod: 'get',
-        url: url,
-        authorization: 'mal',
-        fetchBody: undefined,
-        sleepTime: 1500,
-      })))
-      data = await response.json()
-      data.map(e => data = e ? {...data, ...e} : data)
-  
-      if (!response || !data)
-        throw new Error("Error: no data found!")
-    }
-    catch (e) {
-      console.error('Failed to fetch data for ' + entryID + '!\n' + e)
-      return
-    }
-    
     let typeFormatted = data['media_type'].replace('_', ' ')
     if (typeFormatted.length <= 3)
       typeFormatted = typeFormatted.toUpperCase()
@@ -326,6 +304,80 @@ export async function getMangaInfo(entryID) {
   }
   catch (e) {
     throw new Error('Error: failed to fetch MAL info!\n' + e)
+  }
+}
+
+export async function getMangaInfo(entryID) {
+  const url = "https://api.myanimelist.net/v2/manga/" + entryID + "?fields=id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_volumes,num_chapters,authors{first_name,last_name},pictures,background,related_anime,related_manga,recommendations,serialization{name}"
+  let response, data
+
+  try {
+    try {
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'mal',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      })))
+      data = await response.json()
+      data.map(e => data = e ? {...data, ...e} : data)
+  
+      if (!response || !data)
+        throw new Error("Error: no data found!")
+    }
+    catch (e) {
+      console.error('Failed to fetch data for ' + entryID + '!\n' + e)
+      return
+    }
+
+    return formatMangaInfo(data, true)
+  }
+  catch (e) {
+    throw new Error('Error: failed to fetch MAL info!\n' + e)
+  }
+}
+
+export async function getTopEntries(medium = "anime", topType = "all", numResults = 10) {
+  try {
+    const fields = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_scoring_users,nsfw,created_at,updated_at,media_type,status,genres,my_list_status,num_episodes,start_season,broadcast,source,average_episode_duration,rating,pictures,background,related_anime,related_manga,recommendations,studios,statistics"
+    const url = `https://api.myanimelist.net/v2/${medium}/ranking?ranking_type=${topType}?fields=${fields}&limit=${numResults}`
+    let response, data
+
+    try {
+      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+        fetchMethod: 'get',
+        url: url,
+        authorization: 'mal',
+        fetchBody: undefined,
+        sleepTime: 1500,
+      })))
+      data = await response.json()
+      data.map(e => data = e ? {...data, ...e} : data)
+
+      if (!response || !data)
+        throw new Error("Error: no data found!")
+    }
+    catch (e) {
+      console.error(`Failed to fetch data for top ${topType} ${medium}!\n${e}`)
+      return
+    }
+
+    let resultArray = []
+
+    const dataResults = data.data.map(entry => entry.node).slice(0, numResults)
+
+    for (const result of dataResults.values()) {
+      if (medium == "anime")
+        resultArray.push(await formatAnimeInfo(result, false))
+      else
+        resultArray.push(await formatMangaInfo(result, false))
+    }
+
+    return resultArray
+  }
+  catch(e) {
+    console.error(`Failed to get top ${topType} ${medium}!\n${e}`)
   }
 }
 

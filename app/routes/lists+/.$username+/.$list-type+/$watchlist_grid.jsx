@@ -113,7 +113,7 @@ function getAllRows() {
   return rowData;
 }
 
-function createEmptyRow(watchlistId, position, listTypeData) {
+export function createEmptyRow(watchlistId, position, listTypeData) {
   let emptyRow = {}
 
   for (const [key, value] of Object.entries(JSON.parse(listTypeData.columns))) {

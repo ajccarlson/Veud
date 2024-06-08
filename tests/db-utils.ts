@@ -3,6 +3,8 @@ import { faker } from '@faker-js/faker'
 import { type PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { UniqueEnforcer } from 'enforce-unique'
+import { getTopEntries } from "#app/routes/media+/mal.jsx"
+import { getTMDBTrending } from "#app/routes/media+/tmdb.jsx"
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()
 
@@ -129,4 +131,63 @@ export async function cleanupDb(prisma: PrismaClient) {
 		),
 		prisma.$executeRawUnsafe(`PRAGMA foreign_keys = ON`),
 	])
+}
+
+export async function randomWatchlists(listTypes: any[]) {
+  let watchlists = []
+  let typeCounts = {
+    liveActionCount: 1,
+    animeCount: 1,
+    mangaCount: 1,
+  }
+
+  for (let i = 0; i < faker.number.int({ min: 1, max: 7 }); i++) {
+    const chosenType = listTypes[Math.floor(Math.random() * listTypes.length)]
+    const listName = faker.lorem.sentence()
+    const formattedHeader = `${chosenType.header.charAt(0).toLowerCase()}${chosenType.header.slice(1).replace(/\W/g, '')}`
+    const watchlistId = faker.string.uuid()
+
+    let listEntries: any[] = []
+
+    let resultInfo: any
+    if (chosenType.name == "liveaction") {
+      resultInfo = await getTMDBTrending("all", 50)
+    }
+    else if (chosenType.name == "anime") {
+      resultInfo = await getTopEntries("anime", "bypopularity", 50)
+    }
+    else if (chosenType.name == "manga") {
+      resultInfo = await getTopEntries("manga", "bypopularity", 50)
+    }
+
+    for(let j = 0; j < faker.number.int({ min: 1, max: 20 }); j++) {
+      let addRow
+      if (chosenType.name == "liveaction") {
+        addRow = {/*id: " ", */watchlistId: watchlistId, position: j + 1, thumbnail: resultInfo?.thumbnail, title: resultInfo?.title, type: resultInfo?.type, airYear: String(resultInfo?.year), releaseStart: new Date(resultInfo?.releaseStart), releaseEnd: new Date(resultInfo?.releaseEnd), nextRelease:  JSON.stringify(resultInfo?.nextRelease), length: resultInfo?.length, rating: resultInfo?.rating, history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: resultInfo?.genres , language: resultInfo?.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: resultInfo?.score, differenceObjective: 0, description: resultInfo?.description, notes: ""}
+      }
+      else if (chosenType.name == "anime") {
+        addRow = {/*id: " ", */watchlistId: watchlistId, position: j + 1, thumbnail: resultInfo?.thumbnail, title: resultInfo?.title, type: resultInfo?.type, startSeason: resultInfo?.startSeason.name, releaseStart: new Date(resultInfo?.releaseStart), releaseEnd: new Date(resultInfo?.releaseEnd), nextRelease:  JSON.stringify(resultInfo?.nextRelease), length: resultInfo?.length, rating: resultInfo?.rating, history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: resultInfo?.genres , studios: JSON.stringify(resultInfo?.studios), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo?.malScore, differenceObjective: 0, description: resultInfo?.description, notes: ""}
+      }
+      else if (chosenType.name == "manga") {
+        addRow = {/*id: " ", */watchlistId: watchlistId, position: j + 1, thumbnail: resultInfo?.thumbnail, title: resultInfo?.title, type: resultInfo?.type, startYear: String(resultInfo?.startYear), releaseStart: new Date(resultInfo?.releaseStart), releaseEnd: new Date(resultInfo?.releaseEnd), nextRelease:  JSON.stringify(resultInfo?.nextRelease), chapters: String(resultInfo?.chapters), volumes: String(resultInfo?.volumes), history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: resultInfo?.genres , serialization: JSON.stringify(resultInfo?.serialization), authors: JSON.stringify(resultInfo?.authors), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo?.malScore, differenceObjective: 0, description: resultInfo?.description, notes: ""}
+      } 
+
+      listEntries.push(addRow)
+    }
+
+    watchlists.push({
+      id: watchlistId,
+      position: typeCounts[`${formattedHeader}Count` as keyof typeof typeCounts],
+      name: listName,
+      header: listName.replace(/\W/g, '').toLowerCase(),
+      typeId: chosenType.id,
+      displayedColumns: chosenType.columns,
+      description: faker.lorem.paragraphs(),
+      [`${formattedHeader}Entries`]: listEntries
+    })
+
+    typeCounts[`${formattedHeader}Count` as keyof typeof typeCounts]++
+  }
+
+  return watchlists
 }

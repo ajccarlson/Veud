@@ -341,7 +341,7 @@ export async function getTMDBTrending(type, numResults) {
     else if (type.includes('person'))
       type = 'person'
     else
-      type = 'multi'
+      type = 'all'
 
     const url = "https://api.themoviedb.org/3/trending/" + type + "/day?language=en-US&without_keywords=161919";
     let response, data
@@ -368,7 +368,7 @@ export async function getTMDBTrending(type, numResults) {
     let resultArray = []
 
     for (const [index, result] of data.results.entries()) {
-      resultArray.push(await formatTMDBResults(result.id, type, result.id, result, false))
+      resultArray.push(await formatTMDBResults(result.id, result.media_type, result.id, result, false))
 
       if (numResults && (index >= (numResults - 1))) {
         break
