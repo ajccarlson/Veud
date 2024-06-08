@@ -357,7 +357,7 @@ function ListsDropdown() {
 				<DropdownMenuContent sideOffset={8} align="start">
           {data.listTypes.map(listType => {
             return (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild key={listType.id}>
                 <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`} reloadDocument>
                   {listType.header}
                 </Link>
