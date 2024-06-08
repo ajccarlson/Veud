@@ -21,6 +21,10 @@ export async function loader(params) {
   try {
     const searchParams = new URLSearchParams(params.params.request);
 
+    if (!searchParams.get('authorization') || searchParams.get('authorization') != process.env.VEUD_API_KEY) {
+      throw new Error("Error: invalid authorization!")
+    }
+
     let rawList = JSON.parse(searchParams.get('list'))
     let formattedList = {}
 

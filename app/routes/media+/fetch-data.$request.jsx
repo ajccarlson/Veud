@@ -3,15 +3,15 @@ export async function loader(params) {
     const TMDB_API_KEY = process.env.TMDB_API_KEY
 
     const TRAKT_API_KEY = process.env.TRAKT_API_KEY
-    const TRAKT_CLIENT_SECRET = process.env.TRAKT_CLIENT_SECRET
+    // const TRAKT_CLIENT_SECRET = process.env.TRAKT_CLIENT_SECRET
     const TRAKT_ACCESS_TOKEN_MAIN = process.env.TRAKT_ACCESS_TOKEN_MAIN
     const TRAKT_ACCESS_TOKEN_BACKUP = process.env.TRAKT_ACCESS_TOKEN_BACKUP
 
     const MAL_CLIENT_ID = process.env.MAL_CLIENT_ID
-    const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET
+    // const MAL_CLIENT_SECRET = process.env.MAL_CLIENT_SECRET
 
-    const ANILIST_CLIENT_ID = process.env.ANILIST_CLIENT_ID
-    const ANILIST_CLIENT_SECRET = process.env.ANILIST_CLIENT_SECRET
+    // const ANILIST_CLIENT_ID = process.env.ANILIST_CLIENT_ID
+    // const ANILIST_CLIENT_SECRET = process.env.ANILIST_CLIENT_SECRET
 
     const searchParams = new URLSearchParams(params.params.request)
     const fetchMethod = searchParams.get('fetchMethod')

@@ -112,7 +112,7 @@ export function SideData(loaderData) {
             <DropdownMenuPortal className="user-landing-dropdown-portal">
               <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                 {completionYears.filter((year) => year !== completionYears[yearIndex]).map(completionYear =>
-                  <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                  <DropdownMenuItem className="user-landing-dropdown-item" key={completionYear} onClick={() =>
                     {
                       setYearIndex(completionYears.indexOf(completionYear))
                     }}>
@@ -141,7 +141,7 @@ export function SideData(loaderData) {
               <DropdownMenuPortal className="user-landing-dropdown-portal">
                 <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
                   {completionMonths.filter((month) => month !== completionMonths[monthIndex] ).map(completionMonth =>
-                    <DropdownMenuItem className="user-landing-dropdown-item" onClick={() =>
+                    <DropdownMenuItem className="user-landing-dropdown-item" key={completionMonth} onClick={() =>
                       {
                         setMonthIndex(completionMonths.indexOf(completionMonth))
                       }}>

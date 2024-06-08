@@ -5,7 +5,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { BodyData } from '#app/routes/users+/$username_/body.jsx'
 import { SideData } from '#app/routes/users+/$username_/side.jsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { useOptionalUser } from '#app/utils/user.ts'
+// import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
 function toTitleCase(inputString) {
@@ -206,9 +206,9 @@ export async function loader(params) {
 
 export default function ProfileRoute() {
 	const loaderData = useLoaderData()
-	const user = loaderData.user
-	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+	// const user = loaderData.user
+	// const loggedInUser = useOptionalUser()
+	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
 	return (
 		<main className="user-landing" style={{ width: '100%', height: '100%' }}>
