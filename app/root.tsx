@@ -379,17 +379,17 @@ function UserDropdown() {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button asChild variant="secondary">
-					<Button
-						// to={`/users/${user.username}`}
+					<Link
+						to={`/users/${user.username}`}
 						// this is for progressive enhancement
-						// onClick={e => e.preventDefault()}
+						onClick={e => e.preventDefault()}
 						className="root-user-links-dropdown"
 					>
 						<span className="text-body-sm font-bold">
 							{user.username}
 						</span>
             <Icon name="triangle-down"/>
-					</Button>
+					</Link>
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
