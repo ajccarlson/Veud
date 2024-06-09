@@ -33,10 +33,4 @@ export default defineConfig({
 			},
 		}),
 	],
-  ssr: {
-    noExternal: ["@nivo/*"],
-  },
-  resolve: {
-    mainFields: ["module", "browser", "jsnext:main", "jsnext"],
-  },
 })
