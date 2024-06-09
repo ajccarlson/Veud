@@ -7,16 +7,16 @@ import {
 	type ActionFunctionArgs,
 	type MetaFunction,
 } from '@remix-run/node'
-import { Form, useActionData, useSearchParams } from '@remix-run/react'
+import { Form, useActionData, /*useSearchParams*/ } from '@remix-run/react'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import {
-	ProviderConnectionForm,
-	providerNames,
-} from '#app/utils/connections.tsx'
+// import {
+// 	ProviderConnectionForm,
+// 	providerNames,
+// } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
@@ -66,7 +66,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	const response = await sendEmail({
 		to: email,
-		subject: `Welcome to Epic Notes!`,
+		subject: `Welcome to Veud!`,
 		react: <SignupEmail onboardingUrl={verifyUrl.toString()} otp={otp} />,
 	})
 
@@ -95,7 +95,7 @@ export function SignupEmail({
 		<E.Html lang="en" dir="ltr">
 			<E.Container>
 				<h1>
-					<E.Text>Welcome to Epic Notes!</E.Text>
+					<E.Text>Welcome to Veud!</E.Text>
 				</h1>
 				<p>
 					<E.Text>
@@ -112,14 +112,14 @@ export function SignupEmail({
 }
 
 export const meta: MetaFunction = () => {
-	return [{ title: 'Sign Up | Epic Notes' }]
+	return [{ title: 'Sign Up | Veud' }]
 }
 
 export default function SignupRoute() {
 	const actionData = useActionData<typeof action>()
 	const isPending = useIsPending()
-	const [searchParams] = useSearchParams()
-	const redirectTo = searchParams.get('redirectTo')
+	// const [searchParams] = useSearchParams()
+	// const redirectTo = searchParams.get('redirectTo')
 
 	const [form, fields] = useForm({
 		id: 'signup-form',
@@ -165,7 +165,7 @@ export default function SignupRoute() {
 						Submit
 					</StatusButton>
 				</Form>
-				<ul className="mt-5 flex flex-col gap-5 border-b-2 border-t-2 border-border py-3">
+				{/* <ul className="mt-5 flex flex-col gap-5 border-b-2 border-t-2 border-border py-3">
 					{providerNames.map(providerName => (
 						<li key={providerName}>
 							<ProviderConnectionForm
@@ -175,7 +175,7 @@ export default function SignupRoute() {
 							/>
 						</li>
 					))}
-				</ul>
+				</ul> */}
 			</div>
 		</div>
 	)

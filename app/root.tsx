@@ -1,4 +1,4 @@
-import { useForm, getFormProps } from '@conform-to/react'
+// import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import {
@@ -17,19 +17,21 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
-	useFetcher,
+	// useFetcher,
 	useFetchers,
 	useLoaderData,
-	useMatches,
+	// useMatches,
 	useSubmit,
 } from '@remix-run/react'
+import "#app/styles/root.scss"
 import { withSentry } from '@sentry/remix'
 import { useRef } from 'react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import logo from '#app/components/ui/icons/logoV3.webp';
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
-import { SearchBar } from './components/search-bar.tsx'
+// import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
 import {
@@ -80,8 +82,8 @@ export const links: LinksFunction = () => {
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
 	return [
-		{ title: data ? 'Epic Notes' : 'Error | Epic Notes' },
-		{ name: 'description', content: `Your own captain's log` },
+		{ title: data ? 'Veud' : 'Error | Veud' },
+		{ name: 'description', content: `Lists on lists on lists` },
 	]
 }
 
@@ -122,12 +124,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		// them in the database. Maybe they were deleted? Let's log them out.
 		await logout({ request, redirectTo: '/' })
 	}
+
+  const listTypes = await prisma.listType.findMany()
+
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = honeypot.getInputProps()
 
 	return json(
 		{
 			user,
+      listTypes,
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
@@ -216,30 +222,52 @@ function App() {
 	const nonce = useNonce()
 	const user = useOptionalUser()
 	const theme = useTheme()
-	const matches = useMatches()
-	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
-	const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
+	// const matches = useMatches()
+	// const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
+	// const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
 
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
-			<div className="flex h-screen flex-col justify-between">
+      {/* root-main */}
+			<div className="root flex h-screen flex-col justify-between">
 				<header className="container py-6">
-					<nav className="flex flex-wrap items-center justify-between gap-4 sm:flex-nowrap md:gap-8">
-						<Logo />
-						<div className="ml-auto hidden max-w-sm flex-1 sm:block">
+					<nav className="root-header">
+            <div className="root-logo-container">
+              <div className='root-logo'>
+                <Logo/>
+              </div>
+              <div className="root-logo-separator"/>
+            </div>
+						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
-						</div>
-						<div className="flex items-center gap-10">
-							{user ? (
-								<UserDropdown />
-							) : (
-								<Button asChild variant="default" size="lg">
-									<Link to="/login">Log In</Link>
-								</Button>
-							)}
-						</div>
-						<div className="block w-full sm:hidden">{searchBar}</div>
+						</div> */}
+            <div className="root-community-links">
+              <CommunityDropdown/>
+            </div>
+            {user ? (
+              <div className="root-user-links">
+                <ListsDropdown/>
+                <div className="root-header-separator"/>
+                <UserDropdown/>
+                <Link
+                  className="root-user-image"
+                  to={`/users/${user.username}`}
+                >
+                  <img
+                    alt={user.username}
+                    src={getUserImgSrc(user.image?.id)}
+                  />
+                </Link>
+              </div>
+            ) : (
+              <div className="root-user-links">
+                <Button asChild variant="default" size="lg">
+                  <Link to="/login">Log In</Link>
+                </Button>
+              </div>
+            )}
+						{/* <div className="block w-full sm:hidden">{searchBar}</div> */}
 					</nav>
 				</header>
 
@@ -247,10 +275,9 @@ function App() {
 					<Outlet />
 				</div>
 
-				<div className="container flex justify-between pb-5">
-					<Logo />
+				{/* <div className="container flex justify-between pb-5">
 					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-				</div>
+				</div> */}
 			</div>
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
@@ -261,12 +288,7 @@ function App() {
 function Logo() {
 	return (
 		<Link to="/" className="group grid leading-snug">
-			<span className="font-light transition group-hover:-translate-x-1">
-				epic
-			</span>
-			<span className="font-bold transition group-hover:translate-x-1">
-				notes
-			</span>
+			<img src={ logo } alt="Logo" width="100rem"/>
 		</Link>
 	)
 }
@@ -282,10 +304,77 @@ function AppWithProviders() {
 
 export default withSentry(AppWithProviders)
 
+function CommunityDropdown() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button asChild variant="secondary">
+          <div className="root-header-community-links-dropdown">
+            <span className="text-body-sm font-bold">
+              Community
+            </span>
+            <Icon name="triangle-down"/>
+          </div>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuContent sideOffset={8} align="start">
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
+              to={`/users`}
+            >
+              <Icon className="text-body-md" name="person">
+                Users
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenuPortal>
+    </DropdownMenu>
+  )
+}
+
+function ListsDropdown() {
+  const user = useUser()
+  const data = useLoaderData<typeof loader>()
+
+	return (
+    <DropdownMenu>
+			<DropdownMenuTrigger asChild>
+        <Button asChild variant="secondary">
+          <Link
+            className="root-user-lists"
+            prefetch="intent"
+            to={`/lists/${user.username}`}
+          >
+            <Icon name="list-bullet"></Icon>
+          </Link>
+        </Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuPortal>
+				<DropdownMenuContent sideOffset={8} align="start">
+          {data.listTypes.map(listType => {
+            return (
+              <DropdownMenuItem asChild key={listType.id}>
+                <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`} reloadDocument>
+                  {listType.header}
+                </Link>
+              </DropdownMenuItem>
+            )
+          })}
+				</DropdownMenuContent>
+			</DropdownMenuPortal>
+		</DropdownMenu>
+	)
+}
+
 function UserDropdown() {
 	const user = useUser()
 	const submit = useSubmit()
 	const formRef = useRef<HTMLFormElement>(null)
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -294,16 +383,12 @@ function UserDropdown() {
 						to={`/users/${user.username}`}
 						// this is for progressive enhancement
 						onClick={e => e.preventDefault()}
-						className="flex items-center gap-2"
+						className="root-user-links-dropdown"
 					>
-						<img
-							className="h-8 w-8 rounded-full object-cover"
-							alt={user.name ?? user.username}
-							src={getUserImgSrc(user.image?.id)}
-						/>
 						<span className="text-body-sm font-bold">
-							{user.name ?? user.username}
+							{user.username}
 						</span>
+            <Icon name="triangle-down"/>
 					</Link>
 				</Button>
 			</DropdownMenuTrigger>
@@ -317,12 +402,26 @@ function UserDropdown() {
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
+					<Link prefetch="intent" to={`/lists/${user.username}`}>
+							<Icon className="text-body-md" name="list-bullet">
+								Lists
+							</Icon>
+					</Link>
+					</DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to="/settings/profile" prefetch="intent">
+              <Icon className="text-body-md" name="gear">
+                Account settings
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+					{/* <DropdownMenuItem asChild>
 						<Link prefetch="intent" to={`/users/${user.username}/notes`}>
 							<Icon className="text-body-md" name="pencil-2">
 								Notes
 							</Icon>
 						</Link>
-					</DropdownMenuItem>
+					</DropdownMenuItem> */}
 					<DropdownMenuItem
 						asChild
 						// this prevents the menu from closing before the form submission is completed
@@ -376,50 +475,50 @@ export function useOptimisticThemeMode() {
 	}
 }
 
-function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
-	const fetcher = useFetcher<typeof action>()
+// function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
+// 	const fetcher = useFetcher<typeof action>()
 
-	const [form] = useForm({
-		id: 'theme-switch',
-		lastResult: fetcher.data?.result,
-	})
+// 	const [form] = useForm({
+// 		id: 'theme-switch',
+// 		lastResult: fetcher.data?.result,
+// 	})
 
-	const optimisticMode = useOptimisticThemeMode()
-	const mode = optimisticMode ?? userPreference ?? 'system'
-	const nextMode =
-		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
-	const modeLabel = {
-		light: (
-			<Icon name="sun">
-				<span className="sr-only">Light</span>
-			</Icon>
-		),
-		dark: (
-			<Icon name="moon">
-				<span className="sr-only">Dark</span>
-			</Icon>
-		),
-		system: (
-			<Icon name="laptop">
-				<span className="sr-only">System</span>
-			</Icon>
-		),
-	}
+// 	const optimisticMode = useOptimisticThemeMode()
+// 	const mode = optimisticMode ?? userPreference ?? 'system'
+// 	const nextMode =
+// 		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
+// 	const modeLabel = {
+// 		light: (
+// 			<Icon name="sun">
+// 				<span className="sr-only">Light</span>
+// 			</Icon>
+// 		),
+// 		dark: (
+// 			<Icon name="moon">
+// 				<span className="sr-only">Dark</span>
+// 			</Icon>
+// 		),
+// 		system: (
+// 			<Icon name="laptop">
+// 				<span className="sr-only">System</span>
+// 			</Icon>
+// 		),
+// 	}
 
-	return (
-		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<input type="hidden" name="theme" value={nextMode} />
-			<div className="flex gap-2">
-				<button
-					type="submit"
-					className="flex h-8 w-8 cursor-pointer items-center justify-center"
-				>
-					{modeLabel[mode]}
-				</button>
-			</div>
-		</fetcher.Form>
-	)
-}
+// 	return (
+// 		<fetcher.Form method="POST" {...getFormProps(form)}>
+// 			<input type="hidden" name="theme" value={nextMode} />
+// 			<div className="flex gap-2">
+// 				<button
+// 					type="submit"
+// 					className="flex h-8 w-8 cursor-pointer items-center justify-center"
+// 				>
+// 					{modeLabel[mode]}
+// 				</button>
+// 			</div>
+// 		</fetcher.Form>
+// 	)
+// }
 
 export function ErrorBoundary() {
 	// the nonce doesn't rely on the loader so we can access that

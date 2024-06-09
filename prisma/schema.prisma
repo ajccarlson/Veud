@@ -19,12 +19,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  image       UserImage?
-  password    Password?
-  notes       Note[]
-  roles       Role[]
-  sessions    Session[]
-  connections Connection[]
+  image         UserImage?
+  password      Password?
+  notes         Note[]
+  watchlists    Watchlist[]
+  userFavorites UserFavorite[]
+  roles         Role[]
+  sessions      Session[]
+  connections   Connection[]
 }
 
 model Note {
@@ -44,6 +46,180 @@ model Note {
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
+}
+
+model ListType {
+  id                String @id @default(cuid())
+  
+  name              String @unique
+  header            String
+  columns           String
+
+  mediaType         String
+  completionType    String
+
+  watchlists        Watchlist[]
+  userFavorites     UserFavorite[]
+}
+
+model Watchlist {
+  id                String @id @default(cuid())
+  
+  position 	        Int @default(1)
+  name              String
+  header            String
+  type              ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId            String
+  displayedColumns  String?
+  description       String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  owner             User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId           String
+
+  liveActionEntries LiveActionEntry[]
+  animeEntries      AnimeEntry[]
+  mangaEntries      MangaEntry[]
+
+  // non-unique foreign key
+  @@index([ownerId])
+  // This helps our order by in the user search a LOT
+  @@index([ownerId, updatedAt])
+  
+  @@index([typeId])
+}
+
+model LiveActionEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  airYear	            String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
+  length		          String?
+  rating	            String?
+  history	            String?
+  genres	            String?
+  language	          String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  sound	              Int?
+  performance         Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  tmdbScore	          Decimal?
+  differenceObjective Decimal?
+  description         String?
+  notes               String?
+
+  // non-unique foreign key
+  @@index([watchlistId])
+}
+
+model AnimeEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  startSeason	        String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
+  length		          String?
+  rating	            String?
+  history	            String?
+  genres	            String?
+  studios	            String?
+  priority            String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  sound	              Int?
+  performance         Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  malScore	          Decimal?
+  differenceObjective Decimal?
+  description         String?
+  notes               String?
+
+  // non-unique foreign key
+  @@index([watchlistId])
+}
+
+model MangaEntry {
+  id                  String @id @default(cuid())
+
+  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId         String
+
+  position 	          Int
+  thumbnail	          String?
+  title		            String
+  type	  	          String?
+  startYear	          String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
+  chapters		        String?
+  volumes		          String?
+  history	            String?
+  genres	            String?
+  serialization	      String?
+  authors	            String?
+  priority            String?
+  story		            Int?
+  character	          Int?
+  presentation	      Int?
+  enjoyment	          Int?
+  averaged            Decimal?
+  personal	          Decimal?
+  differencePersonal  Decimal?
+  malScore	          Decimal?
+  differenceObjective Decimal?
+  description         String?
+  notes               String?
+
+  // non-unique foreign key
+  @@index([watchlistId])
+}
+
+model UserFavorite {
+  id          String  @id @default(cuid())
+
+  position 	  Int
+  thumbnail	  String?
+  title		    String
+  type        ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId      String
+  mediaType	  String?
+  startYear	  String?
+
+  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId     String
+
+  // non-unique foreign key
+  @@index([typeId])
+  @@index([ownerId])
 }
 
 model NoteImage {
@@ -80,6 +256,11 @@ model Password {
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId String @unique
+}
+
+model ApiKeys {
+  hash    String @id
+  access  String
 }
 
 model Session {

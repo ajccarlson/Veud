@@ -13,7 +13,6 @@ test('Users can update their basic info', async ({ page, login }) => {
 
 	const newUserData = createUser()
 
-	await page.getByRole('textbox', { name: /^name/i }).fill(newUserData.name)
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(newUserData.username)
@@ -57,7 +56,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
 	await page.goto('/settings/profile')
 
 	const beforeSrc = await page
-		.getByRole('img', { name: user.name ?? user.username })
+		.getByRole('img', { name: user.username }).last()
 		.getAttribute('src')
 
 	await page.getByRole('link', { name: /change profile photo/i }).click()
@@ -76,7 +75,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
 	).toHaveURL(`/settings/profile`)
 
 	const afterSrc = await page
-		.getByRole('img', { name: user.name ?? user.username })
+		.getByRole('img', { name: user.username }).last()
 		.getAttribute('src')
 
 	expect(beforeSrc).not.toEqual(afterSrc)

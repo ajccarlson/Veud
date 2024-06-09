@@ -1,0 +1,243 @@
+@use "@ag-grid-community/styles" as ag;
+
+@include ag.grid-styles((
+  // include multiple theme files and set specific parameters on each
+  theme: custom-react,
+  extend-theme: alpine-dark,
+  --ag-font-family: "Playfair Display",
+  --ag-font-size: 16px,
+  --ag-header-background-color: #121212,
+  --ag-background-color:#222222,
+  --ag-odd-row-background-color:#2e2f2b,
+  --ag-row-border-width: 0px,
+
+  // setting the active color will use color blending to update various
+  // other colors eg. the row hover color will be set to a light pink
+  --ag-alpine-active-color: #FF9900,
+  --ag-header-cell-hover-background-color: #2e2f2b,
+
+  // Uncomment this to remove all native widget styling from the grid. This is
+  // useful if you want to make your own styles starting from a blank slate.
+  // suppress-native-widget-styling: "true"
+));
+
+// More kinds of customisation can be made with CSS rules
+.user-watchlist {
+  height: 100%;
+  width: 100%;
+  display: grid;
+
+  @media (max-width: 65rem) {
+    grid-template-rows: minmax(auto, auto) minmax(auto, 8rem);
+
+    .ag-cell-insert {
+      visibility: visible;
+    }
+
+    .ag-drag-handle {
+      visibility: visible;
+    }
+  }
+
+  @media (min-width: 65rem) {
+    grid-template-rows: minmax(auto, auto) minmax(auto, 5rem);
+
+    .ag-cell-insert {
+      visibility: hidden;
+    }
+
+    .ag-drag-handle {
+      visibility: hidden;
+    }
+  }
+
+  .ag-theme-custom-react {
+    height: 100%;
+    width: 100%;
+  }
+
+  .ag-header-cell {
+    font-family: arial;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-grid;
+    justify-content: center;
+    align-items: center;
+    color:#ff9900;
+    box-shadow: 
+      inset 0px 8px 8px -10px #3D4666,
+      inset 0px -2px 8px -10px #BBB1A2; 
+    border-bottom: solid #66563d 3px;
+    border-left: dashed #00000000 3px;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    transition: all .1s ease-out;
+  }
+
+  .ag-cell {
+    display: inline-grid;
+    justify-content: center;
+    text-align: center;
+    align-items: center;
+    -webkit-text-stroke-width: 0.12px;
+    -webkit-text-stroke-color: black;
+  }
+
+  .ag-title-cell {
+    font-style: italic;
+    font-weight: bold;
+    color: #ffffb1;
+  }
+
+  .ag-thumbnail-cell {
+    padding-right: 0px;
+    padding-left: 0px;
+    filter: drop-shadow(12px 5px 6px rgba(0, 0, 0, 0.42));
+    transition: all .1s ease-in-out; 
+  }
+
+  .ag-thumbnail-cell:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(5px 5px 6px rgba(0, 0, 0, 0.42));
+  }
+
+  // .ag-header-cell-label {
+  //   position: absolute;
+  //   left: 50%;
+  //   top: 50%;
+  //   transform: translate(-50%,-50%);
+  // }
+
+  .ag-header-cell-menu-button {
+    position: absolute;
+    left: 10%;
+    top: 50%;
+  }
+
+  .ag-score-cell {
+    color: #ccffdd;
+    -webkit-text-stroke-width: 0.2px;
+  }
+
+  .ag-score-present:hover {
+    box-shadow: 0 5px 15px #ff990066;
+  }
+
+  .ag-score-empty {
+    background-color:rgba(0, 0, 0, 0.3);
+  }
+
+  .ag-score-empty:hover {
+    box-shadow: 0 5px 7px rgba(255, 251, 246, 0.119);
+  }
+
+  .ag-cell-insert {
+    position: absolute;
+    bottom: 0%;
+    left: 35%;
+    color: #FF4200;
+    transition: all .1s ease-out; 
+  }
+
+  .ag-drag-handle {
+    margin: 0;
+    transition: all .1s ease-out; 
+  }
+
+  .ag-row-index {
+    font-size: 1.1rem;
+    text-align: center;
+  }
+
+  .ag-move-row-input {
+    width: 2rem;
+    margin: 0;
+    padding: 0;
+    background-color: #00000000;
+    border-color: #00000000;
+  }
+
+  .ag-move-row-input::placeholder {
+    font-size: 1.1rem;
+    color: white;
+  }
+
+  .ag-position-cell {
+    padding-right: 2.1rem;
+  }
+
+  .ag-position-cell:hover .ag-cell-insert {
+    visibility: visible;
+    font-size: 25px;
+  }
+
+  .ag-position-cell:hover .ag-drag-handle {
+    visibility: visible;
+  }
+
+  .ag-position-cell:hover .ag-move-row-input {
+    background-color: hsl(var(--background));
+    border-color: hsl(var(--input));
+  }
+
+  .ag-position-cell:hover .ag-move-row-input::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .ag-progress-cell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ag-progress-cell-text-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ag-progress-cell-input {
+    height: 2rem;
+    width: 3rem;
+    text-align: center;
+  }
+
+  .ag-progress-increment-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #FF4200;
+    font-size: 1rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all .1s cubic-bezier(0.1, 0.7, 1, 0.1); 
+  }
+
+  .ag-progress-increment-button:hover {
+    outline: 2px solid#FF4200;
+  }
+
+  .ag-progress-cell-span {
+    display: flex;
+    flex-direction: row;
+  }
+
+  .ag-score-border-left-single {
+    border-left: solid #66563d;
+  }
+
+  .ag-score-border-left-double {
+    border-left: double #999999 3.5px;
+  }
+
+  .ag-list-odd {
+    color: #e7e7e7;
+  }
+
+  .ag-list-even {
+    color: #9e9e9e;
+  }
+}
