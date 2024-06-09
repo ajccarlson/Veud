@@ -92,12 +92,12 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 
 	await expect(page).toHaveURL(`/`)
 
-	await page.getByRole('link', { name: onboardingData.name }).click()
+	await page.locator('.root-user-links-dropdown').click()
 	await page.getByRole('menuitem', { name: /profile/i }).click()
 
 	await expect(page).toHaveURL(`/users/${onboardingData.username}`)
 
-	await page.getByRole('link', { name: onboardingData.name }).click()
+	await page.locator('.root-user-links-dropdown').click()
 	await page.getByRole('menuitem', { name: /logout/i }).click()
 	await expect(page).toHaveURL(`/`)
 })
@@ -134,20 +134,20 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
 test('login as existing user', async ({ page, insertNewUser }) => {
 	const password = faker.internet.password()
 	const user = await insertNewUser({ password })
-	invariant(user.name, 'User name not found')
+	invariant(user.username, 'User name not found')
 	await page.goto('/login')
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
 	await page.getByLabel(/^password$/i).fill(password)
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: user.name })).toBeVisible()
+	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
 })
 
 test('reset password with a link', async ({ page, insertNewUser }) => {
 	const originalPassword = faker.internet.password()
 	const user = await insertNewUser({ password: originalPassword })
-	invariant(user.name, 'User name not found')
+	invariant(user.username, 'User name not found')
 	await page.goto('/login')
 
 	await page.getByRole('link', { name: /forgot password/i }).click()
@@ -201,7 +201,7 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: user.name })).toBeVisible()
+	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
 })
 
 test('reset password with a short code', async ({ page, insertNewUser }) => {
