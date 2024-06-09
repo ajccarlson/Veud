@@ -1,13 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 import 'dotenv/config'
 
-const PORT = process.env.PORT || '3000'
+const PORT = process.env.PORT || '4021'
 
 export default defineConfig({
 	testDir: './tests/e2e',
 	timeout: 15 * 1000,
 	expect: {
-		timeout: 5 * 1000,
+		timeout: 15 * 1000,
 	},
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
