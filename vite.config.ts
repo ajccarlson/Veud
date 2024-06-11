@@ -33,4 +33,7 @@ export default defineConfig({
 			},
 		}),
 	],
+  resolve: {
+    mainFields: ["module", "browser"],
+  },
 })
