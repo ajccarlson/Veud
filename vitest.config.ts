@@ -16,4 +16,7 @@ export default defineConfig({
 			all: true,
 		},
 	},
+  resolve: {
+    mainFields: ["module", "browser"],
+  },
 })
