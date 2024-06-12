@@ -33,7 +33,7 @@ export default defineConfig({
 			},
 		}),
 	],
-  resolve: {
-    mainFields: ["module", "browser"],
+  ssr: {
+    noExternal: [/^d3.*$/, /^@nivo.*$/],
   },
 })

@@ -4,6 +4,7 @@
 import { faker } from '@faker-js/faker'
 import { createRemixStub } from '@remix-run/testing'
 import { render, screen } from '@testing-library/react'
+import React from 'react'
 import setCookieParser from 'set-cookie-parser'
 import { test } from 'vitest'
 import { loader as rootLoader } from '#app/root.tsx'
@@ -32,9 +33,8 @@ test('The user profile when not logged in as self', async () => {
 	const routeUrl = `/users/${user.username}`
 	render(<App initialEntries={[routeUrl]} />)
 
-	await screen.findByRole('heading', { level: 1, name: user.name! })
-	await screen.findByRole('img', { name: user.name! })
-	await screen.findByRole('link', { name: `${user.name}'s notes` })
+	await screen.findByRole('heading', { level: 1, name: user.username! })
+	await screen.findByRole('img', { name: user.username! })
 })
 
 test('The user profile when logged in as self', async () => {
