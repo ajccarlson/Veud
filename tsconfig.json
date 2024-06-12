@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "app/routes/lists+/index.tsx", "app/routes/lists+/.$username+/.$list-type+/$watchlist.jsx", "app/routes/lists+/.$username+/.$list-type+/index.jsx", "app/utils/lists/thumbnail-renderer.tsx", "app/routes/lists+/$watchlist_grid.update-watchlist.jsx", "app/components/search-add-watchlist-entry.jsx", "app/routes/users+/$username.jsx", "app/utils/lists/column-functions.jsx", "app/routes/_home+/index.jsx"],
+  "include": ["**/*.ts", "**/*.tsx", "app/routes/lists+/index.tsx", "app/routes/lists+/.$username+/.$list-type+/$watchlist.jsx", "app/routes/lists+/.$username+/.$list-type+/index.jsx", "app/utils/lists/thumbnail-renderer.tsx", "app/routes/lists+/$watchlist_grid.update-watchlist.jsx", "app/components/search-add-watchlist-entry.jsx", "app/routes/users+/$username.jsx", "app/utils/lists/column-functions.jsx", "app/routes/_home+/index.jsx", "app/routes/users+/$username.test.Backuptsx"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "isolatedModules": true,

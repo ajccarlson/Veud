@@ -16,4 +16,10 @@ export default defineConfig({
 			all: true,
 		},
 	},
+  resolve: {
+    mainFields: ["module", "browser"],
+  },
+  ssr: {
+    noExternal: [/^d3.*$/, /^@nivo.*$/],
+  },
 })
