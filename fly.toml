@@ -16,7 +16,7 @@ destination = "/data"
 release_command = "node ./other/sentry-create-release"
 
 [[services]]
-internal_port = 4021
+internal_port = 8080
 processes = [ "app" ]
 protocol = "tcp"
 script_checks = [ ]
