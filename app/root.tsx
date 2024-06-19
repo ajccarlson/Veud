@@ -62,7 +62,7 @@ export const links: LinksFunction = () => {
 		// Preload svg sprite as a resource to avoid render blocking
 		{ rel: 'preload', href: iconsHref, as: 'image' },
 		// Preload CSS as a resource to avoid render blocking
-		{ rel: 'mask-icon', href: '/favicons/mask-icon.svg' },
+		{ rel: 'mask-icon', href: '/favicons/mask-icon.png' },
 		{
 			rel: 'alternate icon',
 			type: 'image/png',
@@ -75,7 +75,7 @@ export const links: LinksFunction = () => {
 			crossOrigin: 'use-credentials',
 		} as const, // necessary to make typescript happy
 		//These should match the css preloads above to avoid css as render blocking resource
-		{ rel: 'icon', type: 'image/svg+xml', href: '/favicons/favicon.svg' },
+		{ rel: 'icon', type: 'image/png', href: '/favicons/favicon.png' },
 		{ rel: 'stylesheet', href: tailwindStyleSheetUrl },
 	].filter(Boolean)
 }
@@ -83,7 +83,7 @@ export const links: LinksFunction = () => {
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
 	return [
 		{ title: data ? 'Veud' : 'Error | Veud' },
-		{ name: 'description', content: `Lists on lists on lists` },
+		{ name: 'description', content: `Rate and keep track of your favorite media—all in one place` },
 	]
 }
 
