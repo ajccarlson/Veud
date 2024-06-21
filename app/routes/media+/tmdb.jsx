@@ -14,7 +14,7 @@ export async function searchTMDB(entry, type, numResults) {
   let response, data
 
   try {
-    response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+    response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
       fetchMethod: 'get',
       url: url,
       authorization: 'tmdb',
@@ -126,7 +126,7 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
           url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "/content_ratings";
   
           try {
-            response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+            response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
               fetchMethod: 'get',
               url: url,
               authorization: 'tmdb',
@@ -154,7 +154,7 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
           url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "/release_dates";
           
           try {
-            response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+            response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
               fetchMethod: 'get',
               url: url,
               authorization: 'tmdb',
@@ -249,7 +249,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
         url = "https://api.themoviedb.org/3/find/" + entry + "?external_source=imdb_id";
 
         try {
-          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+          response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
@@ -277,7 +277,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
         url = "https://api.themoviedb.org/3/search/" + type + "?query=" + entry + "&include_adult=false&language=en-US&page=1";
 
         try {
-          response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+          response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
             fetchMethod: 'get',
             url: url,
             authorization: 'tmdb',
@@ -305,7 +305,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
     url = "https://api.themoviedb.org/3/" + type + "/" + entryID + "&include_adult=false&language=en-US&page=1";
 
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'tmdb',
@@ -347,7 +347,7 @@ export async function getTMDBTrending(type, numResults) {
     let response, data
 
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'tmdb',

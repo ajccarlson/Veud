@@ -3,7 +3,7 @@ export async function searchMAL(entry, type = 'anime', numResults = 5) {
   let response, data
 
   try {
-    response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+    response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
       fetchMethod: 'get',
       url: url,
       authorization: 'mal',
@@ -61,7 +61,7 @@ export async function getAnilistSchedule(entryID) {
         id: entryID
       };
 
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'POST',
         url: url,
         authorization: 'anilist',
@@ -216,7 +216,7 @@ export async function getAnimeInfo(entryID) {
 
   try {
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
@@ -313,7 +313,7 @@ export async function getMangaInfo(entryID) {
 
   try {
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
@@ -345,7 +345,7 @@ export async function getTopEntries(medium = "anime", topType = "all", numResult
     let response, data
 
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
@@ -431,7 +431,7 @@ export async function getSeasonalAnime(year = undefined, month = undefined, numR
     let response, data
 
     try {
-      response = await fetch('../../../media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
         fetchMethod: 'get',
         url: url,
         authorization: 'mal',
