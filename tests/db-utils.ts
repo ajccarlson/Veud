@@ -251,7 +251,7 @@ export async function randomWatchlists(listTypes: any[], userId: string, fetchDa
       continue
     }
 
-    for(let j = 0; j < faker.number.int({ min: 1, max: 20 }); j++) {
+    for(let j = 0; j < faker.number.int({ min: 1, max: 15 }); j++) {
       const currCount = typeEntryCounts[`${formattedHeader}EntryCount` as keyof typeof typeEntryCounts]
       const currEntry = await resultInfo.splice(Math.floor(Math.random() * resultInfo.length), 1)[0]
 
