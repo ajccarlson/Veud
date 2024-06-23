@@ -61,7 +61,7 @@ export function listNavButtons(typedWatchlists, username, listTypes, listTypeDat
           <div class="list-nav-buttons-container">
             {typedWatchlists[listTypeData.id].map( list =>
               <Link to={"/lists/" + username + "/" + listTypeData.name + "/" + list.name}
-              className={`list-nav-button ${watchListData.id == list.id? 'list-nav-current' : ''}`}> 
+              className={`list-nav-button ${watchListData.id == list.id? 'list-nav-current' : ''}`} id={list.id}> 
                 {list.header}
               </Link>
             )}
