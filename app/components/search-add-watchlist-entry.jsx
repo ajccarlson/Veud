@@ -47,6 +47,8 @@ export function MediaSearchBar(params) {
 		<Form
 			method="GET"
 			onSubmit={async (event) => {
+        setShowDropdown(false)
+
         event.preventDefault();
         if (searchQuery && searchQuery.length >= 3) {
           if (params.columnParams.listTypeData.name == "liveaction") {
@@ -59,6 +61,8 @@ export function MediaSearchBar(params) {
             setmediaResults(await searchMAL(searchQuery, 'manga', 5))
           }
         }
+
+        setShowDropdown(true)
       }}
 			className="watchlist-search flex flex-wrap items-center justify-center"
 		>
@@ -105,24 +109,20 @@ export function MediaSearchBar(params) {
 								addRow = {/*id: " ", */watchlistId: params.params.data.watchlistId, position: params.params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: resultInfo.genres , serialization: JSON.stringify(resultInfo.serialization), authors: JSON.stringify(resultInfo.authors), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: resultInfo.malScore, differenceObjective: 0, description: resultInfo.description, notes: ""}
 							} 
 
-							const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
+							await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
                 authorization: params.columnParams.VEUD_API_KEY,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 								row: JSON.stringify(addRow)
 							})))
-							const addData = await addResponse.json();
-							//console.log(addData)
 
 
-							const deleteEmptyResponse = await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
+							await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
                 authorization: params.columnParams.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 							})))
-							const deleteEmptyData = await deleteEmptyResponse.json();
-							//console.log(deleteEmptyData)
 
-							const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+							await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
                 authorization: params.columnParams.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId
 							})))
