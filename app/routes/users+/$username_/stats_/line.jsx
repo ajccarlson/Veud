@@ -111,7 +111,12 @@ export function renderLineChart(loaderData, chartType) {
       let entryData = []
 
       value.forEach(typedEntry => {
-        let yearMatch =  [...getStartYear(typedEntry, foundListType, loaderData.listTypes).matchAll(/\d{4}/g)]
+        const entryYear = getStartYear(typedEntry, foundListType, loaderData.listTypes)
+        if (!entryYear) {
+          return
+        }
+
+        let yearMatch = [...entryYear.matchAll(/\d{4}/g)]
         let matchResult
 
         try {
