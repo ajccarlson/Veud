@@ -60,7 +60,7 @@ export function listNavButtons(typedWatchlists, username, listTypes, listTypeDat
         <div class="list-nav-buttons-main" id="list-nav">
           <div class="list-nav-buttons-container">
             {typedWatchlists[listTypeData.id].map( list =>
-              <Link to={"../lists/" + username + "/" + listTypeData.name + "/" + list.name}
+              <Link to={"/lists/" + username + "/" + listTypeData.name + "/" + list.name}
               class="list-nav-button"> 
                 {list.header}
               </Link>
