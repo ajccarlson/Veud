@@ -183,6 +183,7 @@ export async function reformatHistory(params, newValue) {
     newValue: newValue,
   })))
   const updateCellData = await updateCellResponse.json()
+
   return updateCellData
 }
 
@@ -308,7 +309,7 @@ async function setterFunction(params) {
 
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
 
-    if (["length", "chapters", "volumes"].includes(params.column.colId.toLowerCase())) {
+    if (["length", "chapters", "volumes", "date", "finished", "started"].includes(params.column.colId.toLowerCase())) {
       refreshGrid(columnParams)
     }
   }
