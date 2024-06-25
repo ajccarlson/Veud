@@ -163,6 +163,13 @@
     );
   }
 
+  .list-landing-sidebar-item-current {
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-decoration-color: #FF9900;
+    text-decoration-thickness: 0.25rem;
+  }
+
   .list-landing-nav-container {
     display: flex;
     flex-direction: column;
