@@ -40,7 +40,7 @@ Veud is a multimedia tracking and rating platform, focused on giving users an in
 * Caching via [cachified](https://npm.im/@epic-web/cachified): Both in-memory
   and SQLite-based (with
   [better-sqlite3](https://github.com/WiseLibs/better-sqlite3))
-* Styling with [Tailwind](https://tailwindcss.com/)
+* Styling with [SCSS](https://sass-lang.com/) and [Tailwind](https://tailwindcss.com/)
 * An excellent, customizable component library with
   [Radix UI](https://www.radix-ui.com/)
 * End-to-end testing with [Playwright](https://playwright.dev/)
