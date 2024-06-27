@@ -1,54 +1,114 @@
-<div align="center">
-  <h1 align="center"><a href="https://www.epicweb.dev/epic-stack">The Epic Stack 🚀</a></h1>
-  <strong align="center">
-    Ditch analysis paralysis and start shipping Epic Web apps.
-  </strong>
-  <p>
-    This is an opinionated project starter and reference that allows teams to
-    ship their ideas to production faster and on a more stable foundation based
-    on the experience of <a href="https://kentcdodds.com">Kent C. Dodds</a> and
-    <a href="https://github.com/epicweb-dev/epic-stack/graphs/contributors">contributors</a>.
-  </p>
-</div>
+<p align="center">
+  <a href="https://www.veud.net/">
+    <img src="app/components/ui/icons/logoV3.webp" alt="Veud Logo" width="250">
+  </a>
+</p>
 
-```sh
-npx create-epic-app@latest
+Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.
+
+---
+
+<p align="center">
+  <a href="https://www.veud.net/">
+    <img src="public/img/home.png" alt="Veud Homepage">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://www.veud.net/lists/acarlson9000/liveaction/completed">
+    <img src="public/img/watchlist.png" alt="Example Watchlist">
+  </a>
+</p>
+
+## Built With
+
+* [Remix](https://remix.run/) web framework
+* [AG Grid](https://www.ag-grid.com/) datagrid used for watchlists
+* [Nivo](https://nivo.rocks/) rich dataviz components built on [D3](https://d3js.org/)
+* [The Movie Database (TMDB)](https://www.themoviedb.org/) movie and TV data
+* Anime and manga data from [AniList](https://anilist.co/) with links to [MyAnimeList](http://myanimelist.net/)
+* [Fly](https://maven.apache.org/) app deployment with [Docker](https://www.docker.com/)
+* Multi-region, distributed, production-ready
+  [SQLite Database](https://sqlite.org/) with
+  [LiteFS](https://fly.io/docs/litefs/).
+* Healthcheck endpoint for
+  [Fly backups region fallbacks](https://fly.io/docs/reference/configuration/#services-http_checks)
+* Two-Factor Authentication (2fa) with support for authenticator apps.
+* Transactional email with [Resend](https://resend.com/) and forgot
+  password/password reset support.
+* Database ORM with [Prisma](https://prisma.io/)
+* Caching via [cachified](https://npm.im/@epic-web/cachified): Both in-memory
+  and SQLite-based (with
+  [better-sqlite3](https://github.com/WiseLibs/better-sqlite3))
+* Styling with [Tailwind](https://tailwindcss.com/)
+* An excellent, customizable component library with
+  [Radix UI](https://www.radix-ui.com/)
+* End-to-end testing with [Playwright](https://playwright.dev/)
+* Local third party request mocking with [MSW](https://mswjs.io/)
+* Unit testing with [Vitest](https://vitest.dev/) and
+  [Testing Library](https://testing-library.com/) with pre-configured Test
+  Database
+* Code formatting with [Prettier](https://prettier.io/)
+* Linting with [ESLint](https://eslint.org/)
+* Static Types with [TypeScript](https://typescriptlang.org/)
+* Runtime schema validation with [zod](https://zod.dev/) 
+
+## Building
+
+### Prerequisites
+
+* [Node.js](https://nodejs.org/)
+* [npm](https://www.npmjs.com/)
+* [Flyctl](https://fly.io/docs/flyctl/install/)
+
+### Installing
+
+```
+npm install
 ```
 
-[![The Epic Stack](https://github-production-user-asset-6210df.s3.amazonaws.com/1500684/246885449-1b00286c-aa3d-44b2-9ef2-04f694eb3592.png)](https://www.epicweb.dev/epic-stack)
+## Running
 
-[The Epic Stack](https://www.epicweb.dev/epic-stack)
+### Development
+```
+npm run dev
+```
 
-<hr />
+### Production
+```
+npm run start
+```
 
-## Watch Kent's Introduction to The Epic Stack
+## Testing
 
-[![Epic Stack Talk slide showing Flynn Rider with knives, the text "I've been around and I've got opinions" and Kent speaking in the corner](https://github-production-user-asset-6210df.s3.amazonaws.com/1500684/277818553-47158e68-4efc-43ae-a477-9d1670d4217d.png)](https://www.epicweb.dev/talks/the-epic-stack)
+### Playwright
 
-["The Epic Stack" by Kent C. Dodds](https://www.epicweb.dev/talks/the-epic-stack)
+End-to-End tests to verify that the application functions properly from a user's perspective. Test users are created and automatically deleted once testing is complete in order to keep the local database clean and tests isolated from one another
 
-## Docs
+```
+npm run test:e2e:dev
+```
 
-[Read the docs](https://github.com/epicweb-dev/epic-stack/blob/main/docs)
-(please 🙏).
+### Vitest
 
-## Support
+Lower level tests of utilities and individual components
 
-- 🆘 Join the
-  [discussion on GitHub](https://github.com/epicweb-dev/epic-stack/discussions)
-  and the [KCD Community on Discord](https://kcd.im/discord).
-- 💡 Create an
-  [idea discussion](https://github.com/epicweb-dev/epic-stack/discussions/new?category=ideas)
-  for suggestions.
-- 🐛 Open a [GitHub issue](https://github.com/epicweb-dev/epic-stack/issues) to
-  report a bug.
+```
+npm run test --coverage
+```
 
-## Branding
+### Linting
 
-Want to talk about the Epic Stack in a blog post or talk? Great! Here are some
-assets you can use in your material:
-[EpicWeb.dev/brand](https://epicweb.dev/brand)
+Code linting using ESLint to keep code consistent and readable
 
-## Thanks
+```
+npm run lint
+```
 
-You rock 🪨
+## Authors
+
+* **Aaron Carlson** - [ajccarlson](https://github.com/ajccarlson)
+
+## Acknowledgments
+
+* [The Epic Stack](https://github.com/epicweb-dev/epic-stack) project starter
