@@ -1340,8 +1340,10 @@ export function columnDefs() {
           return Number(params.value).toFixed(1)
         }
       },
+      editable: columnParams.currentUserId == columnParams.listOwner.id,
       minWidth: 55,
       maxWidth: 80,
+      cellDataType: 'number',
       filter: 'agNumberColumnFilter',
       cellEditor: 'agNumberCellEditor',
       cellEditorParams: {
