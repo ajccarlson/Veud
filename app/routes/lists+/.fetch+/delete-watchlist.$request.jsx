@@ -12,39 +12,29 @@ export async function action({ request, params }) {
   // Only the owner may delete this watchlist.
   const { userId } = await requireWatchlistOwner(request, id)
 
-  await prisma.watchlist.delete({
-    where: {
-      id,
-    },
-  });
-
   const typeFormatted = resolveEntryModel(searchParams.get('listTypeData'))
+  const typeId = JSON.parse(searchParams.get('listTypeData')).id
 
-  await prisma[typeFormatted].deleteMany({
-    where: {
-      watchlistId: id,
-    },
-  })
+  // Delete the watchlist, remove its entries, and renumber the owner's remaining
+  // watchlists of this type — all atomically, so a mid-sequence failure can't leave a
+  // half-deleted list or gaps in the ordering.
+  await prisma.$transaction(async (tx) => {
+    await tx.watchlist.delete({ where: { id } })
 
-  const watchLists = await prisma.watchlist.findMany({
-    where: {
-      typeId: JSON.parse(searchParams.get('listTypeData')).id,
-      ownerId: userId,
-    },
-  })
+    await tx[typeFormatted].deleteMany({ where: { watchlistId: id } })
 
-  const watchListsSorted = watchLists.sort((a,b) => a.position - b.position)
-
-  for (let i = 0; i < watchListsSorted.length; i++) {
-    await prisma.watchlist.update({
-      where: {
-        id: watchListsSorted[i].id,
-      },
-      data: {
-        position: (i + 1),
-      },
+    const remaining = await tx.watchlist.findMany({
+      where: { typeId, ownerId: userId },
+      orderBy: { position: 'asc' },
     })
-  }
+
+    for (let i = 0; i < remaining.length; i++) {
+      await tx.watchlist.update({
+        where: { id: remaining[i].id },
+        data: { position: i + 1 },
+      })
+    }
+  })
 
   return true
 }

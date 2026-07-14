@@ -20,18 +20,18 @@ export async function action({ request, params }) {
     },
   })
 
-  let removedEntries = [];
+  // An "empty" row has neither a meaningful title nor type.
+  const removedEntries = entries.filter(
+    entry =>
+      (!entry.title || entry.title.replace(/\W/g, '') === '') &&
+      (!entry.type || entry.type.replace(/\W/g, '') === ''),
+  )
 
-  for (const entry of entries) {
-    if ((!entry.title || entry.title.replace(/\W/g, '') === "") && (!entry.type || entry.type.replace(/\W/g, '') === "")) {
-      removedEntries.push(entry)
-
-      await prisma[typeFormatted].delete({
-        where: {
-          id: entry.id,
-        },
-      });
-    }
+  // Remove them in a single atomic statement rather than one query per row.
+  if (removedEntries.length > 0) {
+    await prisma[typeFormatted].deleteMany({
+      where: { id: { in: removedEntries.map(entry => entry.id) } },
+    })
   }
 
   return removedEntries
