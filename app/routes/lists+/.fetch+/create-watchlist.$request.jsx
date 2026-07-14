@@ -1,5 +1,6 @@
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 
 function castType(varIn, varType) {
   let typeFormatted = varType.toLowerCase();
@@ -22,14 +23,24 @@ export async function action({ request, params }) {
   const userId = await requireUserId(request)
   const searchParams = new URLSearchParams(params.request)
 
-  let rawList = JSON.parse(searchParams.get('list'))
-  let formattedList = {}
+  let rawList
+  try {
+    rawList = JSON.parse(searchParams.get('list'))
+  } catch {
+    throw new Response('Invalid list payload', { status: 400 })
+  }
+  if (!rawList || typeof rawList !== 'object' || Array.isArray(rawList)) {
+    throw new Response('Invalid list payload', { status: 400 })
+  }
 
+  let formattedList = {}
   for (const [key, value] of Object.entries(rawList)) {
     formattedList[key] = await castType(value.value, value.type)
   }
 
-  // The new watchlist is owned by its creator, regardless of any client-supplied value.
+  // The client must not choose the watchlist id, and ownership always comes from the
+  // session — never from a client-supplied value.
+  formattedList = stripProtectedFields(formattedList, ['id'])
   formattedList.ownerId = userId
 
   return await prisma.watchlist.create({ data: formattedList });

@@ -93,3 +93,21 @@ export async function requireFavoriteOwner(
 	}
 	return { userId, favorite }
 }
+
+/**
+ * Returns a shallow copy of `data` with the given protected keys removed. Used to stop a
+ * client from mass-assigning system fields (id, ownerId, watchlistId, …) through routes
+ * that pass a client-supplied object straight into a Prisma create/update.
+ */
+export function stripProtectedFields<T extends Record<string, unknown>>(
+	data: T,
+	protectedKeys: readonly string[],
+): Partial<T> {
+	const clean: Partial<T> = {}
+	for (const key of Object.keys(data)) {
+		if (!protectedKeys.includes(key)) {
+			clean[key as keyof T] = data[key as keyof T]
+		}
+	}
+	return clean
+}
