@@ -14,6 +14,8 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	requireEntryOwner,
+	requireFavoriteOwner,
 	requireWatchlistOwner,
 	resolveEntryModel,
 } from '#app/utils/lists/authorization.server.ts'
@@ -141,4 +143,136 @@ test('requireWatchlistOwner refuses an unauthenticated caller (redirect to login
 	expect(status).toBeGreaterThanOrEqual(300)
 	expect(status).toBeLessThan(400)
 	expect((res as Response).headers.get('location')).toContain('/login')
+})
+
+// ---------- requireEntryOwner (entry -> its watchlist -> owner) ----------
+
+async function createOwnerWithEntry() {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `u_${suffix}`,
+			watchlists: {
+				create: {
+					name: faker.lorem.words(2),
+					header: 'LiveAction',
+					type: {
+						create: {
+							name: `LiveAction ${suffix}`,
+							header: 'LiveAction',
+							columns: '[]',
+							mediaType: 'liveAction',
+							completionType: 'watched',
+						},
+					},
+					liveActionEntries: {
+						create: { position: 1, title: faker.lorem.words(2) },
+					},
+				},
+			},
+		},
+		select: {
+			id: true,
+			watchlists: { select: { liveActionEntries: { select: { id: true } } } },
+		},
+	})
+	const entryId = owner.watchlists[0]?.liveActionEntries[0]?.id
+	if (!entryId) throw new Error('test setup: entry was not created')
+	return { userId: owner.id, entryId }
+}
+
+test('requireEntryOwner returns the entry for the owner of its watchlist', async () => {
+	const { userId, entryId } = await createOwnerWithEntry()
+	const request = await authedRequestFor(userId)
+
+	const result = await requireEntryOwner(request, 'liveActionEntry', entryId)
+	expect(result.userId).toBe(userId)
+	expect(result.entry.id).toBe(entryId)
+})
+
+test('requireEntryOwner returns 404 for a logged-in non-owner', async () => {
+	const { entryId } = await createOwnerWithEntry()
+	const other = await createUserRecord()
+	const request = await authedRequestFor(other.id)
+
+	const res = await requireEntryOwner(
+		request,
+		'liveActionEntry',
+		entryId,
+	).catch(e => e)
+	expect(res).toBeInstanceOf(Response)
+	expect((res as Response).status).toBe(404)
+})
+
+test('requireEntryOwner returns 404 when the entry does not exist', async () => {
+	const owner = await createUserRecord()
+	const request = await authedRequestFor(owner.id)
+
+	const res = await requireEntryOwner(
+		request,
+		'liveActionEntry',
+		'does-not-exist',
+	).catch(e => e)
+	expect(res).toBeInstanceOf(Response)
+	expect((res as Response).status).toBe(404)
+})
+
+// ---------- requireFavoriteOwner ----------
+
+async function createOwnerWithFavorite() {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `u_${suffix}`,
+			userFavorites: {
+				create: {
+					position: 1,
+					title: faker.lorem.words(2),
+					type: {
+						create: {
+							name: `LiveAction ${suffix}`,
+							header: 'LiveAction',
+							columns: '[]',
+							mediaType: 'liveAction',
+							completionType: 'watched',
+						},
+					},
+				},
+			},
+		},
+		select: { id: true, userFavorites: { select: { id: true } } },
+	})
+	const favoriteId = owner.userFavorites[0]?.id
+	if (!favoriteId) throw new Error('test setup: favorite was not created')
+	return { userId: owner.id, favoriteId }
+}
+
+test('requireFavoriteOwner returns the favorite for its owner', async () => {
+	const { userId, favoriteId } = await createOwnerWithFavorite()
+	const request = await authedRequestFor(userId)
+
+	const result = await requireFavoriteOwner(request, favoriteId)
+	expect(result.userId).toBe(userId)
+	expect(result.favorite.id).toBe(favoriteId)
+})
+
+test('requireFavoriteOwner returns 404 for a logged-in non-owner', async () => {
+	const { favoriteId } = await createOwnerWithFavorite()
+	const other = await createUserRecord()
+	const request = await authedRequestFor(other.id)
+
+	const res = await requireFavoriteOwner(request, favoriteId).catch(e => e)
+	expect(res).toBeInstanceOf(Response)
+	expect((res as Response).status).toBe(404)
+})
+
+test('requireFavoriteOwner returns 404 when the favorite does not exist', async () => {
+	const owner = await createUserRecord()
+	const request = await authedRequestFor(owner.id)
+
+	const res = await requireFavoriteOwner(request, 'does-not-exist').catch(e => e)
+	expect(res).toBeInstanceOf(Response)
+	expect((res as Response).status).toBe(404)
 })
