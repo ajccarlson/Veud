@@ -380,30 +380,3 @@ export async function getTMDBTrending(type, numResults) {
     console.error(e)
   }
 }
-
-export function getFavoriteInfo(entryPass, typePass) {
-  try {
-    typePass = typePass.toLowerCase();
-    const rowData = getTMDBInfo(entryPass, typePass);
-
-    if (typePass.includes('person'))
-      return [rowData['thumbnail'], rowData['name']];
-    else
-      return [rowData['thumbnail'], rowData['title']];
-  }
-  catch (e) {
-    throw new Error('Failed to get favorite info!\n' + e);
-  }
-}
-
-export function getTMDBScores(entryPass, typePass = 'movie', currentScore = null) {
-  try {
-    const rowData = getTMDBInfo(entryPass, typePass);
-    const formattedScore = rowData['score'].toFixed(1);
-    return parseFloat(formattedScore);
-  }
-  catch (e) {
-    console.error('Failed to fetch score for ' + entryPass + '!\n' + e);
-    return currentScore ? currentScore : "?";
-  }
-}
