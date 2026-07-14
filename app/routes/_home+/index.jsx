@@ -4,6 +4,7 @@ import { useLoaderData } from '@remix-run/react'
 import { TrendingData } from '#app/routes/_home+/_trending.jsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.jsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
 export async function loader() {
@@ -24,7 +25,7 @@ export async function loader() {
 	let typedEntries = {}
 
 	for (const type of listTypes) {
-		const typeFormatted = type.header.replace(/\W/g, '') + "Entry"
+		const typeFormatted = entryModelFromHeader(type.header)
 		let perWatchlistEntries = []
 
 		for (const typedList of typedWatchlists[type.id]) {

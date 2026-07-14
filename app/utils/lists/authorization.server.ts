@@ -16,6 +16,23 @@ import { prisma } from '#app/utils/db.server.ts'
 const ENTRY_MODELS = new Set(['liveActionEntry', 'animeEntry', 'mangaEntry'])
 
 /**
+ * Map a list type's `header` to its validated Prisma entry-model delegate name. Throws a
+ * 400 for anything outside the allowlist, so the Prisma client is never indexed with an
+ * untrusted string. Shared by the fetch API (via resolveEntryModel) and the page loaders,
+ * which previously built this name inline with no validation.
+ */
+export function entryModelFromHeader(header: unknown): string {
+	const base = String(header ?? '').replace(/\W/g, '')
+	const delegate = base
+		? base.charAt(0).toLowerCase() + base.slice(1) + 'Entry'
+		: ''
+	if (!ENTRY_MODELS.has(delegate)) {
+		throw new Response('Unknown list type', { status: 400 })
+	}
+	return delegate
+}
+
+/**
  * Resolve — and validate — the entry-model delegate name from the client-supplied
  * `listTypeData`. Throws a 400 for anything outside the allowlist, so the Prisma
  * client is never indexed with an untrusted string.
@@ -27,14 +44,7 @@ export function resolveEntryModel(listTypeDataRaw: string | null): string {
 	} catch {
 		throw new Response('Invalid listTypeData', { status: 400 })
 	}
-	const base = String(header ?? '').replace(/\W/g, '')
-	const delegate = base
-		? base.charAt(0).toLowerCase() + base.slice(1) + 'Entry'
-		: ''
-	if (!ENTRY_MODELS.has(delegate)) {
-		throw new Response('Unknown list type', { status: 400 })
-	}
-	return delegate
+	return entryModelFromHeader(header)
 }
 
 /**

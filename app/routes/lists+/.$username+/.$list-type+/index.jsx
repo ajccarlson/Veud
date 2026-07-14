@@ -4,6 +4,7 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
+import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { timeSince, getStartYear, getThumbnailInfo } from "#app/utils/lists/column-functions.jsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
@@ -148,7 +149,7 @@ export async function loader(params) {
   const listType = params['params']['list-type']
   const listTypeData = listTypes.find(type => type.name === listType)
 
-  const typeFormatted = listTypeData.header.replace(/\W/g, '') + "Entry"
+  const typeFormatted = entryModelFromHeader(listTypeData.header)
 
   invariantResponse(typeFormatted, 'List type not found', { status: 404 })
 

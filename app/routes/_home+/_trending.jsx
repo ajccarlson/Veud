@@ -45,7 +45,7 @@ export function TrendingData(currentUser) {
       getTrending("tmdb", {mediaType: "movie", numResults: 50}).then(val => {
         setTrendingMovies(val)
       }).catch(e => {
-        console.log(e)
+        console.error(e)
       })
     }
   }, [trendingMovies])
@@ -55,7 +55,7 @@ export function TrendingData(currentUser) {
       getTrending("tmdb", {mediaType: "tv", numResults: 50}).then(val => {
         setTrendingTV(val)
       }).catch(e => {
-        console.log(e)
+        console.error(e)
       })
     }
   }, [trendingTV])
@@ -66,7 +66,7 @@ export function TrendingData(currentUser) {
       getTrending("mal", {year: date.getFullYear(), month: date.getMonth(), numResults: 50}).then(val => {
         setSeasonalAnime(val)
       }).catch(e => {
-        console.log(e)
+        console.error(e)
       })
     }
   }, [seasonalAnime])

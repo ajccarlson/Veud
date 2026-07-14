@@ -4,6 +4,7 @@ import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from "#app/components/list-nav-buttons.jsx"
 import { prisma } from '#app/utils/db.server.ts'
+import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/watchlist.scss"
@@ -20,7 +21,7 @@ export async function loader(params) {
   const listType = params['params']['list-type']
   const listTypes = await prisma.ListType.findMany()
   const listTypeData = listTypes.find(type => type.name === listType)
-  const typeFormatted = listTypeData.header.replace(/\W/g, '') + "Entry"
+  const typeFormatted = entryModelFromHeader(listTypeData.header)
 
   invariantResponse(typeFormatted, 'List type not found', { status: 404 }) 
 

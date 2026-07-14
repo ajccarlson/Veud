@@ -252,7 +252,6 @@ async function updatePositions() {
 }
 
 async function setterFunction(params) {
-  // console.log(params)
   let returnValue = true
 
   if (params.column.colId == "position") {
@@ -307,14 +306,12 @@ async function setterFunction(params) {
       watchlistId: params.data.watchlistId
     })), { method: 'POST' })
 
-    console.log("value: " + params.oldValue + " has changed to " + params.newValue)
 
     if (["length", "chapters", "volumes", "date", "finished", "started"].includes(params.column.colId.toLowerCase())) {
       refreshGrid(columnParams)
     }
   }
   else {
-    console.log("value unchanged")
     returnValue = false;
   }
 
@@ -345,7 +342,6 @@ export function columnDefs() {
 
                     let agRows = getAllRows()
                     const agRow = agRows[params.node.id]
-                    console.log(agRow)
                     const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
                     
                     let addPosition = event.target.moveRowIndex.value
@@ -801,9 +797,7 @@ export function columnDefs() {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, params.data.history).then(val => {
-              // console.log(val);
             }).catch(e => {
-              // console.log(e);
             })
 
             return parsedDate
@@ -834,9 +828,7 @@ export function columnDefs() {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, params.data.history).then(val => {
-              // console.log(val);
             }).catch(e => {
-              // console.log(e);
             })
 
             return parsedDate
@@ -867,9 +859,7 @@ export function columnDefs() {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, params.data.history).then(val => {
-              // console.log(val);
             }).catch(e => {
-              // console.log(e);
             })
 
             return parsedDate
@@ -899,9 +889,7 @@ export function columnDefs() {
             const parsedDate = Date.parse(params.data.history)
 
             reformatHistory(params, params.data.history).then(val => {
-              // console.log(val);
             }).catch(e => {
-              // console.log(e);
             })
 
             return parsedDate
