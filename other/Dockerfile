@@ -6,6 +6,10 @@ FROM node:20-bookworm-slim as base
 # set for base and all layer that inherit from it
 ENV NODE_ENV production
 
+RUN apt-get update && apt-get install -y build-essential
+
+RUN apt-get update || : && apt-get install python3 -y
+
 # Install openssl for Prisma
 RUN apt-get update && apt-get install -y fuse3 openssl sqlite3 ca-certificates
 
@@ -29,6 +33,14 @@ RUN npm prune --omit=dev
 # Build the app
 FROM base as build
 
+ARG COMMIT_SHA
+ENV COMMIT_SHA=$COMMIT_SHA
+
+# Use the following environment variables to configure Sentry
+# ENV SENTRY_ORG=
+# ENV SENTRY_PROJECT=
+
+
 WORKDIR /myapp
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
@@ -37,7 +49,11 @@ ADD prisma .
 RUN npx prisma generate
 
 ADD . .
-RUN npm run build
+
+# Mount the secret and set it as an environment variable and run the build
+RUN --mount=type=secret,id=SENTRY_AUTH_TOKEN \
+  export SENTRY_AUTH_TOKEN=$(cat /run/secrets/SENTRY_AUTH_TOKEN) && \
+  npm run build
 
 # Finally, build the production image with minimal footprint
 FROM base
@@ -60,6 +76,10 @@ RUN echo "#!/bin/sh\nset -x\nsqlite3 \$DATABASE_URL" > /usr/local/bin/database-c
 
 WORKDIR /myapp
 
+# Generate random value and save it to .env file which will be loaded by dotenv
+RUN INTERNAL_COMMAND_TOKEN=$(openssl rand -hex 32) && \
+  echo "INTERNAL_COMMAND_TOKEN=$INTERNAL_COMMAND_TOKEN" > .env
+
 COPY --from=production-deps /myapp/node_modules /myapp/node_modules
 COPY --from=build /myapp/node_modules/.prisma /myapp/node_modules/.prisma
 
@@ -70,10 +90,10 @@ COPY --from=build /myapp/prisma /myapp/prisma
 COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
 
 # prepare for litefs
-COPY --from=flyio/litefs:0.5.11 /usr/local/bin/litefs /usr/local/bin/litefs
-ADD other/litefs.yml /etc/litefs.yml
-RUN mkdir -p /data ${LITEFS_DIR}
-
+VOLUME /litefs
 ADD . .
 
-CMD ["litefs", "mount"]
+RUN chown -R node /myapp/other/docker-entry-point.sh
+
+EXPOSE ${PORT}
+ENTRYPOINT ["/myapp/other/docker-entry-point.sh"]

@@ -83,7 +83,7 @@ export const links: LinksFunction = () => {
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
 	return [
 		{ title: data ? 'Veud' : 'Error | Veud' },
-		{ name: 'description', content: `Rate and keep track of your favorite media—all in one place` },
+		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
 	]
 }
 

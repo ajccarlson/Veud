@@ -68,6 +68,13 @@
     border-color: #80FFC6;
   }
 
+  .list-nav-current {
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-decoration-color: #FF9900;
+    text-decoration-thickness: 0.25rem;
+  }
+
   .list-type-nav-container {
     display: flex;
     justify-content: center;

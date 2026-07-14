@@ -243,13 +243,13 @@ export default function Lists() {
         </div>
       </div>
       <div class="list-landing-sidebar-container">
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/liveaction`} className="list-landing-sidebar-item" reloadDocument>
+        <Link prefetch="intent" to={`/lists/${loaderData.username}/liveaction`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "liveaction"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
           Live Action
         </Link>
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/anime`} className="list-landing-sidebar-item" reloadDocument>
+        <Link prefetch="intent" to={`/lists/${loaderData.username}/anime`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "anime"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
           Anime
         </Link>
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/manga`} className="list-landing-sidebar-item list-landing-sidebar-item-bottom" reloadDocument>
+        <Link prefetch="intent" to={`/lists/${loaderData.username}/manga`} className={`list-landing-sidebar-item list-landing-sidebar-item-bottom ${listParams.listTypeData.name == "manga"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
           Manga
         </Link>
       </div>
