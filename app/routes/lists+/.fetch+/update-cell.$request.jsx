@@ -137,7 +137,7 @@ export async function loader(params) {
         parsedHistoryObject["progress"] = JSON.parse(searchParams.get('newValue'))
       }
       else {
-        parsedHistoryObject[searchParams.get('colId')] = new Date(searchParams.get('newValue')).toISOString()
+        parsedHistoryObject[searchParams.get('colId')] = searchParams.get('newValue') && searchParams.get('newValue') != "null" ? new Date(searchParams.get('newValue')).toISOString() : null
       }
 
       return await prisma[typeFormatted].update({
