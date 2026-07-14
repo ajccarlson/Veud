@@ -218,7 +218,6 @@ export async function formatTMDBResults(entry, type, entryID, dataPass, full = t
       };
     }
 
-    //console.log(infoObject);
     return infoObject;
   }
   catch(e) {
@@ -386,7 +385,6 @@ export function getFavoriteInfo(entryPass, typePass) {
   try {
     typePass = typePass.toLowerCase();
     const rowData = getTMDBInfo(entryPass, typePass);
-    console.log(rowData)
 
     if (typePass.includes('person'))
       return [rowData['thumbnail'], rowData['name']];

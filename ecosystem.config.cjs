@@ -32,5 +32,22 @@ module.exports = {
         "./src"
       ],
     },
+  }, {
+    // Automatic, timestamped SQLite backups (safe online backup via better-sqlite3).
+    // Fork-mode, non-restarting: it runs once when PM2 starts and then hourly via
+    // cron_restart, so `npm run start:prod` gives you backups with no separate command or
+    // crontab entry. The script no-ops under NODE_ENV=development, so `start:dev` does not
+    // produce backups even though this ecosystem file is shared by both.
+    name: "veud-backup",
+    script: "scripts/backup-db.mjs",
+    autorestart: false,
+    cron_restart: "0 * * * *",
+
+    env_production: {
+      NODE_ENV: "production",
+    },
+    env_development: {
+      NODE_ENV: "development",
+    },
   }]
 }
