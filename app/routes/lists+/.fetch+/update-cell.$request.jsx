@@ -170,7 +170,11 @@ export async function action({ request, params }) {
     }
   }
   catch (e) {
+    // Auth/ownership failures are already Responses (401/404) — let them through.
     if (e instanceof Response) throw e
-    return e
+    // Anything else is an unexpected server error: log it server-side and return a
+    // generic 500 (never the raw error object, and never HTTP 200-on-failure).
+    console.error('[update-cell] failed to update cell:', e)
+    throw new Response('Failed to update cell', { status: 500 })
   }
 };

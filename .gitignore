@@ -8,6 +8,9 @@ node_modules
 
 /prisma/data.db
 /prisma/data.db-journal
+/prisma/data.db-wal
+/prisma/data.db-shm
+/backups/
 /tests/prisma
 
 /test-results/
