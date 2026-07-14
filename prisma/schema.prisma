@@ -21,31 +21,11 @@ model User {
 
   image         UserImage?
   password      Password?
-  notes         Note[]
   watchlists    Watchlist[]
   userFavorites UserFavorite[]
   roles         Role[]
   sessions      Session[]
   connections   Connection[]
-}
-
-model Note {
-  id      String @id @default(cuid())
-  title   String
-  content String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId String
-
-  images NoteImage[]
-
-  // non-unique foreign key
-  @@index([ownerId])
-  // This helps our order by in the user search a LOT
-  @@index([ownerId, updatedAt])
 }
 
 model ListType {
@@ -222,22 +202,6 @@ model UserFavorite {
   @@index([ownerId])
 }
 
-model NoteImage {
-  id          String  @id @default(cuid())
-  altText     String?
-  contentType String
-  blob        Bytes
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  noteId String
-
-  // non-unique foreign key
-  @@index([noteId])
-}
-
 model UserImage {
   id          String  @id @default(cuid())
   altText     String?
@@ -258,11 +222,6 @@ model Password {
   userId String @unique
 }
 
-model ApiKeys {
-  hash    String @id
-  access  String
-}
-
 model Session {
   id             String   @id @default(cuid())
   expirationDate DateTime
@@ -280,7 +239,7 @@ model Session {
 model Permission {
   id          String @id @default(cuid())
   action      String // e.g. create, read, update, delete
-  entity      String // e.g. note, user, etc.
+  entity      String // e.g. user, watchlist, etc.
   access      String // e.g. own or any
   description String @default("")
 

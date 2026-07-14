@@ -61,11 +61,6 @@ export function SideData(loaderData) {
 						Watchlists
 					</Link>
 				</Button>
-				{/* <Button asChild>
-					<Link to="notes" prefetch="intent">
-						Notes
-					</Link>
-				</Button> */}
 				{/* {isLoggedInUser ? (
 					<Button asChild>
 						<Link to="/settings/profile" prefetch="intent">
