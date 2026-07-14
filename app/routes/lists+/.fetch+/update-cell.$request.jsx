@@ -21,7 +21,7 @@ function castType(varIn, varType) {
     return varIn;
 }
 
-export async function loader({ request, params }) {
+export async function action({ request, params }) {
   try {
     const searchParams = new URLSearchParams(params.request);
 

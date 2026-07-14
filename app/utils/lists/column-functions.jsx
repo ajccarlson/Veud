@@ -391,14 +391,14 @@ export async function updateRowInfo(params, columnParams, bulk) {
     listTypeData: JSON.stringify(columnParams.listTypeData),
     rowIndex: params.data.id,
     row: JSON.stringify(updateRow)
-  })))
+  })), { method: 'POST' })
   const rowUpdateData = await rowUpdateResponse.json();
   //console.log(rowUpdateData)
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     authorization: columnParams.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
-  })))
+  })), { method: 'POST' })
 
   if (!bulk) {
     refreshGrid(columnParams);
