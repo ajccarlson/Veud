@@ -1,22 +1,21 @@
 import { prisma } from '#app/utils/db.server.ts'
+import {
+  requireEntryOwner,
+  resolveEntryModel,
+} from '#app/utils/lists/authorization.server.ts'
 
-export async function loader(params) {
-  try {
-    const searchParams = new URLSearchParams(params.params.request);
+export async function loader({ request, params }) {
+  const searchParams = new URLSearchParams(params.request)
 
-    if (!searchParams.get('authorization') || searchParams.get('authorization') != process.env.VEUD_API_KEY) {
-      throw new Error("Error: invalid authorization!")
-    }
+  const typeFormatted = resolveEntryModel(searchParams.get('listTypeData'))
+  const id = searchParams.get('id')
 
-    const typeFormatted = JSON.parse(searchParams.get('listTypeData')).header.replace(/\W/g, '') + "Entry"
+  // The entry must belong to a watchlist the current user owns.
+  await requireEntryOwner(request, typeFormatted, id)
 
-    return await prisma[typeFormatted].delete({
-      where: {
-        id: searchParams.get('id'),
-      },
-    });
-  }
-  catch(e) {
-    return e
-  }
-};
+  return await prisma[typeFormatted].delete({
+    where: {
+      id,
+    },
+  });
+}
