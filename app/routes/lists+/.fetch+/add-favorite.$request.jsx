@@ -1,13 +1,23 @@
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 
 export async function action({ request, params }) {
   const userId = await requireUserId(request)
   const searchParams = new URLSearchParams(params.request)
 
-  const favorite = JSON.parse(searchParams.get('favorite'))
-  // Ownership comes from the session — never trust a client-supplied ownerId.
-  return await prisma.userFavorite.create({
-    data: { ...favorite, ownerId: userId },
-  })
+  let favorite
+  try {
+    favorite = JSON.parse(searchParams.get('favorite'))
+  } catch {
+    throw new Response('Invalid favorite payload', { status: 400 })
+  }
+  if (!favorite || typeof favorite !== 'object' || Array.isArray(favorite)) {
+    throw new Response('Invalid favorite payload', { status: 400 })
+  }
+
+  // The client must not choose the id, and ownership always comes from the session.
+  const data = { ...stripProtectedFields(favorite, ['id']), ownerId: userId }
+
+  return await prisma.userFavorite.create({ data })
 }

@@ -10,7 +10,7 @@ export async function searchTMDB(entry, type, numResults) {
   else
     type = 'multi'
 
-  const url = "https://api.themoviedb.org/3/search/" + type + "?query=" + entry + "&include_adult=false&language=en-US&page=1";
+  const url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
   let response, data
 
   try {
@@ -246,7 +246,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
       const imdbRegex = /^ev\d{7}\/\d{4}(-\d)?$|^(ch|co|ev|nm|tt)\d*$/;
 
       if (entry.match(imdbRegex)) {
-        url = "https://api.themoviedb.org/3/find/" + entry + "?external_source=imdb_id";
+        url = "https://api.themoviedb.org/3/find/" + encodeURIComponent(entry) + "?external_source=imdb_id";
 
         try {
           response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
@@ -274,7 +274,7 @@ export async function getTMDBInfo(entry, type/*, override = false*/) {
           entryID = data.movie_results[0].id;
       }
       else {
-        url = "https://api.themoviedb.org/3/search/" + type + "?query=" + entry + "&include_adult=false&language=en-US&page=1";
+        url = "https://api.themoviedb.org/3/search/" + type + "?query=" + encodeURIComponent(entry) + "&include_adult=false&language=en-US&page=1";
 
         try {
           response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({

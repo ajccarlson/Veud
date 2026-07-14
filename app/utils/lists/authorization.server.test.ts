@@ -18,6 +18,7 @@ import {
 	requireFavoriteOwner,
 	requireWatchlistOwner,
 	resolveEntryModel,
+	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
@@ -275,4 +276,23 @@ test('requireFavoriteOwner returns 404 when the favorite does not exist', async 
 	const res = await requireFavoriteOwner(request, 'does-not-exist').catch(e => e)
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
+})
+
+// ---------- stripProtectedFields ----------
+
+test('stripProtectedFields drops protected keys and keeps the rest', () => {
+	const cleaned = stripProtectedFields(
+		{ title: 'ok', id: 'x', watchlistId: 'y', rating: '8' },
+		['id', 'watchlistId'],
+	)
+	expect(cleaned).toEqual({ title: 'ok', rating: '8' })
+	expect('id' in cleaned).toBe(false)
+	expect('watchlistId' in cleaned).toBe(false)
+})
+
+test('stripProtectedFields returns a copy and does not mutate the input', () => {
+	const input = { a: 1, id: 'x' }
+	const cleaned = stripProtectedFields(input, ['id'])
+	expect(cleaned).toEqual({ a: 1 })
+	expect(input).toEqual({ a: 1, id: 'x' })
 })

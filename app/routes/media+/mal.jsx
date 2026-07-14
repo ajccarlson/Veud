@@ -1,5 +1,5 @@
 export async function searchMAL(entry, type = 'anime', numResults = 5) {
-  const url = "https://api.myanimelist.net/v2/" + type + "?q=" + entry + "&limit=" + numResults
+  const url = "https://api.myanimelist.net/v2/" + type + "?q=" + encodeURIComponent(entry) + "&limit=" + numResults
   let response, data
 
   try {
