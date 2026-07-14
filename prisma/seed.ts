@@ -10,6 +10,26 @@ import {
 
 async function seed() {
 	console.log('🌱 Seeding...')
+
+	// Safety guard: `prisma db seed` (also run by `npm run setup` and by
+	// `prisma migrate reset`) deletes ALL data via cleanupDb() below. Refuse to run
+	// against a database that already holds data unless explicitly forced, so a
+	// populated/production database can't be wiped by accident.
+	let existingUserCount = 0
+	try {
+		existingUserCount = await prisma.user.count()
+	} catch {
+		// User table doesn't exist yet (brand-new database) — nothing to protect.
+		existingUserCount = 0
+	}
+	if (existingUserCount > 0 && process.env.ALLOW_SEED_WIPE !== 'true') {
+		throw new Error(
+			`Refusing to seed: the database already has ${existingUserCount} user(s), and ` +
+				`seeding deletes everything. To intentionally wipe and re-seed, re-run with ` +
+				`ALLOW_SEED_WIPE=true (e.g. "ALLOW_SEED_WIPE=true npx prisma db seed").`,
+		)
+	}
+
 	console.time(`🌱 Database has been seeded`)
 
 	console.time('🧹 Cleaned up the database...')
