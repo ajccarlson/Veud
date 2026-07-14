@@ -9,38 +9,36 @@ export async function action({ request, params }) {
   // Only the owner may change this watchlist's settings.
   const { userId } = await requireWatchlistOwner(request, listId)
 
-  let response = []
+  const settings = JSON.parse(searchParams.get('settings'))
+  const typeId = JSON.parse(searchParams.get('listTypeData')).id
 
-  for (const setting of JSON.parse(searchParams.get('settings'))) {
-    response.push(await prisma.watchlist.update({
-      where: {
-        id: listId,
-      },
-      data: {
-        [setting[0]]: setting[1],
-      },
-    }));
-  }
+  // Apply the settings and renumber the owner's watchlists of this type atomically, so a
+  // failure can't leave settings half-applied or the ordering inconsistent.
+  const response = await prisma.$transaction(async (tx) => {
+    const updated = []
+    for (const setting of settings) {
+      updated.push(
+        await tx.watchlist.update({
+          where: { id: listId },
+          data: { [setting[0]]: setting[1] },
+        }),
+      )
+    }
 
-  const watchLists = await prisma.watchlist.findMany({
-    where: {
-      typeId: JSON.parse(searchParams.get('listTypeData')).id,
-      ownerId: userId,
-    },
-  })
-
-  const watchListsSorted = watchLists.sort((a,b) => a.position - b.position)
-
-  for (let i = 0; i < watchListsSorted.length; i++) {
-    await prisma.watchlist.update({
-      where: {
-        id: watchListsSorted[i].id,
-      },
-      data: {
-        position: (i + 1),
-      },
+    const remaining = await tx.watchlist.findMany({
+      where: { typeId, ownerId: userId },
+      orderBy: { position: 'asc' },
     })
-  }
+
+    for (let i = 0; i < remaining.length; i++) {
+      await tx.watchlist.update({
+        where: { id: remaining[i].id },
+        data: { position: i + 1 },
+      })
+    }
+
+    return updated
+  })
 
   return response
 }
