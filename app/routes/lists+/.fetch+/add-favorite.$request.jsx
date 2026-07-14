@@ -1,7 +1,7 @@
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 
-export async function loader({ request, params }) {
+export async function action({ request, params }) {
   const userId = await requireUserId(request)
   const searchParams = new URLSearchParams(params.request)
 

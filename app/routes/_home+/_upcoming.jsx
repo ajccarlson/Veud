@@ -37,7 +37,7 @@ export function UpcomingData(params) {
                   filter: "agTextColumnFilter",
                   rowIndex: listEntry.id,
                   newValue: JSON.stringify(nextRelease),
-                })))
+                })), { method: 'POST' })
                 const updateCellData = await updateCellResponse.json()
 
                 listEntry.nextRelease = JSON.stringify(nextRelease)

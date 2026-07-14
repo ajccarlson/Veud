@@ -99,13 +99,13 @@ async function handleSubmit(e, columns, watchlist, listParams) {
       listId: watchlist.id,
       listTypeData: JSON.stringify(listParams.listTypeData),
       ownerId: listParams.listOwner.id
-    })))
+    })), { method: 'POST' })
     const updateSettingsData = await updateSettingsResponse.json()
     
     const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       authorization: listParams.VEUD_API_KEY,
       watchlistId: watchlist.id
-    })))
+    })), { method: 'POST' })
   
     listParams.watchListData.find((object, index) => {
       if (object.watchlist.id === watchlist.id) {
@@ -172,7 +172,7 @@ export function GetWatchlistSettings(entryData, listParams) {
                       id: entryData.watchlist.id,
                       listTypeData: JSON.stringify(listParams.listTypeData),
                       ownerId: listParams.listOwner.id
-                    })))
+                    })), { method: 'POST' })
 
                     listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)
                     listParams.setNavItems(listNavigationDisplayer(listParams))

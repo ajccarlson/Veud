@@ -113,19 +113,19 @@ export function MediaSearchBar(params) {
                 authorization: params.columnParams.VEUD_API_KEY,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 								row: JSON.stringify(addRow)
-							})))
+							})), { method: 'POST' })
 
 
 							await fetch('/lists/fetch/delete-empty-rows/' + encodeURIComponent(new URLSearchParams({
                 authorization: params.columnParams.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId,
 								listTypeData: JSON.stringify(params.columnParams.listTypeData),
-							})))
+							})), { method: 'POST' })
 
 							await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
                 authorization: params.columnParams.VEUD_API_KEY,
 								watchlistId: params.params.data.watchlistId
-							})))
+							})), { method: 'POST' })
 
 							refreshGrid(params.columnParams);
 							setShowDropdown(true)

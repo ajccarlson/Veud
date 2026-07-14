@@ -18,7 +18,7 @@ function castType(varIn, varType) {
     return varIn;
 }
 
-export async function loader({ request, params }) {
+export async function action({ request, params }) {
   const userId = await requireUserId(request)
   const searchParams = new URLSearchParams(params.request)
 

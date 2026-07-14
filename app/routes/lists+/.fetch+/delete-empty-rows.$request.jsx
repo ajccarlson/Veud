@@ -4,7 +4,7 @@ import {
   resolveEntryModel,
 } from '#app/utils/lists/authorization.server.ts'
 
-export async function loader({ request, params }) {
+export async function action({ request, params }) {
   const searchParams = new URLSearchParams(params.request)
 
   const { watchlist } = await requireWatchlistOwner(

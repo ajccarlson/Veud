@@ -82,23 +82,23 @@ function gridReady(e) {
           authorization: columnParams.VEUD_API_KEY,
           listTypeData: JSON.stringify(columnParams.listTypeData),
           row: JSON.stringify(addRow)
-        })))
+        })), { method: 'POST' })
 
         const updateResponseAdd = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
           authorization: columnParams.VEUD_API_KEY,
           watchlistId: addRow.watchlistId
-        })))
+        })), { method: 'POST' })
         
         const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
           authorization: columnParams.VEUD_API_KEY,
           listTypeData: JSON.stringify(columnParams.listTypeData),
           id: e.node.data.id,
-        })))
+        })), { method: 'POST' })
         
         const updateResponseRemove = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
           authorization: columnParams.VEUD_API_KEY,
           watchlistId: e.node.data.watchlistId
-        })))
+        })), { method: 'POST' })
 
         updatePositions()
       },
@@ -181,7 +181,7 @@ export async function reformatHistory(params, newValue) {
     filter: "agDateColumnFilter",
     rowIndex: params.node.data.id,
     newValue: newValue,
-  })))
+  })), { method: 'POST' })
   const updateCellData = await updateCellResponse.json()
 
   return updateCellData
@@ -215,7 +215,7 @@ async function createNewRow(location, params, position) {
     authorization: columnParams.VEUD_API_KEY,
     listTypeData: JSON.stringify(columnParams.listTypeData),
     row: JSON.stringify(emptyRow)
-  })))
+  })), { method: 'POST' })
   const addData = await addResponse.json();
 
   gridAPI.applyTransaction({add: [addData], addIndex: insertPosition})
@@ -223,7 +223,7 @@ async function createNewRow(location, params, position) {
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     authorization: columnParams.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
-  })))
+  })), { method: 'POST' })
 
   updatePositions()
 }
@@ -240,13 +240,13 @@ async function updatePositions() {
       filter: "num",
       rowIndex: rowNode.data.id,
       newValue: index + 1,
-    })))
+    })), { method: 'POST' })
   })
 
   const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     authorization: columnParams.VEUD_API_KEY,
     watchlistId: columnParams.watchlistId
-  })))
+  })), { method: 'POST' })
 
   refreshGrid(columnParams)
 }
@@ -299,13 +299,13 @@ async function setterFunction(params) {
       filter: params.colDef.filter,
       rowIndex: params.data.id,
       newValue: params.newValue,
-    })))
+    })), { method: 'POST' })
     const updateCellData = await updateCellResponse.json()
 
     const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       authorization: columnParams.VEUD_API_KEY,
       watchlistId: params.data.watchlistId
-    })))
+    })), { method: 'POST' })
 
     console.log("value: " + params.oldValue + " has changed to " + params.newValue)
 
@@ -399,12 +399,12 @@ export function columnDefs() {
                           authorization: columnParams.VEUD_API_KEY,
                           listTypeData: JSON.stringify(columnParams.listTypeData),
                           id: params.data.id,
-                        })))
+                        })), { method: 'POST' })
 
                         const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
                           authorization: columnParams.VEUD_API_KEY,
                           watchlistId: params.data.watchlistId
-                        })))
+                        })), { method: 'POST' })
 
                         const deleteTransaction = gridAPI.applyTransaction({ remove: [params.data] })
 
@@ -435,7 +435,7 @@ export function columnDefs() {
                           const deleteResponse = await fetch('/lists/fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
                             authorization: columnParams.VEUD_API_KEY,
                             id: deleteRow[0].id,
-                          })))
+                          })), { method: 'POST' })
 
                           columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteID(getThumbnailInfo(params.data.thumbnail).url).id))
                         }}>
@@ -453,7 +453,7 @@ export function columnDefs() {
                           const addResponse = await fetch('/lists/fetch/add-favorite/' + encodeURIComponent(new URLSearchParams({
                             authorization: columnParams.VEUD_API_KEY,
                             favorite: JSON.stringify(addRow)
-                          })))
+                          })), { method: 'POST' })
 
                           columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
                         }}>

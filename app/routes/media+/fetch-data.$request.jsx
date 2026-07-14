@@ -42,9 +42,22 @@ const ALLOWED_HOSTS = new Set([
 
 const ALLOWED_METHODS = new Set(['GET', 'POST'])
 
-// Fixed, server-controlled politeness delay toward upstream APIs. Not client-controllable
-// (a client-supplied value was previously a trivial way to tie up server request timers).
-const UPSTREAM_DELAY_MS = 1500
+// Per-host, server-controlled politeness delay toward upstream APIs (ms). Not
+// client-controllable (a client-supplied value was previously a trivial way to tie up
+// server request timers).
+//
+// TMDB removed its public rate limit in 2023, so it needs no delay. This matters for UX:
+// the home page fires a large batch of TMDB requests through this proxy, and delaying
+// every response by 1.5s held the browser's limited (~6) connection pool open long enough
+// that client-side navigation away from the home page appeared to hang until the backlog
+// drained. Zeroing TMDB's delay lets that backlog clear quickly. The genuinely
+// rate-limited providers (MAL / AniList / Trakt) keep a throttle.
+const UPSTREAM_DELAY_MS = {
+	'api.themoviedb.org': 0,
+	'api.myanimelist.net': 1500,
+	'graphql.anilist.co': 1500,
+	'api.trakt.tv': 1500,
+}
 
 /**
  * Build the outgoing headers for a validated host. Secrets are read here, keyed by host,
@@ -139,8 +152,11 @@ export async function loader({ params }) {
 		throw new Response('Upstream request failed', { status: 502 })
 	}
 
-	// Fixed server-side politeness delay (not client-controlled).
-	await new Promise(resolve => setTimeout(resolve, UPSTREAM_DELAY_MS))
+	// Per-host server-side politeness delay (not client-controlled).
+	const delayMs = UPSTREAM_DELAY_MS[target.hostname] ?? 0
+	if (delayMs > 0) {
+		await new Promise(resolve => setTimeout(resolve, delayMs))
+	}
 
 	// Preserve the existing response contract for callers.
 	return [response, data]
