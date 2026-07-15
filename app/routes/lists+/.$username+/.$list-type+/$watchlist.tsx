@@ -5,7 +5,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.jsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
-import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/watchlist-grid.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
 

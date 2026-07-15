@@ -17,7 +17,7 @@ interface scoreObject {
     type: string
 }
 
-export function scoreRange(rangeType: string) {
+export function scoreRange(rangeType?: string) {
     if (rangeType == "Difference Personal") {
         return {
             min: {

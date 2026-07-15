@@ -1966,3 +1966,5 @@
 {"message":"","timestamp":"14-07 02:40:49 -07:00","type":"err","process_id":1,"app_name":"veud"}
 {"message":"","timestamp":"14-07 17:37:02 -07:00","type":"err","process_id":0,"app_name":"veud"}
 {"message":"","timestamp":"14-07 17:37:02 -07:00","type":"err","process_id":1,"app_name":"veud"}
+{"message":"","timestamp":"14-07 22:38:43 -07:00","type":"err","process_id":0,"app_name":"veud"}
+{"message":"","timestamp":"14-07 22:38:43 -07:00","type":"err","process_id":1,"app_name":"veud"}
