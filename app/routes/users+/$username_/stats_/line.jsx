@@ -1,5 +1,5 @@
 import { ResponsiveLine } from '@nivo/line'
-import { getStartYear } from "#app/utils/lists/column-functions.jsx"
+import { getStartYear } from "#app/utils/lists/column-functions.tsx"
 
 function MyResponsiveLine(data) {
   return (

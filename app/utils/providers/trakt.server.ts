@@ -1,8 +1,8 @@
-import { OAuth2Strategy } from 'remix-auth-oauth2'
+import { OAuth2Strategy, type OAuth2Profile } from 'remix-auth-oauth2'
 import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
 import { type Timings } from '../timing.server.ts'
-import { type AuthProvider } from './provider.ts'
+import { type AuthProvider, type ProviderUser } from './provider.ts'
 
 const TraktUserSchema = z.object({ login: z.string() })
 const TraktUserParseResult = z
@@ -20,13 +20,13 @@ const TraktUserParseResult = z
 
 export class TraktProvider implements AuthProvider {
 	getAuthStrategy() {
-		return new OAuth2Strategy(
+		return new OAuth2Strategy<ProviderUser, OAuth2Profile>(
 			{
-        authorizationURL: 'https://api.trakt.tv/oauth/authorize',
-        tokenURL: 'https://api.trakt.tv/oauth/token',
-				clientID: process.env.TRAKT_API_KEY,
+        authorizationEndpoint: 'https://api.trakt.tv/oauth/authorize',
+        tokenEndpoint: 'https://api.trakt.tv/oauth/token',
+				clientId: process.env.TRAKT_API_KEY,
 				clientSecret: process.env.TRAKT_CLIENT_SECRET,
-				callbackURL: '/auth/trakt/callback',
+				redirectURI: '/auth/trakt/callback',
 			},
 			async ({ profile }) => {
 				const email = profile.emails![0].value.trim().toLowerCase()

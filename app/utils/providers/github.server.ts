@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
 import { connectionSessionStorage } from '../connections.server.ts'
 import { type Timings } from '../timing.server.ts'
-import { type AuthProvider } from './provider.ts'
+import { type AuthProvider, type ProviderUser } from './provider.ts'
 
 const GitHubUserSchema = z.object({ login: z.string() })
 const GitHubUserParseResult = z
@@ -23,11 +23,11 @@ const shouldMock = process.env.GITHUB_CLIENT_ID?.startsWith('MOCK_')
 
 export class GitHubProvider implements AuthProvider {
 	getAuthStrategy() {
-		return new GitHubStrategy(
+		return new GitHubStrategy<ProviderUser>(
 			{
-				clientID: process.env.GITHUB_CLIENT_ID,
+				clientId: process.env.GITHUB_CLIENT_ID,
 				clientSecret: process.env.GITHUB_CLIENT_SECRET,
-				callbackURL: '/auth/github/callback',
+				redirectURI: '/auth/github/callback',
 			},
 			async ({ profile }) => {
 				const email = profile.emails[0].value.trim().toLowerCase()
