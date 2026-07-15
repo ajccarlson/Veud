@@ -1,6 +1,6 @@
 /**
  * Route-level access-control test for a representative watchlist mutation
- * (app/routes/lists+/.fetch+/delete-watchlist.$request.jsx) — proves the 0.2 fix
+ * (app/routes/lists+/.fetch+/delete-watchlist.$request.ts) — proves the 0.2 fix
  * end-to-end: the action authenticates and checks ownership before mutating, and the
  * route exposes only an `action` (so a GET is a 405, not the old unauthenticated path).
  */
@@ -8,7 +8,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import * as deleteWatchlistRoute from '#app/routes/lists+/.fetch+/delete-watchlist.$request.jsx'
+import * as deleteWatchlistRoute from '#app/routes/lists+/.fetch+/delete-watchlist.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 const { action } = deleteWatchlistRoute

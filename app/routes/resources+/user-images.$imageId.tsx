@@ -11,7 +11,9 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 	invariantResponse(image, 'Not found', { status: 404 })
 
-	return new Response(image.blob, {
+	// image.blob is Prisma Bytes — a Buffer at runtime, which Response accepts. The cast
+	// satisfies the DOM BodyInit type that @types/node's Buffer no longer matches.
+	return new Response(image.blob as unknown as BodyInit, {
 		headers: {
 			'Content-Type': image.contentType,
 			'Content-Length': Buffer.byteLength(image.blob).toString(),

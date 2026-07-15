@@ -3,8 +3,8 @@ import { faker } from '@faker-js/faker'
 import { type PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { UniqueEnforcer } from 'enforce-unique'
-import { getTopEntries } from "#app/routes/media+/mal.jsx"
-import { getTMDBTrending } from "#app/routes/media+/tmdb.jsx"
+import { getTopEntries } from "#app/routes/media+/mal.ts"
+import { getTMDBTrending } from "#app/routes/media+/tmdb.ts"
 import { prisma } from '#app/utils/db.server.ts'
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()

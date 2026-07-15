@@ -40,7 +40,7 @@ export function entryModelFromHeader(header: unknown): string {
 export function resolveEntryModel(listTypeDataRaw: string | null): string {
 	let header: unknown
 	try {
-		header = JSON.parse(listTypeDataRaw ?? '')?.header
+		header = (JSON.parse(listTypeDataRaw ?? '') as { header?: unknown })?.header
 	} catch {
 		throw new Response('Invalid listTypeData', { status: 400 })
 	}
