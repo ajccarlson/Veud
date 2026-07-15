@@ -1,6 +1,6 @@
 /**
  * Route test for update-settings
- * (app/routes/lists+/.fetch+/update-settings.$request.jsx).
+ * (app/routes/lists+/.fetch+/update-settings.$request.ts).
  *
  * Verifies the 2.3 mass-assignment fix: whitelisted fields (name, header, …) are applied,
  * while any other client-supplied key (ownerId, id, typeId, …) is ignored, so a client
@@ -10,7 +10,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.jsx'
+import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function createUserRecord() {

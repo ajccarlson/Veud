@@ -1,8 +1,8 @@
-import { OAuth2Strategy } from 'remix-auth-oauth2'
+import { OAuth2Strategy, type OAuth2Profile } from 'remix-auth-oauth2'
 import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
 import { type Timings } from '../timing.server.ts'
-import { type AuthProvider } from './provider.ts'
+import { type AuthProvider, type ProviderUser } from './provider.ts'
 
 const MALUserSchema = z.object({ login: z.string() })
 const MALUserParseResult = z
@@ -16,31 +16,15 @@ const MALUserParseResult = z
 		}),
 	)
 
-function generateCodeChallenge(len = 128) {
-  let text = ""
-  
-  const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-  
-  for (var i = 0; i < len; i++)
-    text += charset.charAt(Math.floor(Math.random() * charset.length))
-  
-  return text;
-}
-
-// const shouldMock = false
-const code_challenge = generateCodeChallenge(128)
-const searchParams = new URLSearchParams({ code_challenge })
-
 export class MALProvider implements AuthProvider {
   getAuthStrategy() {
-		return new OAuth2Strategy(
+		return new OAuth2Strategy<ProviderUser, OAuth2Profile>(
 			{
-        authorizationURL: 'https://myanimelist.net/v1/oauth2/authorize',
-        tokenURL: 'https://myanimelist.net/v1/oauth2/token',
-				clientID: process.env.MAL_CLIENT_ID,
+        authorizationEndpoint: 'https://myanimelist.net/v1/oauth2/authorize',
+        tokenEndpoint: 'https://myanimelist.net/v1/oauth2/token',
+				clientId: process.env.MAL_CLIENT_ID,
 				clientSecret: process.env.MAL_CLIENT_SECRET,
-				callbackURL: `/auth/mal/callback&${searchParams}`,
-        responseType: "code",
+				redirectURI: '/auth/mal/callback',
 			},
 			async ({ profile }) => {
 				const email = profile.emails![0].value.trim().toLowerCase()

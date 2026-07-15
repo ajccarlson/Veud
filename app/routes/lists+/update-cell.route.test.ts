@@ -1,6 +1,6 @@
 /**
  * Route-level test for the update-cell action
- * (app/routes/lists+/.fetch+/update-cell.$request.jsx).
+ * (app/routes/lists+/.fetch+/update-cell.$request.ts).
  *
  * Covers the 0.2 access control on this route and the 2.1 error-handling fix: auth/ownership
  * failures surface as real statuses (401/404) and bad input as 400 — never swallowed into a
@@ -10,7 +10,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { action } from '#app/routes/lists+/.fetch+/update-cell.$request.jsx'
+import { action } from '#app/routes/lists+/.fetch+/update-cell.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function createUserRecord() {

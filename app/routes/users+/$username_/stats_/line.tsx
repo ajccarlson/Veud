@@ -1,9 +1,9 @@
 import { ResponsiveLine } from '@nivo/line'
 import { getStartYear } from "#app/utils/lists/column-functions.tsx"
 
-function MyResponsiveLine(data) {
+function MyResponsiveLine(data: any) {
   return (
-    <div class="user-landing-stats-chart-container user-landing-stats-line-chart">
+    <div className="user-landing-stats-chart-container user-landing-stats-line-chart">
       <ResponsiveLine
         data={data}
         margin={{ top: 50, right: 110, bottom: 50, left: 60 }}
@@ -93,24 +93,24 @@ function MyResponsiveLine(data) {
   )
 }
 
-export function renderLineChart(loaderData, chartType) {
-  let typedLines = []
+export function renderLineChart(loaderData: any, chartType: string) {
+  let typedLines: any[] = []
 
   if (chartType == "release") {
-    let lineData = {}
+    let lineData: any = {}
 
 
-    Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-      const foundListType = loaderData.listTypes.find(listType => listType.id == key)
+    Object.entries(loaderData.typedEntries).forEach(([key, value]: [string, any]) => {
+      const foundListType = loaderData.listTypes.find((listType: any) => listType.id == key)
 
       lineData = {
         id: foundListType.header,
         data: []
       }
 
-      let entryData = []
+      let entryData: any[] = []
 
-      value.forEach(typedEntry => {
+      value.forEach((typedEntry: any) => {
         const entryYear = getStartYear(typedEntry, foundListType, loaderData.listTypes)
         if (!entryYear) {
           return
@@ -151,20 +151,20 @@ export function renderLineChart(loaderData, chartType) {
     })
   }
   else if (chartType == "watched") {
-    let lineData = {}
+    let lineData: any = {}
 
 
-    Object.entries(loaderData.typedEntries).forEach(([key, value]) => {
-      const foundListType = loaderData.listTypes.find(listType => listType.id == key)
+    Object.entries(loaderData.typedEntries).forEach(([key, value]: [string, any]) => {
+      const foundListType = loaderData.listTypes.find((listType: any) => listType.id == key)
 
       lineData = {
         id: foundListType.header,
         data: []
       }
 
-      let entryData = []
+      let entryData: any[] = []
 
-      value.forEach(typedEntry => {
+      value.forEach((typedEntry: any) => {
         let parsedYear
 
         try {

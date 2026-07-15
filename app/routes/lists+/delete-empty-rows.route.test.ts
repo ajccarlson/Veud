@@ -1,6 +1,6 @@
 /**
  * Route test for delete-empty-rows
- * (app/routes/lists+/.fetch+/delete-empty-rows.$request.jsx).
+ * (app/routes/lists+/.fetch+/delete-empty-rows.$request.ts).
  *
  * Verifies the 2.2 refactor: empty rows (no meaningful title/type) are removed in a single
  * atomic deleteMany, non-empty rows are kept, the removed rows are returned, and only the
@@ -10,7 +10,7 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { action } from '#app/routes/lists+/.fetch+/delete-empty-rows.$request.jsx'
+import { action } from '#app/routes/lists+/.fetch+/delete-empty-rows.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function createUserRecord() {

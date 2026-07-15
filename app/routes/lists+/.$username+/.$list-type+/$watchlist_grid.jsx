@@ -12,7 +12,7 @@ import {
   DropdownMenuSub
 } from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { dateFormatter, mediaProgressParser, timeSince, differenceFormatter, getSiteID, getThumbnailInfo, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.jsx"
+import { dateFormatter, mediaProgressParser, timeSince, differenceFormatter, getSiteIdSafe, getThumbnailInfo, hyperlinkRenderer, titleCellRenderer, typeCellRenderer, updateRowInfo } from "#app/utils/lists/column-functions.tsx"
 import { scoreColor, scoreRange } from "#app/utils/lists/score-colorer.tsx"
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
@@ -422,10 +422,10 @@ export function columnDefs() {
                       }}>
                         Update all watchlist entries
                       </DropdownMenuItem>
-                      {columnParams.favoriteIds?.includes(getSiteID(getThumbnailInfo(params.data.thumbnail).url).id) ? 
+                      {columnParams.favoriteIds?.includes(getSiteIdSafe(getThumbnailInfo(params.data.thumbnail).url)?.id) ? 
                         <DropdownMenuItem onSelect={async event => {
                           const deleteRow = columnParams.typedFavorites[columnParams.listTypeData.id].filter(favorite => {
-                            return getSiteID(getThumbnailInfo(favorite.thumbnail).url).id === getSiteID(getThumbnailInfo(params.data.thumbnail).url).id
+                            return getSiteIdSafe(getThumbnailInfo(favorite.thumbnail).url)?.id === getSiteIdSafe(getThumbnailInfo(params.data.thumbnail).url)?.id
                           })
 
                           const deleteResponse = await fetch('/lists/fetch/remove-favorite/' + encodeURIComponent(new URLSearchParams({
@@ -433,7 +433,7 @@ export function columnDefs() {
                             id: deleteRow[0].id,
                           })), { method: 'POST' })
 
-                          columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteID(getThumbnailInfo(params.data.thumbnail).url).id))
+                          columnParams.setFavoriteIds(columnParams.favoriteIds.filter(favoriteId => favoriteId !== getSiteIdSafe(getThumbnailInfo(params.data.thumbnail).url)?.id))
                         }}>
                           Remove from favorites
                         </DropdownMenuItem>
@@ -451,7 +451,7 @@ export function columnDefs() {
                             favorite: JSON.stringify(addRow)
                           })), { method: 'POST' })
 
-                          columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteID(getThumbnailInfo(params.data.thumbnail).url).id])
+                          columnParams.setFavoriteIds([...columnParams.favoriteIds, getSiteIdSafe(getThumbnailInfo(params.data.thumbnail).url)?.id])
                         }}>
                           Add to favorites
                         </DropdownMenuItem>
@@ -1547,7 +1547,7 @@ export function watchlistGrid(listEntriesPass, watchListData, listTypeData, watc
 
   const [favoriteIds, setFavoriteIds] =  useState(
     typedFavorites[listTypeData.id].map(typedFavorite => {
-      return getSiteID(getThumbnailInfo(typedFavorite.thumbnail).url).id
+      return getSiteIdSafe(getThumbnailInfo(typedFavorite.thumbnail).url)?.id
     })
   )
 
