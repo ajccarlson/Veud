@@ -1,5 +1,5 @@
 import { MediaSearchBar, MediaTypeDropdown } from '#app/components/search-add-watchlist-entry.tsx'
-import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/grid-actions.ts'
 import { searchMAL, getAnimeInfo, getMangaInfo } from "#app/routes/media+/mal.ts"
 import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.ts"
 
@@ -114,7 +114,7 @@ export function mediaProgressParser(params: any, columnParams: any, oldValue: an
   }
 }
 
-export function timeSince(date: Date) {
+export function timeSince(date: Date | number) {
   const seconds = Math.floor(((new Date()).valueOf() - date.valueOf()) / 1000);
   let interval = seconds / 31536000;
   let flooredInterval = Math.floor(interval)

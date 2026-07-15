@@ -12,7 +12,7 @@ import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.ts"
 import { Icon } from './ui/icon.tsx'
 import { StatusButton } from './ui/status-button.tsx'
 import "#app/styles/watchlist-search.scss"
-import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist_grid.jsx'
+import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/grid-actions.ts'
 
 export function MediaTypeDropdown(params: any) {
   return (
