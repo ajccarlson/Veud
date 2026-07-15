@@ -1,3 +1,5 @@
+import { type LoaderFunctionArgs } from '@remix-run/node'
+
 /**
  * Server-side fetch proxy for third-party media APIs
  * (TMDB, MyAnimeList, AniList, Trakt).
@@ -52,7 +54,7 @@ const ALLOWED_METHODS = new Set(['GET', 'POST'])
 // that client-side navigation away from the home page appeared to hang until the backlog
 // drained. Zeroing TMDB's delay lets that backlog clear quickly. The genuinely
 // rate-limited providers (MAL / AniList / Trakt) keep a throttle.
-const UPSTREAM_DELAY_MS = {
+const UPSTREAM_DELAY_MS: Record<string, number> = {
 	'api.themoviedb.org': 0,
 	'api.myanimelist.net': 1500,
 	'graphql.anilist.co': 1500,
@@ -63,8 +65,8 @@ const UPSTREAM_DELAY_MS = {
  * Build the outgoing headers for a validated host. Secrets are read here, keyed by host,
  * so a given credential is only ever attached to requests going to its own provider.
  */
-function buildHeadersForHost(host, searchParams) {
-	const headers = { 'Content-Type': 'application/json' }
+function buildHeadersForHost(host: string, searchParams: URLSearchParams) {
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
 	switch (host) {
 		case 'api.themoviedb.org': {
@@ -102,7 +104,7 @@ function buildHeadersForHost(host, searchParams) {
 	return headers
 }
 
-export async function loader({ params }) {
+export async function loader({ params }: LoaderFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
 
 	// 1) Validate the destination: a well-formed HTTPS URL on an allowed host.
@@ -132,7 +134,7 @@ export async function loader({ params }) {
 	// 3) Credentials are derived from the validated host, never from a client param.
 	const headers = buildHeadersForHost(target.hostname, searchParams)
 
-	const options = { method, headers }
+	const options: RequestInit = { method, headers }
 	const fetchBody = searchParams.get('fetchBody')
 	if (method === 'POST' && fetchBody && fetchBody !== 'undefined') {
 		options.body = fetchBody
@@ -140,7 +142,7 @@ export async function loader({ params }) {
 
 	// 4) Perform the upstream request. Details are logged server-side; the client only
 	//    ever sees a generic status.
-	let response, data
+	let response: any, data: any
 	try {
 		response = await fetch(target.toString(), options)
 		data = await response.json()

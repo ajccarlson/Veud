@@ -15,7 +15,7 @@
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
-import { loader } from './fetch-data.$request.jsx'
+import { loader } from './fetch-data.$request.ts'
 
 function jsonResponse(body: unknown) {
 	return new Response(JSON.stringify(body), {
