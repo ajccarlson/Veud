@@ -3,8 +3,8 @@ import { faker } from '@faker-js/faker'
 import { type PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { UniqueEnforcer } from 'enforce-unique'
-import { getTopEntries } from "#app/routes/media+/mal.jsx"
-import { getTMDBTrending } from "#app/routes/media+/tmdb.jsx"
+import { getTopEntries } from "#app/routes/media+/mal.ts"
+import { getTMDBTrending } from "#app/routes/media+/tmdb.ts"
 import { prisma } from '#app/utils/db.server.ts'
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()
@@ -38,57 +38,6 @@ export function createPassword(password: string = faker.internet.password()) {
 	return {
 		hash: bcrypt.hashSync(password, 10),
 	}
-}
-
-let noteImages: Array<Awaited<ReturnType<typeof img>>> | undefined
-export async function getNoteImages() {
-	if (noteImages) return noteImages
-
-	noteImages = await Promise.all([
-		img({
-			altText: 'a nice country house',
-			filepath: './tests/fixtures/images/notes/0.png',
-		}),
-		img({
-			altText: 'a city scape',
-			filepath: './tests/fixtures/images/notes/1.png',
-		}),
-		img({
-			altText: 'a sunrise',
-			filepath: './tests/fixtures/images/notes/2.png',
-		}),
-		img({
-			altText: 'a group of friends',
-			filepath: './tests/fixtures/images/notes/3.png',
-		}),
-		img({
-			altText: 'friends being inclusive of someone who looks lonely',
-			filepath: './tests/fixtures/images/notes/4.png',
-		}),
-		img({
-			altText: 'an illustration of a hot air balloon',
-			filepath: './tests/fixtures/images/notes/5.png',
-		}),
-		img({
-			altText:
-				'an office full of laptops and other office equipment that look like it was abandoned in a rush out of the building in an emergency years ago.',
-			filepath: './tests/fixtures/images/notes/6.png',
-		}),
-		img({
-			altText: 'a rusty lock',
-			filepath: './tests/fixtures/images/notes/7.png',
-		}),
-		img({
-			altText: 'something very happy in nature',
-			filepath: './tests/fixtures/images/notes/8.png',
-		}),
-		img({
-			altText: `someone at the end of a cry session who's starting to feel a little better.`,
-			filepath: './tests/fixtures/images/notes/9.png',
-		}),
-	])
-
-	return noteImages
 }
 
 let userImages: Array<Awaited<ReturnType<typeof img>>> | undefined
@@ -260,21 +209,21 @@ export async function randomWatchlists(listTypes: any[], userId: string, fetchDa
       const currEntry = await resultInfo.splice(Math.floor(Math.random() * resultInfo.length), 1)[0]
 
       if (chosenType.name == "liveaction") {
-        await prisma.liveActionEntry.create({
+        await prisma.entry.create({
           data: {
             id: faker.string.uuid(), watchlistId: watchlistId, position: currCount, thumbnail: currEntry?.thumbnail, title: currEntry?.title, type: currEntry?.type, airYear: String(currEntry?.year), releaseStart: currEntry?.releaseStart ? new Date(currEntry?.releaseStart).toISOString() : null, releaseEnd: currEntry?.releaseEnd ? new Date(currEntry?.releaseEnd).toISOString() : null, nextRelease:  JSON.stringify(currEntry?.nextRelease), length: currEntry?.length, rating: currEntry?.rating, history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: currEntry?.genres , language: currEntry?.language, story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, tmdbScore: currEntry?.score, differenceObjective: 0, description: currEntry?.description, notes: ""
           },
         })
       }
       else if (chosenType.name == "anime") {
-        await prisma.animeEntry.create({
+        await prisma.entry.create({
           data: {
             id: faker.string.uuid(), watchlistId: watchlistId, position: currCount, thumbnail: currEntry?.thumbnail, title: currEntry?.title, type: currEntry?.type, startSeason: currEntry?.startSeason.name, releaseStart: currEntry?.releaseStart ? new Date(currEntry?.releaseStart).toISOString() : null, releaseEnd: currEntry?.releaseEnd ? new Date(currEntry?.releaseEnd).toISOString() : null, nextRelease:  JSON.stringify(currEntry?.nextRelease), length: currEntry?.length, rating: currEntry?.rating, history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: currEntry?.genres , studios: JSON.stringify(currEntry?.studios), priority: "Low", story: 0, character: 0, presentation: 0, sound: 0, performance: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: currEntry?.malScore, differenceObjective: 0, description: currEntry?.description, notes: ""
           },
         })
       }
       else if (chosenType.name == "manga") {
-        await prisma.mangaEntry.create({
+        await prisma.entry.create({
           data: {
             id: faker.string.uuid(), watchlistId: watchlistId, position: currCount, thumbnail: currEntry?.thumbnail, title: currEntry?.title, type: currEntry?.type, startYear: String(currEntry?.startYear), releaseStart: currEntry?.releaseStart ? new Date(currEntry?.releaseStart).toISOString() : null, releaseEnd: currEntry?.releaseEnd ? new Date(currEntry?.releaseEnd).toISOString() : null, nextRelease:  JSON.stringify(currEntry?.nextRelease), chapters: String(currEntry?.chapters), volumes: String(currEntry?.volumes), history: JSON.stringify({added: Date.now(), started: null, finished: null, progress: null, lastUpdated: Date.now(), }), genres: currEntry?.genres , serialization: JSON.stringify(currEntry?.serialization), authors: JSON.stringify(currEntry?.authors), priority: "Low", story: 0, character: 0, presentation: 0, enjoyment: 0, averaged: 0, personal: 0, differencePersonal: 0, malScore: currEntry?.malScore, differenceObjective: 0, description: currEntry?.description, notes: ""
           },

@@ -14,6 +14,18 @@ export default defineConfig({
 		coverage: {
 			include: ['app/**/*.{ts,tsx}'],
 			all: true,
+			// Coverage floor on the security-critical access-control helpers so that a
+			// regression which drops their tests fails CI. These are conservative floors,
+			// not targets: run `npm run coverage` to see real numbers, ratchet up, and add
+			// a gate for the media proxy too (it's .jsx, outside this .ts/.tsx include).
+			thresholds: {
+				'**/authorization.server.ts': {
+					statements: 70,
+					branches: 40,
+					functions: 80,
+					lines: 70,
+				},
+			},
 		},
 	},
   resolve: {

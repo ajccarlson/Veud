@@ -111,8 +111,12 @@ app.use(
 		referrerPolicy: { policy: 'same-origin' },
 		crossOriginEmbedderPolicy: false,
 		contentSecurityPolicy: {
-			// NOTE: Remove reportOnly when you're ready to enforce this CSP
-			reportOnly: true,
+			// CSP is now ENFORCED (not report-only). Two relaxations vs. the Epic Stack
+			// default are needed by this app: `https:` in img-src (poster art is loaded
+			// from TMDB/MAL/AniList image CDNs, including as CSS background images) and
+			// `'unsafe-inline'` in style-src (the UI uses inline style={{...}} attributes
+			// throughout). Set this back to true to return to non-blocking report mode.
+			reportOnly: false,
 			directives: {
 				'connect-src': [
 					MODE === 'development' ? 'ws:' : null,
@@ -121,7 +125,8 @@ app.use(
 				].filter(Boolean),
 				'font-src': ["'self'"],
 				'frame-src': ["'self'"],
-				'img-src': ["'self'", 'data:'],
+				'img-src': ["'self'", 'data:', 'https:'],
+				'style-src': ["'self'", "'unsafe-inline'"],
 				'script-src': [
 					"'strict-dynamic'",
 					"'self'",
