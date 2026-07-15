@@ -20,12 +20,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: ⬇️ Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: ⎔ Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 📥 Download deps
         uses: bahmutov/npm-install@v1
@@ -41,12 +41,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: ⬇️ Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: ⎔ Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 📥 Download deps
         uses: bahmutov/npm-install@v1
@@ -62,12 +62,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: ⬇️ Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: ⎔ Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 📥 Download deps
         uses: bahmutov/npm-install@v1
@@ -81,21 +81,37 @@ jobs:
       - name: ⚡ Run vitest
         run: npm run test -- --coverage
 
+  audit:
+    name: 🛡 Audit (non-blocking)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v7
+
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 🛡 npm audit (high and above)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
   # playwright:
   #   name: 🎭 Playwright
   #   runs-on: ubuntu-22.04
   #   timeout-minutes: 60
   #   steps:
   #     - name: ⬇️ Checkout repo
-  #       uses: actions/checkout@v3
+  #       uses: actions/checkout@v7
 
   #     - name: 🏄 Copy test env vars
   #       run: cp .env.example .env
 
   #     - name: ⎔ Setup node
-  #       uses: actions/setup-node@v3
+  #       uses: actions/setup-node@v6
   #       with:
-  #         node-version: 20
+  #         node-version: 22
 
   #     - name: 📥 Download deps
   #       uses: bahmutov/npm-install@v1
@@ -108,7 +124,7 @@ jobs:
 
   #     - name: 🏦 Cache Database
   #       id: db-cache
-  #       uses: actions/cache@v3
+  #       uses: actions/cache@v4
   #       with:
   #         path: prisma/data.db
   #         key:
@@ -129,7 +145,7 @@ jobs:
   #       run: npx playwright test
 
   #     - name: 📊 Upload report
-  #       uses: actions/upload-artifact@v3
+  #       uses: actions/upload-artifact@v4
   #       if: always()
   #       with:
   #         name: playwright-report
@@ -145,7 +161,7 @@ jobs:
 
     steps:
       - name: ⬇️ Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 👀 Read app name
         uses: SebRollen/toml-action@v1.2.0

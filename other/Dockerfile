@@ -1,10 +1,14 @@
 # This file is moved to the root directory before building the image
 
 # base node image
-FROM node:20-bookworm-slim as base
+FROM node:22-bookworm-slim as base
 
 # set for base and all layer that inherit from it
 ENV NODE_ENV production
+
+RUN apt-get update && apt-get install -y build-essential
+
+RUN apt-get update || : && apt-get install python3 -y
 
 # Install openssl for Prisma
 RUN apt-get update && apt-get install -y fuse3 openssl sqlite3 ca-certificates
@@ -86,10 +90,10 @@ COPY --from=build /myapp/prisma /myapp/prisma
 COPY --from=build /myapp/app/components/ui/icons /myapp/app/components/ui/icons
 
 # prepare for litefs
-COPY --from=flyio/litefs:0.5.11 /usr/local/bin/litefs /usr/local/bin/litefs
-ADD other/litefs.yml /etc/litefs.yml
-RUN mkdir -p /data ${LITEFS_DIR}
-
+VOLUME /litefs
 ADD . .
 
-CMD ["litefs", "mount"]
+RUN chown -R node /myapp/other/docker-entry-point.sh
+
+EXPOSE ${PORT}
+ENTRYPOINT ["/myapp/other/docker-entry-point.sh"]
