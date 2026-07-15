@@ -132,7 +132,7 @@
     "@remix-run/eslint-config": "^2.17.5",
     "@remix-run/serve": "^2.17.5",
     "@remix-run/testing": "^2.17.5",
-    "@sly-cli/sly": "^1.10.0",
+    "@sly-cli/sly": "^2.1.1",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.1",
     "@testing-library/user-event": "^14.5.2",
