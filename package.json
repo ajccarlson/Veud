@@ -120,7 +120,7 @@
     "sonner": "^1.4.3",
     "source-map-support": "^0.5.21",
     "spin-delay": "^1.2.0",
-    "tailwind-merge": "^2.2.1",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tailwindcss-radix": "^2.8.0",
     "zod": "^3.22.4"
