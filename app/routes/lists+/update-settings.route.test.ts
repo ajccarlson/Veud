@@ -1,0 +1,135 @@
+/**
+ * Route test for update-settings
+ * (app/routes/lists+/.fetch+/update-settings.$request.ts).
+ *
+ * Verifies the 2.3 mass-assignment fix: whitelisted fields (name, header, …) are applied,
+ * while any other client-supplied key (ownerId, id, typeId, …) is ignored, so a client
+ * can't reassign ownership or otherwise mutate system fields through the settings form.
+ */
+import { faker } from '@faker-js/faker'
+import { expect, test } from 'vitest'
+import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
+import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+
+async function createUserRecord() {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	return prisma.user.create({
+		data: { email: `${suffix}@example.com`, username: `u_${suffix}` },
+		select: { id: true },
+	})
+}
+
+async function authedRequestFor(userId: string) {
+	const session = await prisma.session.create({
+		data: { userId, expirationDate: getSessionExpirationDate() },
+		select: { id: true },
+	})
+	const cookie = await getSessionCookieHeader(session)
+	return new Request(BASE_URL, { method: 'POST', headers: { cookie } })
+}
+
+// Owner + one watchlist with a known starting name, so changes are observable.
+async function seedOwnedWatchlist() {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `u_${suffix}`,
+			watchlists: {
+				create: {
+					name: 'original-name',
+					header: 'Original Header',
+					type: {
+						create: {
+							name: `LiveAction ${suffix}`,
+							header: 'LiveAction',
+							columns: '[]',
+							mediaType: 'liveAction',
+							completionType: 'watched',
+						},
+					},
+				},
+			},
+		},
+		select: { id: true, watchlists: { select: { id: true, typeId: true } } },
+	})
+	const wl = owner.watchlists[0]
+	if (!wl) throw new Error('test setup: watchlist was not created')
+	return { userId: owner.id, watchlistId: wl.id, listTypeId: wl.typeId }
+}
+
+function settingsParams(
+	listId: string,
+	listTypeId: string,
+	pairs: Array<[string, unknown]>,
+) {
+	return new URLSearchParams({
+		listId,
+		listTypeData: JSON.stringify({ id: listTypeId }),
+		settings: JSON.stringify(pairs),
+	}).toString()
+}
+
+test('applies whitelisted settings', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const request = await authedRequestFor(userId)
+
+	await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [
+				['name', 'renamed'],
+				['header', 'New Header'],
+			]),
+		},
+	} as any)
+
+	const wl = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
+	expect(wl?.name).toBe('renamed')
+	expect(wl?.header).toBe('New Header')
+})
+
+test('ignores non-whitelisted fields so ownership/id cannot be reassigned', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const attacker = await createUserRecord()
+	const request = await authedRequestFor(userId)
+
+	await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [
+				['name', 'renamed'],
+				['ownerId', attacker.id],
+				['id', 'hacked-id'],
+			]),
+		},
+	} as any)
+
+	// findUnique by the ORIGINAL id still resolves — proving id was not rewritten — and the
+	// owner is unchanged, while the whitelisted name change did go through.
+	const wl = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
+	expect(wl?.id).toBe(watchlistId)
+	expect(wl?.ownerId).toBe(userId)
+	expect(wl?.name).toBe('renamed')
+})
+
+test('a logged-in non-owner cannot change settings (404)', async () => {
+	const { watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const other = await createUserRecord()
+	const request = await authedRequestFor(other.id)
+
+	const res = await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [['name', 'hacked']]),
+		},
+	} as any).catch(e => e)
+
+	expect(res).toBeInstanceOf(Response)
+	expect((res as Response).status).toBe(404)
+
+	const wl = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
+	expect(wl?.name).toBe('original-name')
+})
