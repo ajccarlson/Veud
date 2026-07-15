@@ -2,14 +2,12 @@ import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireWatchlistOwner,
-  resolveEntryModel,
   stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const searchParams = new URLSearchParams(params.request)
 
-  const typeFormatted = resolveEntryModel(searchParams.get('listTypeData'))
 
   let row: unknown
   try {
@@ -31,6 +29,5 @@ export async function action({ request, params }: ActionFunctionArgs) {
   // The client must not choose the row's id — let the database generate it.
   const data = stripProtectedFields(rowObj, ['id'])
 
-  // `typeFormatted` is allowlist-validated; the dynamic delegate access is intentional.
-  return await (prisma as any)[typeFormatted].create({ data })
+  return await prisma.entry.create({ data: data as any })
 }

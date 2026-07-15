@@ -2,8 +2,6 @@
  * Access-control tests for the watchlist "fetch" API helpers
  * (app/utils/lists/authorization.server.ts) — the 0.2 fix.
  *
- *   - resolveEntryModel: only the three allow-listed entry models resolve; anything else
- *     is rejected, so Prisma is never indexed with an untrusted, client-supplied string.
  *   - requireWatchlistOwner: the logged-in user must own the record. A non-owner gets 404
  *     (not 403) so a watchlist's existence isn't disclosed; an anonymous caller is
  *     redirected to login. (requireEntryOwner / requireFavoriteOwner share this shape and
@@ -17,7 +15,6 @@ import {
 	requireEntryOwner,
 	requireFavoriteOwner,
 	requireWatchlistOwner,
-	resolveEntryModel,
 	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -31,38 +28,6 @@ function getThrown(fn: () => unknown): unknown {
 	}
 	throw new Error('expected the function to throw, but it returned normally')
 }
-
-// ---------- resolveEntryModel (pure allow-list) ----------
-
-test('resolveEntryModel resolves the three allow-listed entry types', () => {
-	expect(resolveEntryModel(JSON.stringify({ header: 'LiveAction' }))).toBe(
-		'liveActionEntry',
-	)
-	expect(resolveEntryModel(JSON.stringify({ header: 'Anime' }))).toBe(
-		'animeEntry',
-	)
-	expect(resolveEntryModel(JSON.stringify({ header: 'Manga' }))).toBe(
-		'mangaEntry',
-	)
-})
-
-test('resolveEntryModel rejects a Prisma-model-injection attempt with 400', () => {
-	// "User" would resolve to a non-entry delegate (userEntry) -> must be refused,
-	// which is what stops `prisma[<client string>]` from reaching arbitrary models.
-	const res = getThrown(() => resolveEntryModel(JSON.stringify({ header: 'User' })))
-	expect(res).toBeInstanceOf(Response)
-	expect((res as Response).status).toBe(400)
-})
-
-test('resolveEntryModel rejects malformed or missing listTypeData with 400', () => {
-	expect((getThrown(() => resolveEntryModel(null)) as Response).status).toBe(400)
-	expect(
-		(getThrown(() => resolveEntryModel('not json')) as Response).status,
-	).toBe(400)
-	expect(
-		(getThrown(() => resolveEntryModel(JSON.stringify({}))) as Response).status,
-	).toBe(400)
-})
 
 // ---------- requireWatchlistOwner (session + ownership) ----------
 
@@ -167,7 +132,7 @@ async function createOwnerWithEntry() {
 							completionType: 'watched',
 						},
 					},
-					liveActionEntries: {
+					entries: {
 						create: { position: 1, title: faker.lorem.words(2) },
 					},
 				},
@@ -175,10 +140,10 @@ async function createOwnerWithEntry() {
 		},
 		select: {
 			id: true,
-			watchlists: { select: { liveActionEntries: { select: { id: true } } } },
+			watchlists: { select: { entries: { select: { id: true } } } },
 		},
 	})
-	const entryId = owner.watchlists[0]?.liveActionEntries[0]?.id
+	const entryId = owner.watchlists[0]?.entries[0]?.id
 	if (!entryId) throw new Error('test setup: entry was not created')
 	return { userId: owner.id, entryId }
 }
@@ -187,7 +152,7 @@ test('requireEntryOwner returns the entry for the owner of its watchlist', async
 	const { userId, entryId } = await createOwnerWithEntry()
 	const request = await authedRequestFor(userId)
 
-	const result = await requireEntryOwner(request, 'liveActionEntry', entryId)
+	const result = await requireEntryOwner(request, entryId)
 	expect(result.userId).toBe(userId)
 	expect(result.entry.id).toBe(entryId)
 })
@@ -197,11 +162,7 @@ test('requireEntryOwner returns 404 for a logged-in non-owner', async () => {
 	const other = await createUserRecord()
 	const request = await authedRequestFor(other.id)
 
-	const res = await requireEntryOwner(
-		request,
-		'liveActionEntry',
-		entryId,
-	).catch(e => e)
+	const res = await requireEntryOwner(request, entryId).catch(e => e)
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
 })
@@ -210,11 +171,7 @@ test('requireEntryOwner returns 404 when the entry does not exist', async () => 
 	const owner = await createUserRecord()
 	const request = await authedRequestFor(owner.id)
 
-	const res = await requireEntryOwner(
-		request,
-		'liveActionEntry',
-		'does-not-exist',
-	).catch(e => e)
+	const res = await requireEntryOwner(request, 'does-not-exist').catch(e => e)
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
 })

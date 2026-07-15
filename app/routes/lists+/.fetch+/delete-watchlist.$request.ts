@@ -2,7 +2,6 @@ import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireWatchlistOwner,
-  resolveEntryModel,
 } from '#app/utils/lists/authorization.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -13,10 +12,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
   // Only the owner may delete this watchlist.
   const { userId, watchlist } = await requireWatchlistOwner(request, id)
 
-  const typeFormatted = resolveEntryModel(searchParams.get('listTypeData'))
-  const typeId = (
-    JSON.parse(searchParams.get('listTypeData') ?? '') as { id?: unknown }
-  ).id
+  let typeId: unknown
+  try {
+    typeId = (
+      JSON.parse(searchParams.get('listTypeData') ?? '') as { id?: unknown }
+    )?.id
+  } catch {
+    throw new Response('Invalid listTypeData', { status: 400 })
+  }
 
   // Delete the watchlist, remove its entries, and renumber the owner's remaining
   // watchlists of this type — all atomically, so a mid-sequence failure can't leave a
@@ -24,8 +27,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   await prisma.$transaction(async (tx) => {
     await tx.watchlist.delete({ where: { id: watchlist.id } })
 
-    // `typeFormatted` is allowlist-validated; the dynamic delegate access is intentional.
-    await (tx as any)[typeFormatted].deleteMany({
+    await tx.entry.deleteMany({
       where: { watchlistId: watchlist.id },
     })
 

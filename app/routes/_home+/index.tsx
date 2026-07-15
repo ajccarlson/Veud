@@ -4,7 +4,6 @@ import { useLoaderData } from '@remix-run/react'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
 export async function loader() {
@@ -34,13 +33,11 @@ export async function loader() {
   const typedEntries: Record<string, any[]> = {}
 
   for (const type of listTypes) {
-    const typeFormatted = entryModelFromHeader(type.header)
     const perWatchlistEntries: any[] = []
 
     for (const typedList of typedWatchlists[type.id]) {
-      // `typeFormatted` is allowlist-validated; the dynamic delegate access is intentional.
       perWatchlistEntries.push(
-        await (prisma as any)[typeFormatted].findMany({
+        await prisma.entry.findMany({
           where: {
             watchlistId: typedList.id,
           },

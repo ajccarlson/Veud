@@ -4,7 +4,6 @@ import { useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/watchlist-grid.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
@@ -24,9 +23,6 @@ export async function loader(params: LoaderFunctionArgs) {
   // Guard before reading `.header`/`.id`: the original accessed these before its 404
   // check, so a missing list type would have thrown a 500 instead of the intended 404.
   invariantResponse(listTypeData, 'List type not found', { status: 404 })
-  const typeFormatted = entryModelFromHeader(listTypeData.header)
-
-  invariantResponse(typeFormatted, 'List type not found', { status: 404 })
 
   const watchLists = await prisma.watchlist.findMany({
     where: {
@@ -59,8 +55,7 @@ export async function loader(params: LoaderFunctionArgs) {
     {},
   )
 
-  // `typeFormatted` is allowlist-validated; the dynamic delegate access is intentional.
-  const listEntries = await (prisma as any)[typeFormatted].findMany({
+  const listEntries = await prisma.entry.findMany({
     where: {
       watchlistId: watchListData.id,
     },

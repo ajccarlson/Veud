@@ -11,42 +11,6 @@ import { prisma } from '#app/utils/db.server.ts'
  * the specific record being touched.
  */
 
-// The only Prisma models a watchlist entry may live in. This allowlist prevents
-// arbitrary `prisma[<client-controlled string>]` delegate access.
-const ENTRY_MODELS = new Set(['liveActionEntry', 'animeEntry', 'mangaEntry'])
-
-/**
- * Map a list type's `header` to its validated Prisma entry-model delegate name. Throws a
- * 400 for anything outside the allowlist, so the Prisma client is never indexed with an
- * untrusted string. Shared by the fetch API (via resolveEntryModel) and the page loaders,
- * which previously built this name inline with no validation.
- */
-export function entryModelFromHeader(header: unknown): string {
-	const base = String(header ?? '').replace(/\W/g, '')
-	const delegate = base
-		? base.charAt(0).toLowerCase() + base.slice(1) + 'Entry'
-		: ''
-	if (!ENTRY_MODELS.has(delegate)) {
-		throw new Response('Unknown list type', { status: 400 })
-	}
-	return delegate
-}
-
-/**
- * Resolve — and validate — the entry-model delegate name from the client-supplied
- * `listTypeData`. Throws a 400 for anything outside the allowlist, so the Prisma
- * client is never indexed with an untrusted string.
- */
-export function resolveEntryModel(listTypeDataRaw: string | null): string {
-	let header: unknown
-	try {
-		header = (JSON.parse(listTypeDataRaw ?? '') as { header?: unknown })?.header
-	} catch {
-		throw new Response('Invalid listTypeData', { status: 400 })
-	}
-	return entryModelFromHeader(header)
-}
-
 /**
  * Require the logged-in user to own `watchlistId`. Returns { userId, watchlist }.
  * Responds 404 (not 403) so a watchlist's existence isn't disclosed to non-owners.
@@ -66,18 +30,16 @@ export async function requireWatchlistOwner(
 }
 
 /**
- * Require the logged-in user to own the watchlist that `entryId` (in the validated
- * `delegate` model) belongs to. Returns { userId, entry, watchlist }.
+ * Require the logged-in user to own the watchlist that `entryId` belongs to.
+ * Returns { userId, entry, watchlist }.
  */
 export async function requireEntryOwner(
 	request: Request,
-	delegate: string,
 	entryId: string | null | undefined,
 ) {
 	const userId = await requireUserId(request)
-	// `delegate` is validated by resolveEntryModel; the dynamic access is intentional.
 	const entry = entryId
-		? await (prisma as any)[delegate].findUnique({ where: { id: entryId } })
+		? await prisma.entry.findUnique({ where: { id: entryId } })
 		: null
 	if (!entry) throw new Response('Not found', { status: 404 })
 	const watchlist = await prisma.watchlist.findUnique({

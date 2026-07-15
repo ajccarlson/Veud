@@ -5,7 +5,6 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { BodyData } from '#app/routes/users+/$username_/body.tsx'
 import { SideData } from '#app/routes/users+/$username_/side.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 // import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
@@ -47,12 +46,11 @@ export async function loader(params: LoaderFunctionArgs) {
 
   if (watchLists.length >= 1) {
     for (const type of listTypes) {
-      const typeFormatted = entryModelFromHeader(type.header)
       let perWatchlistEntries: any[] = []
   
       if (typedWatchlists[type.id] && typedWatchlists[type.id].length > 0) {
         for (const typedList of typedWatchlists[type.id]) {
-          perWatchlistEntries.push(await (prisma as any)[typeFormatted].findMany({
+          perWatchlistEntries.push(await prisma.entry.findMany({
             where: {
               watchlistId: typedList.id,
             },
