@@ -2,7 +2,6 @@ import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireEntryOwner,
-  resolveEntryModel,
 } from '#app/utils/lists/authorization.server.ts'
 
 function castType(varIn: unknown, varType: string): unknown {
@@ -38,13 +37,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
     const filter = searchParams.get('filter')
     const listTypeDataRaw = searchParams.get('listTypeData')
 
-    const typeFormatted = resolveEntryModel(listTypeDataRaw)
-    await requireEntryOwner(request, typeFormatted, rowIndex)
+    // Reject a malformed listTypeData payload up front — a bad request must not be
+    // swallowed into a 200 (the history/length branch below also relies on it parsing).
+    try {
+      JSON.parse(listTypeDataRaw ?? '')
+    } catch {
+      throw new Response('Invalid listTypeData', { status: 400 })
+    }
 
-    // `typeFormatted` is allowlist-validated; the dynamic delegate access is intentional.
-    const historyObject = await (prisma as any)[typeFormatted].findUnique({
+    await requireEntryOwner(request, rowIndex)
+
+    const historyObject: any = await prisma.entry.findUnique({
       where: {
-        id: rowIndex,
+        id: rowIndex as string,
       },
     })
 
@@ -126,9 +131,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
           }
         }
 
-        return await (prisma as any)[typeFormatted].update({
+        return await prisma.entry.update({
           where: {
-            id: rowIndex,
+            id: rowIndex as string,
           },
           data: {
             history: JSON.stringify(parsedHistoryObject),
@@ -158,9 +163,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
           newValue && newValue != 'null' ? new Date(newValue).toISOString() : null
       }
 
-      return await (prisma as any)[typeFormatted].update({
+      return await prisma.entry.update({
         where: {
-          id: rowIndex,
+          id: rowIndex as string,
         },
         data: {
           history: JSON.stringify(parsedHistoryObject),
@@ -173,14 +178,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
         valueFormatted = castType(newValue, filter as string)
       }
 
-      return await (prisma as any)[typeFormatted].update({
+      return await prisma.entry.update({
         where: {
-          id: rowIndex,
+          id: rowIndex as string,
         },
         data: {
           [columnName as string]: valueFormatted,
           history: JSON.stringify(parsedHistoryObject),
-        },
+        } as any,
       })
     }
   } catch (e) {

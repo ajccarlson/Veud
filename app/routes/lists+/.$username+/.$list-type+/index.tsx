@@ -4,7 +4,6 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
-import { entryModelFromHeader } from '#app/utils/lists/authorization.server.ts'
 import { timeSince, getStartYear, getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
@@ -150,9 +149,6 @@ export async function loader(params: LoaderFunctionArgs) {
   const listTypeData = listTypes.find(type => type.name === listType)
   invariantResponse(listTypeData, 'List type not found', { status: 404 })
 
-  const typeFormatted = entryModelFromHeader(listTypeData.header)
-
-  invariantResponse(typeFormatted, 'List type not found', { status: 404 })
 
   const watchLists = await prisma.watchlist.findMany({
     where: {
@@ -168,7 +164,7 @@ export async function loader(params: LoaderFunctionArgs) {
   const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
   
   for (const watchlist of watchListsSorted) {
-    const listEntries = await (prisma as any)[typeFormatted].findMany({
+    const listEntries = await prisma.entry.findMany({
       where: {
         watchlistId: watchlist.id,
       },

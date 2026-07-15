@@ -51,7 +51,7 @@ async function seedWatchlistWithEntries() {
 							completionType: 'watched',
 						},
 					},
-					liveActionEntries: {
+					entries: {
 						create: [
 							{ position: 1, title: '' },
 							{ position: 2, title: 'Kept Movie' },
@@ -87,7 +87,7 @@ test('removes only the empty rows and keeps the real one', async () => {
 	expect(Array.isArray(removed)).toBe(true)
 	expect((removed as unknown[]).length).toBe(2)
 
-	const remaining = await prisma.liveActionEntry.findMany({
+	const remaining = await prisma.entry.findMany({
 		where: { watchlistId },
 	})
 	expect(remaining.length).toBe(1)
@@ -107,7 +107,7 @@ test('a logged-in non-owner cannot delete rows (404, nothing removed)', async ()
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
 
-	const remaining = await prisma.liveActionEntry.findMany({
+	const remaining = await prisma.entry.findMany({
 		where: { watchlistId },
 	})
 	expect(remaining.length).toBe(3)

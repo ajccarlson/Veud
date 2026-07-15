@@ -49,7 +49,7 @@ async function createOwnerWithEntry() {
 							completionType: 'watched',
 						},
 					},
-					liveActionEntries: {
+					entries: {
 						create: { position: 1, title: 'Original Title' },
 					},
 				},
@@ -58,12 +58,12 @@ async function createOwnerWithEntry() {
 		select: {
 			id: true,
 			watchlists: {
-				select: { typeId: true, liveActionEntries: { select: { id: true } } },
+				select: { typeId: true, entries: { select: { id: true } } },
 			},
 		},
 	})
 	const wl = owner.watchlists[0]
-	const entryId = wl?.liveActionEntries[0]?.id
+	const entryId = wl?.entries[0]?.id
 	if (!wl || !entryId) throw new Error('test setup: entry was not created')
 	return { userId: owner.id, entryId, listTypeId: wl.typeId }
 }
