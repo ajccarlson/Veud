@@ -2,7 +2,8 @@ module.exports = {
   apps : [{
     name   : "veud",
     script: "npm",
-    instances: 2,
+    instances: 1,
+    exec_mode: "fork",
     max_memory_restart: "300M",
 
     // Logging
@@ -15,7 +16,7 @@ module.exports = {
     // Env Specific Config
     env_production: {
       args : "start",
-      exec_mode: "cluster_mode",
+      NODE_ENV: "production",
     },
     env_development: {
       args : "dev",
