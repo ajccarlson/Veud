@@ -1970,3 +1970,4 @@
 {"message":"","timestamp":"14-07 22:38:43 -07:00","type":"err","process_id":1,"app_name":"veud"}
 {"message":"","timestamp":"15-07 19:13:59 -07:00","type":"err","process_id":1,"app_name":"veud"}
 {"message":"","timestamp":"15-07 19:13:59 -07:00","type":"err","process_id":0,"app_name":"veud"}
+{"message":"Invalid Sentry Dsn: your-dsn\n","timestamp":"15-07 20:45:09 -07:00","type":"err","process_id":5,"app_name":"veud"}
