@@ -94,8 +94,12 @@ export default function Index() {
     <div className="home">
       <main className="home-main">
         <div className="home-container">
-          {TrendingData(currentUser)}
-          {UpcomingData(loaderData)}
+          <TrendingData currentUser={currentUser} />
+          <UpcomingData
+            user={currentUser}
+            userTypedEntries={loaderData.userTypedEntries}
+            listTypes={loaderData.listTypes}
+          />
         </div>
       </main>
     </div>
