@@ -30,7 +30,7 @@ function setTrending(trendingParams: any) {
   }
 }
 
-export function TrendingData(currentUser: any) {
+export function TrendingData({ currentUser }: any) {
   const [trendingMovies, setTrendingMovies] = useState<any[]>()
   const [trendingTV, setTrendingTV] = useState<any[]>()
   const [seasonalAnime, setSeasonalAnime] = useState<any[]>()
@@ -41,34 +41,40 @@ export function TrendingData(currentUser: any) {
   const [chosenThumbnail/*, setChosenThumbnail*/] = useState(Math.floor(Math.random() * thumbnailArray.length))
 
   useEffect(() => {
+    let cancelled = false
     if (!trendingMovies || trendingMovies.length < 1) {
-      getTrending("tmdb", {mediaType: "movie", numResults: 50}).then(val => {
-        setTrendingMovies(val)
+      getTrending("tmdb", {mediaType: "movie", numResults: 10}).then(val => {
+        if (!cancelled) setTrendingMovies(val)
       }).catch(e => {
-        console.error(e)
+        if (!cancelled) console.error(e)
       })
     }
+    return () => { cancelled = true }
   }, [trendingMovies])
 
   useEffect(() => {
+    let cancelled = false
     if (!trendingTV || trendingTV.length < 1) {
-      getTrending("tmdb", {mediaType: "tv", numResults: 50}).then(val => {
-        setTrendingTV(val)
+      getTrending("tmdb", {mediaType: "tv", numResults: 10}).then(val => {
+        if (!cancelled) setTrendingTV(val)
       }).catch(e => {
-        console.error(e)
+        if (!cancelled) console.error(e)
       })
     }
+    return () => { cancelled = true }
   }, [trendingTV])
 
   useEffect(() => {
+    let cancelled = false
     if (!seasonalAnime || seasonalAnime.length < 1) {
       const date = new Date()
-      getTrending("mal", {year: date.getFullYear(), month: date.getMonth() + 1, numResults: 50}).then(val => {
-        setSeasonalAnime(val)
+      getTrending("mal", {year: date.getFullYear(), month: date.getMonth() + 1, numResults: 10}).then(val => {
+        if (!cancelled) setSeasonalAnime(val)
       }).catch(e => {
-        console.error(e)
+        if (!cancelled) console.error(e)
       })
     }
+    return () => { cancelled = true }
   }, [seasonalAnime])
 
   useEffect(() => {

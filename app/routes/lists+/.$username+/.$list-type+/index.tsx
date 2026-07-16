@@ -163,12 +163,22 @@ export async function loader(params: LoaderFunctionArgs) {
 
   const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
   
+  // One batched query for all entries across these watchlists, grouped in memory — instead
+  // of a query per watchlist (N+1).
+  const allEntries = watchListsSorted.length
+    ? await prisma.entry.findMany({
+        where: { watchlistId: { in: watchListsSorted.map(w => w.id) } },
+      })
+    : []
+  const entriesByWatchlist = new Map<string, any[]>()
+  for (const entry of allEntries) {
+    const arr = entriesByWatchlist.get(entry.watchlistId) ?? []
+    arr.push(entry)
+    entriesByWatchlist.set(entry.watchlistId, arr)
+  }
+
   for (const watchlist of watchListsSorted) {
-    const listEntries = await prisma.entry.findMany({
-      where: {
-        watchlistId: watchlist.id,
-      },
-    })
+    const listEntries = entriesByWatchlist.get(watchlist.id) ?? []
 
     const entryData = {
       watchlist: watchlist,
