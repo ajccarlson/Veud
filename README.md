@@ -104,9 +104,7 @@ redirect loop.
 
 `start:prod` runs `scripts/backup-db.mjs` on start and hourly (a PM2 `cron_restart`), taking
 consistent, timestamped SQLite backups via the online-backup API — safe to run while the app is
-live — and prunes old ones by retention. With no Fly volume anymore, **also copy the backups
-off-machine** (e.g. a scheduled `rsync` or object-storage upload) so a disk failure can't lose
-them. To restore: stop the app and copy a backup file back over the live database path.
+live — and prunes old ones by retention.
 
 #### Log rotation
 
