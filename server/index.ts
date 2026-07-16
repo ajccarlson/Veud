@@ -6,7 +6,7 @@ import { ip as ipAddress } from 'address'
 import chalk from 'chalk'
 import closeWithGrace from 'close-with-grace'
 import compression from 'compression'
-import express from 'express'
+import express, { type Request } from 'express'
 import rateLimit from 'express-rate-limit'
 import getPort, { portNumbers } from 'get-port'
 import helmet from 'helmet'
@@ -35,8 +35,10 @@ const app = express()
 const getHost = (req: { get: (key: string) => string | undefined }) =>
 	req.get('X-Forwarded-Host') ?? req.get('host') ?? ''
 
-// fly is our proxy
-app.set('trust proxy', true)
+// cloudflared runs on this machine and proxies to the local origin, so the only proxy hop
+// to trust is loopback. Trusting all proxies ('true') would let a client set
+// X-Forwarded-For and thereby control req.ip.
+app.set('trust proxy', 'loopback')
 
 // ensure HTTPS only (X-Forwarded-Proto comes from Fly)
 app.use((req, res, next) => {
@@ -111,8 +113,12 @@ app.use(
 		referrerPolicy: { policy: 'same-origin' },
 		crossOriginEmbedderPolicy: false,
 		contentSecurityPolicy: {
-			// NOTE: Remove reportOnly when you're ready to enforce this CSP
-			reportOnly: true,
+			// CSP is now ENFORCED (not report-only). Two relaxations vs. the Epic Stack
+			// default are needed by this app: `https:` in img-src (poster art is loaded
+			// from TMDB/MAL/AniList image CDNs, including as CSS background images) and
+			// `'unsafe-inline'` in style-src (the UI uses inline style={{...}} attributes
+			// throughout). Set this back to true to return to non-blocking report mode.
+			reportOnly: false,
 			directives: {
 				'connect-src': [
 					MODE === 'development' ? 'ws:' : null,
@@ -121,7 +127,8 @@ app.use(
 				].filter(Boolean),
 				'font-src': ["'self'"],
 				'frame-src': ["'self'"],
-				'img-src': ["'self'", 'data:'],
+				'img-src': ["'self'", 'data:', 'https:'],
+				'style-src': ["'self'", "'unsafe-inline'"],
 				'script-src': [
 					"'strict-dynamic'",
 					"'self'",
@@ -148,8 +155,12 @@ const rateLimitDefault = {
 	max: 1000 * maxMultiple,
 	standardHeaders: true,
 	legacyHeaders: false,
-	// Fly.io prevents spoofing of X-Forwarded-For
-	// so no need to validate the trustProxy config
+	// Behind Cloudflare the real client IP is in CF-Connecting-IP; req.ip is only the
+	// cloudflared (loopback) hop. Key the limiter on the Cloudflare-provided IP, falling
+	// back to req.ip for local dev, so a client can't forge X-Forwarded-For to dodge the
+	// auth/signup limits or push another IP over its limit.
+	keyGenerator: (req: Request) => req.get('cf-connecting-ip') ?? req.ip ?? 'unknown',
+	// trust proxy is narrowed to loopback (above), so the prior Fly note no longer applies.
 	validate: { trustProxy: false },
 }
 
