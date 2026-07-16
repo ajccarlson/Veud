@@ -8,7 +8,6 @@ export async function searchMAL(entry: string, type = 'anime', numResults = 5) {
       url: url,
       authorization: 'mal',
       fetchBody: undefined,
-      sleepTime: 1500,
     } as any).toString()))
     data = await response.json()
     data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -69,7 +68,6 @@ export async function getAnilistSchedule(entryID: any) {
           query: query,
           variables: variables
         }),
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data = data[1].data.Media
@@ -221,7 +219,6 @@ export async function getAnimeInfo(entryID: any) {
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -318,7 +315,6 @@ export async function getMangaInfo(entryID: any) {
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -350,7 +346,6 @@ export async function getTopEntries(medium = "anime", topType = "all", numResult
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -438,7 +433,6 @@ export async function getSeasonalAnime(year: any = undefined, month: any = undef
         url: url,
         authorization: 'mal',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data.map((e: any) => data = e ? {...data, ...e} : data)

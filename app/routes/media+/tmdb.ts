@@ -19,7 +19,6 @@ export async function searchTMDB(entry: string, type: string, numResults?: numbe
       url: url,
       authorization: 'tmdb',
       fetchBody: undefined,
-      sleepTime: 1500,
     } as any).toString()))
     data = await response.json();
     data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -131,7 +130,6 @@ export async function formatTMDBResults(entry: any, type: string, entryID: any, 
               url: url,
               authorization: 'tmdb',
               fetchBody: undefined,
-              sleepTime: 1500,
             } as any).toString()))
             data = await response.json();
             data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -159,7 +157,6 @@ export async function formatTMDBResults(entry: any, type: string, entryID: any, 
               url: url,
               authorization: 'tmdb',
               fetchBody: undefined,
-              sleepTime: 1500,
             } as any).toString()))
             data = await response.json();
             data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -253,7 +250,6 @@ export async function getTMDBInfo(entry: any, type: string/*, override = false*/
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
-            sleepTime: 1500,
           } as any).toString()))
           data = await response.json();
           data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -281,7 +277,6 @@ export async function getTMDBInfo(entry: any, type: string/*, override = false*/
             url: url,
             authorization: 'tmdb',
             fetchBody: undefined,
-            sleepTime: 1500,
           } as any).toString()))
           data = await response.json();
           data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -309,7 +304,6 @@ export async function getTMDBInfo(entry: any, type: string/*, override = false*/
         url: url,
         authorization: 'tmdb',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json();
       data.map((e: any) => data = e ? {...data, ...e} : data)
@@ -351,7 +345,6 @@ export async function getTMDBTrending(type: string, numResults?: number) {
         url: url,
         authorization: 'tmdb',
         fetchBody: undefined,
-        sleepTime: 1500,
       } as any).toString()))
       data = await response.json()
       data.map((e: any) => data = e ? {...data, ...e} : data)

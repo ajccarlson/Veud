@@ -44,21 +44,20 @@ export async function loader(params: LoaderFunctionArgs) {
 	let typedEntries: Record<string, any[]> = {}
   let typedHistory: Record<string, any[]> = {}
 
+  // One batched query for all of the user's entries, grouped by their watchlist's type in
+  // memory — instead of a query per watchlist (N+1).
+  const allEntries = watchLists.length >= 1
+    ? await prisma.entry.findMany({
+        where: { watchlistId: { in: watchLists.map(w => w.id) } },
+      })
+    : []
+  const typeByWatchlist = new Map(watchLists.map(w => [w.id, w.typeId]))
+
   if (watchLists.length >= 1) {
     for (const type of listTypes) {
-      let perWatchlistEntries: any[] = []
-  
-      if (typedWatchlists[type.id] && typedWatchlists[type.id].length > 0) {
-        for (const typedList of typedWatchlists[type.id]) {
-          perWatchlistEntries.push(await prisma.entry.findMany({
-            where: {
-              watchlistId: typedList.id,
-            },
-          }))
-        }
-      }
-  
-      typedEntries[type.id] = perWatchlistEntries.flat(2)
+      typedEntries[type.id] = allEntries.filter(
+        (entry: any) => typeByWatchlist.get(entry.watchlistId) === type.id,
+      )
       typedHistory[type.id] = []
   
       for (const [index, entry] of typedEntries[type.id].entries()) {
