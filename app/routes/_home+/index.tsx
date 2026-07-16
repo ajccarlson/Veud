@@ -1,19 +1,25 @@
 import '#app/styles/home.scss'
-import { json } from '@remix-run/node'
+import { json, type LoaderFunctionArgs } from '@remix-run/node'
 import { useLoaderData } from '@remix-run/react'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
-export async function loader() {
+export async function loader({ request }: LoaderFunctionArgs) {
   const listTypes = await prisma.listType.findMany()
 
-  const watchLists = await prisma.watchlist.findMany()
+  const userId = await getUserId(request)
 
-  // Group the watchlists by owner and by list type. The reduce accumulators are typed via
-  // the generic; `findMany` always returns an array, so the original `?.` is dropped (it
-  // was redundant and left the result non-indexable).
+  // The home page only renders the signed-in user's upcoming releases, so scope everything to
+  // them. Anonymous visitors (who just see client-fetched trending) need none of this. This
+  // replaces a loader that fetched *every* user's watchlists and then ran one entry query per
+  // watchlist — an N+1 over the whole table plus a large over-fetch.
+  const watchLists = userId
+    ? await prisma.watchlist.findMany({ where: { ownerId: userId } })
+    : []
+
   const userWatchLists = watchLists.reduce<Record<string, typeof watchLists>>(
     (x, y) => {
       (x[y.ownerId] = x[y.ownerId] || []).push(y)
@@ -30,22 +36,24 @@ export async function loader() {
     {},
   )
 
+  // One batched query for all of this user's entries, then grouped by their watchlist's type
+  // in memory — instead of one query per watchlist.
+  const entries = watchLists.length
+    ? await prisma.entry.findMany({
+        where: { watchlistId: { in: watchLists.map(w => w.id) } },
+      })
+    : []
+
+  const typeByWatchlist = new Map(watchLists.map(w => [w.id, w.typeId]))
   const typedEntries: Record<string, any[]> = {}
-
   for (const type of listTypes) {
-    const perWatchlistEntries: any[] = []
-
-    for (const typedList of typedWatchlists[type.id]) {
-      perWatchlistEntries.push(
-        await prisma.entry.findMany({
-          where: {
-            watchlistId: typedList.id,
-          },
-        }),
-      )
+    typedEntries[type.id] = []
+  }
+  for (const entry of entries) {
+    const typeId = typeByWatchlist.get(entry.watchlistId)
+    if (typeId && typedEntries[typeId]) {
+      typedEntries[typeId].push(entry)
     }
-
-    typedEntries[type.id] = perWatchlistEntries.flat(2)
   }
 
   return json({ listTypes, watchLists, userWatchLists, typedWatchlists, typedEntries })
