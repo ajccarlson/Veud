@@ -1,0 +1,146 @@
+/**
+ * Unit tests for the client-side media provider helpers (`tmdb.ts` / `mal.ts`). Each helper
+ * builds an upstream URL, fetches it through the `/media/fetch-data` proxy, and transforms the
+ * result. `fetch` is mocked here; the proxy's contract is that it returns a 2-element array
+ * `[response, data]` (which the helpers merge or index), so the mocks return that shape.
+ *
+ * Coverage targets the behaviors most worth locking in:
+ *   - TMDB/MAL media-type handling and result slicing,
+ *   - the `encodeURIComponent` search-term escaping that closed the 2.3 query-param injection,
+ *   - the AniList schedule -> `nextRelease` derivation the home-page "Upcoming" widget depends on.
+ *
+ * NOTE: authored in a sandbox without vitest; run `npm run test` to confirm.
+ */
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { getAnilistSchedule, searchMAL } from './mal.ts'
+import { searchTMDB } from './tmdb.ts'
+
+let fetchMock: any
+
+beforeEach(() => {
+	fetchMock = vi.spyOn(globalThis, 'fetch')
+})
+
+afterEach(() => {
+	vi.restoreAllMocks()
+})
+
+// The proxy returns `[response, data]`; the helpers read `res.json()` as that array.
+function proxyJson(data: unknown) {
+	return new Response(JSON.stringify([{}, data]), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' },
+	})
+}
+
+// The helpers fetch `/media/fetch-data/<encodeURIComponent(URLSearchParams)>`. Recover the
+// upstream URL the proxy would have been asked to hit, so we can assert on it.
+function upstreamUrl(call: any): URL {
+	const path = String(call[0]).replace('/media/fetch-data/', '')
+	const params = new URLSearchParams(decodeURIComponent(path))
+	return new URL(params.get('url') ?? '')
+}
+
+// ---- searchTMDB ----
+
+test('searchTMDB maps the type, hits TMDB search, and slices to numResults', async () => {
+	fetchMock.mockResolvedValue(proxyJson({ results: [{ id: 1 }, { id: 2 }, { id: 3 }] }))
+
+	const results = await searchTMDB('cowboy bebop', 'TV Series', 2)
+
+	expect(fetchMock).toHaveBeenCalledTimes(1)
+	const url = upstreamUrl(fetchMock.mock.calls[0])
+	expect(url.hostname).toBe('api.themoviedb.org')
+	expect(url.pathname).toBe('/3/search/tv')
+	expect(results).toEqual([{ id: 1 }, { id: 2 }])
+})
+
+test('searchTMDB returns all results when numResults is omitted', async () => {
+	fetchMock.mockResolvedValue(proxyJson({ results: [{ id: 1 }, { id: 2 }] }))
+
+	const results = await searchTMDB('dune', 'movie')
+
+	expect(upstreamUrl(fetchMock.mock.calls[0]).pathname).toBe('/3/search/movie')
+	expect(results).toEqual([{ id: 1 }, { id: 2 }])
+})
+
+test('searchTMDB falls back to the multi endpoint for an unrecognized type', async () => {
+	fetchMock.mockResolvedValue(proxyJson({ results: [] }))
+
+	await searchTMDB('inception', 'something-else')
+
+	expect(upstreamUrl(fetchMock.mock.calls[0]).pathname).toBe('/3/search/multi')
+})
+
+test('searchTMDB escapes the query so it cannot inject extra params', async () => {
+	fetchMock.mockResolvedValue(proxyJson({ results: [] }))
+
+	await searchTMDB('a&api_key=evil', 'movie', 5)
+
+	const url = upstreamUrl(fetchMock.mock.calls[0])
+	// the entire term stays inside the single `query` param; no `api_key` leaks in as its own
+	expect(url.searchParams.get('query')).toBe('a&api_key=evil')
+	expect(url.searchParams.get('api_key')).toBeNull()
+})
+
+test('searchTMDB returns undefined when the fetch fails', async () => {
+	fetchMock.mockRejectedValueOnce(new Error('network down'))
+	const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+	const results = await searchTMDB('x', 'movie')
+
+	expect(results).toBeUndefined()
+	consoleError.mockRestore()
+})
+
+// ---- searchMAL ----
+
+test('searchMAL unwraps node objects, slices, and hits the MAL search endpoint', async () => {
+	fetchMock.mockResolvedValue(
+		proxyJson({ data: [{ node: { id: 1 } }, { node: { id: 2 } }, { node: { id: 3 } }] }),
+	)
+
+	const results = await searchMAL('naruto', 'anime', 2)
+
+	const url = upstreamUrl(fetchMock.mock.calls[0])
+	expect(url.hostname).toBe('api.myanimelist.net')
+	expect(url.pathname).toBe('/v2/anime')
+	expect(results).toEqual([{ id: 1 }, { id: 2 }])
+})
+
+test('searchMAL escapes the query so it cannot inject extra params', async () => {
+	fetchMock.mockResolvedValue(proxyJson({ data: [] }))
+
+	await searchMAL('a&limit=999', 'anime', 5)
+
+	const url = upstreamUrl(fetchMock.mock.calls[0])
+	expect(url.searchParams.get('q')).toBe('a&limit=999')
+	// the effective limit is the one the helper set (5), not the injected 999
+	expect(url.searchParams.get('limit')).toBe('5')
+})
+
+// ---- getAnilistSchedule ----
+
+test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () => {
+	const media = {
+		nextAiringEpisode: { airingAt: 0, timeUntilAiring: 3600, episode: 12, mediaId: 999 },
+		streamingEpisodes: [
+			{ title: 'Episode 12 - The One', thumbnail: '', url: '', site: '' },
+		],
+		duration: 24,
+		coverImage: { extraLarge: 'https://img/xl.jpg', large: '', medium: '', color: '' },
+	}
+	fetchMock.mockResolvedValue(proxyJson({ data: { Media: media } }))
+
+	const next = (await getAnilistSchedule(999)) as any
+
+	expect(next.episode).toBe(12)
+	expect(next.id).toBe(999)
+	expect(next.name).toBe('Episode 12 - The One')
+	expect(next.runtime).toBe(24)
+	expect(next.releaseDate).toBeInstanceOf(Date)
+	// timeUntilAiring is 3600s, so releaseDate should be ~1 hour out (wide tolerance for timing)
+	const deltaMs = next.releaseDate.getTime() - Date.now()
+	expect(deltaMs).toBeGreaterThan(3_500_000)
+	expect(deltaMs).toBeLessThan(3_700_000)
+})
