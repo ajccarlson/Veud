@@ -152,44 +152,23 @@ jobs:
   #         path: playwright-report/
   #         retention-days: 30
 
-  deploy:
-    name: 🚀 Deploy
+  build:
+    name: 🏗 Build
     runs-on: ubuntu-22.04
-    needs: [lint, typecheck, vitest]
-    # only build/deploy branches on pushes
-    if: ${{ github.event_name == 'push' }}
-
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v7
 
-      - name: 👀 Read app name
-        uses: SebRollen/toml-action@v1.2.0
-        id: app_name
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v6
         with:
-          file: 'fly.toml'
-          field: 'app'
+          node-version: 22
 
-      # move Dockerfile to root
-      - name: 🚚 Move Dockerfile
-        run: |
-          mv ./other/Dockerfile ./Dockerfile
-          mv ./other/.dockerignore ./.dockerignore
+      - name: 📥 Download deps
+        uses: bahmutov/npm-install@v1
 
-      - name: 🎈 Setup Fly
-        uses: superfly/flyctl-actions/setup-flyctl@1.5
+      - name: 🏄 Copy env vars
+        run: cp .env.example .env
 
-      - name: 🚀 Deploy Staging
-        if: ${{ github.ref == 'refs/heads/dev' }}
-        run:
-          flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }}
-          --app ${{ steps.app_name.outputs.value }}-staging
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: 🚀 Deploy Production
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run:
-          flyctl deploy --remote-only --build-arg COMMIT_SHA=${{ github.sha }}
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: 🏗 Build (compile smoke test)
+        run: npm run build

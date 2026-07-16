@@ -27,12 +27,8 @@ Veud is a multimedia tracking and rating platform, focused on giving users an in
 * [Nivo](https://nivo.rocks/) rich dataviz components built on [D3](https://d3js.org/)
 * [The Movie Database (TMDB)](https://www.themoviedb.org/) movie and TV data
 * Anime and manga data from [AniList](https://anilist.co/) with links to [MyAnimeList](http://myanimelist.net/)
-* [Fly](https://maven.apache.org/) app deployment with [Docker](https://www.docker.com/)
-* Multi-region, distributed, production-ready
-  [SQLite Database](https://sqlite.org/) with
-  [LiteFS](https://fly.io/docs/litefs/).
-* Healthcheck endpoint for
-  [Fly backups region fallbacks](https://fly.io/docs/reference/configuration/#services-http_checks)
+* Served through a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) and run under [PM2](https://pm2.keymetrics.io/) on a single host
+* Local [SQLite](https://sqlite.org/) database with a health-check endpoint at `/resources/healthcheck`
 * Two-Factor Authentication (2fa) with support for authenticator apps.
 * Transactional email with [Resend](https://resend.com/) and forgot
   password/password reset support.
@@ -59,7 +55,8 @@ Veud is a multimedia tracking and rating platform, focused on giving users an in
 
 * [Node.js](https://nodejs.org/)
 * [npm](https://www.npmjs.com/)
-* [Flyctl](https://fly.io/docs/flyctl/install/)
+* [PM2](https://pm2.keymetrics.io/) (`npm i -g pm2`) — process manager for production
+* [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) — exposes the local server via a Cloudflare Tunnel
 
 ### Installing
 
@@ -75,8 +72,48 @@ npm run dev
 ```
 
 ### Production
+
+Build the app, then run it under PM2 — a single instance in `fork` mode with
+`NODE_ENV=production` (multiple workers would contend on the one SQLite file):
+
 ```
-npm run start
+npm run build
+npm run start:prod   # pm2 start ecosystem.config.cjs --env production
+pm2 save             # persist the process list
+pm2 startup          # print a boot command so PM2 resurrects the app on reboot
+```
+
+`npm run start:prod` also starts an hourly SQLite backup process (see **Backups**).
+
+#### Serving via Cloudflare Tunnel
+
+The app listens on `PORT` (default `4021`); `cloudflared` fronts it and terminates TLS. Point
+the tunnel at the local origin:
+
+```
+cloudflared tunnel --url http://localhost:4021
+```
+
+(or a named tunnel with an ingress rule to `http://localhost:4021`). Cloudflare forwards the real
+client IP as `CF-Connecting-IP` and the original scheme as `X-Forwarded-Proto: https`; the server
+depends on both — the rate limiter keys on `CF-Connecting-IP` and `trust proxy` is set to
+`loopback`. Ensure the tunnel doesn't strip those headers, and confirm the site loads without a
+redirect loop.
+
+#### Backups
+
+`start:prod` runs `scripts/backup-db.mjs` on start and hourly (a PM2 `cron_restart`), taking
+consistent, timestamped SQLite backups via the online-backup API — safe to run while the app is
+live — and prunes old ones by retention. With no Fly volume anymore, **also copy the backups
+off-machine** (e.g. a scheduled `rsync` or object-storage upload) so a disk failure can't lose
+them. To restore: stop the app and copy a backup file back over the live database path.
+
+#### Log rotation
+
+PM2 writes `out.log` and `error.log`. Install the log-rotate module so they don't grow unbounded:
+
+```
+pm2 install pm2-logrotate
 ```
 
 ## Testing
