@@ -23,3 +23,10 @@ node_modules
 
 # Easy way to create temporary files/folders that won't accidentally be added to git
 *.local.*
+
+# Logs — may contain access tokens, request data, or stack traces
+*.log
+
+# Local / deployment env files with secrets (the checked-in .env.example is kept)
+.env.*
+!.env.example

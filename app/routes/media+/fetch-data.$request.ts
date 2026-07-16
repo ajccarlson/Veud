@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto'
 import { type LoaderFunctionArgs } from '@remix-run/node'
+import { cache, cachified } from '#app/utils/cache.server.ts'
 
 /**
  * Server-side fetch proxy for third-party media APIs
@@ -44,21 +46,69 @@ const ALLOWED_HOSTS = new Set([
 
 const ALLOWED_METHODS = new Set(['GET', 'POST'])
 
-// Per-host, server-controlled politeness delay toward upstream APIs (ms). Not
-// client-controllable (a client-supplied value was previously a trivial way to tie up
-// server request timers).
+// Per-host, server-side rate limiting toward upstream APIs, using each provider's published
+// limits. A token bucket is acquired only on a cache MISS (inside getFreshValue below), so
+// cached responses are served instantly and only real upstream calls are throttled. This
+// supersedes the old client-supplied `sleepTime` (a timer-based DoS vector) and the cruder
+// post-fetch delay it had become.
 //
-// TMDB removed its public rate limit in 2023, so it needs no delay. This matters for UX:
-// the home page fires a large batch of TMDB requests through this proxy, and delaying
-// every response by 1.5s held the browser's limited (~6) connection pool open long enough
-// that client-side navigation away from the home page appeared to hang until the backlog
-// drained. Zeroing TMDB's delay lets that backlog clear quickly. The genuinely
-// rate-limited providers (MAL / AniList / Trakt) keep a throttle.
-const UPSTREAM_DELAY_MS: Record<string, number> = {
-	'api.themoviedb.org': 0,
-	'api.myanimelist.net': 1500,
-	'graphql.anilist.co': 1500,
-	'api.trakt.tv': 1500,
+// Published limits: TMDB removed its public rate limit in 2023 (no bucket); AniList allows
+// 90 req/min plus an undocumented burst limiter; Trakt allows 1000 GET/5min (~3.3/s);
+// MyAnimeList publishes no hard number, so it is kept deliberately conservative.
+class TokenBucket {
+	private tokens: number
+	private lastRefill: number
+	constructor(
+		private readonly ratePerSec: number,
+		private readonly capacity: number,
+	) {
+		this.tokens = capacity
+		this.lastRefill = Date.now()
+	}
+	async acquire(): Promise<void> {
+		const now = Date.now()
+		this.tokens = Math.min(
+			this.capacity,
+			this.tokens + ((now - this.lastRefill) / 1000) * this.ratePerSec,
+		)
+		this.lastRefill = now
+		if (this.tokens >= 1) {
+			this.tokens -= 1
+			return
+		}
+		// Not enough credit yet — wait for a token to accrue, then re-check.
+		const waitMs = ((1 - this.tokens) / this.ratePerSec) * 1000
+		await new Promise(resolve => setTimeout(resolve, waitMs))
+		return this.acquire()
+	}
+}
+
+// null = no rate limiting (TMDB). Buckets are module-level, so the limit is shared across all
+// requests in this (single-instance) process.
+const RATE_LIMITERS: Record<string, TokenBucket | null> = {
+	'api.themoviedb.org': null,
+	'api.myanimelist.net': new TokenBucket(1, 5),
+	'graphql.anilist.co': new TokenBucket(1.5, 10),
+	'api.trakt.tv': new TokenBucket(3, 30),
+}
+
+const HOUR = 1000 * 60 * 60
+const DAY = HOUR * 24
+
+// Cache TTLs. "Now" data (trending / seasonal / airing schedules) changes daily; title and
+// search details change rarely. `swr` serves stale while revalidating in the background.
+// Keyed off the request path/query/body so it covers both REST and AniList's single-endpoint
+// GraphQL (whose query text carries the "season"/"airing" signal).
+function cacheTtlFor(target: URL, body: string | undefined): { ttl: number; swr: number } {
+	const haystack = `${target.pathname}${target.search}${body ?? ''}`
+	if (/trending|season|schedule|airing|calendar/i.test(haystack)) {
+		return { ttl: 6 * HOUR, swr: DAY }
+	}
+	return { ttl: DAY, swr: 7 * DAY }
+}
+
+function hashKey(input: string): string {
+	return createHash('sha1').update(input).digest('hex')
 }
 
 /**
@@ -140,12 +190,41 @@ export async function loader({ params }: LoaderFunctionArgs) {
 		options.body = fetchBody
 	}
 
-	// 4) Perform the upstream request. Details are logged server-side; the client only
+	// 4) Perform the upstream request — cached (so repeat views don't re-hit the provider)
+	//    and rate-limited on a cache miss. Details are logged server-side; the client only
 	//    ever sees a generic status.
-	let response: any, data: any
+	const isTest = process.env.NODE_ENV === 'test'
+
+	// Fetch fresh from upstream, rate-limited per host. Factored out so it can run either
+	// directly (tests) or as cachified's getFreshValue (production).
+	const fetchUpstream = async (markUncacheable?: () => void): Promise<any> => {
+		const limiter = RATE_LIMITERS[target.hostname]
+		if (limiter && !isTest) await limiter.acquire()
+		const response = await fetch(target.toString(), options)
+		const json = await response.json()
+		if (!response.ok) markUncacheable?.() // never cache an upstream error body
+		return json
+	}
+
+	const bodyForKey = typeof options.body === 'string' ? options.body : undefined
+	const { ttl, swr } = cacheTtlFor(target, bodyForKey)
+
+	let data: any
 	try {
-		response = await fetch(target.toString(), options)
-		data = await response.json()
+		// The shared SQLite cache + module-level rate limiter are bypassed under test so the
+		// security tests stay deterministic and never read or write the real cache DB.
+		data = isTest
+			? await fetchUpstream()
+			: await cachified({
+					key: `media:${method}:${target.toString()}${bodyForKey ? `:${hashKey(bodyForKey)}` : ''}`,
+					cache,
+					ttl,
+					swr,
+					getFreshValue: context =>
+						fetchUpstream(() => {
+							context.metadata.ttl = 0
+						}),
+				})
 	} catch (error) {
 		console.error(
 			`[media proxy] upstream request to ${target.hostname} failed:`,
@@ -154,12 +233,8 @@ export async function loader({ params }: LoaderFunctionArgs) {
 		throw new Response('Upstream request failed', { status: 502 })
 	}
 
-	// Per-host server-side politeness delay (not client-controlled).
-	const delayMs = UPSTREAM_DELAY_MS[target.hostname] ?? 0
-	if (delayMs > 0) {
-		await new Promise(resolve => setTimeout(resolve, delayMs))
-	}
-
-	// Preserve the existing response contract for callers.
-	return [response, data]
+	// Preserve the existing response contract for callers: a 2-element array whose first
+	// element they merge-and-discard (a fetch Response serializes to {} over the wire), so we
+	// return {} in its place on both cache hits and misses.
+	return [{}, data]
 }
