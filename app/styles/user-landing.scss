@@ -858,4 +858,101 @@
   .user-landing-feed-more-button:hover {
     background-color: var(--veud-control-hover);
   }
+
+  /* Editable favorites (card grid) */
+  .user-landing-favorites-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .user-landing-favorites-grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem;
+    justify-content: center;
+  }
+
+  .user-landing-favorite-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .user-landing-favorite-thumbnail {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 7rem;
+    height: 10rem;
+    border-radius: 0.5rem;
+    background-color: var(--veud-surface);
+    background-size: cover;
+    background-position: center center;
+    transition: transform .1s ease-in-out;
+    overflow: hidden;
+  }
+
+  .user-landing-favorite-thumbnail:hover {
+    transform: scale(1.05);
+  }
+
+  .user-landing-favorite-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    padding: 0.25rem;
+    font-size: 0.7rem;
+    color: white;
+    text-align: right;
+    background-image: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0));
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .user-landing-favorite-title {
+    padding: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--veud-highlight);
+    text-align: left;
+    background-image: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.65));
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  }
+
+  .user-landing-favorite-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .user-landing-favorite-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--veud-cream);
+    background-color: var(--veud-control);
+    border-radius: 0.25rem;
+    padding: 0.15rem;
+    transition: all .1s ease-out;
+  }
+
+  .user-landing-favorite-actions button:hover:not(:disabled) {
+    background-color: var(--veud-control-hover);
+  }
+
+  .user-landing-favorite-actions button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .user-landing-favorite-actions .user-landing-favorite-remove:hover:not(:disabled) {
+    background-color: var(--veud-orange);
+  }
 }

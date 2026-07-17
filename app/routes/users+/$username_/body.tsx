@@ -1,10 +1,10 @@
-import { Link } from '@remix-run/react'
+import { Link, useRevalidator } from '@remix-run/react'
 import { useState, useEffect } from 'react'
-import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { timeSince, getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
 import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
+import { useOptionalUser } from '#app/utils/user.ts'
 
 export function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
   const PAGE_SIZE = 15
@@ -100,114 +100,115 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
 
 export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
-  const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[typeIndex]);
-  const [displayAll, setDisplayAll] = useState(0);
+  const revalidator = useRevalidator()
+  const isOwner = useOptionalUser()?.id === loaderData.user.id
 
-  useEffect(() => {
-  	setSelectedFavorite(loaderData.listTypes[typeIndex])
-  }, [typeIndex, loaderData.listTypes]);
+  const selectedType = loaderData.listTypes[typeIndex]
 
   const typedFavorites = (loaderData.favorites ?? []).reduce((x: Record<string, FavoriteItem[]>, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
   }, {} as Record<string, FavoriteItem[]>);
 
+  const favorites = (typedFavorites[selectedType?.id ?? ''] ?? [])
+    .slice()
+    .sort((a, b) => a.position - b.position)
+
+  async function removeFavorite(id: string) {
+    await fetch(
+      '/lists/fetch/remove-favorite/' +
+        encodeURIComponent(new URLSearchParams({ id }).toString()),
+      { method: 'POST' },
+    )
+    revalidator.revalidate()
+  }
+
+  async function moveFavorite(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (target < 0 || target >= favorites.length) return
+    // Rebuild the whole category's order and reassign contiguous 1..N positions, so a
+    // move is robust even if the stored positions have gaps or ties.
+    const reordered = favorites.slice()
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(target, 0, moved)
+    const order = reordered.map((favorite, position) => ({
+      id: favorite.id,
+      position: position + 1,
+    }))
+    await fetch(
+      '/lists/fetch/reorder-favorite/' +
+        encodeURIComponent(new URLSearchParams({ order: JSON.stringify(order) }).toString()),
+      { method: 'POST' },
+    )
+    revalidator.revalidate()
+  }
+
   return (
     <div className="user-landing-favorites-container">
       <h1 className="user-landing-body-header">Favorites</h1>
-      {loaderData.favorites && loaderData.favorites.length > 0 ?
-        <div className="user-landing-favorites">
-          <div className="user-landing-favorites-content">
-          { displayAll == 1 ?
-            <div className="user-landing-body-list-container">
-              {loaderData.listTypes.map((mappedType) => {return(
-                <div className="user-landing-body-list-full-display-container" key={mappedType.id}>
-                  <div className="user-landing-list-type-header-container">
-                    <h1 className="user-landing-list-type-header">{mappedType.header}</h1>
-                    <h1 className="user-landing-favorites-count">{`(${typedFavorites[mappedType.id]?.length ?? 0})`}</h1>
+      <div className="user-landing-favorites-controls">
+        <TypeSwitcher
+          variant="primary"
+          options={loaderData.listTypes.map(type => ({ key: type.id, label: type.header }))}
+          index={typeIndex}
+          onIndexChange={setTypeIndex}
+        />
+        <span className="user-landing-favorites-count">{`(${favorites.length})`}</span>
+      </div>
+      {favorites.length > 0 ? (
+        <div className="user-landing-favorites-grid">
+          {favorites.map((favorite, index) => {
+            const thumb = favorite.thumbnail ? getThumbnailInfo(favorite.thumbnail) : null
+            return (
+              <div className="user-landing-favorite-card" key={favorite.id}>
+                <Link
+                  to={thumb?.url ?? '#'}
+                  className="user-landing-favorite-thumbnail"
+                  style={thumb ? { backgroundImage: `url("${thumb.content}")` } : undefined}
+                >
+                  <span className="user-landing-favorite-meta">
+                    <span className="user-landing-favorite-year">{favorite.startYear}</span>
+                    <span className="user-landing-favorite-media-type">{favorite.mediaType}</span>
+                  </span>
+                  <span className="user-landing-favorite-title">
+                    {favorite.title.length > 20 ? `${favorite.title.substring(0, 20)}...` : favorite.title}
+                  </span>
+                </Link>
+                {isOwner ? (
+                  <div className="user-landing-favorite-actions">
+                    <button
+                      type="button"
+                      title="Move left"
+                      onClick={() => moveFavorite(index, -1)}
+                      disabled={index === 0}
+                    >
+                      <Icon name="chevron-left" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Remove favorite"
+                      className="user-landing-favorite-remove"
+                      onClick={() => removeFavorite(favorite.id)}
+                    >
+                      <Icon name="cross-1" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move right"
+                      onClick={() => moveFavorite(index, 1)}
+                      disabled={index === favorites.length - 1}
+                    >
+                      <Icon name="chevron-right" />
+                    </button>
                   </div>
-                  <div className="user-landing-body-item-container">
-                    {(typedFavorites[mappedType.id] ?? []).map((entry) =>
-                      <div className="user-landing-favorites-body-item" key={entry.id}>
-                        <Link to={getThumbnailInfo(entry.thumbnail!).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail!).content}")`}}>
-                          <span className="user-landing-thumbnail-header">
-                            <div className="user-landing-thumbnail-start-year">
-                              {entry.startYear}
-                            </div>
-                            <div className="user-landing-thumbnail-media-type">
-                              {entry.mediaType}
-                            </div>
-                          </span>
-                          <span className="user-landing-thumbnail-footer">
-                            {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
-                          </span>
-                        </Link>
-                      </div>
-                    )}
-                    {/* <span className='user-landing-favorite-insert'>
-                      <Icon name="plus"></Icon>
-                    </span> */}
-                    <Spacer size="2xs"/>
-                  </div>
-                  <Spacer size="2xs"/>
-                </div>
-              )})}
-            </div>
-          : typedFavorites[selectedFavorite.id] && typedFavorites[selectedFavorite.id].length > 0 ?
-              <div>
-                <h1 className="user-landing-favorites-count">{`(${typedFavorites[selectedFavorite.id].length})`}</h1>
-                <div className="user-landing-body-list-container">
-                  <div className="user-landing-body-item-container">
-                    {typedFavorites[selectedFavorite.id].map((entry) =>
-                      <div className="user-landing-favorites-body-item" key={entry.id}>
-                        <Link to={getThumbnailInfo(entry.thumbnail!).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail!).content}")`}}>
-                          <span className="user-landing-thumbnail-header">
-                            <div className="user-landing-thumbnail-start-year">
-                              {entry.startYear}
-                            </div>
-                            <div className="user-landing-thumbnail-media-type">
-                              {entry.mediaType}
-                            </div>
-                          </span>
-                          <span className="user-landing-thumbnail-footer">
-                            {entry.title.length > 20 ? `${entry.title.substring(0, 20)}...` : entry.title}
-                          </span>
-                        </Link>
-                      </div>
-                    )}
-                    {/* <span className='user-landing-favorite-insert'>
-                      <Icon name="plus"></Icon>
-                    </span> */}
-                  </div>
-                </div>
+                ) : null}
               </div>
-            :
-              null
-          }
+            )
+          })}
         </div>
-        { displayAll == 1 ?
-          <div className="user-landing-nav-button-container">
-            <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-              <Icon name="caret-up" className="user-landing-nav-arrow user-landing-up-arrow"></Icon>
-            </button>
-          </div>
-        :
-          <div className="user-landing-nav-button-container">
-            <TypeSwitcher
-              variant="primary"
-              options={loaderData.listTypes.map(listType => ({ key: listType.id, label: listType.header }))}
-              index={typeIndex}
-              onIndexChange={setTypeIndex}
-            />
-            <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
-              <Icon name="caret-down" className="user-landing-nav-arrow user-landing-down-arrow"></Icon>
-            </button>
-          </div>
-        }
-        </div>
-      :
+      ) : (
         <div className="user-landing-empty-message">No favorites yet</div>
-      }
+      )}
     </div>
   )
 }
