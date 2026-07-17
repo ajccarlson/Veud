@@ -3,11 +3,10 @@ import { useState, useEffect } from 'react'
 import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { StatsData } from '#app/routes/users+/$username_/stats_/index.tsx'
 import { timeSince, getThumbnailInfo, getStartYear } from "#app/utils/lists/column-functions.tsx"
 import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
 
-function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
+export function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
   const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
@@ -123,7 +122,7 @@ function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
   )
 }
 
-function FavoritesData({ data: loaderData }: { data: ProfileData }) {
+export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
   const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
@@ -233,16 +232,6 @@ function FavoritesData({ data: loaderData }: { data: ProfileData }) {
       :
         <div className="user-landing-empty-message">No favorites yet</div>
       }
-    </div>
-  )
-}
-
-export function BodyData({ data }: { data: ProfileData }) {
-  return (
-    <div className="user-landing-body-container">
-      <StatsData data={data} />
-      <RecentActivityData data={data} />
-      <FavoritesData data={data} />
     </div>
   )
 }
