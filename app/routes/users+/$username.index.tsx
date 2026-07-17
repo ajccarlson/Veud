@@ -2,6 +2,7 @@ import { useOutletContext } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
+import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
 import { renderCalendarChart } from '#app/routes/users+/$username_/stats_/calendar.tsx'
 import { type ProfileData } from '#app/utils/profile.ts'
 
@@ -26,25 +27,28 @@ export default function ProfileOverview() {
   }, [yearIndex]);
 
   return (
-    <div className="user-landing-completion-history-container">
-      <h1 className="user-landing-body-header">Completion History</h1>
-      <div className="user-landing-completion-history-chart">
-        {completionHistory[completionYears[yearIndex]][completionMonths[monthIndex]]}
-      </div>
-      <TypeSwitcher
-        variant="primary"
-        options={completionYears.map(year => ({ key: year, label: year }))}
-        index={yearIndex}
-        onIndexChange={setYearIndex}
-      />
-      <div className="user-landing-selection-secondary-nav-container">
-        <Spacer size="4xs"/>
+    <div className="user-landing-overview">
+      <StatsOverview data={loaderData} />
+      <div className="user-landing-completion-history-container">
+        <h1 className="user-landing-body-header">Completion History</h1>
+        <div className="user-landing-completion-history-chart">
+          {completionHistory[completionYears[yearIndex]][completionMonths[monthIndex]]}
+        </div>
         <TypeSwitcher
-          variant="secondary"
-          options={completionMonths.map(month => ({ key: month, label: getMonthName(month) }))}
-          index={monthIndex}
-          onIndexChange={setMonthIndex}
+          variant="primary"
+          options={completionYears.map(year => ({ key: year, label: year }))}
+          index={yearIndex}
+          onIndexChange={setYearIndex}
         />
+        <div className="user-landing-selection-secondary-nav-container">
+          <Spacer size="4xs"/>
+          <TypeSwitcher
+            variant="secondary"
+            options={completionMonths.map(month => ({ key: month, label: getMonthName(month) }))}
+            index={monthIndex}
+            onIndexChange={setMonthIndex}
+          />
+        </div>
       </div>
     </div>
   )

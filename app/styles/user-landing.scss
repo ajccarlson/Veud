@@ -694,4 +694,77 @@
       margin-left: 0;
     }
   }
+
+  /* Stats overview (MAL-style at-a-glance numbers) */
+  .user-landing-stats-overview {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .user-landing-stats-overview-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1 1 14rem;
+    min-width: 14rem;
+    max-width: 22rem;
+    padding: 1rem 1.25rem;
+    background-color: var(--veud-surface);
+    border-radius: 1rem;
+  }
+
+  .user-landing-stats-overview-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--veud-highlight);
+  }
+
+  .user-landing-stats-overview-figures {
+    display: flex;
+    flex-direction: row;
+    gap: 1.5rem;
+  }
+
+  .user-landing-stats-overview-figure {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .user-landing-stats-overview-value {
+    font-size: 1.8rem;
+    line-height: 2rem;
+    font-weight: 700;
+    color: var(--veud-amber);
+  }
+
+  .user-landing-stats-overview-label {
+    font-size: 0.75rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-stats-overview-statuses {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .user-landing-stats-overview-status {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.9rem;
+    color: var(--veud-cream);
+    border-bottom: 1px solid var(--veud-bg);
+    padding-bottom: 0.15rem;
+  }
+
+  .user-landing-stats-overview-status-count {
+    font-weight: 600;
+    color: var(--veud-mint-text);
+  }
 }
