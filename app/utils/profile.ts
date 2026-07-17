@@ -68,4 +68,7 @@ export type ProfileData = {
 	typedEntries: Record<string, any[]>
 	typedHistory: Record<string, ActivityItem[]>
 	favorites: FavoriteItem[]
+	followerCount: number
+	followingCount: number
+	isFollowing: boolean
 }
