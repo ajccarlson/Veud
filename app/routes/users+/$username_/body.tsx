@@ -1,20 +1,15 @@
 import { Link } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { Spacer } from '#app/components/spacer.tsx'
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuPortal,
-	DropdownMenuTrigger,
-} from '#app/components/ui/dropdown-menu.tsx'
+import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.tsx'
 import { timeSince, getThumbnailInfo, getStartYear } from "#app/utils/lists/column-functions.tsx"
+import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
 
-function RecentActivityData(loaderData: any) {
+function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
-	const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[typeIndex]);
+  const [selectedLatestUpdate, setSelectedLatestUpdate] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
 
   useEffect(() => {
@@ -25,21 +20,21 @@ function RecentActivityData(loaderData: any) {
     return loaderData.typedEntries[selectedType.id][entry.index]
   }
 
-	return (
-		<div className="user-landing-recent-activity-container">
+  return (
+    <div className="user-landing-recent-activity-container">
       <h1 className="user-landing-body-header">Recent Activity</h1>
       {loaderData.typedHistory && Object.entries(loaderData.typedHistory).length > 0 ?
         <div className="user-landing-favorites">
           <div className="user-landing-recent-activity-content">
             { displayAll == 1 ?
               <div className="user-landing-body-list-container">
-                {loaderData.listTypes.map((listType: any) => {return(
+                {loaderData.listTypes.map((listType) => {return(
                   <div className="user-landing-body-list-full-display-container" key={listType.id}>
                     <h1 className="user-landing-list-type-header">{listType.header}</h1>
                     <div className="user-landing-body-item-container">
                       {loaderData.typedHistory[listType.id] && loaderData.typedHistory[listType.id].length > 0 ?
-                        loaderData.typedHistory[listType.id].slice(0, 12).map((entry: any) =>
-                          <div className="user-landing-recent-activity-body-item" key={listType.id}>
+                        loaderData.typedHistory[listType.id].slice(0, 12).map((entry, entryIndex) =>
+                          <div className="user-landing-recent-activity-body-item" key={`${listType.id}-${entryIndex}`}>
                           <Link to={getThumbnailInfo(typedEntry(entry, listType).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, listType).thumbnail).content}")`}}>
                             <span className="user-landing-thumbnail-header">
                               {getStartYear(typedEntry(entry, listType), listType, loaderData.listTypes)}
@@ -68,12 +63,12 @@ function RecentActivityData(loaderData: any) {
                   </div>
                 )})}
               </div>
-            : 
+            :
               <div className="user-landing-body-list-container">
                 <div className="user-landing-body-item-container">
-                  {loaderData.typedHistory[selectedLatestUpdate.id] && loaderData.typedHistory[selectedLatestUpdate.id].length > 0 ? 
-                    loaderData.typedHistory[selectedLatestUpdate.id].slice(0, 12).map((entry: any) =>
-                      <div className="user-landing-recent-activity-body-item" key={entry.id}>
+                  {loaderData.typedHistory[selectedLatestUpdate.id] && loaderData.typedHistory[selectedLatestUpdate.id].length > 0 ?
+                    loaderData.typedHistory[selectedLatestUpdate.id].slice(0, 12).map((entry, entryIndex) =>
+                      <div className="user-landing-recent-activity-body-item" key={`${selectedLatestUpdate.id}-${entryIndex}`}>
                         <Link to={getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(typedEntry(entry, selectedLatestUpdate).thumbnail).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             {getStartYear(typedEntry(entry, selectedLatestUpdate), selectedLatestUpdate, loaderData.listTypes)}
@@ -101,7 +96,7 @@ function RecentActivityData(loaderData: any) {
               </div>
             }
           </div>
-          {displayAll == 1 ? 
+          {displayAll == 1 ?
             <div className="user-landing-nav-button-container">
               <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
                 <Icon name="caret-up" className="user-landing-nav-arrow user-landing-up-arrow"></Icon>
@@ -109,33 +104,12 @@ function RecentActivityData(loaderData: any) {
             </div>
           :
             <div className="user-landing-nav-button-container">
-              <div className="user-landing-selection-nav-container">
-                <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
-                  <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
-                </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <div className="user-landing-dropdown-trigger"> 
-                      {selectedLatestUpdate.header}
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                      {loaderData.listTypes.filter(function(e: any) { return e.id !== selectedLatestUpdate.id }).map((listType: any) =>
-                        <DropdownMenuItem className="user-landing-dropdown-item" key={listType.id} onClick={() =>
-                          {
-                            setTypeIndex(loaderData.listTypes.findIndex((type: any) => type.id == listType.id))
-                          }}>
-                          {listType.header}
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenuPortal>
-                </DropdownMenu>
-                <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
-                  <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
-                </button>
-              </div>
+              <TypeSwitcher
+                variant="primary"
+                options={loaderData.listTypes.map(listType => ({ key: listType.id, label: listType.header }))}
+                index={typeIndex}
+                onIndexChange={setTypeIndex}
+              />
               <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
                 <Icon name="caret-down" className="user-landing-nav-arrow user-landing-down-arrow"></Icon>
               </button>
@@ -145,42 +119,42 @@ function RecentActivityData(loaderData: any) {
       :
         <div className="user-landing-empty-message">No updates yet</div>
       }
-		</div>
-	)
+    </div>
+  )
 }
 
-function FavoritesData(loaderData: any) {
+function FavoritesData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
-	const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[typeIndex]);
+  const [selectedFavorite, setSelectedFavorite] = useState(loaderData.listTypes[typeIndex]);
   const [displayAll, setDisplayAll] = useState(0);
 
   useEffect(() => {
   	setSelectedFavorite(loaderData.listTypes[typeIndex])
   }, [typeIndex, loaderData.listTypes]);
 
-  const typedFavorites = loaderData.favorites?.reduce((x: any, y: any) => {
+  const typedFavorites = (loaderData.favorites ?? []).reduce((x: Record<string, FavoriteItem[]>, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
      return x;
-  },{});
+  }, {} as Record<string, FavoriteItem[]>);
 
-	return (
-		<div className="user-landing-favorites-container">
+  return (
+    <div className="user-landing-favorites-container">
       <h1 className="user-landing-body-header">Favorites</h1>
-      {loaderData.favorites && loaderData.favorites.length > 0 ? 
+      {loaderData.favorites && loaderData.favorites.length > 0 ?
         <div className="user-landing-favorites">
           <div className="user-landing-favorites-content">
           { displayAll == 1 ?
             <div className="user-landing-body-list-container">
-              {loaderData.listTypes.map((mappedType: any) => {return(
+              {loaderData.listTypes.map((mappedType) => {return(
                 <div className="user-landing-body-list-full-display-container" key={mappedType.id}>
                   <div className="user-landing-list-type-header-container">
                     <h1 className="user-landing-list-type-header">{mappedType.header}</h1>
-                    <h1 className="user-landing-favorites-count">{`(${typedFavorites[loaderData.listTypes.find((listType: any) => listType.id == mappedType.id).id].length})`}</h1>
+                    <h1 className="user-landing-favorites-count">{`(${typedFavorites[mappedType.id]?.length ?? 0})`}</h1>
                   </div>
                   <div className="user-landing-body-item-container">
-                    {typedFavorites[loaderData.listTypes.find((listType: any) => listType.id == mappedType.id).id].map((entry: any) =>
+                    {(typedFavorites[mappedType.id] ?? []).map((entry) =>
                       <div className="user-landing-favorites-body-item" key={entry.id}>
-                        <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                        <Link to={getThumbnailInfo(entry.thumbnail!).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail!).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             <div className="user-landing-thumbnail-start-year">
                               {entry.startYear}
@@ -208,10 +182,10 @@ function FavoritesData(loaderData: any) {
               <div>
                 <h1 className="user-landing-favorites-count">{`(${typedFavorites[selectedFavorite.id].length})`}</h1>
                 <div className="user-landing-body-list-container">
-                  <div className="user-landing-body-item-container">  
-                    {typedFavorites[selectedFavorite.id].map((entry: any) =>
+                  <div className="user-landing-body-item-container">
+                    {typedFavorites[selectedFavorite.id].map((entry) =>
                       <div className="user-landing-favorites-body-item" key={entry.id}>
-                        <Link to={getThumbnailInfo(entry.thumbnail).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail).content}")`}}>
+                        <Link to={getThumbnailInfo(entry.thumbnail!).url} className="user-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(entry.thumbnail!).content}")`}}>
                           <span className="user-landing-thumbnail-header">
                             <div className="user-landing-thumbnail-start-year">
                               {entry.startYear}
@@ -236,7 +210,7 @@ function FavoritesData(loaderData: any) {
               null
           }
         </div>
-        { displayAll == 1 ? 
+        { displayAll == 1 ?
           <div className="user-landing-nav-button-container">
             <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
               <Icon name="caret-up" className="user-landing-nav-arrow user-landing-up-arrow"></Icon>
@@ -244,33 +218,12 @@ function FavoritesData(loaderData: any) {
           </div>
         :
           <div className="user-landing-nav-button-container">
-            <div className="user-landing-selection-nav-container">
-              <button onClick={() => {setTypeIndex(typeIndex == 0 ? loaderData.listTypes.length - 1 : typeIndex - 1)}}>
-                <Icon name="triangle-left" className="user-landing-nav-arrow user-landing-left-arrow"></Icon>
-              </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="user-landing-dropdown-trigger"> 
-                    {selectedFavorite.header}
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuContent sideOffset={8} align="start" className="user-landing-dropdown-item-container">
-                    {loaderData.listTypes.filter(function(e: any) { return e.id !== selectedFavorite.id }).map((listType: any) =>
-                      <DropdownMenuItem className="user-landing-dropdown-item" key={listType.id} onClick={() =>
-                        {
-                          setTypeIndex(loaderData.listTypes.findIndex((type: any) => type.id == listType.id))
-                        }}>
-                        {listType.header}
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenuPortal>
-              </DropdownMenu>
-              <button onClick={() => {setTypeIndex((typeIndex + 1) % (loaderData.listTypes.length))}}>
-                <Icon name="triangle-right" className="user-landing-nav-arrow user-landing-right-arrow"></Icon>
-              </button>
-            </div>
+            <TypeSwitcher
+              variant="primary"
+              options={loaderData.listTypes.map(listType => ({ key: listType.id, label: listType.header }))}
+              index={typeIndex}
+              onIndexChange={setTypeIndex}
+            />
             <button className="user-landing-reveal-button" onClick={() => {setDisplayAll(1 - displayAll)}}>
               <Icon name="caret-down" className="user-landing-nav-arrow user-landing-down-arrow"></Icon>
             </button>
@@ -278,18 +231,18 @@ function FavoritesData(loaderData: any) {
         }
         </div>
       :
-        <div className="user-landing-empty-message">No favorites yet</div> 
+        <div className="user-landing-empty-message">No favorites yet</div>
       }
-		</div>
-	)
+    </div>
+  )
 }
 
-export function BodyData(loaderData: any) {
-	return (
-		<div className="user-landing-body-container">
-			{StatsData(loaderData)}
-			{RecentActivityData(loaderData)}
-			{FavoritesData(loaderData)}
-		</div>
-	)
+export function BodyData({ data }: { data: ProfileData }) {
+  return (
+    <div className="user-landing-body-container">
+      <StatsData data={data} />
+      <RecentActivityData data={data} />
+      <FavoritesData data={data} />
+    </div>
+  )
 }

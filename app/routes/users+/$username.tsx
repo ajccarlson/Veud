@@ -211,8 +211,8 @@ export default function ProfileRoute() {
 	return (
 		<main className="user-landing" style={{ width: '100%', height: '100%' }}>
 			<div className="user-landing-main">
-				{SideData(loaderData)}
-				{BodyData(loaderData)}
+				<SideData data={loaderData} />
+				<BodyData data={loaderData} />
 			</div>
 		</main>
 	)
