@@ -9,6 +9,10 @@ export function getUserImgSrc(imageId?: string | null) {
 	return imageId ? `/resources/user-images/${imageId}` : '/img/user.png'
 }
 
+export function getUserBannerSrc(bannerId?: string | null) {
+	return bannerId ? `/resources/user-banners/${bannerId}` : null
+}
+
 export function getErrorMessage(error: unknown) {
 	if (typeof error === 'string') return error
 	if (

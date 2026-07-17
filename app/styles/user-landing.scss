@@ -1,4 +1,25 @@
 .user-landing {
+  /* Profile palette — the exact colors this file previously hard-coded,
+     lifted into custom properties. Scoped to .user-landing so the (upcoming)
+     child tab routes inherit them. No visual change; Phase 6 builds the full
+     restyle on top of these tokens. */
+  --veud-bg: #2e2f2b;
+  --veud-surface: #383040;
+  --veud-surface-alt: #121212;
+  --veud-control: #6F6F6F;
+  --veud-control-hover: #8CA99D;
+  --veud-teal: #54806C;
+  --veud-teal-hover: #416756;
+  --veud-teal-accent: #507b68;
+  --veud-mint: #A2FFD5;
+  --veud-mint-hover: rgb(116, 222, 174);
+  --veud-amber: #FF9900;
+  --veud-orange: #FF4200;
+  --veud-cream: #FFEFCC;
+  --veud-highlight: #ffffb1;
+  --veud-mint-text: #dbffcc;
+  --veud-bronze: #66563d;
+
   overflow: auto;
 
   @media (max-width: 65rem) {
@@ -7,13 +28,13 @@
       width: 100%;
       height: 100%;
       flex-direction: column;
-      background-color: #2e2f2b;
+      background-color: var(--veud-bg);
       // background: linear-gradient(
       //   to right,
       //   #403530 0% 1%,
-      //   #383040 1% 10%,
-      //   #2e2f2b 10% 90%,
-      //   #54806C 90% 99%,
+      //   var(--veud-surface) 1% 10%,
+      //   var(--veud-bg) 10% 90%,
+      //   var(--veud-teal) 90% 99%,
       //   #403530 99% 100%
       // );
     }
@@ -35,13 +56,13 @@
       width: 100%;
       height: 100%;
       grid-template-columns: 30rem auto;
-      background-color: #2e2f2b;
+      background-color: var(--veud-bg);
       // background: linear-gradient(
       //   to right,
       //   #403530 0% 1%,
-      //   #383040 1% 10%,
-      //   #2e2f2b 10% 90%,
-      //   #54806C 90% 99%,
+      //   var(--veud-surface) 1% 10%,
+      //   var(--veud-bg) 10% 90%,
+      //   var(--veud-teal) 90% 99%,
       //   #403530 99% 100%
       // );
     }
@@ -81,7 +102,7 @@
     font-size: 1.3rem;
     line-height: 1.9rem;
     font-weight: 600;
-    color: #FF9900;
+    color: var(--veud-amber);
     padding: 1rem;
   }
 
@@ -157,7 +178,7 @@
   .user-landing-stats-chart-container {
     width: 100%;
     height: 100%;
-    background-color: #383040;
+    background-color: var(--veud-surface);
     border-radius: 1rem;
   }
 
@@ -200,48 +221,48 @@
   }
 
   .user-landing-left-arrow {
-    background-color: #6F6F6F;
+    background-color: var(--veud-control);
     border-radius: 0 0 0 0.5rem;
     transition: all .1s ease-out; 
   }
 
   .user-landing-left-arrow:hover {
-    background-color: #8CA99D;
+    background-color: var(--veud-control-hover);
   }
 
   .user-landing-secondary-left-arrow {
-    color: #2e2f2b;
-    background-color: #A2FFD5;
+    color: var(--veud-bg);
+    background-color: var(--veud-mint);
     border-radius: 0 0 0 0.5rem;
     transition: all .1s ease-out; 
   }
 
   .user-landing-secondary-left-arrow:hover {
-    background-color: rgb(116, 222, 174);
+    background-color: var(--veud-mint-hover);
   }
 
 
   .user-landing-right-arrow {
-    color: #2e2f2b;
-    background-color: #54806C;
+    color: var(--veud-bg);
+    background-color: var(--veud-teal);
     border-radius: 0 0 0.5rem 0;
     border-radius: 0 0 0.5rem 0;
     transition: all .1s ease-out; 
   }
 
   .user-landing-right-arrow:hover {
-    background-color: #416756;
+    background-color: var(--veud-teal-hover);
   }
 
   .user-landing-secondary-right-arrow {
-    background-color: #6F6F6F;
+    background-color: var(--veud-control);
     border-radius: 0 0 0.5rem 0;
     border-radius: 0 0 0.5rem 0;
     transition: all .1s ease-out; 
   }
 
   .user-landing-secondary-right-arrow:hover {
-    background-color: #8CA99D;
+    background-color: var(--veud-control-hover);
   }
 
   .user-landing-up-arrow {
@@ -265,18 +286,18 @@
     cursor: pointer;
 
     font-weight: 600;
-    background-color: #6F6F6F;
-    color: #FFEFCC;
+    background-color: var(--veud-control);
+    color: var(--veud-cream);
     border-top-width: 8px;
     border-right-width: 8px;
-    border-color: #54806C;
+    border-color: var(--veud-teal);
     border-radius: 0 0 0.5rem 0;
     transition: all .1s ease-out; 
   }
 
   .user-landing-dropdown-trigger:hover {
-    background-color: #8CA99D;
-    border-color: #507b68;
+    background-color: var(--veud-control-hover);
+    border-color: var(--veud-teal-accent);
   }
 
   .user-landing-secondary-dropdown-trigger {
@@ -290,18 +311,18 @@
     cursor: pointer;
 
     font-weight: 600;
-    background-color: #6F6F6F;
-    color: #FFEFCC;
+    background-color: var(--veud-control);
+    color: var(--veud-cream);
     border-bottom-width: 8px;
     border-left-width: 8px;
-    border-color: #A2FFD5;
+    border-color: var(--veud-mint);
     border-radius: 0 0 0 0.5rem;
     transition: all .1s ease-out; 
   }
 
   .user-landing-secondary-dropdown-trigger:hover {
-    background-color: #8CA99D;
-    border-color: rgb(116, 222, 174);
+    background-color: var(--veud-control-hover);
+    border-color: var(--veud-mint-hover);
   }
 
   .user-landing-favorite-insert {
@@ -310,23 +331,23 @@
     align-items: center;
     height: 7.5rem;
     width: 5rem;
-    color: #FF4200;
+    color: var(--veud-orange);
     font-size: 2.8rem;
     cursor: pointer;
     transition: all .1s ease-in; 
   }
 
   .user-landing-favorite-insert:hover {
-    border: 2px solid #FF4200;
+    border: 2px solid var(--veud-orange);
   }
 
   .user-landing-body-header {
-    // border-color: #383040;
+    // border-color: var(--veud-surface);
     // border-bottom-width: 0.5rem;
     font-size: 1.3rem;
     line-height: 1.9rem;
     font-weight: 600;
-    color: #ffffb1;
+    color: var(--veud-highlight);
     align-self: center;
     width: fit-content;
     height: fit-content;
@@ -347,7 +368,7 @@
   .user-landing-list-secondary-header {
     text-align: left;
     width: fit-content;
-    background-color: #121212;
+    background-color: var(--veud-surface-alt);
     
     //border-spacing: var(--tw-border-spacing-x) 0px;
     padding-bottom: 0.25rem;
@@ -359,12 +380,12 @@
     top: 0px;
     border-top-width: 8px;
     border-left-width: 8px;
-    border-color: #383040;
+    border-color: var(--veud-surface);
     border-radius: 0.5rem 0 0 0;
     font-size: 1.3rem;
     line-height: 1.9rem;
     font-weight: 600;
-    color: #ffffb1;
+    color: var(--veud-highlight);
   }
 
   .user-landing-favorites-count {
@@ -388,7 +409,7 @@
     // font-family: arial;
     // border-left-width: 8px;
     // border-bottom-width: 8px;
-    // border-color: #383040;
+    // border-color: var(--veud-surface);
     // border-radius: 0 0 0 0.5rem;
     // //box-shadow: 0 -0.6rem 0 #222222;
   }
@@ -397,7 +418,7 @@
     display: flex;
     flex-direction: row;
     width: 16rem;
-    background-color: #6F6F6F;
+    background-color: var(--veud-control);
     border-radius: 0 1.5rem 0 0;
 
     transition: transform .1s ease-in-out;
@@ -405,7 +426,7 @@
 
     border-left-width: 8px;
     border-bottom-width: 8px;
-    border-color: #383040;
+    border-color: var(--veud-surface);
     //box-shadow: 0 -0.6rem 0 #222222;
   }
 
@@ -425,7 +446,7 @@
     display: grid;
     grid-template-rows: 80% 20%;
     border-top-width: 4px;
-    border-color: #66563d;
+    border-color: var(--veud-bronze);
     border-radius: 0 1.5rem 0 0;
   }
 
@@ -445,8 +466,8 @@
     font-size: 0.8rem;
     line-height: 1rem;
     font-weight: 600;
-    color: #dbffcc;
-    box-shadow: inset 0px -13px 20px 7px rgb(46, 47, 43);
+    color: var(--veud-mint-text);
+    box-shadow: inset 0px -13px 20px 7px var(--veud-bg);
   }
 
   .user-landing-body-latest-time {
@@ -465,14 +486,14 @@
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center center; 
-    filter: drop-shadow(3px 2px 6px #66563d);
+    filter: drop-shadow(3px 2px 6px var(--veud-bronze));
     transition: transform .1s ease-in-out;
     z-index: 10;
   }
 
   .user-landing-body-thumbnail-image:hover {
     transform: scale(1.1);
-    filter: drop-shadow(0px 0px 10px #66563d);
+    filter: drop-shadow(0px 0px 10px var(--veud-bronze));
   }
 
   .user-landing-body-thumbnail-image:hover .user-landing-thumbnail-header {
@@ -519,7 +540,7 @@
 
   .user-landing-activity-thumbnail-footer {
     visibility: visible;
-    color: #ffffb1;
+    color: var(--veud-highlight);
     display: flex;
     flex-direction: column;
     width: 100%;

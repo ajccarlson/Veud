@@ -20,6 +20,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   image         UserImage?
+  banner         UserBanner?
   password      Password?
   watchlists    Watchlist[]
   userFavorites UserFavorite[]
@@ -138,6 +139,19 @@ model UserFavorite {
 }
 
 model UserImage {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
+}
+
+model UserBanner {
   id          String  @id @default(cuid())
   altText     String?
   contentType String
