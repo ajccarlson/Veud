@@ -1,9 +1,12 @@
 import { ResponsiveChord } from '@nivo/chord'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveChord(data: any, keys: any) {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-chord-chart">
       <ResponsiveChord
+        colors={veudChartColors}
+        theme={veudNivoTheme}
         data={data}
         keys={keys}
         margin={{ top: 60, right: 60, bottom: 90, left: 60 }}
@@ -42,7 +45,6 @@ function MyResponsiveChord(data: any, keys: any) {
                 ]
             ]
         }}
-        colors={{ scheme: 'nivo' }}
         motionConfig="stiff"
         arcTooltip={(point) => {
           // console.log(point.arc)
