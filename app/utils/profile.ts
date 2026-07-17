@@ -1,4 +1,4 @@
-import { type ListType, type UserFavorite } from '@prisma/client'
+import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
 
 /**
  * Shared types for the profile page (`users+/$username`).
@@ -22,6 +22,12 @@ export type ListTypeMeta = Pick<
 export type FavoriteItem = Pick<
 	UserFavorite,
 	'id' | 'position' | 'thumbnail' | 'title' | 'typeId' | 'mediaType' | 'startYear'
+>
+
+/** The watchlist (status list) metadata the profile reads for status breakdowns. */
+export type WatchlistMeta = Pick<
+	Watchlist,
+	'id' | 'name' | 'header' | 'typeId' | 'position'
 >
 
 /**
@@ -57,8 +63,8 @@ export type ProfileData = {
 	user: ProfileUser
 	userJoinedDisplay: string
 	listTypes: ListTypeMeta[]
-	watchLists: unknown[]
-	typedWatchlists: Record<string, unknown[]>
+	watchLists: WatchlistMeta[]
+	typedWatchlists: Record<string, WatchlistMeta[]>
 	typedEntries: Record<string, any[]>
 	typedHistory: Record<string, ActivityItem[]>
 	favorites: FavoriteItem[]
