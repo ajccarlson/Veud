@@ -1,10 +1,10 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node'
-import { useLoaderData } from '@remix-run/react'
+import { Link, NavLink, Outlet, useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { BodyData } from '#app/routes/users+/$username_/body.tsx'
-import { SideData } from '#app/routes/users+/$username_/side.tsx'
+import { Button } from '#app/components/ui/button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { cn, getUserImgSrc } from '#app/utils/misc.tsx'
 // import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
@@ -202,17 +202,69 @@ export async function loader(params: LoaderFunctionArgs) {
 	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted })
 }
 
+const PROFILE_TABS = [
+	{ to: '.', end: true, label: 'Overview' },
+	{ to: 'stats', end: false, label: 'Stats' },
+	{ to: 'favorites', end: false, label: 'Favorites' },
+	{ to: 'activity', end: false, label: 'Activity' },
+	{ to: 'social', end: false, label: 'Social' },
+]
+
 export default function ProfileRoute() {
 	const loaderData = useLoaderData<typeof loader>()
-	// const user = loaderData.user
+	const user = loaderData.user
 	// const loggedInUser = useOptionalUser()
 	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
 
 	return (
-		<main className="user-landing" style={{ width: '100%', height: '100%' }}>
-			<div className="user-landing-main">
-				<SideData data={loaderData} />
-				<BodyData data={loaderData} />
+		<main
+			className={cn('user-landing')}
+			style={{ width: '100%', minHeight: '100%', backgroundColor: 'var(--veud-bg)' }}
+		>
+			{/* Temporary header — the full hero (banner + avatar + edit) lands in the next sub-batch. */}
+			<div className="user-landing-personal-container" style={{ paddingTop: '2rem' }}>
+				<img
+					src={getUserImgSrc(user.image?.id)}
+					alt={user.username}
+					className="user-landing-profile-image"
+				/>
+				<h1 className="user-landing-username">{user.username}</h1>
+				<div className="user-landing-join-container">
+					<span className="user-landing-join-label">Joined</span>
+					<span className="user-landing-join-date">{loaderData.userJoinedDisplay}</span>
+				</div>
+				<Button asChild>
+					<Link to={`../../lists/${user.username}`} prefetch="intent">
+						Watchlists
+					</Link>
+				</Button>
+			</div>
+
+			<nav
+				className="mx-auto mt-6 flex flex-wrap justify-center gap-2 px-4"
+				style={{ borderBottom: '1px solid var(--veud-surface)' }}
+			>
+				{PROFILE_TABS.map(tab => (
+					<NavLink
+						key={tab.label}
+						to={tab.to}
+						end={tab.end}
+						prefetch="intent"
+						className="px-4 py-2 font-semibold transition-colors"
+						style={({ isActive }) => ({
+							borderBottom: isActive
+								? '4px solid var(--veud-teal)'
+								: '4px solid transparent',
+							color: isActive ? 'var(--veud-highlight)' : 'var(--veud-cream)',
+						})}
+					>
+						{tab.label}
+					</NavLink>
+				))}
+			</nav>
+
+			<div style={{ padding: '1rem' }}>
+				<Outlet context={loaderData} />
 			</div>
 		</main>
 	)
