@@ -1,9 +1,12 @@
 import { ResponsiveBoxPlot } from '@nivo/boxplot'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveBoxPlot(data: any) {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-box-plot-chart">
       <ResponsiveBoxPlot
+        colors={veudChartColors}
+        theme={veudNivoTheme as any}
           data={data}
           margin={{ top: 60, right: 140, bottom: 60, left: 60 }}
           minValue={0}
@@ -45,7 +48,6 @@ function MyResponsiveBoxPlot(data: any) {
               legendOffset: -40,
               truncateTickAt: 0
           }}
-          colors={{ scheme: 'nivo' }}
           colorBy="group"
           borderRadius={2}
           borderWidth={2}

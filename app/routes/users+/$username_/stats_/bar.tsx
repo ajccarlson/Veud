@@ -1,9 +1,12 @@
 import { ResponsiveBar } from '@nivo/bar'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveBar(data: any, barKeys: any) {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-bar-chart">
       <ResponsiveBar
+        colors={veudChartColors}
+        theme={veudNivoTheme}
         data={data}
         keys={barKeys}
         indexBy="score"
@@ -12,7 +15,6 @@ function MyResponsiveBar(data: any, barKeys: any) {
         //groupMode="grouped"
         valueScale={{ type: 'linear' }}
         indexScale={{ type: 'band', round: true }}
-        colors={{ scheme: 'nivo' }}
         defs={[
             {
                 id: 'dots',

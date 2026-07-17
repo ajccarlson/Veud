@@ -1,14 +1,16 @@
 import { ResponsiveTimeRange } from '@nivo/calendar'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveTimeRange(data: any, startDate: any, endDate: any) {
   return (
     <div className="user-landing-stats-calendar-chart">
       <ResponsiveTimeRange
+        colors={veudChartColors}
+        theme={veudNivoTheme}
           data={data}
           from={startDate}
           to={endDate}
           emptyColor="#eeeeee"
-          colors={[ '#61cdbb', '#97e3d5', '#e8c1a0', '#f47560' ]}
           // margin={{ top: 40, right: 40, bottom: 40, left: 40 }}
           align="center"
           direction="vertical"
