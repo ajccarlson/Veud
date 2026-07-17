@@ -633,6 +633,8 @@
   }
 
   .user-landing-hero-body {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: row;
     align-items: flex-end;
