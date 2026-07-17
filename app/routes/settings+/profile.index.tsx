@@ -15,7 +15,7 @@ import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
+import { getUserBannerSrc, getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
@@ -40,6 +40,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			username: true,
 			email: true,
 			image: {
+				select: { id: true },
+			},
+			banner: {
 				select: { id: true },
 			},
 			_count: {
@@ -122,6 +125,35 @@ export default function EditUserProfile() {
 							to="photo"
 							title="Change profile photo"
 							aria-label="Change profile photo"
+						>
+							<Icon name="camera" className="h-4 w-4" />
+						</Link>
+					</Button>
+				</div>
+			</div>
+			<div className="flex justify-center">
+				<div className="relative h-40 w-full max-w-2xl">
+					{data.user.banner?.id ? (
+						<img
+							src={getUserBannerSrc(data.user.banner.id) ?? ''}
+							alt={`${data.user.username} banner`}
+							className="h-full w-full rounded-2xl object-cover"
+						/>
+					) : (
+						<div className="flex h-full w-full items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+							No banner
+						</div>
+					)}
+					<Button
+						asChild
+						variant="outline"
+						className="absolute -right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full p-0"
+					>
+						<Link
+							preventScrollReset
+							to="banner"
+							title="Change profile banner"
+							aria-label="Change profile banner"
 						>
 							<Icon name="camera" className="h-4 w-4" />
 						</Link>

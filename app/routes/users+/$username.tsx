@@ -4,8 +4,8 @@ import { Link, NavLink, Outlet, useLoaderData } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { cn, getUserImgSrc } from '#app/utils/misc.tsx'
-// import { useOptionalUser } from '#app/utils/user.ts'
+import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
+import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
 function toTitleCase(inputString: string) {
@@ -20,6 +20,7 @@ export async function loader(params: LoaderFunctionArgs) {
 			username: true,
 			createdAt: true,
 			image: { select: { id: true } },
+			banner: { select: { id: true } },
 		},
 		where: {
 			username: params.params['username'],
@@ -213,31 +214,52 @@ const PROFILE_TABS = [
 export default function ProfileRoute() {
 	const loaderData = useLoaderData<typeof loader>()
 	const user = loaderData.user
-	// const loggedInUser = useOptionalUser()
-	// const isLoggedInUser = loaderData.user.id === loggedInUser?.id
+	const loggedInUser = useOptionalUser()
+	const isLoggedInUser = user.id === loggedInUser?.id
+	const bannerSrc = getUserBannerSrc(user.banner?.id)
 
 	return (
 		<main
 			className={cn('user-landing')}
 			style={{ width: '100%', minHeight: '100%', backgroundColor: 'var(--veud-bg)' }}
 		>
-			{/* Temporary header — the full hero (banner + avatar + edit) lands in the next sub-batch. */}
-			<div className="user-landing-personal-container" style={{ paddingTop: '2rem' }}>
-				<img
-					src={getUserImgSrc(user.image?.id)}
-					alt={user.username}
-					className="user-landing-profile-image"
-				/>
-				<h1 className="user-landing-username">{user.username}</h1>
-				<div className="user-landing-join-container">
-					<span className="user-landing-join-label">Joined</span>
-					<span className="user-landing-join-date">{loaderData.userJoinedDisplay}</span>
+			{/* Hero — banner + avatar + identity, with an edit action on your own profile. */}
+			<div className="user-landing-hero">
+				<div
+					className="user-landing-hero-banner"
+					style={bannerSrc ? { backgroundImage: `url("${bannerSrc}")` } : undefined}
+				>
+					{isLoggedInUser ? (
+						<div className="user-landing-hero-actions">
+							<Button asChild variant="outline">
+								<Link to="/settings/profile" prefetch="intent">
+									Edit profile
+								</Link>
+							</Button>
+						</div>
+					) : null}
 				</div>
-				<Button asChild>
-					<Link to={`../../lists/${user.username}`} prefetch="intent">
-						Watchlists
-					</Link>
-				</Button>
+				<div className="user-landing-hero-body">
+					<img
+						src={getUserImgSrc(user.image?.id)}
+						alt={user.username}
+						className="user-landing-hero-avatar"
+					/>
+					<div className="user-landing-hero-info">
+						<h1 className="user-landing-hero-name">{user.name ?? user.username}</h1>
+						<span className="user-landing-hero-username">@{user.username}</span>
+						<span className="user-landing-hero-joined">
+							Joined {loaderData.userJoinedDisplay}
+						</span>
+					</div>
+					<div className="user-landing-hero-side">
+						<Button asChild>
+							<Link to={`../../lists/${user.username}`} prefetch="intent">
+								Watchlists
+							</Link>
+						</Button>
+					</div>
+				</div>
 			</div>
 
 			<nav
