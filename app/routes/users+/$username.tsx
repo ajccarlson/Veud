@@ -1,8 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node'
-import { Link, NavLink, Outlet, useLoaderData } from '@remix-run/react'
+import { Link, NavLink, Outlet, useLoaderData, useRevalidator } from '@remix-run/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
@@ -21,6 +22,7 @@ export async function loader(params: LoaderFunctionArgs) {
 			createdAt: true,
 			image: { select: { id: true } },
 			banner: { select: { id: true } },
+			_count: { select: { followers: true, following: true } },
 		},
 		where: {
 			username: params.params['username'],
@@ -28,6 +30,16 @@ export async function loader(params: LoaderFunctionArgs) {
 	})
 
 	invariantResponse(user, 'User not found', { status: 404 })
+
+	const viewerId = await getUserId(params.request)
+	const isFollowing =
+		viewerId && viewerId !== user.id
+			? Boolean(
+					await prisma.follow.findUnique({
+						where: { followerId_followingId: { followerId: viewerId, followingId: user.id } },
+					}),
+				)
+			: false
 
 	const listTypes = await prisma.listType.findMany()
 
@@ -200,7 +212,7 @@ export async function loader(params: LoaderFunctionArgs) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted })
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
 }
 
 const PROFILE_TABS = [
@@ -217,6 +229,21 @@ export default function ProfileRoute() {
 	const loggedInUser = useOptionalUser()
 	const isLoggedInUser = user.id === loggedInUser?.id
 	const bannerSrc = getUserBannerSrc(user.banner?.id)
+	const revalidator = useRevalidator()
+
+	async function toggleFollow() {
+		await fetch(
+			'/resources/follow/' +
+				encodeURIComponent(
+					new URLSearchParams({
+						userId: user.id,
+						intent: loaderData.isFollowing ? 'unfollow' : 'follow',
+					}).toString(),
+				),
+			{ method: 'POST' },
+		)
+		revalidator.revalidate()
+	}
 
 	return (
 		<main
@@ -251,8 +278,25 @@ export default function ProfileRoute() {
 						<span className="user-landing-hero-joined">
 							Joined {loaderData.userJoinedDisplay}
 						</span>
+						<div className="user-landing-hero-stats">
+							<span>
+								<strong>{loaderData.followerCount}</strong>{' '}
+								{loaderData.followerCount === 1 ? 'follower' : 'followers'}
+							</span>
+							<span>
+								<strong>{loaderData.followingCount}</strong> following
+							</span>
+						</div>
 					</div>
 					<div className="user-landing-hero-side">
+						{loggedInUser && !isLoggedInUser ? (
+							<Button
+								variant={loaderData.isFollowing ? 'outline' : 'default'}
+								onClick={toggleFollow}
+							>
+								{loaderData.isFollowing ? 'Unfollow' : 'Follow'}
+							</Button>
+						) : null}
 						<Button asChild>
 							<Link to={`../../lists/${user.username}`} prefetch="intent">
 								Watchlists

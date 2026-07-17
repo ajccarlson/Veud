@@ -333,8 +333,26 @@
   }
 
   .user-landing-hero-side {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
     margin-left: auto;
     padding-bottom: 0.75rem;
+  }
+
+  .user-landing-hero-stats {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-hero-stats strong {
+    color: var(--veud-mint);
+    font-weight: 700;
   }
 
   @media (max-width: 65rem) {

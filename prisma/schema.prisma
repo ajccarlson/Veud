@@ -27,6 +27,8 @@ model User {
   roles         Role[]
   sessions      Session[]
   connections   Connection[]
+  following     Follow[] @relation("UserFollowing")
+  followers     Follow[] @relation("UserFollowers")
 }
 
 model ListType {
@@ -255,4 +257,21 @@ model Connection {
   userId String
 
   @@unique([providerName, providerId])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // The user doing the following.
+  follower   User   @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followerId String
+
+  // The user being followed.
+  following   User   @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followingId String
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
 }
