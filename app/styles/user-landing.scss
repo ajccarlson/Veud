@@ -955,4 +955,92 @@
   .user-landing-favorite-actions .user-landing-favorite-remove:hover:not(:disabled) {
     background-color: var(--veud-orange);
   }
+
+  /* Add-to-favorites picker */
+  .user-landing-favorite-add-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--veud-cream);
+    background-color: var(--veud-teal);
+    border-radius: 0.25rem;
+    padding: 0.25rem;
+    transition: all .1s ease-out;
+  }
+
+  .user-landing-favorite-add-toggle:hover {
+    background-color: var(--veud-teal-hover);
+  }
+
+  .user-landing-favorite-search {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 1rem 0.5rem;
+  }
+
+  .user-landing-favorite-search-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 28rem;
+  }
+
+  .user-landing-favorite-search-bar input {
+    flex: 1 1 auto;
+    padding: 0.4rem 0.6rem;
+    color: var(--veud-cream);
+    background-color: var(--veud-surface-alt);
+    border-radius: 0.4rem;
+  }
+
+  .user-landing-favorite-search-bar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--veud-cream);
+    background-color: var(--veud-teal);
+    border-radius: 0.4rem;
+    padding: 0.4rem;
+    transition: all .1s ease-out;
+  }
+
+  .user-landing-favorite-search-bar button:hover:not(:disabled) {
+    background-color: var(--veud-teal-hover);
+  }
+
+  .user-landing-favorite-search-bar button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .user-landing-favorite-search-hint {
+    font-size: 0.8rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-favorite-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+    max-width: 28rem;
+  }
+
+  .user-landing-favorite-search-results button {
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    color: var(--veud-cream);
+    background-color: var(--veud-surface);
+    border-radius: 0.4rem;
+    transition: all .1s ease-out;
+  }
+
+  .user-landing-favorite-search-results button:hover:not(:disabled) {
+    background-color: var(--veud-teal-accent);
+  }
 }

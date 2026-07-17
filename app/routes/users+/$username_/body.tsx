@@ -2,6 +2,7 @@ import { Link, useRevalidator } from '@remix-run/react'
 import { useState, useEffect } from 'react'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { FavoriteSearch } from '#app/components/favorite-search.tsx'
 import { timeSince, getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
 import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
@@ -102,6 +103,7 @@ export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
   const [typeIndex, setTypeIndex] = useState(0);
   const revalidator = useRevalidator()
   const isOwner = useOptionalUser()?.id === loaderData.user.id
+  const [showAdd, setShowAdd] = useState(false)
 
   const selectedType = loaderData.listTypes[typeIndex]
 
@@ -154,7 +156,24 @@ export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
           onIndexChange={setTypeIndex}
         />
         <span className="user-landing-favorites-count">{`(${favorites.length})`}</span>
+        {isOwner && selectedType ? (
+          <button
+            type="button"
+            className="user-landing-favorite-add-toggle"
+            title={showAdd ? 'Close search' : 'Add to favorites'}
+            onClick={() => setShowAdd(open => !open)}
+          >
+            <Icon name={showAdd ? 'cross-1' : 'plus'} />
+          </button>
+        ) : null}
       </div>
+      {isOwner && showAdd && selectedType ? (
+        <FavoriteSearch
+          listType={selectedType}
+          position={favorites.length + 1}
+          onAdded={() => revalidator.revalidate()}
+        />
+      ) : null}
       {favorites.length > 0 ? (
         <div className="user-landing-favorites-grid">
           {favorites.map((favorite, index) => {
