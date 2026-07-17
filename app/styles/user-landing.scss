@@ -608,4 +608,90 @@
     width: 100%;
     height: 100%;
   }
+
+  /* Profile hero (banner + avatar) */
+  .user-landing-hero {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .user-landing-hero-banner {
+    position: relative;
+    width: 100%;
+    height: 14rem;
+    background-color: var(--veud-surface);
+    background-image: linear-gradient(120deg, var(--veud-teal), var(--veud-surface));
+    background-size: cover;
+    background-position: center;
+    border-radius: 0 0 1rem 1rem;
+  }
+
+  .user-landing-hero-actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .user-landing-hero-body {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 1.5rem;
+    padding: 0 2rem;
+    margin-top: -4rem;
+  }
+
+  .user-landing-hero-avatar {
+    width: 8rem;
+    height: 8rem;
+    border-radius: 1rem;
+    border: 4px solid var(--veud-bg);
+    object-fit: cover;
+    background-color: var(--veud-surface);
+  }
+
+  .user-landing-hero-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .user-landing-hero-name {
+    font-size: 1.6rem;
+    line-height: 2rem;
+    font-weight: 700;
+    color: var(--veud-amber);
+  }
+
+  .user-landing-hero-username {
+    font-size: 1rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-hero-joined {
+    font-size: 0.85rem;
+    color: var(--veud-mint-text);
+  }
+
+  .user-landing-hero-side {
+    margin-left: auto;
+    padding-bottom: 0.75rem;
+  }
+
+  @media (max-width: 65rem) {
+    .user-landing-hero-body {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .user-landing-hero-info {
+      align-items: center;
+    }
+
+    .user-landing-hero-side {
+      margin-left: 0;
+    }
+  }
 }

@@ -41,6 +41,7 @@ export type ProfileUser = {
 	username: string
 	createdAt: Date | string
 	image: { id: string } | null
+	banner: { id: string } | null
 }
 
 /**
