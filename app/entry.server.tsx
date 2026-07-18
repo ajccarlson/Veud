@@ -7,9 +7,12 @@ import {
 import { isbot } from 'isbot'
 import { renderToPipeableStream } from 'react-dom/server'
 import { ServerRouter, type HandleDocumentRequestFunction } from 'react-router'
+import { cspNonceContext } from './env.ts'
 import { getEnv, init } from './utils/env.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
+
+export { cspNonceContext, serverBuildContext } from './env.ts'
 
 export const streamTimeout = 5000
 
@@ -31,7 +34,7 @@ async function handleRequest(...args: DocRequestArgs) {
 		? 'onAllReady'
 		: 'onShellReady'
 
-	const nonce = String(loadContext.cspNonce) ?? undefined
+	const nonce = loadContext.get(cspNonceContext)
 	return new Promise(async (resolve, reject) => {
 		let didError = false
 		// NOTE: this timing will only include things that are rendered in the shell

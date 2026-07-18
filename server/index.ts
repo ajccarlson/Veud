@@ -10,7 +10,16 @@ import rateLimit from 'express-rate-limit'
 import getPort, { portNumbers } from 'get-port'
 import helmet from 'helmet'
 import morgan from 'morgan'
-import { type ServerBuild } from 'react-router'
+import { RouterContextProvider, type ServerBuild } from 'react-router'
+import {
+	type cspNonceContext as CspNonceContext,
+	type serverBuildContext as ServerBuildContext,
+} from '../app/env.ts'
+
+type ServerContextModule = {
+	cspNonceContext: typeof CspNonceContext
+	serverBuildContext: typeof ServerBuildContext
+}
 
 const MODE = process.env.NODE_ENV ?? 'development'
 
@@ -208,10 +217,16 @@ async function getBuild() {
 app.all(
 	'*',
 	createRequestHandler({
-		getLoadContext: (_: any, res: any) => ({
-			cspNonce: res.locals.cspNonce,
-			serverBuild: getBuild(),
-		}),
+		getLoadContext: async (_, res) => {
+			const buildPromise = getBuild()
+			const build = await buildPromise
+			const { cspNonceContext, serverBuildContext } = build.entry
+				.module as typeof build.entry.module & ServerContextModule
+			const context = new RouterContextProvider()
+			context.set(cspNonceContext, res.locals.cspNonce)
+			context.set(serverBuildContext, buildPromise)
+			return context
+		},
 		mode: MODE,
 		build: MODE === 'production' ? await getBuild() : getBuild,
 	}),
