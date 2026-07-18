@@ -125,7 +125,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
   const listTypes = await prisma.listType.findMany()
 
 	const { toast, headers: toastHeaders } = await getToast(request)
-	const honeyProps = honeypot.getInputProps()
+	const honeyProps = await honeypot.getInputProps()
 
 	return json(
 		{

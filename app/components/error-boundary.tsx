@@ -1,5 +1,5 @@
 import { captureException } from '@sentry/react-router'
-import { useEffect } from 'react'
+import { type JSX, useEffect } from 'react'
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,

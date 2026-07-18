@@ -1,5 +1,6 @@
 import { useInputControl } from '@conform-to/react'
 import {
+	type JSX,
 	useId,
 	type InputHTMLAttributes,
 	type LabelHTMLAttributes,
