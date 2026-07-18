@@ -155,11 +155,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 }
 
-export const headers: HeadersFunction = ({ loaderHeaders }) => {
-	const headers = {
-		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
-	}
-	return headers
+export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+	return combineHeaders(
+		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		loaderHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': loaderHeaders.get('Set-Cookie') ?? '' }
+			: null,
+		actionHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
+			: null,
+	)
 }
 
 const ThemeFormSchema = z.object({
