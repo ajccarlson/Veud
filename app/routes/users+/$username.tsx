@@ -1,6 +1,14 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { json, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/node'
-import { Link, NavLink, Outlet, useLoaderData, useRevalidator } from '@remix-run/react'
+import {
+	data as json,
+	type LoaderFunctionArgs,
+	type MetaFunction,
+	Link,
+	NavLink,
+	Outlet,
+	useLoaderData,
+	useRevalidator,
+} from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
@@ -9,7 +17,7 @@ import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
-import "#app/styles/user-landing.scss"
+import '#app/styles/user-landing.scss'
 
 export async function loader(params: LoaderFunctionArgs) {
 	const viewerId = await getUserId(params.request)

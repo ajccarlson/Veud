@@ -1,13 +1,14 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { useState, type FormEvent } from 'react'
 import {
+	data as json,
+	type LoaderFunctionArgs,
 	Link,
 	useLoaderData,
 	useLocation,
 	useOutletContext,
 	useRevalidator,
-} from '@remix-run/react'
-import { useState, type FormEvent } from 'react'
+} from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'

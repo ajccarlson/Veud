@@ -1,15 +1,14 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
+import { useRef } from 'react'
 import {
-	json,
+	data as json,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type HeadersFunction,
 	type LinksFunction,
 	type MetaFunction,
-} from '@remix-run/node'
-import {
 	Form,
 	Link,
 	Links,
@@ -22,13 +21,11 @@ import {
 	useLoaderData,
 	// useMatches,
 	useSubmit,
-} from '@remix-run/react'
-import "#app/styles/root.scss"
-import { withSentry } from '@sentry/remix'
-import { useRef } from 'react'
+} from 'react-router'
+import '#app/styles/root.scss'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
-import logo from '#app/components/ui/icons/logoV3.webp';
+import logo from '#app/components/ui/icons/logoV3.webp'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
@@ -196,7 +193,7 @@ function Document({
 	children: React.ReactNode
 	nonce: string
 	theme?: Theme
-	env?: Record<string, string>
+	env?: Record<string, string | undefined>
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
@@ -307,7 +304,7 @@ function AppWithProviders() {
 	)
 }
 
-export default withSentry(AppWithProviders)
+export default AppWithProviders
 
 function CommunityDropdown() {
   return (

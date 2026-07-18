@@ -1,5 +1,5 @@
-import { Form } from '@remix-run/react'
-import { timeSince } from "#app/utils/lists/column-functions.tsx"
+import { Form } from 'react-router'
+import { timeSince } from '#app/utils/lists/column-functions.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { listNavigationDisplayer } from '#app/routes/lists+/.$username+/.$list-type+/index.tsx'
@@ -100,7 +100,7 @@ async function handleSubmit(e: any, columns: string[], watchlist: any, listParam
       listTypeData: JSON.stringify(listParams.listTypeData),
       ownerId: listParams.listOwner.id
     } as any).toString()), { method: 'POST' })
-    const updateSettingsData = await updateSettingsResponse.json()
+    const updateSettingsData = await updateSettingsResponse.json() as Array<any>
     
     const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       authorization: listParams.VEUD_API_KEY,
@@ -174,7 +174,7 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
                       ownerId: listParams.listOwner.id
                     } as any).toString()), { method: 'POST' })
 
-                    listParams.watchListData = listParams.watchListData.filter(item => item.watchlist.id !== entryData.watchlist.id)
+    listParams.watchListData = listParams.watchListData.filter((item: any) => item.watchlist.id !== entryData.watchlist.id)
                     listParams.setNavItems(listNavigationDisplayer(listParams))
                   }}>
                   <div className="list-landing-settings-delete-icon">

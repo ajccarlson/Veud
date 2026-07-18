@@ -1,9 +1,12 @@
-import { Link, useRevalidator } from '@remix-run/react'
 import { useState, useEffect } from 'react'
+import { Link, useRevalidator } from 'react-router'
+import { FavoriteSearch } from '#app/components/favorite-search.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { FavoriteSearch } from '#app/components/favorite-search.tsx'
-import { timeSince, getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
+import {
+	timeSince,
+	getThumbnailInfo,
+} from '#app/utils/lists/column-functions.tsx'
 import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
