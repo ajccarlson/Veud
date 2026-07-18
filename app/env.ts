@@ -1,10 +1,4 @@
-import { type ServerBuild } from 'react-router'
+import { createContext, type ServerBuild } from 'react-router'
 
-declare module 'react-router' {
-	interface AppLoadContext {
-		cspNonce: string
-		serverBuild: Promise<ServerBuild>
-	}
-}
-
-export {}
+export const cspNonceContext = createContext<string>()
+export const serverBuildContext = createContext<Promise<ServerBuild>>()

@@ -1,4 +1,5 @@
 import { faker } from '@faker-js/faker'
+import { RouterContextProvider } from 'react-router'
 import { expect, test } from 'vitest'
 import { action } from '#app/routes/settings+/profile.index.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
@@ -12,7 +13,7 @@ function actionArgs(request: Request): Parameters<typeof action>[0] {
 		url: new URL(request.url),
 		pattern: '/settings/profile',
 		params: {},
-		context: {},
+		context: new RouterContextProvider(),
 	}
 }
 
