@@ -140,6 +140,23 @@ PM2 writes `out.log` and `error.log`. Install the log-rotate module so they don'
 pm2 install pm2-logrotate
 ```
 
+## Canonical media identity
+
+Tracking V2 links user-owned entry snapshots to shared provider-backed `Media`
+records. Deploy and backfill it in stages:
+
+```
+npm run db:backup
+npx prisma migrate deploy
+npm run media:backfill
+npm run media:backfill -- --commit --limit 25
+npm run media:backfill -- --commit
+```
+
+The first backfill command is a dry run. The backfill is idempotent, recognizes
+TMDB movie/TV and MyAnimeList anime/manga URLs embedded in existing thumbnail
+values, and does not call either provider or overwrite user data.
+
 ## Testing
 
 ### Playwright

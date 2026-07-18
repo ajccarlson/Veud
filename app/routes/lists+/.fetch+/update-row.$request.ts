@@ -4,34 +4,60 @@ import {
 	requireEntryOwner,
 	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
+import {
+	ensureMediaForIdentity,
+	parseMediaIdentityForListType,
+} from '#app/utils/media.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
-  const searchParams = new URLSearchParams(params.request)
+	const searchParams = new URLSearchParams(params.request)
 
-  const rowIndex = searchParams.get('rowIndex')
+	const rowIndex = searchParams.get('rowIndex')
 
-  // The entry must belong to a watchlist the current user owns.
-  await requireEntryOwner(request, rowIndex)
+	// The entry must belong to a watchlist the current user owns.
+	const { watchlist } = await requireEntryOwner(request, rowIndex)
 
-  let row: unknown
-  try {
-    row = JSON.parse(searchParams.get('row') ?? '')
-  } catch {
-    throw new Response('Invalid row payload', { status: 400 })
-  }
-  if (!row || typeof row !== 'object' || Array.isArray(row)) {
-    throw new Response('Invalid row payload', { status: 400 })
-  }
+	let row: unknown
+	try {
+		row = JSON.parse(searchParams.get('row') ?? '')
+	} catch {
+		throw new Response('Invalid row payload', { status: 400 })
+	}
+	if (!row || typeof row !== 'object' || Array.isArray(row)) {
+		throw new Response('Invalid row payload', { status: 400 })
+	}
 
-  // A data update must not change the row's identity or move it to another watchlist
-  // (which could be one the user doesn't own).
-  const data = stripProtectedFields(row as Record<string, unknown>, [
-    'id',
-    'watchlistId',
-  ])
+	const rowObj = row as Record<string, unknown>
+	const listType = await prisma.listType.findUnique({
+		where: { id: watchlist.typeId },
+		select: { name: true },
+	})
+	if (!listType) throw new Response('List type not found', { status: 400 })
+	const mediaIdentity = parseMediaIdentityForListType(
+		rowObj.mediaIdentity,
+		listType.name,
+		typeof rowObj.thumbnail === 'string' ? rowObj.thumbnail : null,
+	)
 
-  return await prisma.entry.update({
-    where: { id: rowIndex as string },
-    data: data as any,
-  })
+	// A data update must not change identity/relations directly or move the row to
+	// another watchlist. A validated provider identity can establish mediaId below.
+	const data = stripProtectedFields(rowObj, [
+		'id',
+		'media',
+		'mediaId',
+		'mediaIdentity',
+		'watchlist',
+		'watchlistId',
+	])
+
+	return await prisma.$transaction(async tx => {
+		const mediaId = mediaIdentity
+			? await ensureMediaForIdentity(tx, mediaIdentity)
+			: undefined
+
+		return tx.entry.update({
+			where: { id: rowIndex as string },
+			data: { ...data, ...(mediaId ? { mediaId } : {}) } as any,
+		})
+	})
 }
