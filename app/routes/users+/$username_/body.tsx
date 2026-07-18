@@ -59,7 +59,7 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
                   <li className="user-landing-feed-item" key={`${item.typeId}-${item.index}-${i}`}>
                     {thumb ? (
                       <Link
-                        to={thumb.url}
+                        to={entry?.mediaId ? `/media/${entry.mediaId}` : thumb.url}
                         className="user-landing-feed-thumbnail"
                         style={{ backgroundImage: `url("${thumb.content}")` }}
                         aria-label={entry?.title}
@@ -184,7 +184,7 @@ export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
             return (
               <div className="user-landing-favorite-card" key={favorite.id}>
                 <Link
-                  to={thumb?.url ?? '#'}
+                  to={favorite.mediaId ? `/media/${favorite.mediaId}` : (thumb?.url ?? '#')}
                   className="user-landing-favorite-thumbnail"
                   style={thumb ? { backgroundImage: `url("${thumb.content}")` } : undefined}
                 >

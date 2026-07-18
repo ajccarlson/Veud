@@ -216,6 +216,7 @@ export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
 
 export function getThumbnailInfo(thumbnail: string) {
   const separatorIndex = thumbnail.indexOf("|")
+  if (separatorIndex < 0) return { content: thumbnail, url: "" }
 
   return {
     content: thumbnail.slice(0, separatorIndex),
@@ -223,7 +224,11 @@ export function getThumbnailInfo(thumbnail: string) {
   }
 }
 
-export function hyperlinkRenderer(params: string, type: any = undefined) {
+export function hyperlinkRenderer(
+  params: string,
+  type: any = undefined,
+  mediaId: string | null = null,
+) {
   let content, url, inner
 
   try {
@@ -259,12 +264,13 @@ export function hyperlinkRenderer(params: string, type: any = undefined) {
     if (!params || params.replace(/\W/g, '') == "" && type == "thumbnail") {
       content = "https://placehold.co/300x450?text=?"
       url = "https://www.themoviedb.org/"
+    } else {
+      const thumbnail = getThumbnailInfo(params)
+      content = thumbnail.content
+      url = thumbnail.url
     }
-    else {
-      const separatorIndex = params.indexOf("|")
-      content = params.slice(0, separatorIndex)
-      url = params.slice(separatorIndex + 1)
-    }
+
+    if (mediaId) url = `/media/${encodeURIComponent(mediaId)}`
 
     if (type == "thumbnail") {
       inner = <span>
