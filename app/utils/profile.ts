@@ -1,6 +1,7 @@
 import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
 
 export const PROFILE_COMMENT_MAX_LENGTH = 1000
+export const PROFILE_BIO_MAX_LENGTH = 5000
 
 /**
  * Shared types for the profile page (`users+/$username`).
@@ -47,6 +48,7 @@ export type ProfileUser = {
 	id: string
 	name: string | null
 	username: string
+	bio: string | null
 	createdAt: Date | string
 	image: { id: string } | null
 	banner: { id: string } | null
@@ -77,6 +79,7 @@ export type ProfileCommentItem = {
 export type ProfileData = {
 	user: ProfileUser
 	userJoinedDisplay: string
+	lastActiveDisplay: string | null
 	listTypes: ListTypeMeta[]
 	watchLists: WatchlistMeta[]
 	typedWatchlists: Record<string, WatchlistMeta[]>
