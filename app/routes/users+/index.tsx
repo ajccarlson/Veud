@@ -23,8 +23,8 @@ const UserSearchResultSchema = z.object({
 
 const UserSearchResultsSchema = z.array(UserSearchResultSchema)
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const searchTerm = new URL(request.url).searchParams.get('search')
+export async function loader({ url }: LoaderFunctionArgs) {
+	const searchTerm = url.searchParams.get('search')
 	if (searchTerm === '') {
 		return redirect('/users')
 	}

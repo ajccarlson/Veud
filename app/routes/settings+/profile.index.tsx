@@ -49,8 +49,8 @@ export const ProfileFormSchema = z.object({
 		.optional(),
 })
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUniqueOrThrow({
 		where: { id: userId },
 		select: {
@@ -103,8 +103,8 @@ const profileUpdateActionIntent = 'update-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteDataActionIntent = 'delete-data'
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 	const intent = formData.get('intent')
 	switch (intent) {

@@ -52,8 +52,8 @@ const BannerFormSchema = z.discriminatedUnion('intent', [
 	NewImageSchema,
 ])
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
 		select: {
@@ -67,8 +67,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({ user })
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await parseFormData(request, {
 		maxFiles: 1,
 		maxFileSize: MAX_SIZE,

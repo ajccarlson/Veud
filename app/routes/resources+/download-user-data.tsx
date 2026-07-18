@@ -3,8 +3,8 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl } from '#app/utils/misc.tsx'
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUniqueOrThrow({
 		where: { id: userId },
 		// this is one of the *few* instances where you can use "include" because

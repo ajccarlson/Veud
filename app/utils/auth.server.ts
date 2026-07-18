@@ -63,11 +63,14 @@ export async function getUserId(request: Request) {
 
 export async function requireUserId(
 	request: Request,
-	{ redirectTo }: { redirectTo?: string | null } = {},
+	{
+		redirectTo,
+		url,
+	}: { redirectTo?: string | null; url?: URL } = {},
 ) {
 	const userId = await getUserId(request)
 	if (!userId) {
-		const requestUrl = new URL(request.url)
+		const requestUrl = url ?? new URL(request.url)
 		redirectTo =
 			redirectTo === null
 				? null

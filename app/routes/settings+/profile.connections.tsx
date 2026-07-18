@@ -51,8 +51,8 @@ async function userCanDeleteConnections(userId: string) {
 	return Boolean(user?._count.connections && user?._count.connections > 1)
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const timings = makeTimings('profile connections loader')
 	const rawConnections = await prisma.connection.findMany({
 		select: { id: true, providerName: true, providerId: true, createdAt: true },
@@ -100,8 +100,8 @@ export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
 	)
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 	invariantResponse(
 		formData.get('intent') === 'delete-connection',

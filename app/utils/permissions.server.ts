@@ -5,8 +5,9 @@ import { type PermissionString, parsePermissionString } from './user.ts'
 export async function requireUserWithPermission(
 	request: Request,
 	permission: PermissionString,
+	{ url }: { url?: URL } = {},
 ) {
-	const userId = await requireUserId(request)
+	const userId = await requireUserId(request, { url })
 	const permissionData = parsePermissionString(permission)
 	const user = await prisma.user.findFirst({
 		select: { id: true },
@@ -39,8 +40,12 @@ export async function requireUserWithPermission(
 	return user.id
 }
 
-export async function requireUserWithRole(request: Request, name: string) {
-	const userId = await requireUserId(request)
+export async function requireUserWithRole(
+	request: Request,
+	name: string,
+	{ url }: { url?: URL } = {},
+) {
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findFirst({
 		select: { id: true },
 		where: { id: userId, roles: { some: { name } } },

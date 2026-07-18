@@ -37,10 +37,10 @@ export const VerifySchema = z.object({
 	[redirectToQueryParam]: z.string().optional(),
 })
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, url }: ActionFunctionArgs) {
 	const formData = await request.formData()
 	checkHoneypot(formData)
-	return validateRequest(request, formData)
+	return validateRequest(request, url, formData)
 }
 
 export default function VerifyRoute() {

@@ -39,22 +39,22 @@ const ChangeEmailSchema = z.object({
 	email: EmailSchema,
 })
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	await requireRecentVerification(request)
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireRecentVerification(request, url)
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
 		select: { email: true },
 	})
 	if (!user) {
-		const params = new URLSearchParams({ redirectTo: request.url })
+		const params = new URLSearchParams({ redirectTo: url.toString() })
 		throw redirect(`/login?${params}`)
 	}
 	return json({ user })
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 	const submission = await parseWithZod(formData, {
 		schema: ChangeEmailSchema.superRefine(async (data, ctx) => {

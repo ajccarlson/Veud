@@ -57,14 +57,14 @@ async function requirePassword(userId: string) {
 	}
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	await requirePassword(userId)
 	return json({})
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	await requirePassword(userId)
 	const formData = await request.formData()
 	const submission = await parseWithZod(formData, {

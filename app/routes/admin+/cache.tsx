@@ -34,9 +34,9 @@ export const handle: SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	await requireUserWithRole(request, 'admin')
-	const searchParams = new URL(request.url).searchParams
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireUserWithRole(request, 'admin', { url })
+	const searchParams = url.searchParams
 	const query = searchParams.get('query')
 	if (query === '') {
 		searchParams.delete('query')
@@ -59,8 +59,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({ cacheKeys, instance, instances, currentInstanceInfo })
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	await requireUserWithRole(request, 'admin')
+export async function action({ request, url }: ActionFunctionArgs) {
+	await requireUserWithRole(request, 'admin', { url })
 	const formData = await request.formData()
 	const key = formData.get('cacheKey')
 	const { currentInstance } = await getInstanceInfo()

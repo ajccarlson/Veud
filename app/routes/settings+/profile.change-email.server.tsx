@@ -13,9 +13,10 @@ import { newEmailAddressSessionKey } from './profile.change-email'
 
 export async function handleVerification({
 	request,
+	url,
 	submission,
 }: VerifyFunctionArgs) {
-	await requireRecentVerification(request)
+	await requireRecentVerification(request, url)
 	invariant(
 		submission.status === 'success',
 		'Submission should be successful by now',
