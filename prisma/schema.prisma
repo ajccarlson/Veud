@@ -76,11 +76,48 @@ model Watchlist {
   @@index([typeId])
 }
 
+/// A provider-backed work shared by every user who tracks the same title.
+///
+/// Catalog metadata intentionally remains on Entry during the first Tracking V2
+/// migration. Media is identity-only until a trusted server-side hydration job can
+/// populate shared titles, artwork, and descriptions from the upstream providers.
+model Media {
+  id        String   @id @default(cuid())
+  kind      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  externalIds MediaExternalId[]
+  entries     Entry[]
+  favorites   UserFavorite[]
+
+  @@index([kind])
+}
+
+/// A stable identifier assigned by an upstream catalog. `kind` participates in
+/// the unique key because TMDB movie and TV identifiers can overlap, as can MAL
+/// anime and manga identifiers.
+model MediaExternalId {
+  id         String @id @default(cuid())
+  provider   String
+  kind       String
+  externalId String
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([provider, kind, externalId])
+  @@index([mediaId])
+}
+
 model Entry {
   id                  String @id @default(cuid())
 
   watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   watchlistId         String
+
+  media               Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId             String?
 
   // Shared core — present on every entry regardless of media type
   position            Int
@@ -123,6 +160,7 @@ model Entry {
 
   // non-unique foreign key
   @@index([watchlistId])
+  @@index([mediaId])
 }
 
 model UserFavorite {
@@ -139,9 +177,13 @@ model UserFavorite {
   owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId     String
 
+  media       Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId     String?
+
   // non-unique foreign key
   @@index([typeId])
   @@index([ownerId])
+  @@index([mediaId])
 }
 
 model UserImage {

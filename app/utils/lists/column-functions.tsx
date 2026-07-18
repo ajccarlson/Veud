@@ -2,6 +2,10 @@ import { MediaSearchBar, MediaTypeDropdown } from '#app/components/search-add-wa
 import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/grid-actions.ts'
 import { searchMAL, getAnimeInfo, getMangaInfo } from "#app/routes/media+/mal.ts"
 import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.ts"
+import {
+  mediaIdentityForMal,
+  mediaIdentityForTmdb,
+} from '#app/utils/media-identity.ts'
 
 export function dateFormatter(params: any) {
   try {
@@ -388,15 +392,15 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 
   if (columnParams.listTypeData.name == "liveaction") {
     resultInfo = await getTMDBInfo(entryInfo.id, params.data.type)
-    updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , language: resultInfo.language, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, tmdbScore: resultInfo.score, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+    updateRow = {/*id: " ", */mediaIdentity: mediaIdentityForTmdb(entryInfo.id, resultInfo.type), watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, airYear: String(resultInfo.year), releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , language: resultInfo.language, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, tmdbScore: resultInfo.score, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
   }
   else if (columnParams.listTypeData.name == "anime") {
     resultInfo = await getAnimeInfo(entryInfo.id)
-    updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , studios: JSON.stringify(resultInfo.studios), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+    updateRow = {/*id: " ", */mediaIdentity: mediaIdentityForMal(entryInfo.id, 'anime'), watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startSeason: resultInfo.startSeason.name, releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), length: resultInfo.length, rating: resultInfo.rating, history: params.data.history, genres: resultInfo.genres , studios: JSON.stringify(resultInfo.studios), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, sound: params.data.sound, performance: params.data.performance, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
   }
   else if (columnParams.listTypeData.name == "manga") {
     resultInfo = await getMangaInfo(entryInfo.id)
-    updateRow = {/*id: " ", */watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), history: params.data.history, genres: resultInfo.genres , serialization: JSON.stringify(resultInfo.serialization), authors: JSON.stringify(resultInfo.authors), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
+    updateRow = {/*id: " ", */mediaIdentity: mediaIdentityForMal(entryInfo.id, 'manga'), watchlistId: params.data.watchlistId, position: params.data.position, thumbnail: resultInfo.thumbnail, title: resultInfo.title, type: resultInfo.type, startYear: String(resultInfo.startYear), releaseStart: new Date(resultInfo.releaseStart), releaseEnd: new Date(resultInfo.releaseEnd), nextRelease:  JSON.stringify(resultInfo.nextRelease), chapters: String(resultInfo.chapters), volumes: String(resultInfo.volumes), history: params.data.history, genres: resultInfo.genres , serialization: JSON.stringify(resultInfo.serialization), authors: JSON.stringify(resultInfo.authors), priority: params.data.priority, story: params.data.story, character: params.data.character, presentation: params.data.presentation, enjoyment: params.data.enjoyment, averaged: params.data.averaged, personal: params.data.personal, differencePersonal: params.data.differencePersonal, malScore: resultInfo.malScore, differenceObjective: params.data.differenceObjective, description: resultInfo.description, notes: params.data.notes}
   }
 
   const rowUpdateResponse = await fetch('/lists/fetch/update-row/' + encodeURIComponent(new URLSearchParams({
@@ -405,10 +409,10 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
     rowIndex: params.data.id,
     row: JSON.stringify(updateRow)
   } as any).toString()), { method: 'POST' })
-  const rowUpdateData = await rowUpdateResponse.json();
+  await rowUpdateResponse.json();
   //console.log(rowUpdateData)
 
-  const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+  await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
     authorization: columnParams.VEUD_API_KEY,
     watchlistId: params.data.watchlistId
   } as any).toString()), { method: 'POST' })
