@@ -79,13 +79,34 @@ model Watchlist {
 }
 
 /// A provider-backed work shared by every user who tracks the same title.
-///
-/// Catalog metadata intentionally remains on Entry during the first Tracking V2
-/// migration. Media is identity-only until a trusted server-side hydration job can
-/// populate shared titles, artwork, and descriptions from the upstream providers.
+/// Entry retains a legacy snapshot during the transition, while these fields are
+/// the canonical catalog record used by title-centric pages and future discovery.
 model Media {
   id        String   @id @default(cuid())
   kind      String
+
+  thumbnail     String?
+  title         String?
+  type          String?
+  releaseStart  DateTime?
+  releaseEnd    DateTime?
+  nextRelease   String?
+  genres        String?
+  description   String?
+  airYear       String?
+  startSeason   String?
+  startYear     String?
+  length        String?
+  chapters      String?
+  volumes       String?
+  rating        String?
+  language      String?
+  studios       String?
+  serialization String?
+  authors       String?
+  tmdbScore     Decimal?
+  malScore      Decimal?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

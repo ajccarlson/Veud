@@ -101,6 +101,14 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 	expect(first.id).not.toBe('client-chosen-id')
 	expect(first.mediaId).not.toBe(unrelatedMedia.id)
 	expect(second.mediaId).toBe(first.mediaId)
+	expect(
+		await prisma.media.findUniqueOrThrow({ where: { id: first.mediaId as string } }),
+	).toEqual(
+		expect.objectContaining({
+			title: 'The Shawshank Redemption',
+			thumbnail,
+		}),
+	)
 	expect(await prisma.mediaExternalId.findMany()).toEqual([
 		expect.objectContaining({
 			provider: 'tmdb',
@@ -168,6 +176,11 @@ test('favorites use session ownership and validated canonical identity', async (
 
 	expect(favorite.ownerId).toBe(owner.ownerId)
 	expect(favorite.mediaId).not.toBe(unrelatedMedia.id)
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: favorite.mediaId as string },
+		}),
+	).toEqual(expect.objectContaining({ title: 'Berserk' }))
 	expect(
 		await prisma.mediaExternalId.findUnique({
 			where: {

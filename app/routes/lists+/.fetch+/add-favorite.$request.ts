@@ -51,8 +51,17 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	}
 
 	return await prisma.$transaction(async tx => {
+		const favoriteCatalog = {
+			...data,
+			type: favoriteObj.mediaType,
+			...(mediaIdentity?.kind === 'anime'
+				? { startSeason: favoriteObj.startYear }
+				: mediaIdentity?.kind === 'manga'
+					? { startYear: favoriteObj.startYear }
+					: { airYear: favoriteObj.startYear }),
+		}
 		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity)
+			? await ensureMediaForIdentity(tx, mediaIdentity, favoriteCatalog)
 			: undefined
 
 		// `data` is a runtime-validated object; Prisma's create input can't be inferred from

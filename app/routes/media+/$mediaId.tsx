@@ -18,6 +18,11 @@ import { Label } from '#app/components/ui/label.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	mediaCatalogSelect,
+	resolveMediaCatalog,
+	type MediaCatalogSnapshot,
+} from '#app/utils/media-catalog.ts'
+import {
 	externalMediaUrl,
 	legacyProgressUpdate,
 	listTypeNameForMediaKind,
@@ -95,7 +100,10 @@ function representativeEntry(entries: CatalogEntry[]) {
 		)[0]
 }
 
-function catalogCreateData(entry: CatalogEntry | undefined, kind: string) {
+function catalogCreateData(
+	entry: MediaCatalogSnapshot | undefined,
+	kind: string,
+) {
 	return {
 		thumbnail: entry?.thumbnail,
 		title: entry?.title?.trim() || `Untitled ${kind}`,
@@ -121,7 +129,7 @@ function catalogCreateData(entry: CatalogEntry | undefined, kind: string) {
 	}
 }
 
-function progressTotal(entry: CatalogEntry | undefined, unit: string) {
+function progressTotal(entry: MediaCatalogSnapshot | undefined, unit: string) {
 	if (unit === 'episode') return totalFromLegacyCounter(entry?.length)
 	if (unit === 'chapter') return totalFromLegacyCounter(entry?.chapters)
 	if (unit === 'volume') return totalFromLegacyCounter(entry?.volumes)
@@ -153,6 +161,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		select: {
 			id: true,
 			kind: true,
+			...mediaCatalogSelect,
 			externalIds: {
 				select: { provider: true, kind: true, externalId: true },
 				orderBy: [{ provider: 'asc' }, { externalId: 'asc' }],
@@ -162,7 +171,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	})
 	invariantResponse(media, 'Media not found', { status: 404 })
 
-	const catalog = representativeEntry(media.entries)
+	const catalog = resolveMediaCatalog(
+		media,
+		representativeEntry(media.entries),
+	)
 	const listTypeName = listTypeNameForMediaKind(media.kind)
 	const [community, viewerState, viewerEntries, viewerWatchlists] =
 		await Promise.all([
@@ -340,6 +352,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			select: {
 				id: true,
 				kind: true,
+				...mediaCatalogSelect,
 				entries: { select: catalogEntrySelect },
 			},
 		})
@@ -347,6 +360,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const listTypeName = listTypeNameForMediaKind(media.kind)
 		if (!listTypeName)
 			throw new Response('Unsupported media kind', { status: 400 })
+		const catalog = resolveMediaCatalog(
+			media,
+			representativeEntry(media.entries),
+		)
 		let entries = await tx.entry.findMany({
 			where: { mediaId, watchlist: { ownerId: userId } },
 			include: { watchlist: true, media: true },
@@ -394,10 +411,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				} else {
 					await tx.entry.create({
 						data: {
-							...catalogCreateData(
-								representativeEntry(media.entries),
-								media.kind,
-							),
+							...catalogCreateData(catalog, media.kind),
 							watchlistId: destination.id,
 							mediaId,
 							position: (maxPosition._max.position ?? 0) + 1,
@@ -501,7 +515,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const total =
 			savedProgress?.total ??
 			progressTotal(primary, parsed.data.unit) ??
-			progressTotal(representativeEntry(media.entries), parsed.data.unit)
+			progressTotal(catalog, parsed.data.unit)
 		if (total !== null && parsed.data.current > total) {
 			throw new Response('Progress cannot exceed the known total', {
 				status: 400,

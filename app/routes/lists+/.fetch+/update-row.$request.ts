@@ -6,6 +6,7 @@ import {
 } from '#app/utils/lists/authorization.server.ts'
 import {
 	ensureMediaForIdentity,
+	hydrateMediaCatalog,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
 import {
@@ -61,7 +62,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	return await prisma.$transaction(async tx => {
 		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity)
+			? await ensureMediaForIdentity(tx, mediaIdentity, data)
 			: (entry.mediaId ?? undefined)
 		const mediaKind = mediaIdentity
 			? mediaIdentity.kind
@@ -73,6 +74,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
 						})
 					)?.kind
 				: undefined
+		if (mediaId && !mediaIdentity) {
+			await hydrateMediaCatalog(tx, mediaId, data)
+		}
 		const trackingStateId =
 			mediaId && mediaKind
 				? await ensureTrackingStateForEntry(tx, {

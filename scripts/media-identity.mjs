@@ -6,6 +6,38 @@
  * application's TypeScript ensureMediaForIdentity function without coupling the
  * import command to the app build.
  */
+const mediaCatalogFields = [
+	'thumbnail',
+	'title',
+	'type',
+	'releaseStart',
+	'releaseEnd',
+	'nextRelease',
+	'genres',
+	'description',
+	'airYear',
+	'startSeason',
+	'startYear',
+	'length',
+	'chapters',
+	'volumes',
+	'rating',
+	'language',
+	'studios',
+	'serialization',
+	'authors',
+	'tmdbScore',
+	'malScore',
+]
+
+function catalogDataFromRow(row) {
+	return Object.fromEntries(
+		mediaCatalogFields
+			.filter(field => row[field] !== undefined && row[field] !== null && row[field] !== '')
+			.map(field => [field, row[field]]),
+	)
+}
+
 export async function createEntryWithMediaIdentity(prisma, row, identity) {
 	return prisma.$transaction(async tx => {
 		const externalId = await tx.mediaExternalId.upsert({
@@ -17,6 +49,13 @@ export async function createEntryWithMediaIdentity(prisma, row, identity) {
 			},
 			select: { mediaId: true },
 		})
+		const catalog = catalogDataFromRow(row)
+		if (Object.keys(catalog).length > 0) {
+			await tx.media.update({
+				where: { id: externalId.mediaId },
+				data: catalog,
+			})
+		}
 		const watchlist = await tx.watchlist.findUnique({
 			where: { id: row.watchlistId },
 			select: { id: true, name: true, ownerId: true },
