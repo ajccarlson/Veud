@@ -1,18 +1,17 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import {
-	json,
+	data as json,
 	redirect,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type MetaFunction,
-} from '@remix-run/node'
-import {
 	Form,
 	useActionData,
 	useLoaderData,
 	useSearchParams,
-} from '@remix-run/react'
+} from 'react-router'
+
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod'
@@ -67,7 +66,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
 	const email = await requireOnboardingEmail(request)
 	const formData = await request.formData()
-	checkHoneypot(formData)
+	await checkHoneypot(formData)
 	const submission = await parseWithZod(formData, {
 		schema: intent =>
 			SignupFormSchema.superRefine(async (data, ctx) => {

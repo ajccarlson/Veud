@@ -1,10 +1,13 @@
 import '#app/styles/home.scss'
-import { json, type LoaderFunctionArgs } from '@remix-run/node'
-import { useLoaderData } from '@remix-run/react'
+import {
+	data as json,
+	type LoaderFunctionArgs,
+	useLoaderData,
+} from 'react-router'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
-import { prisma } from '#app/utils/db.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
 export async function loader({ request }: LoaderFunctionArgs) {

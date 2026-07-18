@@ -1,16 +1,20 @@
-import { json, type LoaderFunctionArgs } from "@remix-run/node"
-import { useLoaderData } from '@remix-run/react'
+import { data as json, type LoaderFunctionArgs } from 'react-router'
+import { useLoaderData } from 'react-router'
 import { useOptionalUser } from '#app/utils/user.ts'
-import { Link } from '@remix-run/react'
+import { Link } from 'react-router'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
-import { timeSince, getStartYear, getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
+import {
+	timeSince,
+	getStartYear,
+	getThumbnailInfo,
+} from '#app/utils/lists/column-functions.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { invariantResponse } from '@epic-web/invariant'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { GetWatchlistSettings } from "#app/routes/lists+/.$username+/.$list-type+/_settings.tsx"
-import "#app/styles/list-landing.scss"
+import { GetWatchlistSettings } from '#app/routes/lists+/.$username+/.$list-type+/_settings.tsx'
+import '#app/styles/list-landing.scss'
 
 async function createNewList(listParams: any) {
   const typeId = listParams.listTypeData.id

@@ -1,12 +1,18 @@
-import { json, redirect, type LoaderFunctionArgs } from '@remix-run/node'
-import { Link, useLoaderData } from '@remix-run/react'
+import {
+	data as json,
+	redirect,
+	type LoaderFunctionArgs,
+	Link,
+	useLoaderData,
+} from 'react-router'
+
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
-import "#app/styles/users.scss"
+import '#app/styles/users.scss'
 
 const UserSearchResultSchema = z.object({
 	id: z.string(),
@@ -17,8 +23,8 @@ const UserSearchResultSchema = z.object({
 
 const UserSearchResultsSchema = z.array(UserSearchResultSchema)
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const searchTerm = new URL(request.url).searchParams.get('search')
+export async function loader({ url }: LoaderFunctionArgs) {
+	const searchTerm = url.searchParams.get('search')
 	if (searchTerm === '') {
 		return redirect('/users')
 	}

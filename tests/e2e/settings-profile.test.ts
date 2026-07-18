@@ -8,16 +8,27 @@ import { expect, test, createUser, waitFor } from '#tests/playwright-utils.ts'
 const CODE_REGEX = /Here's your verification code: (?<code>[\d\w]+)/
 
 test('Users can update their basic info', async ({ page, login }) => {
-	await login()
+	const user = await login()
 	await page.goto('/settings/profile')
 
 	const newUserData = createUser()
+	const bio = '## About me\n\nI track **anime**, manga, and films.'
 
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(newUserData.username)
+	await page.getByRole('textbox', { name: /about/i }).fill(bio)
 
 	await page.getByRole('button', { name: /^save/i }).click()
+
+	await expect
+		.poll(async () =>
+			prisma.user.findUnique({
+				where: { id: user.id },
+				select: { username: true, bio: true },
+			}),
+		)
+		.toEqual({ username: newUserData.username, bio })
 })
 
 test('Users can update their password', async ({ page, login }) => {
@@ -64,7 +75,7 @@ test('Users can update their profile photo', async ({ page, login }) => {
 	await expect(page).toHaveURL(`/settings/profile/photo`)
 
 	await page
-		.getByRole('textbox', { name: /change/i })
+		.getByLabel(/^change$/i)
 		.setInputFiles('./tests/fixtures/images/user/kody.png')
 
 	await page.getByRole('button', { name: /save/i }).click()

@@ -1,9 +1,12 @@
 import { ResponsiveWaffle } from '@nivo/waffle'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveWaffle (data: any, waffleDimensions: any) {
   return (
     <div className="user-landing-stats-waffle-chart">
       <ResponsiveWaffle
+        colors={veudChartColors}
+        theme={veudNivoTheme}
           data={data}
           total={100}
           rows={waffleDimensions.x}
@@ -11,7 +14,6 @@ function MyResponsiveWaffle (data: any, waffleDimensions: any) {
           padding={1}
           valueFormat=".2f"
           margin={{ top: 10, right: 10, bottom: 10, left: 120 }}
-          colors={{ scheme: 'nivo' }}
           tooltip={(point: any) => {
             // console.log(point)
             return (

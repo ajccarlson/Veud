@@ -1,19 +1,17 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
+import * as QRCode from 'qrcode'
 import {
-	json,
+	data as json,
 	redirect,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-} from '@remix-run/node'
-import {
 	Form,
 	useActionData,
 	useLoaderData,
 	useNavigation,
-} from '@remix-run/react'
-import * as QRCode from 'qrcode'
+} from 'react-router'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -45,8 +43,8 @@ const ActionSchema = z.discriminatedUnion('intent', [
 
 export const twoFAVerifyVerificationType = '2fa-verify'
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const verification = await prisma.verification.findUnique({
 		where: {
 			target_type: { type: twoFAVerifyVerificationType, target: userId },
@@ -76,8 +74,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({ otpUri, qrCode })
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 
 	const submission = await parseWithZod(formData, {

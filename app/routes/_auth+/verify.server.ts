@@ -1,6 +1,6 @@
 import { type Submission } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
-import { json } from '@remix-run/node'
+import { data as json } from 'react-router'
 import { z } from 'zod'
 import { handleVerification as handleChangeEmailVerification } from '#app/routes/settings+/profile.change-email.server.tsx'
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx'
@@ -15,6 +15,7 @@ import {
 	shouldRequestTwoFA,
 } from './login.server.ts'
 import { handleVerification as handleOnboardingVerification } from './onboarding.server.ts'
+import { handleVerification as handleProviderOnboardingVerification } from './onboarding_.$provider.server.ts'
 import { handleVerification as handleResetPasswordVerification } from './reset-password.server.ts'
 import {
 	VerifySchema,
@@ -27,6 +28,7 @@ import {
 
 export type VerifyFunctionArgs = {
 	request: Request
+	url: URL
 	submission: Submission<
 		z.input<typeof VerifySchema>,
 		string[],
@@ -55,16 +57,15 @@ export function getRedirectToUrl({
 	return redirectToUrl
 }
 
-export async function requireRecentVerification(request: Request) {
-	const userId = await requireUserId(request)
+export async function requireRecentVerification(request: Request, url: URL) {
+	const userId = await requireUserId(request, { url })
 	const shouldReverify = await shouldRequestTwoFA(request)
 	if (shouldReverify) {
-		const reqUrl = new URL(request.url)
 		const redirectUrl = getRedirectToUrl({
 			request,
 			target: userId,
 			type: twoFAVerificationType,
-			redirectTo: reqUrl.pathname + reqUrl.search,
+			redirectTo: url.pathname + url.search,
 		})
 		throw await redirectWithToast(redirectUrl.toString(), {
 			title: 'Please Reverify',
@@ -139,6 +140,7 @@ export async function isCodeValid({
 
 export async function validateRequest(
 	request: Request,
+	url: URL,
 	body: URLSearchParams | FormData,
 ) {
 	const submission = await parseWithZod(body, {
@@ -183,18 +185,32 @@ export async function validateRequest(
 	switch (submissionValue[typeQueryParam]) {
 		case 'reset-password': {
 			await deleteVerification()
-			return handleResetPasswordVerification({ request, body, submission })
+			return handleResetPasswordVerification({ request, url, body, submission })
 		}
 		case 'onboarding': {
 			await deleteVerification()
-			return handleOnboardingVerification({ request, body, submission })
+			return handleOnboardingVerification({ request, url, body, submission })
+		}
+		case 'onboarding-provider': {
+			await deleteVerification()
+			return handleProviderOnboardingVerification({
+				request,
+				url,
+				body,
+				submission,
+			})
 		}
 		case 'change-email': {
 			await deleteVerification()
-			return handleChangeEmailVerification({ request, body, submission })
+			return handleChangeEmailVerification({ request, url, body, submission })
 		}
 		case '2fa': {
-			return handleLoginTwoFactorVerification({ request, body, submission })
+			return handleLoginTwoFactorVerification({
+				request,
+				url,
+				body,
+				submission,
+			})
 		}
 	}
 }

@@ -1,12 +1,16 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import {
-	json,
+	data as json,
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
-} from '@remix-run/node'
-import { Form, Link, useActionData, useSearchParams } from '@remix-run/react'
+	Form,
+	Link,
+	useActionData,
+	useSearchParams,
+} from 'react-router'
+
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -38,7 +42,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
 	await requireAnonymous(request)
 	const formData = await request.formData()
-	checkHoneypot(formData)
+	await checkHoneypot(formData)
 	const submission = await parseWithZod(formData, {
 		schema: intent =>
 			LoginFormSchema.transform(async (data, ctx) => {

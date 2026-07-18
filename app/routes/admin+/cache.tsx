@@ -1,19 +1,17 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
-	json,
+	data as json,
 	redirect,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-} from '@remix-run/node'
-import {
 	Form,
 	Link,
 	useFetcher,
 	useLoaderData,
 	useSearchParams,
 	useSubmit,
-} from '@remix-run/react'
+} from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary'
 import { Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
@@ -36,9 +34,9 @@ export const handle: SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	await requireUserWithRole(request, 'admin')
-	const searchParams = new URL(request.url).searchParams
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireUserWithRole(request, 'admin', { url })
+	const searchParams = url.searchParams
 	const query = searchParams.get('query')
 	if (query === '') {
 		searchParams.delete('query')
@@ -61,8 +59,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({ cacheKeys, instance, instances, currentInstanceInfo })
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	await requireUserWithRole(request, 'admin')
+export async function action({ request, url }: ActionFunctionArgs) {
+	await requireUserWithRole(request, 'admin', { url })
 	const formData = await request.formData()
 	const key = formData.get('cacheKey')
 	const { currentInstance } = await getInstanceInfo()

@@ -1,9 +1,12 @@
 import { ResponsiveRadialBar } from '@nivo/radial-bar'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveRadialBar(data: any)  {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-radial-bar-chart">
       <ResponsiveRadialBar
+        colors={veudChartColors}
+        theme={veudNivoTheme}
         data={data}
         padding={0.4}
         cornerRadius={2}

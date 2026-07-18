@@ -1,5 +1,5 @@
-// import { useLocation, useMatches } from '@remix-run/react'
-// import * as Sentry from '@sentry/remix'
+// import { useLocation, useMatches } from 'react-router'
+// import * as Sentry from '@sentry/react-router'
 // import { useEffect } from 'react'
 
 // export function init() {

@@ -1,9 +1,12 @@
 import { ResponsivePie } from '@nivo/pie'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsivePie(data: any, fill: any) {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-pie-chart">
       <ResponsivePie
+        colors={veudChartColors}
+        theme={veudNivoTheme}
         data={data}
         margin={{ top: 40, right: 80, bottom: 80, left: 80 }}
         sortByValue={true}
@@ -11,7 +14,6 @@ function MyResponsivePie(data: any, fill: any) {
         padAngle={0.7}
         cornerRadius={3}
         activeOuterRadiusOffset={8}
-        colors={{ scheme: 'set3' }}
         borderWidth={1}
         borderColor={{
         from: 'color',

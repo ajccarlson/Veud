@@ -6,7 +6,11 @@
 import { AgGridReact } from '@ag-grid-community/react'
 import { useState, useEffect } from 'react'
 import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
-import { ModuleRegistry } from '@ag-grid-community/core'
+import {
+  ModuleRegistry,
+  type ColDef,
+  type GridOptions,
+} from '@ag-grid-community/core'
 import '@ag-grid-community/styles/ag-grid.css'
 import "#app/styles/watchlist.scss"
 import { getSiteIdSafe, getThumbnailInfo } from '#app/utils/lists/column-functions.tsx'
@@ -60,8 +64,8 @@ export function watchlistGrid(listEntriesPass: any, watchListData: any, listType
   return (
     <div className='ag-theme-custom-react'>
         <AgGridReact
-          gridOptions={gridOptions}
-          columnDefs={columnDefs()}
+          gridOptions={gridOptions as GridOptions}
+          columnDefs={columnDefs() as ColDef[]}
           rowData={listEntries}
           getRowId={(params: any) => params.data.id ?? '__new_entry__'}
           rowDragText={rowDragText}
