@@ -104,9 +104,39 @@ redirect loop.
 
 `start:prod` runs `scripts/backup-db.mjs` on start and hourly (a PM2 `cron_restart`), taking
 consistent, timestamped SQLite backups via the online-backup API — safe to run while the app is
+<<<<<<< HEAD
 live — and prunes old ones by retention. With no Fly volume anymore, **also copy the backups
 off-machine** (e.g. a scheduled `rsync` or object-storage upload) so a disk failure can't lose
 them. To restore: stop the app and copy a backup file back over the live database path.
+=======
+live — and pruning old ones by retention. Each snapshot is copied to a throwaway restore path and
+checked for SQLite integrity, foreign-key violations, required tables, and all repository
+migrations before it is retained.
+
+Run a one-off backup or repeat the restore drill against the newest snapshot with:
+
+```
+npm run db:backup
+npm run db:verify-backup
+# or choose a snapshot explicitly:
+npm run db:verify-backup -- backups/data-<timestamp>.db
+```
+
+Set `BACKUP_VERIFY_USERNAME` to a known production username to also fail verification if the
+snapshot came from the wrong/empty database. Set `BACKUP_OFFSITE_DIR` to an existing
+network-mounted or independently synced directory to atomically copy every verified snapshot there;
+`BACKUP_OFFSITE_KEEP` controls its retention and defaults to `BACKUP_KEEP`. A second directory on
+the same disk is not an off-machine backup.
+
+To restore the live database after a successful drill:
+
+```
+npm run stop:prod
+cp backups/data-<timestamp>.db prisma/data.db
+rm -f prisma/data.db-wal prisma/data.db-shm
+npm run start:prod
+```
+>>>>>>> develop
 
 #### Log rotation
 

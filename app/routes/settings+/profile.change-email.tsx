@@ -2,12 +2,24 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
+<<<<<<< HEAD
 	json,
 	redirect,
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 } from '@remix-run/node'
 import { Form, useActionData, useLoaderData } from '@remix-run/react'
+=======
+	data as json,
+	redirect,
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	Form,
+	useActionData,
+	useLoaderData,
+} from 'react-router'
+
+>>>>>>> develop
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -36,22 +48,37 @@ const ChangeEmailSchema = z.object({
 	email: EmailSchema,
 })
 
+<<<<<<< HEAD
 export async function loader({ request }: LoaderFunctionArgs) {
 	await requireRecentVerification(request)
 	const userId = await requireUserId(request)
+=======
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireRecentVerification(request, url)
+	const userId = await requireUserId(request, { url })
+>>>>>>> develop
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
 		select: { email: true },
 	})
 	if (!user) {
+<<<<<<< HEAD
 		const params = new URLSearchParams({ redirectTo: request.url })
+=======
+		const params = new URLSearchParams({ redirectTo: url.toString() })
+>>>>>>> develop
 		throw redirect(`/login?${params}`)
 	}
 	return json({ user })
 }
 
+<<<<<<< HEAD
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
+=======
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
+>>>>>>> develop
 	const formData = await request.formData()
 	const submission = await parseWithZod(formData, {
 		schema: ChangeEmailSchema.superRefine(async (data, ctx) => {

@@ -1,15 +1,24 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
+<<<<<<< HEAD
 import {
 	json,
+=======
+import { useRef } from 'react'
+import {
+	data as json,
+>>>>>>> develop
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type HeadersFunction,
 	type LinksFunction,
 	type MetaFunction,
+<<<<<<< HEAD
 } from '@remix-run/node'
 import {
+=======
+>>>>>>> develop
 	Form,
 	Link,
 	Links,
@@ -22,6 +31,7 @@ import {
 	useLoaderData,
 	// useMatches,
 	useSubmit,
+<<<<<<< HEAD
 } from '@remix-run/react'
 import "#app/styles/root.scss"
 import { withSentry } from '@sentry/remix'
@@ -29,6 +39,13 @@ import { useRef } from 'react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp';
+=======
+} from 'react-router'
+import '#app/styles/root.scss'
+import { HoneypotProvider } from 'remix-utils/honeypot/react'
+import { z } from 'zod'
+import logo from '#app/components/ui/icons/logoV3.webp'
+>>>>>>> develop
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
@@ -80,14 +97,24 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
+<<<<<<< HEAD
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
 	return [
 		{ title: data ? 'Veud' : 'Error | Veud' },
+=======
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
+	return [
+		{ title: loaderData ? 'Veud' : 'Error | Veud' },
+>>>>>>> develop
 		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
 	]
 }
 
+<<<<<<< HEAD
 export async function loader({ request }: LoaderFunctionArgs) {
+=======
+export async function loader({ request, url }: LoaderFunctionArgs) {
+>>>>>>> develop
 	const timings = makeTimings('root loader')
 	const userId = await time(() => getUserId(request), {
 		timings,
@@ -128,7 +155,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const listTypes = await prisma.listType.findMany()
 
 	const { toast, headers: toastHeaders } = await getToast(request)
+<<<<<<< HEAD
 	const honeyProps = honeypot.getInputProps()
+=======
+	const honeyProps = await honeypot.getInputProps()
+>>>>>>> develop
 
 	return json(
 		{
@@ -137,7 +168,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
+<<<<<<< HEAD
 				path: new URL(request.url).pathname,
+=======
+				path: url.pathname,
+>>>>>>> develop
 				userPrefs: {
 					theme: getTheme(request),
 				},
@@ -155,11 +190,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 }
 
+<<<<<<< HEAD
 export const headers: HeadersFunction = ({ loaderHeaders }) => {
 	const headers = {
 		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
 	}
 	return headers
+=======
+export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+	return combineHeaders(
+		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		loaderHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': loaderHeaders.get('Set-Cookie') ?? '' }
+			: null,
+		actionHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
+			: null,
+	)
+>>>>>>> develop
 }
 
 const ThemeFormSchema = z.object({
@@ -191,7 +239,11 @@ function Document({
 	children: React.ReactNode
 	nonce: string
 	theme?: Theme
+<<<<<<< HEAD
 	env?: Record<string, string>
+=======
+	env?: Record<string, string | undefined>
+>>>>>>> develop
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
@@ -302,7 +354,11 @@ function AppWithProviders() {
 	)
 }
 
+<<<<<<< HEAD
 export default withSentry(AppWithProviders)
+=======
+export default AppWithProviders
+>>>>>>> develop
 
 function CommunityDropdown() {
   return (
