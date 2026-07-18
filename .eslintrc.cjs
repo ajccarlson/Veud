@@ -2,16 +2,35 @@ const vitestFiles = ['app/**/__tests__/**/*', 'app/**/*.{spec,test}.*']
 const testFiles = ['**/tests/**', ...vitestFiles]
 const appFiles = ['app/**']
 
-/** @type {import('@types/eslint').Linter.Config} */
+/**
+ * This configuration follows the streamlined ESLint structure used by the
+ * official React Router templates. Project-specific rules are kept here so the
+ * migration does not discard Veud's existing lint policy.
+ *
+ * @type {import('@types/eslint').Linter.Config}
+ */
 module.exports = {
-	extends: [
-		'@remix-run/eslint-config',
-		'@remix-run/eslint-config/node',
-		'prettier',
-	],
+	root: true,
+	parserOptions: {
+		ecmaVersion: 'latest',
+		sourceType: 'module',
+		ecmaFeatures: { jsx: true },
+	},
+	env: {
+		browser: true,
+		commonjs: true,
+		es6: true,
+		node: true,
+	},
+	ignorePatterns: ['!**/.server', '!**/.client'],
+	extends: ['eslint:recommended', 'prettier'],
+	plugins: ['import'],
 	rules: {
-		// playwright requires destructuring in fixtures even if you don't use anything 🤷‍♂️
+		// Playwright requires destructuring in fixtures even if nothing is used.
 		'no-empty-pattern': 'off',
+		'no-async-promise-executor': 'off',
+		'no-empty': ['warn', { allowEmptyCatch: true }],
+		'no-useless-concat': 'warn',
 		'@typescript-eslint/consistent-type-imports': [
 			'warn',
 			{
@@ -39,19 +58,99 @@ module.exports = {
 	},
 	overrides: [
 		{
-			plugins: ['remix-react-routes'],
+			files: ['**/*.{js,jsx,ts,tsx}'],
+			plugins: ['react', 'react-hooks', 'jsx-a11y'],
+			extends: [
+				'plugin:react/recommended',
+				'plugin:react/jsx-runtime',
+				'plugin:react-hooks/recommended',
+				'plugin:jsx-a11y/recommended',
+				'prettier',
+			],
+			settings: {
+				react: {
+					version: 'detect',
+					formComponents: ['Form'],
+					linkComponents: [
+						{ name: 'Link', linkAttribute: 'to' },
+						{ name: 'NavLink', linkAttribute: 'to' },
+					],
+				},
+			},
+			rules: {
+				'jsx-a11y/alt-text': 'warn',
+				'jsx-a11y/click-events-have-key-events': 'off',
+				'jsx-a11y/no-autofocus': 'off',
+				'jsx-a11y/no-static-element-interactions': 'off',
+				'react/jsx-key': 'warn',
+				'react/no-unescaped-entities': 'off',
+			},
+		},
+		{
+			files: ['**/*.{ts,tsx}'],
+			parser: '@typescript-eslint/parser',
+			plugins: ['@typescript-eslint', 'import'],
+			extends: [
+				'plugin:@typescript-eslint/recommended',
+				'plugin:import/recommended',
+				'plugin:import/typescript',
+				'prettier',
+			],
+			settings: {
+				'import/ignore': ['node_modules', '\\.(css|md|svg|json)$'],
+				'import/parsers': {
+					'@typescript-eslint/parser': ['.ts', '.tsx', '.d.ts'],
+				},
+				'import/resolver': {
+					node: { extensions: ['.js', '.jsx', '.ts', '.tsx'] },
+					typescript: { alwaysTryTypes: true },
+				},
+			},
+			rules: {
+				'@typescript-eslint/ban-ts-comment': 'off',
+				'@typescript-eslint/ban-types': 'off',
+				'@typescript-eslint/no-empty-function': 'off',
+				'@typescript-eslint/no-empty-interface': 'off',
+				'@typescript-eslint/no-explicit-any': 'off',
+				'@typescript-eslint/no-inferrable-types': 'off',
+				'@typescript-eslint/no-namespace': 'off',
+				'@typescript-eslint/no-non-null-assertion': 'off',
+				'@typescript-eslint/no-var-requires': 'off',
+				'@typescript-eslint/no-use-before-define': [
+					'error',
+					{
+						functions: false,
+						classes: false,
+						variables: false,
+						typedefs: false,
+					},
+				],
+				'@typescript-eslint/no-unused-expressions': [
+					'error',
+					{
+						allowShortCircuit: true,
+						allowTernary: true,
+						allowTaggedTemplates: true,
+					},
+				],
+				'@typescript-eslint/no-unused-vars': [
+					'error',
+					{ args: 'none', ignoreRestSiblings: true },
+				],
+				'@typescript-eslint/consistent-type-assertions': 'warn',
+				'no-dupe-class-members': 'off',
+				'no-undef': 'off',
+				'no-use-before-define': 'off',
+				'no-unused-vars': 'off',
+				'no-var': 'off',
+				'prefer-const': 'off',
+				'prefer-rest-params': 'off',
+			},
+		},
+		{
 			files: appFiles,
 			excludedFiles: testFiles,
 			rules: {
-				'remix-react-routes/use-link-for-routes': 'error',
-				'remix-react-routes/require-valid-paths': 'error',
-				// disable this one because it doesn't appear to work with our
-				// route convention. Someone should dig deeper into this...
-				'remix-react-routes/no-relative-paths': [
-					'off',
-					{ allowLinksToSelf: true },
-				],
-				'remix-react-routes/no-urls': 'error',
 				'no-restricted-imports': [
 					'error',
 					{
@@ -66,19 +165,22 @@ module.exports = {
 			},
 		},
 		{
-			extends: ['@remix-run/eslint-config/jest-testing-library'],
 			files: vitestFiles,
+			plugins: ['jest', 'jest-dom', 'testing-library'],
+			extends: [
+				'plugin:jest/recommended',
+				'plugin:jest-dom/recommended',
+				'plugin:testing-library/react',
+				'prettier',
+			],
 			rules: {
 				'testing-library/no-await-sync-events': 'off',
+				'testing-library/no-container': 'off',
+				'testing-library/no-node-access': 'off',
 				'jest-dom/prefer-in-document': 'off',
 			},
-			// we're using vitest which has a very similar API to jest
-			// (so the linting plugins work nicely), but it means we have to explicitly
-			// set the jest version.
 			settings: {
-				jest: {
-					version: 28,
-				},
+				jest: { version: 28 },
 			},
 		},
 	],
