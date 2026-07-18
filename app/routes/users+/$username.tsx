@@ -226,7 +226,7 @@ export default function ProfileRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
+export const meta: MetaFunction<typeof loader> = ({ params }) => {
 	const displayName = params['username']
 	return [
 		{ title: `${displayName} | Veud` },

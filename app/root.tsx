@@ -77,9 +77,9 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => {
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
 	return [
-		{ title: data ? 'Veud' : 'Error | Veud' },
+		{ title: loaderData ? 'Veud' : 'Error | Veud' },
 		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
 	]
 }
