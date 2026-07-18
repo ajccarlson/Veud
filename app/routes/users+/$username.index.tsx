@@ -1,5 +1,6 @@
 import { useOutletContext } from '@remix-run/react'
 import { useState, useEffect } from 'react'
+import { ProfileAbout } from '#app/components/profile-about.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
@@ -28,6 +29,7 @@ export default function ProfileOverview() {
 
   return (
     <div className="user-landing-overview">
+      <ProfileAbout bio={loaderData.user.bio} />
       <StatsOverview data={loaderData} />
       <div className="user-landing-completion-history-container">
         <h1 className="user-landing-body-header">Completion History</h1>

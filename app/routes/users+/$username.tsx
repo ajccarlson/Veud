@@ -5,18 +5,22 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
 
 export async function loader(params: LoaderFunctionArgs) {
+	const viewerId = await getUserId(params.request)
 	const user = await prisma.user.findFirst({
 		select: {
 			id: true,
 			name: true,
 			username: true,
+			bio: true,
 			createdAt: true,
+			lastActiveAt: true,
 			image: { select: { id: true } },
 			banner: { select: { id: true } },
 			_count: { select: { followers: true, following: true } },
@@ -27,8 +31,17 @@ export async function loader(params: LoaderFunctionArgs) {
 	})
 
 	invariantResponse(user, 'User not found', { status: 404 })
+	const lastActiveDisplay = getLastActiveLabel(user.lastActiveAt)
+	const profileUser = {
+		id: user.id,
+		name: user.name,
+		username: user.username,
+		bio: user.bio,
+		createdAt: user.createdAt,
+		image: user.image,
+		banner: user.banner,
+	}
 
-	const viewerId = await getUserId(params.request)
 	const isFollowing =
 		viewerId && viewerId !== user.id
 			? Boolean(
@@ -78,7 +91,7 @@ export async function loader(params: LoaderFunctionArgs) {
 		return 0;
 	});
 
-	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
+	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
 }
 
 const PROFILE_TABS = [
@@ -143,6 +156,9 @@ export default function ProfileRoute() {
 						<span className="user-landing-hero-username">@{user.username}</span>
 						<span className="user-landing-hero-joined">
 							Joined {loaderData.userJoinedDisplay}
+						</span>
+						<span className="user-landing-hero-last-active">
+							{loaderData.lastActiveDisplay ?? 'Last active unavailable'}
 						</span>
 						<div className="user-landing-hero-stats">
 							<span>

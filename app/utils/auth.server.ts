@@ -5,6 +5,10 @@ import { Authenticator } from 'remix-auth'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { connectionSessionStorage, providers } from './connections.server.ts'
 import { prisma } from './db.server.ts'
+import {
+	LAST_ACTIVE_TOUCH_INTERVAL_MS,
+	shouldTouchLastActiveAt,
+} from './last-active.ts'
 import { combineHeaders, downloadFile } from './misc.tsx'
 import { type ProviderUser } from './providers/provider.ts'
 import { authSessionStorage } from './session.server.ts'
@@ -30,7 +34,7 @@ export async function getUserId(request: Request) {
 	const sessionId = authSession.get(sessionKey)
 	if (!sessionId) return null
 	const session = await prisma.session.findUnique({
-		select: { user: { select: { id: true } } },
+		select: { user: { select: { id: true, lastActiveAt: true } } },
 		where: { id: sessionId, expirationDate: { gt: new Date() } },
 	})
 	if (!session?.user) {
@@ -40,6 +44,22 @@ export async function getUserId(request: Request) {
 			},
 		})
 	}
+
+	const now = new Date()
+	if (shouldTouchLastActiveAt(session.user.lastActiveAt, now)) {
+		const staleBefore = new Date(now.getTime() - LAST_ACTIVE_TOUCH_INTERVAL_MS)
+		await prisma.user.updateMany({
+			where: {
+				id: session.user.id,
+				OR: [
+					{ lastActiveAt: null },
+					{ lastActiveAt: { lte: staleBefore } },
+				],
+			},
+			data: { lastActiveAt: now },
+		})
+	}
+
 	return session.user.id
 }
 
