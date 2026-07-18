@@ -40,7 +40,7 @@ const getHost = (req: { get: (key: string) => string | undefined }) =>
 // X-Forwarded-For and thereby control req.ip.
 app.set('trust proxy', 'loopback')
 
-// ensure HTTPS only (X-Forwarded-Proto comes from Fly)
+// ensure HTTPS only (X-Forwarded-Proto comes from Cloudflare Tunnel)
 app.use((req, res, next) => {
 	const proto = req.get('X-Forwarded-Proto')
 	const host = getHost(req)
