@@ -1,10 +1,13 @@
 import { ResponsiveLine } from '@nivo/line'
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 import { getStartYear } from "#app/utils/lists/column-functions.tsx"
 
 function MyResponsiveLine(data: any) {
   return (
     <div className="user-landing-stats-chart-container user-landing-stats-line-chart">
       <ResponsiveLine
+        colors={veudChartColors}
+        theme={veudNivoTheme}
         data={data}
         margin={{ top: 50, right: 110, bottom: 50, left: 60 }}
         xScale={{ type: 'point' }}

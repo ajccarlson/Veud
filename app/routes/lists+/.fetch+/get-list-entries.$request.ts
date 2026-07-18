@@ -1,4 +1,4 @@
-import { type LoaderFunctionArgs } from '@remix-run/node'
+import { type LoaderFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 
 // Watchlists are public (profile pages render them without a login), so reading a

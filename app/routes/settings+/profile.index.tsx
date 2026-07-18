@@ -1,21 +1,33 @@
-import { getFormProps, getInputProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	getTextareaProps,
+	useForm,
+} from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
-	json,
+	data as json,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-} from '@remix-run/node'
-import { Link, useFetcher, useLoaderData } from '@remix-run/react'
+	Link,
+	useFetcher,
+	useLoaderData,
+} from 'react-router'
 import { z } from 'zod'
-import { ErrorList, Field } from '#app/components/forms.tsx'
+import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
+import {
+	getUserBannerSrc,
+	getUserImgSrc,
+	useDoubleCheck,
+} from '#app/utils/misc.tsx'
+import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
@@ -25,21 +37,32 @@ export const handle: SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
-const ProfileFormSchema = z.object({
+export const ProfileFormSchema = z.object({
 	name: NameSchema.optional(),
 	username: UsernameSchema,
+	bio: z
+		.string()
+		.trim()
+		.max(PROFILE_BIO_MAX_LENGTH, {
+			message: `Bio must be ${PROFILE_BIO_MAX_LENGTH} characters or fewer`,
+		})
+		.optional(),
 })
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUniqueOrThrow({
 		where: { id: userId },
 		select: {
 			id: true,
 			name: true,
 			username: true,
+			bio: true,
 			email: true,
 			image: {
+				select: { id: true },
+			},
+			banner: {
 				select: { id: true },
 			},
 			_count: {
@@ -80,8 +103,8 @@ const profileUpdateActionIntent = 'update-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteDataActionIntent = 'delete-data'
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 	const intent = formData.get('intent')
 	switch (intent) {
@@ -122,6 +145,35 @@ export default function EditUserProfile() {
 							to="photo"
 							title="Change profile photo"
 							aria-label="Change profile photo"
+						>
+							<Icon name="camera" className="h-4 w-4" />
+						</Link>
+					</Button>
+				</div>
+			</div>
+			<div className="flex justify-center">
+				<div className="relative h-40 w-full max-w-2xl">
+					{data.user.banner?.id ? (
+						<img
+							src={getUserBannerSrc(data.user.banner.id) ?? ''}
+							alt={`${data.user.username} banner`}
+							className="h-full w-full rounded-2xl object-cover"
+						/>
+					) : (
+						<div className="flex h-full w-full items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+							No banner
+						</div>
+					)}
+					<Button
+						asChild
+						variant="outline"
+						className="absolute -right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full p-0"
+					>
+						<Link
+							preventScrollReset
+							to="banner"
+							title="Change profile banner"
+							aria-label="Change profile banner"
 						>
 							<Icon name="camera" className="h-4 w-4" />
 						</Link>
@@ -208,6 +260,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 		data: {
 			name: data.name,
 			username: data.username,
+			bio: data.bio === undefined ? undefined : data.bio || null,
 		},
 	})
 
@@ -231,6 +284,7 @@ function UpdateProfile() {
 		defaultValue: {
 			username: data.user.username,
 			name: data.user.name,
+			bio: data.user.bio,
 		},
 	})
 
@@ -251,6 +305,19 @@ function UpdateProfile() {
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={getInputProps(fields.name, { type: 'text' })}
 					errors={fields.name.errors}
+				/>
+				<TextareaField
+					className="col-span-full"
+					labelProps={{
+						htmlFor: fields.bio.id,
+						children: 'About (Markdown)',
+					}}
+					textareaProps={{
+						...getTextareaProps(fields.bio),
+						rows: 8,
+						placeholder: 'Tell people a little about yourself…',
+					}}
+					errors={fields.bio.errors}
 				/>
 			</div>
 

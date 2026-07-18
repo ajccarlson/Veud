@@ -1,19 +1,21 @@
 /// <reference types="vitest" />
 
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
 	plugins: [react()],
 	css: { postcss: { plugins: [] } },
 	test: {
-		include: ['./app/**/*.test.{ts,tsx}'],
+		include: [
+			'./app/**/*.test.{ts,tsx}',
+			'./scripts/**/*.test.mjs',
+		],
 		setupFiles: ['./tests/setup/setup-test-env.ts'],
 		globalSetup: ['./tests/setup/global-setup.ts'],
 		restoreMocks: true,
 		coverage: {
 			include: ['app/**/*.{ts,tsx}'],
-			all: true,
 			// Coverage floor on the security-critical access-control helpers so that a
 			// regression which drops their tests fails CI. These are conservative floors,
 			// not targets: run `npm run coverage` to see real numbers, ratchet up, and add

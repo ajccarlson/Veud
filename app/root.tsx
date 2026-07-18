@@ -1,15 +1,14 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
+import { useRef } from 'react'
 import {
-	json,
+	data as json,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type HeadersFunction,
 	type LinksFunction,
 	type MetaFunction,
-} from '@remix-run/node'
-import {
 	Form,
 	Link,
 	Links,
@@ -22,13 +21,11 @@ import {
 	useLoaderData,
 	// useMatches,
 	useSubmit,
-} from '@remix-run/react'
-import "#app/styles/root.scss"
-import { withSentry } from '@sentry/remix'
-import { useRef } from 'react'
+} from 'react-router'
+import '#app/styles/root.scss'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
-import logo from '#app/components/ui/icons/logoV3.webp';
+import logo from '#app/components/ui/icons/logoV3.webp'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
@@ -80,14 +77,14 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => {
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
 	return [
-		{ title: data ? 'Veud' : 'Error | Veud' },
+		{ title: loaderData ? 'Veud' : 'Error | Veud' },
 		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
 	]
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, url }: LoaderFunctionArgs) {
 	const timings = makeTimings('root loader')
 	const userId = await time(() => getUserId(request), {
 		timings,
@@ -128,7 +125,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const listTypes = await prisma.listType.findMany()
 
 	const { toast, headers: toastHeaders } = await getToast(request)
-	const honeyProps = honeypot.getInputProps()
+	const honeyProps = await honeypot.getInputProps()
 
 	return json(
 		{
@@ -137,7 +134,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
-				path: new URL(request.url).pathname,
+				path: url.pathname,
 				userPrefs: {
 					theme: getTheme(request),
 				},
@@ -155,11 +152,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 }
 
-export const headers: HeadersFunction = ({ loaderHeaders }) => {
-	const headers = {
-		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
-	}
-	return headers
+export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+	return combineHeaders(
+		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		loaderHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': loaderHeaders.get('Set-Cookie') ?? '' }
+			: null,
+		actionHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
+			: null,
+	)
 }
 
 const ThemeFormSchema = z.object({
@@ -191,7 +193,7 @@ function Document({
 	children: React.ReactNode
 	nonce: string
 	theme?: Theme
-	env?: Record<string, string>
+	env?: Record<string, string | undefined>
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
@@ -302,7 +304,7 @@ function AppWithProviders() {
 	)
 }
 
-export default withSentry(AppWithProviders)
+export default AppWithProviders
 
 function CommunityDropdown() {
   return (

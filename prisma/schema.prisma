@@ -15,17 +15,24 @@ model User {
   email    String  @unique
   username String  @unique
   name     String?
+  bio      String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime?
 
   image         UserImage?
+  banner         UserBanner?
   password      Password?
   watchlists    Watchlist[]
   userFavorites UserFavorite[]
   roles         Role[]
   sessions      Session[]
   connections   Connection[]
+  following     Follow[] @relation("UserFollowing")
+  followers     Follow[] @relation("UserFollowers")
+  commentsAuthored ProfileComment[] @relation("ProfileCommentAuthor")
+  profileComments  ProfileComment[] @relation("ProfileCommentProfile")
 }
 
 model ListType {
@@ -150,6 +157,19 @@ model UserImage {
   userId String @unique
 }
 
+model UserBanner {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
+}
+
 model Password {
   hash String
 
@@ -241,4 +261,37 @@ model Connection {
   userId String
 
   @@unique([providerName, providerId])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // The user doing the following.
+  follower   User   @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followerId String
+
+  // The user being followed.
+  following   User   @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followingId String
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model ProfileComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User   @relation("ProfileCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  profile   User   @relation("ProfileCommentProfile", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  profileId String
+
+  @@index([authorId])
+  @@index([profileId, createdAt])
 }

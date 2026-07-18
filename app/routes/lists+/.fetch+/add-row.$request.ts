@@ -1,8 +1,8 @@
-import { type ActionFunctionArgs } from '@remix-run/node'
+import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-  requireWatchlistOwner,
-  stripProtectedFields,
+	requireWatchlistOwner,
+	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {

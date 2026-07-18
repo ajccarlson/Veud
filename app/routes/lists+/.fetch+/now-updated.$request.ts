@@ -1,4 +1,4 @@
-import { type ActionFunctionArgs } from '@remix-run/node'
+import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
 

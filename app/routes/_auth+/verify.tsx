@@ -1,7 +1,11 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { type ActionFunctionArgs } from '@remix-run/node'
-import { Form, useActionData, useSearchParams } from '@remix-run/react'
+import {
+	type ActionFunctionArgs,
+	Form,
+	useActionData,
+	useSearchParams,
+} from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -16,7 +20,13 @@ export const codeQueryParam = 'code'
 export const targetQueryParam = 'target'
 export const typeQueryParam = 'type'
 export const redirectToQueryParam = 'redirectTo'
-const types = ['onboarding', 'reset-password', 'change-email', '2fa'] as const
+const types = [
+	'onboarding',
+	'onboarding-provider',
+	'reset-password',
+	'change-email',
+	'2fa',
+] as const
 const VerificationTypeSchema = z.enum(types)
 export type VerificationTypes = z.infer<typeof VerificationTypeSchema>
 
@@ -27,10 +37,10 @@ export const VerifySchema = z.object({
 	[redirectToQueryParam]: z.string().optional(),
 })
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, url }: ActionFunctionArgs) {
 	const formData = await request.formData()
-	checkHoneypot(formData)
-	return validateRequest(request, formData)
+	await checkHoneypot(formData)
+	return validateRequest(request, url, formData)
 }
 
 export default function VerifyRoute() {
@@ -53,6 +63,7 @@ export default function VerifyRoute() {
 
 	const headings: Record<VerificationTypes, React.ReactNode> = {
 		onboarding: checkEmail,
+		'onboarding-provider': checkEmail,
 		'reset-password': checkEmail,
 		'change-email': checkEmail,
 		'2fa': (

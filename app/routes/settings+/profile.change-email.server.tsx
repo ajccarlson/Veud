@@ -1,6 +1,6 @@
 import { invariant } from '@epic-web/invariant'
-import * as E from '@react-email/components'
-import { json } from '@remix-run/node'
+import * as E from 'react-email'
+import { data as json } from 'react-router'
 import {
 	requireRecentVerification,
 	type VerifyFunctionArgs,
@@ -13,9 +13,10 @@ import { newEmailAddressSessionKey } from './profile.change-email'
 
 export async function handleVerification({
 	request,
+	url,
 	submission,
 }: VerifyFunctionArgs) {
-	await requireRecentVerification(request)
+	await requireRecentVerification(request, url)
 	invariant(
 		submission.status === 'success',
 		'Submission should be successful by now',
