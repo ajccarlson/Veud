@@ -8,6 +8,10 @@ import {
 	ensureMediaForIdentity,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
+import {
+	deleteTrackingStateIfOrphan,
+	ensureTrackingStateForEntry,
+} from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
@@ -15,7 +19,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const rowIndex = searchParams.get('rowIndex')
 
 	// The entry must belong to a watchlist the current user owns.
-	const { watchlist } = await requireEntryOwner(request, rowIndex)
+	const { userId, entry, watchlist } = await requireEntryOwner(
+		request,
+		rowIndex,
+	)
 
 	let row: unknown
 	try {
@@ -46,6 +53,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		'media',
 		'mediaId',
 		'mediaIdentity',
+		'trackingState',
+		'trackingStateId',
 		'watchlist',
 		'watchlistId',
 	])
@@ -53,11 +62,41 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	return await prisma.$transaction(async tx => {
 		const mediaId = mediaIdentity
 			? await ensureMediaForIdentity(tx, mediaIdentity)
-			: undefined
+			: (entry.mediaId ?? undefined)
+		const mediaKind = mediaIdentity
+			? mediaIdentity.kind
+			: mediaId
+				? (
+						await tx.media.findUnique({
+							where: { id: mediaId },
+							select: { kind: true },
+						})
+					)?.kind
+				: undefined
+		const trackingStateId =
+			mediaId && mediaKind
+				? await ensureTrackingStateForEntry(tx, {
+						ownerId: userId,
+						mediaId,
+						mediaKind,
+						status: watchlist.name,
+						statusWatchlistId: watchlist.id,
+						entry: { ...entry, ...data },
+						mode: 'all',
+					})
+				: undefined
 
-		return tx.entry.update({
+		const updated = await tx.entry.update({
 			where: { id: rowIndex as string },
-			data: { ...data, ...(mediaId ? { mediaId } : {}) } as any,
+			data: {
+				...data,
+				...(mediaId ? { mediaId } : {}),
+				...(trackingStateId ? { trackingStateId } : {}),
+			} as any,
 		})
+		if (entry.trackingStateId !== trackingStateId) {
+			await deleteTrackingStateIfOrphan(tx, entry.trackingStateId)
+		}
+		return updated
 	})
 }
