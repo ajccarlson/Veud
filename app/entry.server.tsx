@@ -13,7 +13,7 @@ import { getEnv, init } from './utils/env.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
 
-const ABORT_DELAY = 5000
+export const streamTimeout = 5000
 
 init()
 global.ENV = getEnv()
@@ -46,7 +46,11 @@ export default async function handleRequest(...args: DocRequestArgs) {
 
 		const { pipe, abort } = renderToPipeableStream(
 			<NonceProvider value={nonce}>
-				<RemixServer context={remixContext} url={request.url} />
+				<RemixServer
+					context={remixContext}
+					nonce={nonce}
+					url={request.url}
+				/>
 			</NonceProvider>,
 			{
 				[callbackName]: () => {
@@ -73,7 +77,7 @@ export default async function handleRequest(...args: DocRequestArgs) {
 			},
 		)
 
-		setTimeout(abort, ABORT_DELAY)
+		setTimeout(abort, streamTimeout + 1000)
 	})
 }
 

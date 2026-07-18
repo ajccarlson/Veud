@@ -27,6 +27,7 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { combineHeaders } from '#app/utils/misc.tsx'
 import { makeTimings } from '#app/utils/timing.server.ts'
 import { createToastHeaders } from '#app/utils/toast.server.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
@@ -90,11 +91,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 }
 
-export const headers: HeadersFunction = ({ loaderHeaders }) => {
-	const headers = {
-		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
-	}
-	return headers
+export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+	return combineHeaders(
+		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		actionHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
+			: null,
+	)
 }
 
 export async function action({ request }: ActionFunctionArgs) {

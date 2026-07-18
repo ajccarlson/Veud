@@ -4,6 +4,12 @@ import { defineConfig } from 'vite'
 
 const MODE = process.env.NODE_ENV
 
+declare module '@remix-run/server-runtime' {
+	interface Future {
+		v3_singleFetch: true
+	}
+}
+
 export default defineConfig({
 	build: {
 		cssMinify: MODE === 'production',
@@ -27,6 +33,13 @@ export default defineConfig({
 	},
 	plugins: [
 		remix({
+			future: {
+				v3_fetcherPersist: true,
+				v3_lazyRouteDiscovery: true,
+				v3_relativeSplatPath: true,
+				v3_singleFetch: true,
+				v3_throwAbortReason: true,
+			},
 			ignoredRouteFiles: ['**/*'],
 			serverModuleFormat: 'esm',
 			routes: async (defineRoutes) => {
