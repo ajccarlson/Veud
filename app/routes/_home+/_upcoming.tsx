@@ -1,8 +1,11 @@
-import { Link } from '@remix-run/react'
 import { useEffect, useState } from 'react'
-import { getAnilistSchedule } from "#app/routes/media+/mal.ts"
-import { getTMDBInfo } from "#app/routes/media+/tmdb.ts"
-import { getThumbnailInfo, getSiteIdSafe } from "#app/utils/lists/column-functions.tsx"
+import { Link } from 'react-router'
+import { getAnilistSchedule } from '#app/routes/media+/mal.ts'
+import { getTMDBInfo } from '#app/routes/media+/tmdb.ts'
+import {
+	getThumbnailInfo,
+	getSiteIdSafe,
+} from '#app/utils/lists/column-functions.tsx'
 
 // Only titles whose current run ended within this window (or that are ongoing / have no known
 // end) are re-checked for a newly-scheduled release. This keeps the home page from re-fetching

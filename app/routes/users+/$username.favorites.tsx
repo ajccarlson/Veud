@@ -1,4 +1,4 @@
-import { useOutletContext } from '@remix-run/react'
+import { useOutletContext } from 'react-router'
 import { FavoritesData } from '#app/routes/users+/$username_/body.tsx'
 import { type ProfileData } from '#app/utils/profile.ts'
 

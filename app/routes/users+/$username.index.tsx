@@ -1,5 +1,5 @@
-import { useOutletContext } from '@remix-run/react'
 import { useState, useEffect } from 'react'
+import { useOutletContext } from 'react-router'
 import { ProfileAbout } from '#app/components/profile-about.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'

@@ -1,7 +1,6 @@
 import crypto from 'crypto'
-import { createRequestHandler as _createRequestHandler } from '@remix-run/express'
-import { type ServerBuild, installGlobals } from '@remix-run/node'
-import * as Sentry from '@sentry/remix'
+import { createRequestHandler } from '@react-router/express'
+import * as Sentry from '@sentry/react-router'
 import { ip as ipAddress } from 'address'
 import chalk from 'chalk'
 import closeWithGrace from 'close-with-grace'
@@ -11,15 +10,9 @@ import rateLimit from 'express-rate-limit'
 import getPort, { portNumbers } from 'get-port'
 import helmet from 'helmet'
 import morgan from 'morgan'
-
-installGlobals()
+import { type ServerBuild } from 'react-router'
 
 const MODE = process.env.NODE_ENV ?? 'development'
-
-const createRequestHandler =
-	MODE === 'production'
-		? Sentry.wrapExpressCreateRequestHandler(_createRequestHandler)
-		: _createRequestHandler
 
 const viteDevServer =
 	MODE === 'production'
@@ -68,9 +61,6 @@ app.use(compression())
 
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
 app.disable('x-powered-by')
-
-app.use(Sentry.Handlers.requestHandler())
-app.use(Sentry.Handlers.tracingHandler())
 
 if (viteDevServer) {
 	app.use(viteDevServer.middlewares)
@@ -207,7 +197,7 @@ app.use((req, res, next) => {
 
 async function getBuild() {
 	const build = viteDevServer
-		? viteDevServer.ssrLoadModule('virtual:remix/server-build')
+		? viteDevServer.ssrLoadModule('virtual:react-router/server-build')
 		: // @ts-ignore this should exist before running the server
 			// but it may not exist just yet.
 			await import('#build/server/index.js')
@@ -223,10 +213,11 @@ app.all(
 			serverBuild: getBuild(),
 		}),
 		mode: MODE,
-		// @sentry/remix needs to be updated to handle the function signature
 		build: MODE === 'production' ? await getBuild() : getBuild,
 	}),
 )
+
+Sentry.setupExpressErrorHandler(app)
 
 const desiredPort = Number(process.env.PORT || 4021)
 const portToUse = await getPort({

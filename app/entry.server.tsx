@@ -1,14 +1,12 @@
 import { PassThrough } from 'stream'
+import { createReadableStreamFromReadable } from '@react-router/node'
 import {
-	createReadableStreamFromReadable,
-	type LoaderFunctionArgs,
-	type ActionFunctionArgs,
-	type HandleDocumentRequestFunction,
-} from '@remix-run/node'
-import { RemixServer } from '@remix-run/react'
-import * as Sentry from '@sentry/remix'
+	createSentryHandleError,
+	wrapSentryHandleRequest,
+} from '@sentry/react-router'
 import { isbot } from 'isbot'
 import { renderToPipeableStream } from 'react-dom/server'
+import { ServerRouter, type HandleDocumentRequestFunction } from 'react-router'
 import { getEnv, init } from './utils/env.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
@@ -18,18 +16,14 @@ export const streamTimeout = 5000
 init()
 global.ENV = getEnv()
 
-if (ENV.MODE === 'production' && ENV.SENTRY_DSN) {
-	import('./utils/monitoring.server.ts').then(({ init }) => init())
-}
-
 type DocRequestArgs = Parameters<HandleDocumentRequestFunction>
 
-export default async function handleRequest(...args: DocRequestArgs) {
+async function handleRequest(...args: DocRequestArgs) {
 	const [
 		request,
 		responseStatusCode,
 		responseHeaders,
-		remixContext,
+		routerContext,
 		loadContext,
 	] = args
 
@@ -46,8 +40,8 @@ export default async function handleRequest(...args: DocRequestArgs) {
 
 		const { pipe, abort } = renderToPipeableStream(
 			<NonceProvider value={nonce}>
-				<RemixServer
-					context={remixContext}
+				<ServerRouter
+					context={routerContext}
 					nonce={nonce}
 					url={request.url}
 				/>
@@ -81,17 +75,10 @@ export default async function handleRequest(...args: DocRequestArgs) {
 	})
 }
 
+export default wrapSentryHandleRequest(handleRequest)
+
 export async function handleDataRequest(response: Response) {
 	return response
 }
 
-export function handleError(
-	error: unknown,
-	{ request }: LoaderFunctionArgs | ActionFunctionArgs,
-): void {
-	if (error instanceof Error) {
-		Sentry.captureRemixServerException(error, 'remix.server', request)
-	} else {
-		Sentry.captureException(error)
-	}
-}
+export const handleError = createSentryHandleError({ logErrors: true })

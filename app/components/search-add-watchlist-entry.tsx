@@ -1,5 +1,5 @@
-import { Form, useSearchParams } from '@remix-run/react'
 import { useId, useState, useEffect, createContext, useContext } from 'react'
+import { Form, useSearchParams } from 'react-router'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -7,11 +7,15 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import { searchMAL, getAnimeInfo, getMangaInfo } from "#app/routes/media+/mal.ts"
-import { searchTMDB, getTMDBInfo } from "#app/routes/media+/tmdb.ts"
+import {
+	searchMAL,
+	getAnimeInfo,
+	getMangaInfo,
+} from '#app/routes/media+/mal.ts'
+import { searchTMDB, getTMDBInfo } from '#app/routes/media+/tmdb.ts'
 import { Icon } from './ui/icon.tsx'
 import { StatusButton } from './ui/status-button.tsx'
-import "#app/styles/watchlist-search.scss"
+import '#app/styles/watchlist-search.scss'
 import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/grid-actions.ts'
 
 export function MediaTypeDropdown(params: any) {

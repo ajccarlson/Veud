@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { type LoaderFunctionArgs } from '@remix-run/node'
+import { type LoaderFunctionArgs } from 'react-router'
 import { cache, cachified } from '#app/utils/cache.server.ts'
 
 /**

@@ -1,5 +1,5 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { type LoaderFunctionArgs } from 'react-router'
 import { lruCache } from '#app/utils/cache.server.ts'
 import {
 	getAllInstances,
@@ -19,7 +19,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 	const { cacheKey } = params
 	invariantResponse(cacheKey, 'cacheKey is required')
-	return json({
+	return Response.json({
 		instance: {
 			hostname: instance,
 			region: allInstances[instance],

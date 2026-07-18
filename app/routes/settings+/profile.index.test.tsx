@@ -6,6 +6,20 @@ import { prisma } from '#app/utils/db.server.ts'
 import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
+function actionArgs(request: Request): Parameters<typeof action>[0] {
+	return {
+		request,
+		url: new URL(request.url),
+		pattern: '/settings/profile',
+		params: {},
+		context: {},
+	}
+}
+
+function getStatus(response: Response | { init: ResponseInit | null }) {
+	return response instanceof Response ? response.status : response.init?.status ?? 200
+}
+
 async function createUserAndCookie() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
 	const user = await prisma.user.create({
@@ -58,8 +72,8 @@ test('a user can save a trimmed markdown bio', async () => {
 		bio: '  ## Hello\n\nI like **anime**.  ',
 	})
 
-	const response = await action({ request, params: {}, context: {} })
-	expect(response.status).toBe(200)
+	const response = await action(actionArgs(request))
+	expect(getStatus(response)).toBe(200)
 	expect(
 		await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
 	).toMatchObject({ bio: '## Hello\n\nI like **anime**.' })
@@ -72,12 +86,12 @@ test('clearing a bio stores null', async () => {
 		data: { bio: 'Old bio' },
 	})
 
-	const response = await action({
-		request: profileRequest({ cookie, username: user.username, bio: '   ' }),
-		params: {},
-		context: {},
-	})
-	expect(response.status).toBe(200)
+	const response = await action(
+		actionArgs(
+			profileRequest({ cookie, username: user.username, bio: '   ' }),
+		),
+	)
+	expect(getStatus(response)).toBe(200)
 	expect(
 		await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
 	).toMatchObject({ bio: null })
@@ -85,17 +99,17 @@ test('clearing a bio stores null', async () => {
 
 test('an oversized bio is rejected without changing the user', async () => {
 	const { user, cookie } = await createUserAndCookie()
-	const response = await action({
-		request: profileRequest({
+	const response = await action(
+		actionArgs(
+			profileRequest({
 			cookie,
 			username: user.username,
 			bio: 'x'.repeat(PROFILE_BIO_MAX_LENGTH + 1),
-		}),
-		params: {},
-		context: {},
-	})
+			}),
+		),
+	)
 
-	expect(response.status).toBe(400)
+	expect(getStatus(response)).toBe(400)
 	expect(
 		await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
 	).toMatchObject({ name: 'Original Name', bio: null })
@@ -103,9 +117,7 @@ test('an oversized bio is rejected without changing the user', async () => {
 
 test('an anonymous user cannot update a profile', async () => {
 	const request = profileRequest({ username: 'anonymous', bio: 'Nope' })
-	const response = await action({ request, params: {}, context: {} }).catch(
-		error => error,
-	)
+	const response = await action(actionArgs(request)).catch(error => error)
 
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBeGreaterThanOrEqual(300)

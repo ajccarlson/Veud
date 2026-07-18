@@ -8,6 +8,10 @@ import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 const { action } = profileCommentRoute
 
+function getStatus(response: Response | { init: ResponseInit | null }) {
+	return response instanceof Response ? response.status : response.init?.status ?? 200
+}
+
 async function createUserRecord() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
 	return prisma.user.create({
@@ -68,7 +72,7 @@ test('a signed-in user can leave a trimmed comment on a profile', async () => {
 		},
 	} as any)
 
-	expect(response.status).toBe(200)
+	expect(getStatus(response)).toBe(200)
 	const stored = await prisma.profileComment.findFirst()
 	expect(stored).toMatchObject({
 		authorId: author.id,
@@ -117,7 +121,7 @@ test('an author can delete their comment', async () => {
 		},
 	} as any)
 
-	expect(response.status).toBe(200)
+	expect(getStatus(response)).toBe(200)
 	expect(
 		await prisma.profileComment.findUnique({ where: { id: comment.id } }),
 	).toBeNull()
@@ -139,7 +143,7 @@ test('a profile owner can moderate a comment left on their profile', async () =>
 		},
 	} as any)
 
-	expect(response.status).toBe(200)
+	expect(getStatus(response)).toBe(200)
 	expect(
 		await prisma.profileComment.findUnique({ where: { id: comment.id } }),
 	).toBeNull()

@@ -1,4 +1,4 @@
-import { Link } from "@remix-run/react"
+import { Link } from 'react-router'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -6,7 +6,7 @@ import {
 	DropdownMenuPortal,
 	DropdownMenuTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import "#app/styles/list-nav-buttons.scss"
+import '#app/styles/list-nav-buttons.scss'
 import { Icon } from '#app/components/ui/icon.tsx'
 
 export function listNavButtons(typedWatchlists: any, username: any, listTypes: any, listTypeData: any, watchListData: any) {

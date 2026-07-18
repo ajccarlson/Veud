@@ -2,21 +2,18 @@ import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
+import { parseFormData } from '@remix-run/form-data-parser'
+import { useState } from 'react'
 import {
-	json,
+	data as json,
 	redirect,
-	unstable_createMemoryUploadHandler,
-	unstable_parseMultipartFormData,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-} from '@remix-run/node'
-import {
 	Form,
 	useActionData,
 	useLoaderData,
 	useNavigation,
-} from '@remix-run/react'
-import { useState } from 'react'
+} from 'react-router'
 import { z } from 'zod'
 import { ErrorList } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
@@ -72,10 +69,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
 	const userId = await requireUserId(request)
-	const formData = await unstable_parseMultipartFormData(
-		request,
-		unstable_createMemoryUploadHandler({ maxPartSize: MAX_SIZE }),
-	)
+	const formData = await parseFormData(request, {
+		maxFiles: 1,
+		maxFileSize: MAX_SIZE,
+		maxParts: 4,
+		maxTotalSize: MAX_SIZE + 64 * 1024,
+	})
 
 	const submission = await parseWithZod(formData, {
 		schema: BannerFormSchema.transform(async data => {

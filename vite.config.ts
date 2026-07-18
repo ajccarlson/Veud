@@ -1,13 +1,7 @@
-import { vitePlugin as remix } from '@remix-run/dev'
+import { reactRouter } from '@react-router/dev/vite'
 import { defineConfig } from 'vite'
 
 const MODE = process.env.NODE_ENV
-
-declare module '@remix-run/server-runtime' {
-	interface Future {
-		v3_singleFetch: true
-	}
-}
 
 export default defineConfig({
 	build: {
@@ -30,20 +24,8 @@ export default defineConfig({
 			ignored: ['**/playwright-report/**'],
 		},
 	},
-	plugins: [
-		remix({
-			future: {
-				v3_fetcherPersist: true,
-				v3_lazyRouteDiscovery: true,
-				v3_relativeSplatPath: true,
-				v3_routeConfig: true,
-				v3_singleFetch: true,
-				v3_throwAbortReason: true,
-			},
-			serverModuleFormat: 'esm',
-		}),
-	],
-  ssr: {
-    noExternal: [/^d3.*$/, /^@nivo.*$/],
-  },
+	plugins: [reactRouter()],
+	ssr: {
+		noExternal: [/^d3.*$/, /^@nivo.*$/],
+	},
 })
