@@ -161,6 +161,7 @@ describe('OAuth flow state', () => {
 })
 
 test('verified provider email resumes provider onboarding', async () => {
+	const url = new URL('https://veud.test/verify')
 	const verifySession = await verifySessionStorage.getSession()
 	verifySession.set(providerNameKey, 'mal')
 	verifySession.set(providerIdKey, '42')
@@ -172,9 +173,10 @@ test('verified provider email resumes provider onboarding', async () => {
 	} as unknown as VerifyFunctionArgs['submission']
 
 	const response = await handleProviderOnboardingVerification({
-		request: new Request('https://veud.test/verify', {
+		request: new Request(url, {
 			headers: { cookie },
 		}),
+		url,
 		body: new FormData(),
 		submission,
 	})

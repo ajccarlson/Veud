@@ -20,14 +20,14 @@ export const handle: BreadcrumbHandle & SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	await requireRecentVerification(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireRecentVerification(request, url)
 	return json({})
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	await requireRecentVerification(request)
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	await requireRecentVerification(request, url)
+	const userId = await requireUserId(request, { url })
 	await prisma.verification.delete({
 		where: { target_type: { target: userId, type: twoFAVerificationType } },
 	})

@@ -10,8 +10,8 @@ const CommentBodySchema = z
 	.min(1)
 	.max(PROFILE_COMMENT_MAX_LENGTH)
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, params, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const searchParams = new URLSearchParams(params.request)
 	const intent = searchParams.get('intent')
 

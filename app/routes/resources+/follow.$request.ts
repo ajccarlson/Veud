@@ -2,8 +2,8 @@ import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-  const followerId = await requireUserId(request)
+export async function action({ request, params, url }: ActionFunctionArgs) {
+  const followerId = await requireUserId(request, { url })
   const searchParams = new URLSearchParams(params.request)
   const followingId = searchParams.get('userId')
   const intent = searchParams.get('intent')
