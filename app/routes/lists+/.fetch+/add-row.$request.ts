@@ -8,6 +8,7 @@ import {
 	ensureMediaForIdentity,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
+import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
@@ -24,7 +25,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const rowObj = row as Record<string, unknown>
 
 	// The row may only be added to a watchlist the current user owns.
-	const { watchlist } = await requireWatchlistOwner(
+	const { userId, watchlist } = await requireWatchlistOwner(
 		request,
 		rowObj.watchlistId as string | null | undefined,
 	)
@@ -47,6 +48,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		'media',
 		'mediaId',
 		'mediaIdentity',
+		'trackingState',
+		'trackingStateId',
 		'watchlist',
 	])
 
@@ -54,9 +57,21 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const mediaId = mediaIdentity
 			? await ensureMediaForIdentity(tx, mediaIdentity)
 			: undefined
+		const trackingStateId =
+			mediaId && mediaIdentity
+				? await ensureTrackingStateForEntry(tx, {
+						ownerId: userId,
+						mediaId,
+						mediaKind: mediaIdentity.kind,
+						status: watchlist.name,
+						statusWatchlistId: watchlist.id,
+						entry: data,
+						mode: 'status',
+					})
+				: undefined
 
 		return tx.entry.create({
-			data: { ...data, mediaId } as any,
+			data: { ...data, mediaId, trackingStateId } as any,
 		})
 	})
 }

@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { deleteTrackingStateIfOrphan } from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const searchParams = new URLSearchParams(params.request)
@@ -25,8 +26,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
   // Remove them in a single atomic statement rather than one query per row.
   if (removedEntries.length > 0) {
-    await prisma.entry.deleteMany({
-      where: { id: { in: removedEntries.map(entry => entry.id) } },
+    await prisma.$transaction(async tx => {
+      await tx.entry.deleteMany({
+        where: { id: { in: removedEntries.map(entry => entry.id) } },
+      })
+      for (const trackingStateId of new Set(
+        removedEntries.map(entry => entry.trackingStateId).filter(Boolean),
+      )) {
+        await deleteTrackingStateIfOrphan(tx, trackingStateId)
+      }
     })
   }
 

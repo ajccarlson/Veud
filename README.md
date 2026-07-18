@@ -151,11 +151,15 @@ npx prisma migrate deploy
 npm run media:backfill
 npm run media:backfill -- --commit --limit 25
 npm run media:backfill -- --commit
+npm run tracking:backfill
+npm run tracking:backfill -- --commit --limit 25
+npm run tracking:backfill -- --commit
 ```
 
-The first backfill command is a dry run. The backfill is idempotent, recognizes
-TMDB movie/TV and MyAnimeList anime/manga URLs embedded in existing thumbnail
-values, and does not call either provider or overwrite user data.
+Both backfills are dry-run by default and idempotent. Run the media identity
+backfill first; the tracking-state backfill then normalizes status, score, dates,
+repeat evidence, and episode/chapter/volume progress without overwriting Entry
+or its history. Neither backfill calls an upstream provider.
 
 ## Testing
 
