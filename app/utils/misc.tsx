@@ -1,6 +1,6 @@
-import { useFormAction, useNavigation } from '@remix-run/react'
 import { clsx, type ClassValue } from 'clsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFormAction, useNavigation } from 'react-router'
 import { useSpinDelay } from 'spin-delay'
 import { extendTailwindMerge } from 'tailwind-merge'
 import { extendedTheme } from './extended-theme.ts'
@@ -9,6 +9,13 @@ export function getUserImgSrc(imageId?: string | null) {
 	return imageId ? `/resources/user-images/${imageId}` : '/img/user.png'
 }
 
+<<<<<<< HEAD
+=======
+export function getUserBannerSrc(bannerId?: string | null) {
+	return bannerId ? `/resources/user-banners/${bannerId}` : null
+}
+
+>>>>>>> develop
 export function getErrorMessage(error: unknown) {
 	if (typeof error === 'string') return error
 	if (

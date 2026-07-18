@@ -1,10 +1,10 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
-	json,
+	data as json,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-} from '@remix-run/node'
-import { useFetcher } from '@remix-run/react'
+	useFetcher,
+} from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireRecentVerification } from '#app/routes/_auth+/verify.server.ts'
@@ -20,14 +20,14 @@ export const handle: BreadcrumbHandle & SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	await requireRecentVerification(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	await requireRecentVerification(request, url)
 	return json({})
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	await requireRecentVerification(request)
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	await requireRecentVerification(request, url)
+	const userId = await requireUserId(request, { url })
 	await prisma.verification.delete({
 		where: { target_type: { target: userId, type: twoFAVerificationType } },
 	})

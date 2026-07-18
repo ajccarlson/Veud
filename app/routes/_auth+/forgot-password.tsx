@@ -1,5 +1,6 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
+<<<<<<< HEAD
 import * as E from '@react-email/components'
 import {
 	json,
@@ -8,6 +9,18 @@ import {
 	type MetaFunction,
 } from '@remix-run/node'
 import { Link, useFetcher } from '@remix-run/react'
+=======
+import * as E from 'react-email'
+import {
+	data as json,
+	redirect,
+	type ActionFunctionArgs,
+	type MetaFunction,
+	Link,
+	useFetcher,
+} from 'react-router'
+
+>>>>>>> develop
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
@@ -25,7 +38,11 @@ const ForgotPasswordSchema = z.object({
 
 export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
+<<<<<<< HEAD
 	checkHoneypot(formData)
+=======
+	await checkHoneypot(formData)
+>>>>>>> develop
 	const submission = await parseWithZod(formData, {
 		schema: ForgotPasswordSchema.superRefine(async (data, ctx) => {
 			const user = await prisma.user.findFirst({

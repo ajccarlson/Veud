@@ -1,13 +1,12 @@
-import { type Meta } from '@sly-cli/sly'
+import { type Meta, type Transformer } from '@sly-cli/sly'
 
-/**
- * @type {import('@sly-cli/sly/dist').Transformer}
- */
-export default function transformIcon(input: string, meta: Meta) {
+const transformIcon: Transformer = (input, meta) => {
 	input = prependLicenseInfo(input, meta)
 
 	return input
 }
+
+export default transformIcon
 
 function prependLicenseInfo(input: string, meta: Meta): string {
 	return [

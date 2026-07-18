@@ -1,14 +1,14 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
+import { useState } from 'react'
 import {
-	json,
+	data as json,
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
-	type SerializeFrom,
 	type HeadersFunction,
-} from '@remix-run/node'
-import { useFetcher, useLoaderData } from '@remix-run/react'
-import { useState } from 'react'
+	useFetcher,
+	useLoaderData,
+} from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
@@ -27,6 +27,7 @@ import {
 	providerNames,
 } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { combineHeaders } from '#app/utils/misc.tsx'
 import { makeTimings } from '#app/utils/timing.server.ts'
 import { createToastHeaders } from '#app/utils/toast.server.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
@@ -50,8 +51,8 @@ async function userCanDeleteConnections(userId: string) {
 	return Boolean(user?._count.connections && user?._count.connections > 1)
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function loader({ request, url }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const timings = makeTimings('profile connections loader')
 	const rawConnections = await prisma.connection.findMany({
 		select: { id: true, providerName: true, providerId: true, createdAt: true },
@@ -90,15 +91,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	)
 }
 
-export const headers: HeadersFunction = ({ loaderHeaders }) => {
-	const headers = {
-		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
-	}
-	return headers
+export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+	return combineHeaders(
+		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		actionHeaders.has('Set-Cookie')
+			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
+			: null,
+	)
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
+export async function action({ request, url }: ActionFunctionArgs) {
+	const userId = await requireUserId(request, { url })
 	const formData = await request.formData()
 	invariantResponse(
 		formData.get('intent') === 'delete-connection',
@@ -162,7 +165,9 @@ function Connection({
 	connection,
 	canDelete,
 }: {
-	connection: SerializeFrom<typeof loader>['connections'][number]
+	connection: ReturnType<
+		typeof useLoaderData<typeof loader>
+	>['connections'][number]
 	canDelete: boolean
 }) {
 	const deleteFetcher = useFetcher<typeof action>()

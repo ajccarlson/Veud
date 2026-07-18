@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireEntryOwner,
 } from '#app/utils/lists/authorization.server.ts'
+=======
+import { type ActionFunctionArgs } from 'react-router'
+import { prisma } from '#app/utils/db.server.ts'
+import { requireEntryOwner } from '#app/utils/lists/authorization.server.ts'
+>>>>>>> develop
 
 function castType(varIn: unknown, varType: string): unknown {
   const typeFormatted = varType.toLowerCase()

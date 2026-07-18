@@ -1,5 +1,11 @@
 import { useInputControl } from '@conform-to/react'
-import React, { useId } from 'react'
+import {
+	type JSX,
+	useId,
+	type InputHTMLAttributes,
+	type LabelHTMLAttributes,
+	type TextareaHTMLAttributes,
+} from 'react'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import { Input } from './ui/input.tsx'
 import { Label } from './ui/label.tsx'
@@ -33,8 +39,8 @@ export function Field({
 	errors,
 	className,
 }: {
-	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
-	inputProps: React.InputHTMLAttributes<HTMLInputElement>
+	labelProps: LabelHTMLAttributes<HTMLLabelElement>
+	inputProps: InputHTMLAttributes<HTMLInputElement>
 	errors?: ListOfErrors
 	className?: string
 }) {
@@ -63,8 +69,8 @@ export function TextareaField({
 	errors,
 	className,
 }: {
-	labelProps: React.LabelHTMLAttributes<HTMLLabelElement>
-	textareaProps: React.TextareaHTMLAttributes<HTMLTextAreaElement>
+	labelProps: LabelHTMLAttributes<HTMLLabelElement>
+	textareaProps: TextareaHTMLAttributes<HTMLTextAreaElement>
 	errors?: ListOfErrors
 	className?: string
 }) {

@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireWatchlistOwner,
 } from '#app/utils/lists/authorization.server.ts'
+=======
+import { type ActionFunctionArgs } from 'react-router'
+import { prisma } from '#app/utils/db.server.ts'
+import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+>>>>>>> develop
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const searchParams = new URLSearchParams(params.request)
