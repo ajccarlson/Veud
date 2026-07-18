@@ -1,4 +1,5 @@
 import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
+import { type ProfileTrackingSummary } from './profile-tracking.ts'
 
 export const PROFILE_COMMENT_MAX_LENGTH = 1000
 export const PROFILE_BIO_MAX_LENGTH = 5000
@@ -85,6 +86,7 @@ export type ProfileData = {
 	typedWatchlists: Record<string, WatchlistMeta[]>
 	typedEntries: Record<string, any[]>
 	typedHistory: Record<string, ActivityItem[]>
+	trackingSummaries: Record<string, ProfileTrackingSummary>
 	favorites: FavoriteItem[]
 	followerCount: number
 	followingCount: number

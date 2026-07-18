@@ -1,33 +1,25 @@
 import { type ProfileData } from '#app/utils/profile.ts'
 
-/** Mean of the personal scores across entries, ignoring unscored (null / 0). */
-function meanScore(entries: any[]): number | null {
-  const scored = entries
-    .map(entry => (entry?.personal != null ? parseFloat(String(entry.personal)) : NaN))
-    .filter(value => !Number.isNaN(value) && value > 0)
-  if (scored.length === 0) return null
-  return scored.reduce((sum, value) => sum + value, 0) / scored.length
+function progressLabel(unit: string) {
+  const plural = `${unit.charAt(0).toUpperCase()}${unit.slice(1)}s`
+  if (unit === 'chapter' || unit === 'volume') return `${plural} Read`
+  if (unit === 'episode') return 'Episodes Watched'
+  return `${plural} Tracked`
 }
 
 export function StatsOverview({ data }: { data: ProfileData }) {
-  const { listTypes, typedEntries, watchLists } = data
+  const { listTypes, trackingSummaries } = data
 
   return (
     <div className="user-landing-stats-overview">
       {listTypes.map(type => {
-        const entries = typedEntries[type.id] ?? []
-        const total = entries.length
-        const mean = meanScore(entries)
-
-        // Status breakdown: this type's watchlists, in order, each with its entry count.
-        const statuses = watchLists
-          .filter(watchlist => watchlist.typeId === type.id)
-          .slice()
-          .sort((a, b) => a.position - b.position)
-          .map(watchlist => ({
-            header: watchlist.header,
-            count: entries.filter(entry => entry?.watchlistId === watchlist.id).length,
-          }))
+        const summary = trackingSummaries[type.id] ?? {
+          totalTitles: 0,
+          meanScore: null,
+          repeatCount: 0,
+          progress: [],
+          statuses: [],
+        }
 
         return (
           <div className="user-landing-stats-overview-card" key={type.id}>
@@ -35,20 +27,34 @@ export function StatsOverview({ data }: { data: ProfileData }) {
             <div className="user-landing-stats-overview-figures">
               <div className="user-landing-stats-overview-figure">
                 <span className="user-landing-stats-overview-value">
-                  {mean != null ? mean.toFixed(2) : '—'}
+                  {summary.meanScore != null ? summary.meanScore.toFixed(2) : '—'}
                 </span>
                 <span className="user-landing-stats-overview-label">Mean Score</span>
               </div>
               <div className="user-landing-stats-overview-figure">
-                <span className="user-landing-stats-overview-value">{total}</span>
-                <span className="user-landing-stats-overview-label">Total Entries</span>
+                <span className="user-landing-stats-overview-value">{summary.totalTitles}</span>
+                <span className="user-landing-stats-overview-label">Total Titles</span>
               </div>
+              {summary.progress.map(progress => (
+                <div className="user-landing-stats-overview-figure" key={progress.unit}>
+                  <span className="user-landing-stats-overview-value">{progress.current}</span>
+                  <span className="user-landing-stats-overview-label">
+                    {progressLabel(progress.unit)}
+                  </span>
+                </div>
+              ))}
+              {summary.repeatCount > 0 ? (
+                <div className="user-landing-stats-overview-figure">
+                  <span className="user-landing-stats-overview-value">{summary.repeatCount}</span>
+                  <span className="user-landing-stats-overview-label">Repeats</span>
+                </div>
+              ) : null}
             </div>
             <ul className="user-landing-stats-overview-statuses">
-              {statuses.map(status => (
-                <li className="user-landing-stats-overview-status" key={status.header}>
+              {summary.statuses.map(status => (
+                <li className="user-landing-stats-overview-status" key={status.key}>
                   <span className="user-landing-stats-overview-status-label">
-                    {status.header}
+                    {status.label}
                   </span>
                   <span className="user-landing-stats-overview-status-count">
                     {status.count}
