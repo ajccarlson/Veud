@@ -717,4 +717,184 @@
 
   .user-landing-favorite-search-results button:hover:not(:disabled) {
     background-color: var(--veud-teal-accent);
-  }}
+  }
+
+  /* Social guestbook */
+  .user-landing-social {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 52rem;
+    margin: 0 auto;
+  }
+
+  .user-landing-social-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-social-heading h1 {
+    color: var(--veud-highlight);
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+
+  .user-landing-social-heading p,
+  .user-landing-social-heading > span {
+    color: var(--veud-mint-text);
+    font-size: 0.85rem;
+  }
+
+  .user-landing-social-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 1rem;
+    color: var(--veud-cream);
+    background-color: var(--veud-surface);
+    border-radius: 0.75rem;
+  }
+
+  .user-landing-social-composer label {
+    color: var(--veud-highlight);
+    font-weight: 600;
+  }
+
+  .user-landing-social-composer textarea {
+    color: var(--veud-cream);
+    background-color: var(--veud-surface-alt);
+    border-color: var(--veud-control);
+    resize: vertical;
+  }
+
+  .user-landing-social-composer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--veud-mint-text);
+    font-size: 0.8rem;
+  }
+
+  .user-landing-social-composer-footer button {
+    gap: 0.4rem;
+    color: var(--veud-bg);
+    background-color: var(--veud-mint);
+  }
+
+  .user-landing-social-composer-footer button:hover:not(:disabled) {
+    background-color: var(--veud-mint-hover);
+  }
+
+  .user-landing-social-sign-in {
+    padding: 1rem;
+    color: var(--veud-cream);
+    text-align: center;
+    background-color: var(--veud-surface);
+    border-radius: 0.75rem;
+  }
+
+  .user-landing-social-sign-in a {
+    color: var(--veud-mint);
+    font-weight: 600;
+  }
+
+  .user-landing-social-error {
+    padding: 0.75rem 1rem;
+    color: var(--veud-highlight);
+    background-color: var(--veud-bronze);
+    border-radius: 0.5rem;
+  }
+
+  .user-landing-social-comments {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .user-landing-social-comment {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem;
+    color: var(--veud-cream);
+    background-color: var(--veud-surface);
+    border-radius: 0.75rem;
+  }
+
+  .user-landing-social-avatar {
+    flex-shrink: 0;
+    width: 3rem;
+    height: 3rem;
+    object-fit: cover;
+    border: 0.15rem solid var(--veud-teal);
+    border-radius: 50%;
+  }
+
+  .user-landing-social-comment-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .user-landing-social-comment-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .user-landing-social-comment-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+    color: var(--veud-mint-text);
+    font-size: 0.8rem;
+  }
+
+  .user-landing-social-author {
+    color: var(--veud-highlight);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .user-landing-social-comment-meta time::before {
+    content: '·';
+    margin-right: 0.4rem;
+  }
+
+  .user-landing-social-comment-text {
+    margin-top: 0.5rem;
+    color: var(--veud-cream);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .user-landing-social-delete {
+    flex-shrink: 0;
+    gap: 0.3rem;
+    color: var(--veud-cream);
+  }
+
+  .user-landing-social-delete[aria-label^='Confirm'] {
+    color: var(--veud-bg);
+    background-color: var(--veud-orange);
+  }
+
+  @media (max-width: 40rem) {
+    .user-landing-social-heading,
+    .user-landing-social-comment-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .user-landing-social-delete {
+      align-self: flex-end;
+    }
+  }
+}

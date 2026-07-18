@@ -29,6 +29,8 @@ model User {
   connections   Connection[]
   following     Follow[] @relation("UserFollowing")
   followers     Follow[] @relation("UserFollowers")
+  commentsAuthored ProfileComment[] @relation("ProfileCommentAuthor")
+  profileComments  ProfileComment[] @relation("ProfileCommentProfile")
 }
 
 model ListType {
@@ -274,4 +276,20 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+model ProfileComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User   @relation("ProfileCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  profile   User   @relation("ProfileCommentProfile", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  profileId String
+
+  @@index([authorId])
+  @@index([profileId, createdAt])
 }

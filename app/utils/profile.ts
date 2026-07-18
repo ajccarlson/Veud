@@ -1,5 +1,7 @@
 import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
 
+export const PROFILE_COMMENT_MAX_LENGTH = 1000
+
 /**
  * Shared types for the profile page (`users+/$username`).
  *
@@ -48,6 +50,20 @@ export type ProfileUser = {
 	createdAt: Date | string
 	image: { id: string } | null
 	banner: { id: string } | null
+}
+
+/** A public guestbook entry shown on a user's Social tab. */
+export type ProfileCommentItem = {
+	id: string
+	body: string
+	createdAt: Date | string
+	createdAtDisplay: string
+	author: {
+		id: string
+		name: string | null
+		username: string
+		image: { id: string } | null
+	}
 }
 
 /**
