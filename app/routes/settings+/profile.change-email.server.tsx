@@ -1,5 +1,5 @@
 import { invariant } from '@epic-web/invariant'
-import * as E from '@react-email/components'
+import * as E from 'react-email'
 import { json } from '@remix-run/node'
 import {
 	requireRecentVerification,

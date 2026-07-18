@@ -1,6 +1,6 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import * as E from '@react-email/components'
+import * as E from 'react-email'
 import {
 	json,
 	redirect,
