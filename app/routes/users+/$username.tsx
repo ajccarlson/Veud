@@ -6,12 +6,9 @@ import { Button } from '#app/components/ui/button.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
+import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import "#app/styles/user-landing.scss"
-
-function toTitleCase(inputString: string) {
-  return inputString.replace(/([a-z])([A-Z])/g, '$1 $2').split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
-}
 
 export async function loader(params: LoaderFunctionArgs) {
 	const user = await prisma.user.findFirst({
@@ -54,9 +51,6 @@ export async function loader(params: LoaderFunctionArgs) {
      return x;
   },{});
 
-	let typedEntries: Record<string, any[]> = {}
-  let typedHistory: Record<string, any[]> = {}
-
   // One batched query for all of the user's entries, grouped by their watchlist's type in
   // memory — instead of a query per watchlist (N+1).
   const allEntries = watchLists.length >= 1
@@ -64,140 +58,12 @@ export async function loader(params: LoaderFunctionArgs) {
         where: { watchlistId: { in: watchLists.map(w => w.id) } },
       })
     : []
-  const typeByWatchlist = new Map(watchLists.map(w => [w.id, w.typeId]))
 
-  if (watchLists.length >= 1) {
-    for (const type of listTypes) {
-      typedEntries[type.id] = allEntries.filter(
-        (entry: any) => typeByWatchlist.get(entry.watchlistId) === type.id,
-      )
-      typedHistory[type.id] = []
-  
-      for (const [index, entry] of typedEntries[type.id].entries()) {
-        if (entry.history && entry.history != null && entry.history != "null") {
-          entry.history = JSON.parse(entry.history)
-  
-          for (const [historyKey, historyValue] of Object.entries(entry.history) as [string, any][]) {
-            if (historyValue != null && historyValue != "null") {
-              if (historyKey == "lastUpdated") {
-                continue
-              }
-              else if (historyKey == "progress") {
-                (JSON.parse(type.mediaType) as any[]).forEach((mediaType: any) => {
-                  let progressObject
-                  if (type.columns.includes("length")) {
-                    progressObject = historyValue
-                  }
-                  else {
-                    progressObject = historyValue[mediaType]
-                  }
-  
-                  if (!progressObject) {
-                    return
-                  }
-  
-                  const dayGroups = (Object.entries(progressObject) as [string, any][]).reduce<Record<string, any[]>>((dayAccumulator, [progressKey, progressValue]) => {
-                    if (!progressValue.finishDate) {
-                      return dayAccumulator
-                    }
-  
-                    const dateArray = progressValue.finishDate
-    
-                    dateArray.forEach((dateCompleted: any) => {
-                      const dateRaw = new Date(dateCompleted);
-                      const dateFull = `${dateRaw.getFullYear()}-${dateRaw.getMonth() + 1}-${dateRaw.getDate()}`
-    
-                      if (!dayAccumulator[dateFull]) {
-                        dayAccumulator[dateFull] = [];
-                      }
-                      else if (dayAccumulator[dateFull].some((e: any) => e[mediaType] === progressKey)) {
-                        try {
-                          const duplicateEpIndex = dayAccumulator[dateFull].findIndex((e: any) => e[mediaType] === progressKey)
-    
-                          if (duplicateEpIndex != -1) {
-                            const dupeDay = dayAccumulator[dateFull][duplicateEpIndex]
-    
-                            if (dupeDay.date < dateRaw) {
-                              dupeDay.date = dateRaw
-                              return dayAccumulator
-                            }
-                          }
-                        }
-                        catch(e) {}
-                      }
-    
-                      dayAccumulator[dateFull].push({
-                        date: dateRaw,
-                        [mediaType]: progressKey
-                      });
-                    })
-                    
-                    return dayAccumulator
-                  }, {});
-    
-                  (Object.entries(dayGroups) as [string, any][]).forEach(([groupedKey, groupedValue]) => {
-                    if (Object.entries(groupedValue).length > 1) {
-                      const latestMedia = groupedValue.reduce((max: any, day: any) => max.date > day.date ? max : day);
-                      const oldestMedia = groupedValue.reduce((max: any, day: any) => max.date < day.date ? max : day);
-    
-                      typedHistory[type.id].push({
-                        type: `${toTitleCase((JSON.parse(type.completionType) as any).past)} ${toTitleCase(mediaType)}s ${oldestMedia[mediaType]} - ${latestMedia[mediaType]}`,
-                        time: new Date(latestMedia.date),
-                        index: index
-                      })
-                    }
-                    else {
-                      typedHistory[type.id].push({
-                        type: `${toTitleCase((JSON.parse(type.completionType) as any).past)} ${toTitleCase(mediaType)} ${groupedValue[0][mediaType]}`,
-                        time: new Date(groupedValue[0].date),
-                        index: index
-                      })
-                    }
-                  })
-                })
-              }
-              else {
-                if (historyKey == "added") {
-                  typedHistory[type.id].push({
-                    type: `Added to ${watchLists.find(e => e.id === entry.watchlistId)!.header}`,
-                    time: new Date(historyValue),
-                    index: index
-                  })
-                }
-                else {
-                  typedHistory[type.id].push({
-                    type: toTitleCase(historyKey),
-                    time: new Date(historyValue),
-                    index: index
-                  })
-                }
-              }
-            }
-          }
-        }
-        else {
-          entry.history = {
-            added: null,
-            started: null,
-            finished: null,
-            progress: null,
-            lastUpdated: null,
-          }
-        }
-      }
-  
-      typedHistory[type.id].sort(function (a: any, b: any) {
-        if (!a.time || a.time == null)
-          a.time = 0
-        if (!b.time || b.time == null)
-          b.time = 0
-  
-        if (a.time > b.time) return -1;
-        if (a.time < b.time) return 1;
-        return 0;
-      });
-    }
-  }
+	const { typedEntries, typedHistory } = buildProfileHistory({
+		listTypes,
+		watchlists: watchLists,
+		entries: allEntries,
+	})
 
 	const favorites = await prisma.userFavorite.findMany({
     where: {

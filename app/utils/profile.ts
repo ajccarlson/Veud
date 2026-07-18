@@ -70,10 +70,9 @@ export type ProfileCommentItem = {
  * The full loader payload the profile container passes down to its sections.
  *
  * `typedEntries` holds the raw per-type entries with their `history` parsed from
- * JSON into dynamic, per-media-type shapes. It is intentionally left loose
- * (`any[]`) until Phase 4 lifts the history computation out of the loader into a
- * typed helper; the getters that read it (`getStartYear`, `getThumbnailInfo`)
- * only touch a handful of string columns.
+ * JSON into dynamic, per-media-type shapes. Its legacy chart consumers still
+ * read dynamic columns, so the payload remains loose here; parsing and activity
+ * construction are typed and tested in `profile-history.ts`.
  */
 export type ProfileData = {
 	user: ProfileUser
