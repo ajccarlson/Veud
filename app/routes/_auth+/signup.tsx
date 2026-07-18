@@ -1,6 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import * as E from 'react-email'
 import {
 	json,
 	redirect,
@@ -8,11 +7,13 @@ import {
 	type MetaFunction,
 } from '@remix-run/node'
 import { Form, useActionData, /*useSearchParams*/ } from '@remix-run/react'
+import * as E from 'react-email'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { ProviderNameSchema } from '#app/utils/connections.tsx'
 // import {
 // 	ProviderConnectionForm,
 // 	providerNames,
@@ -22,6 +23,8 @@ import { sendEmail } from '#app/utils/email.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
+import { verifySessionStorage } from '#app/utils/verification.server.ts'
+import { providerNameKey } from './onboarding_.$provider.tsx'
 import { prepareVerification } from './verify.server.ts'
 
 const SignupSchema = z.object({
@@ -57,10 +60,16 @@ export async function action({ request }: ActionFunctionArgs) {
 		)
 	}
 	const { email } = submission.value
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const providerName = ProviderNameSchema.safeParse(
+		verifySession.get(providerNameKey),
+	)
 	const { verifyUrl, redirectTo, otp } = await prepareVerification({
 		period: 10 * 60,
 		request,
-		type: 'onboarding',
+		type: providerName.success ? 'onboarding-provider' : 'onboarding',
 		target: email,
 	})
 

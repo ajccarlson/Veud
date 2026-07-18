@@ -15,6 +15,7 @@ import {
 	shouldRequestTwoFA,
 } from './login.server.ts'
 import { handleVerification as handleOnboardingVerification } from './onboarding.server.ts'
+import { handleVerification as handleProviderOnboardingVerification } from './onboarding_.$provider.server.ts'
 import { handleVerification as handleResetPasswordVerification } from './reset-password.server.ts'
 import {
 	VerifySchema,
@@ -188,6 +189,10 @@ export async function validateRequest(
 		case 'onboarding': {
 			await deleteVerification()
 			return handleOnboardingVerification({ request, body, submission })
+		}
+		case 'onboarding-provider': {
+			await deleteVerification()
+			return handleProviderOnboardingVerification({ request, body, submission })
 		}
 		case 'change-email': {
 			await deleteVerification()

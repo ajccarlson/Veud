@@ -18,7 +18,11 @@ import {
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { handleNewSession } from './login.server.ts'
 import { onboardingEmailSessionKey } from './onboarding.tsx'
-import { prefilledProfileKey, providerIdKey } from './onboarding_.$provider.tsx'
+import {
+	prefilledProfileKey,
+	providerIdKey,
+	providerNameKey,
+} from './onboarding_.$provider.tsx'
 
 const destroyRedirectTo = { 'set-cookie': destroyRedirectToHeader }
 
@@ -28,7 +32,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const label = providerLabels[providerName]
 
 	const authResult = await authenticator
-		.authenticate(providerName, request, { throwOnError: true })
+		.authenticate(providerName, request)
 		.then(
 			data => ({ success: true, data }) as const,
 			error => ({ success: false, error }) as const,
@@ -107,10 +111,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 	// if the email matches a user in the db, then link the account and
 	// make a new session
-	const user = await prisma.user.findUnique({
-		select: { id: true },
-		where: { email: profile.email.toLowerCase() },
-	})
+	const user = profile.email
+		? await prisma.user.findUnique({
+				select: { id: true },
+				where: { email: profile.email.toLowerCase() },
+			})
+		: null
 	if (user) {
 		await prisma.connection.create({
 			data: {
@@ -132,15 +138,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 	// this is a new user, so let's get them onboarded
 	const verifySession = await verifySessionStorage.getSession()
-	verifySession.set(onboardingEmailSessionKey, profile.email)
+	if (profile.email) {
+		verifySession.set(onboardingEmailSessionKey, profile.email.toLowerCase())
+	}
 	verifySession.set(prefilledProfileKey, {
 		...profile,
-		email: profile.email.toLowerCase(),
+		...(profile.email ? { email: profile.email.toLowerCase() } : {}),
 		username: profile.username?.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase(),
 	})
 	verifySession.set(providerIdKey, profile.id)
+	verifySession.set(providerNameKey, providerName)
 	const onboardingRedirect = [
-		`/onboarding/${providerName}`,
+		profile.email ? `/onboarding/${providerName}` : '/signup',
 		redirectTo ? new URLSearchParams({ redirectTo }) : null,
 	]
 		.filter(Boolean)

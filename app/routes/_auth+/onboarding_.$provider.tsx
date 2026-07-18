@@ -25,7 +25,6 @@ import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
-	authenticator,
 	sessionKey,
 	signupWithConnection,
 	requireAnonymous,
@@ -40,6 +39,7 @@ import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { onboardingEmailSessionKey } from './onboarding'
 
 export const providerIdKey = 'providerId'
+export const providerNameKey = 'providerName'
 export const prefilledProfileKey = 'prefilledProfile'
 
 const SignupFormSchema = z.object({
@@ -66,32 +66,28 @@ async function requireData({
 	)
 	const email = verifySession.get(onboardingEmailSessionKey)
 	const providerId = verifySession.get(providerIdKey)
+	const providerName = verifySession.get(providerNameKey)
 	const result = z
 		.object({
 			email: z.string(),
 			providerName: ProviderNameSchema,
 			providerId: z.string(),
 		})
-		.safeParse({ email, providerName: params.provider, providerId })
-	if (result.success) {
-		return result.data
-	} else {
+		.safeParse({ email, providerName, providerId })
+	if (!result.success) {
 		console.error(result.error)
 		throw redirect('/signup')
 	}
+	if (result.data.providerName !== params.provider) throw redirect('/signup')
+	return result.data
 }
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const { email } = await requireData({ request, params })
-	const authSession = await authSessionStorage.getSession(
-		request.headers.get('cookie'),
-	)
 	const verifySession = await verifySessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
 	const prefilledProfile = verifySession.get(prefilledProfileKey)
-
-	const formError = authSession.get(authenticator.sessionErrorKey)
 
 	return json({
 		email,
@@ -100,7 +96,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			status: 'error',
 			initialValue: prefilledProfile ?? {},
 			error: {
-				'': typeof formError === 'string' ? [formError] : [],
+				'': [],
 			},
 		} as SubmissionResult,
 	})
