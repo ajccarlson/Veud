@@ -55,7 +55,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	return await prisma.$transaction(async tx => {
 		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity)
+			? await ensureMediaForIdentity(tx, mediaIdentity, data)
 			: undefined
 		const trackingStateId =
 			mediaId && mediaIdentity

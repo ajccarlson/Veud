@@ -71,6 +71,12 @@ async function fixture() {
 	const media = await prisma.media.create({
 		data: {
 			kind: 'anime',
+			title: 'Fullmetal Alchemist: Brotherhood',
+			type: 'TV',
+			thumbnail:
+				'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
+			length: '12 eps',
+			description: 'Two brothers search for the Philosopher’s Stone.',
 			externalIds: {
 				create: { provider: 'mal', kind: 'anime', externalId: '5114' },
 			},
@@ -81,12 +87,12 @@ async function fixture() {
 			watchlistId: catalogList.id,
 			mediaId: media.id,
 			position: 1,
-			title: 'Fullmetal Alchemist: Brotherhood',
+			title: 'Outdated user snapshot',
 			type: 'TV',
 			thumbnail:
-				'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
-			length: '12 eps',
-			description: 'Two brothers search for the Philosopher’s Stone.',
+				'https://example.com/old.jpg|https://myanimelist.net/anime/5114',
+			length: '24 eps',
+			description: 'An outdated per-user snapshot.',
 		},
 	})
 	const session = await prisma.session.create({
@@ -111,7 +117,7 @@ function actionRequest(
 	})
 }
 
-test('public media loader exposes representative catalog and community data', async () => {
+test('public media loader prefers canonical catalog over legacy entry snapshots', async () => {
 	const { media } = await fixture()
 	const result = await loader({
 		request: new Request(`${BASE_URL}/media/${media.id}`),
@@ -157,6 +163,7 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 		where: { ownerId_mediaId: { ownerId: tracker.id, mediaId: media.id } },
 	})
 	expect(entry.watchlistId).toBe(watching.id)
+	expect(entry.title).toBe('Fullmetal Alchemist: Brotherhood')
 	expect(entry.trackingStateId).toBe(state.id)
 	expect(state.status).toBe('watching')
 

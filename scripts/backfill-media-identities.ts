@@ -10,6 +10,7 @@
  */
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
 import {
 	mediaIdentityFromThumbnail,
 	mediaIdentityMatchesListType,
@@ -33,6 +34,7 @@ type Candidate = {
 	type: 'entry' | 'favorite'
 	id: string
 	identity: MediaIdentity
+	catalog: Record<string, unknown>
 }
 
 function identityKey(identity: MediaIdentity) {
@@ -47,7 +49,7 @@ async function main() {
 				where: { mediaId: null },
 				select: {
 					id: true,
-					thumbnail: true,
+					...mediaCatalogSelect,
 					watchlist: { select: { type: { select: { name: true } } } },
 				},
 			}),
@@ -56,6 +58,9 @@ async function main() {
 				select: {
 					id: true,
 					thumbnail: true,
+					title: true,
+					mediaType: true,
+					startYear: true,
 					type: { select: { name: true } },
 				},
 			}),
@@ -75,7 +80,12 @@ async function main() {
 				mismatched++
 				continue
 			}
-			candidates.push({ type: 'entry', id: record.id, identity })
+			candidates.push({
+				type: 'entry',
+				id: record.id,
+				identity,
+				catalog: record as unknown as Record<string, unknown>,
+			})
 		}
 
 		for (const record of favorites) {
@@ -88,7 +98,21 @@ async function main() {
 				mismatched++
 				continue
 			}
-			candidates.push({ type: 'favorite', id: record.id, identity })
+			candidates.push({
+				type: 'favorite',
+				id: record.id,
+				identity,
+				catalog: {
+					thumbnail: record.thumbnail,
+					title: record.title,
+					type: record.mediaType,
+					...(identity.kind === 'anime'
+						? { startSeason: record.startYear }
+						: identity.kind === 'manga'
+							? { startYear: record.startYear }
+							: { airYear: record.startYear }),
+				},
+			})
 		}
 
 		const selected = candidates.slice(0, parsedLimit)
@@ -125,7 +149,10 @@ async function main() {
 					const identity = group[0]?.identity
 					if (!identity) continue
 
-					const mediaId = await ensureMediaForIdentity(tx, identity)
+					const catalog =
+						group.find(candidate => candidate.type === 'entry')?.catalog ??
+						group[0]?.catalog
+					const mediaId = await ensureMediaForIdentity(tx, identity, catalog)
 					const entryIds = group
 						.filter(candidate => candidate.type === 'entry')
 						.map(candidate => candidate.id)
