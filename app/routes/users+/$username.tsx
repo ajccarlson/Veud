@@ -16,6 +16,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
+import { buildProfileTrackingSummaries } from '#app/utils/profile-tracking.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/user-landing.scss'
 
@@ -77,13 +78,32 @@ export async function loader(params: LoaderFunctionArgs) {
   const allEntries = watchLists.length >= 1
     ? await prisma.entry.findMany({
         where: { watchlistId: { in: watchLists.map(w => w.id) } },
+				include: {
+					media: { select: { kind: true } },
+					trackingState: {
+						select: {
+							id: true,
+							status: true,
+							statusWatchlistId: true,
+							score: true,
+							repeatCount: true,
+							progress: { select: { unit: true, current: true } },
+						},
+					},
+				},
       })
     : []
+	const trackingSummaries = buildProfileTrackingSummaries({
+		listTypes,
+		watchlists: watchLists,
+		entries: allEntries,
+	})
+	const historyEntries = allEntries.map(({ media, trackingState, ...entry }) => entry)
 
 	const { typedEntries, typedHistory } = buildProfileHistory({
 		listTypes,
 		watchlists: watchLists,
-		entries: allEntries,
+		entries: historyEntries,
 	})
 
 	const favorites = await prisma.userFavorite.findMany({
@@ -99,7 +119,7 @@ export async function loader(params: LoaderFunctionArgs) {
 		return 0;
 	});
 
-	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
+	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, trackingSummaries, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
 }
 
 const PROFILE_TABS = [
