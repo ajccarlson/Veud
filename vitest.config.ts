@@ -7,7 +7,10 @@ export default defineConfig({
 	plugins: [react()],
 	css: { postcss: { plugins: [] } },
 	test: {
-		include: ['./app/**/*.test.{ts,tsx}'],
+		include: [
+			'./app/**/*.test.{ts,tsx}',
+			'./scripts/**/*.test.mjs',
+		],
 		setupFiles: ['./tests/setup/setup-test-env.ts'],
 		globalSetup: ['./tests/setup/global-setup.ts'],
 		restoreMocks: true,
