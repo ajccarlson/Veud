@@ -25,7 +25,14 @@ export type ListTypeMeta = Pick<
 /** A favorite as stored — a self-contained snapshot (no relation to `Entry`). */
 export type FavoriteItem = Pick<
 	UserFavorite,
-	'id' | 'position' | 'thumbnail' | 'title' | 'typeId' | 'mediaType' | 'startYear'
+	| 'id'
+	| 'position'
+	| 'thumbnail'
+	| 'title'
+	| 'typeId'
+	| 'mediaType'
+	| 'startYear'
+	| 'mediaId'
 >
 
 /** The watchlist (status list) metadata the profile reads for status breakdowns. */
