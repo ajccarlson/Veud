@@ -1,4 +1,8 @@
-import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
+import {
+	type ListType,
+	type UserFavorite,
+	type Watchlist,
+} from '@prisma/client'
 import { type ProfileTrackingSummary } from './profile-tracking.ts'
 
 export const PROFILE_COMMENT_MAX_LENGTH = 1000
@@ -64,6 +68,37 @@ export type ProfileActivityEvent = {
 	}
 }
 
+export type ProfileReviewItem = {
+	id: string
+	body: string
+	containsSpoilers: boolean
+	rating: number | null
+	createdAt: Date | string
+	updatedAt: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		kind: string
+		title: string
+		thumbnail: string | null
+	}
+}
+
+export type ProfileDiaryItem = {
+	id: string
+	loggedOn: Date | string
+	isRepeat: boolean
+	rating: number | null
+	createdAt: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		kind: string
+		title: string
+		thumbnail: string | null
+	}
+}
+
 /** A user's public profile header data. */
 export type ProfileUser = {
 	id: string
@@ -108,6 +143,8 @@ export type ProfileData = {
 	typedHistory: Record<string, ActivityItem[]>
 	activityEvents: ProfileActivityEvent[]
 	activityStartedAt: Date | string | null
+	reviews: ProfileReviewItem[]
+	diaryEntries: ProfileDiaryItem[]
 	trackingSummaries: Record<string, ProfileTrackingSummary>
 	favorites: FavoriteItem[]
 	followerCount: number

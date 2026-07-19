@@ -60,7 +60,9 @@ test('member can open a canonical media page and change status', async ({
 				}),
 			)
 			.toEqual({ title: 'Canonical Media Browser Test' })
-		await expect(page.getByText('added to completed', { exact: true })).toBeVisible()
+		await expect(
+			page.getByText('added to completed', { exact: true }),
+		).toBeVisible()
 		await expect
 			.poll(() =>
 				prisma.activityEvent.count({
@@ -93,22 +95,42 @@ test('member can open a canonical media page and change status', async ({
 		).toBeVisible()
 		await expect
 			.poll(() =>
-				prisma.review.findUnique({
-					where: {
-						authorId_mediaId: { authorId: user.id, mediaId: media.id },
-					},
-					select: { body: true, containsSpoilers: true, rating: true },
-				}).then(review =>
-					review
-						? { ...review, rating: review.rating ? Number(review.rating) : null }
-						: null,
-				),
+				prisma.review
+					.findUnique({
+						where: {
+							authorId_mediaId: { authorId: user.id, mediaId: media.id },
+						},
+						select: { body: true, containsSpoilers: true, rating: true },
+					})
+					.then(review =>
+						review
+							? {
+									...review,
+									rating: review.rating ? Number(review.rating) : null,
+								}
+							: null,
+					),
 			)
 			.toEqual({
 				body: 'A browser-level review.',
 				containsSpoilers: true,
 				rating: 9.1,
 			})
+
+		await page.goto(`/users/${user.username}/reviews`)
+		await expect(page.getByRole('heading', { name: 'Reviews' })).toBeVisible()
+		await expect(
+			page.getByText('Contains spoilers — reveal review'),
+		).toBeVisible()
+
+		await page.goto(`/users/${user.username}/diary`)
+		await expect(page.getByRole('heading', { name: 'Diary' })).toBeVisible()
+		await expect(page.getByText('Rewatch')).toBeVisible()
+		await expect(page.getByText('8.8/10')).toBeVisible()
+
+		await page.goto(`/users/${user.username}/activity`)
+		await expect(page.getByText('Published a review')).toBeVisible()
+		await expect(page.getByText('Logged a rewatch')).toBeVisible()
 	} finally {
 		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
 	}
