@@ -1,5 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
+<<<<<<< HEAD
+import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { Link, Outlet, useMatches } from '@remix-run/react'
+=======
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -8,6 +12,7 @@ import {
 	useMatches,
 } from 'react-router'
 
+>>>>>>> develop
 import { z } from 'zod'
 import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -24,8 +29,13 @@ export const handle: BreadcrumbHandle & SEOHandle = {
 	getSitemapEntries: () => null,
 }
 
+<<<<<<< HEAD
+export async function loader({ request }: LoaderFunctionArgs) {
+	const userId = await requireUserId(request)
+=======
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request, { url })
+>>>>>>> develop
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
 		select: { username: true },

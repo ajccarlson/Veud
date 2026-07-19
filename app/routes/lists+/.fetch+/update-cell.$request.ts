@@ -16,6 +16,11 @@ async function updateEntryAndTrackingState(
   await syncTrackingStateForEntry(tx, entryId)
   return tx.entry.findUniqueOrThrow({ where: { id: entryId } })
 }
+import { type ActionFunctionArgs } from '@remix-run/node'
+import { prisma } from '#app/utils/db.server.ts'
+import {
+  requireEntryOwner,
+} from '#app/utils/lists/authorization.server.ts'
 
 function castType(varIn: unknown, varType: string): unknown {
   const typeFormatted = varType.toLowerCase()

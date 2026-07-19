@@ -7,23 +7,40 @@ import {
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import {
 	redirect,
+<<<<<<< HEAD
+	json,
+	type ActionFunctionArgs,
+	type LoaderFunctionArgs,
+	type MetaFunction,
+} from '@remix-run/node'
+import {
+=======
 	data as json,
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
+>>>>>>> develop
 	type Params,
 	Form,
 	useActionData,
 	useLoaderData,
 	useSearchParams,
+<<<<<<< HEAD
+} from '@remix-run/react'
+=======
 } from 'react-router'
 
+>>>>>>> develop
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
+<<<<<<< HEAD
+	authenticator,
+=======
+>>>>>>> develop
 	sessionKey,
 	signupWithConnection,
 	requireAnonymous,
@@ -38,7 +55,10 @@ import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { onboardingEmailSessionKey } from './onboarding'
 
 export const providerIdKey = 'providerId'
+<<<<<<< HEAD
+=======
 export const providerNameKey = 'providerName'
+>>>>>>> develop
 export const prefilledProfileKey = 'prefilledProfile'
 
 const SignupFormSchema = z.object({
@@ -65,13 +85,25 @@ async function requireData({
 	)
 	const email = verifySession.get(onboardingEmailSessionKey)
 	const providerId = verifySession.get(providerIdKey)
+<<<<<<< HEAD
+=======
 	const providerName = verifySession.get(providerNameKey)
+>>>>>>> develop
 	const result = z
 		.object({
 			email: z.string(),
 			providerName: ProviderNameSchema,
 			providerId: z.string(),
 		})
+<<<<<<< HEAD
+		.safeParse({ email, providerName: params.provider, providerId })
+	if (result.success) {
+		return result.data
+	} else {
+		console.error(result.error)
+		throw redirect('/signup')
+	}
+=======
 		.safeParse({ email, providerName, providerId })
 	if (!result.success) {
 		console.error(result.error)
@@ -79,15 +111,27 @@ async function requireData({
 	}
 	if (result.data.providerName !== params.provider) throw redirect('/signup')
 	return result.data
+>>>>>>> develop
 }
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const { email } = await requireData({ request, params })
+<<<<<<< HEAD
+	const authSession = await authSessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+=======
+>>>>>>> develop
 	const verifySession = await verifySessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
 	const prefilledProfile = verifySession.get(prefilledProfileKey)
 
+<<<<<<< HEAD
+	const formError = authSession.get(authenticator.sessionErrorKey)
+
+=======
+>>>>>>> develop
 	return json({
 		email,
 		status: 'idle',
@@ -95,7 +139,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			status: 'error',
 			initialValue: prefilledProfile ?? {},
 			error: {
+<<<<<<< HEAD
+				'': typeof formError === 'string' ? [formError] : [],
+=======
 				'': [],
+>>>>>>> develop
 			},
 		} as SubmissionResult,
 	})

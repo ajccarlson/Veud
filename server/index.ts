@@ -1,6 +1,12 @@
 import crypto from 'crypto'
+<<<<<<< HEAD
+import { createRequestHandler as _createRequestHandler } from '@remix-run/express'
+import { type ServerBuild, installGlobals } from '@remix-run/node'
+import * as Sentry from '@sentry/remix'
+=======
 import { createRequestHandler } from '@react-router/express'
 import * as Sentry from '@sentry/react-router'
+>>>>>>> develop
 import { ip as ipAddress } from 'address'
 import chalk from 'chalk'
 import closeWithGrace from 'close-with-grace'
@@ -10,6 +16,18 @@ import rateLimit from 'express-rate-limit'
 import getPort, { portNumbers } from 'get-port'
 import helmet from 'helmet'
 import morgan from 'morgan'
+<<<<<<< HEAD
+
+installGlobals()
+
+const MODE = process.env.NODE_ENV ?? 'development'
+
+const createRequestHandler =
+	MODE === 'production'
+		? Sentry.wrapExpressCreateRequestHandler(_createRequestHandler)
+		: _createRequestHandler
+
+=======
 import { RouterContextProvider, type ServerBuild } from 'react-router'
 import {
 	type cspNonceContext as CspNonceContext,
@@ -23,6 +41,7 @@ type ServerContextModule = {
 
 const MODE = process.env.NODE_ENV ?? 'development'
 
+>>>>>>> develop
 const viteDevServer =
 	MODE === 'production'
 		? undefined
@@ -42,7 +61,11 @@ const getHost = (req: { get: (key: string) => string | undefined }) =>
 // X-Forwarded-For and thereby control req.ip.
 app.set('trust proxy', 'loopback')
 
+<<<<<<< HEAD
+// ensure HTTPS only (X-Forwarded-Proto comes from Fly)
+=======
 // ensure HTTPS only (X-Forwarded-Proto comes from Cloudflare Tunnel)
+>>>>>>> develop
 app.use((req, res, next) => {
 	const proto = req.get('X-Forwarded-Proto')
 	const host = getHost(req)
@@ -71,6 +94,12 @@ app.use(compression())
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
 app.disable('x-powered-by')
 
+<<<<<<< HEAD
+app.use(Sentry.Handlers.requestHandler())
+app.use(Sentry.Handlers.tracingHandler())
+
+=======
+>>>>>>> develop
 if (viteDevServer) {
 	app.use(viteDevServer.middlewares)
 } else {
@@ -206,7 +235,11 @@ app.use((req, res, next) => {
 
 async function getBuild() {
 	const build = viteDevServer
+<<<<<<< HEAD
+		? viteDevServer.ssrLoadModule('virtual:remix/server-build')
+=======
 		? viteDevServer.ssrLoadModule('virtual:react-router/server-build')
+>>>>>>> develop
 		: // @ts-ignore this should exist before running the server
 			// but it may not exist just yet.
 			await import('#build/server/index.js')
@@ -217,6 +250,14 @@ async function getBuild() {
 app.all(
 	'*',
 	createRequestHandler({
+<<<<<<< HEAD
+		getLoadContext: (_: any, res: any) => ({
+			cspNonce: res.locals.cspNonce,
+			serverBuild: getBuild(),
+		}),
+		mode: MODE,
+		// @sentry/remix needs to be updated to handle the function signature
+=======
 		getLoadContext: async (_, res) => {
 			const buildPromise = getBuild()
 			const build = await buildPromise
@@ -228,12 +269,16 @@ app.all(
 			return context
 		},
 		mode: MODE,
+>>>>>>> develop
 		build: MODE === 'production' ? await getBuild() : getBuild,
 	}),
 )
 
+<<<<<<< HEAD
+=======
 Sentry.setupExpressErrorHandler(app)
 
+>>>>>>> develop
 const desiredPort = Number(process.env.PORT || 4021)
 const portToUse = await getPort({
 	port: portNumbers(desiredPort, desiredPort + 100),
