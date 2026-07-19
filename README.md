@@ -146,6 +146,27 @@ PM2 writes `out.log` and `error.log`. Install the log-rotate module so they don'
 pm2 install pm2-logrotate
 ```
 
+## Canonical media identity
+
+Tracking V2 links user-owned entry snapshots to shared provider-backed `Media`
+records. Deploy and backfill it in stages:
+
+```
+npm run db:backup
+npx prisma migrate deploy
+npm run media:backfill
+npm run media:backfill -- --commit --limit 25
+npm run media:backfill -- --commit
+npm run tracking:backfill
+npm run tracking:backfill -- --commit --limit 25
+npm run tracking:backfill -- --commit
+```
+
+Both backfills are dry-run by default and idempotent. Run the media identity
+backfill first; the tracking-state backfill then normalizes status, score, dates,
+repeat evidence, and episode/chapter/volume progress without overwriting Entry
+or its history. Neither backfill calls an upstream provider.
+
 ## Testing
 
 ### Playwright

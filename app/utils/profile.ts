@@ -1,4 +1,9 @@
-import { type ListType, type UserFavorite, type Watchlist } from '@prisma/client'
+import {
+	type ListType,
+	type UserFavorite,
+	type Watchlist,
+} from '@prisma/client'
+import { type ProfileTrackingSummary } from './profile-tracking.ts'
 
 export const PROFILE_COMMENT_MAX_LENGTH = 1000
 export const PROFILE_BIO_MAX_LENGTH = 5000
@@ -24,7 +29,14 @@ export type ListTypeMeta = Pick<
 /** A favorite as stored — a self-contained snapshot (no relation to `Entry`). */
 export type FavoriteItem = Pick<
 	UserFavorite,
-	'id' | 'position' | 'thumbnail' | 'title' | 'typeId' | 'mediaType' | 'startYear'
+	| 'id'
+	| 'position'
+	| 'thumbnail'
+	| 'title'
+	| 'typeId'
+	| 'mediaType'
+	| 'startYear'
+	| 'mediaId'
 >
 
 /** The watchlist (status list) metadata the profile reads for status breakdowns. */
@@ -41,6 +53,50 @@ export type ActivityItem = {
 	type: string
 	time: Date | string
 	index: number
+}
+
+/** A normalized append-only tracking event shown in public activity feeds. */
+export type ProfileActivityEvent = {
+	id: string
+	action: string
+	time: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		title: string
+		thumbnail: string | null
+	}
+}
+
+export type ProfileReviewItem = {
+	id: string
+	body: string
+	containsSpoilers: boolean
+	rating: number | null
+	createdAt: Date | string
+	updatedAt: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		kind: string
+		title: string
+		thumbnail: string | null
+	}
+}
+
+export type ProfileDiaryItem = {
+	id: string
+	loggedOn: Date | string
+	isRepeat: boolean
+	rating: number | null
+	createdAt: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		kind: string
+		title: string
+		thumbnail: string | null
+	}
 }
 
 /** A user's public profile header data. */
@@ -85,6 +141,11 @@ export type ProfileData = {
 	typedWatchlists: Record<string, WatchlistMeta[]>
 	typedEntries: Record<string, any[]>
 	typedHistory: Record<string, ActivityItem[]>
+	activityEvents: ProfileActivityEvent[]
+	activityStartedAt: Date | string | null
+	reviews: ProfileReviewItem[]
+	diaryEntries: ProfileDiaryItem[]
+	trackingSummaries: Record<string, ProfileTrackingSummary>
 	favorites: FavoriteItem[]
 	followerCount: number
 	followingCount: number
