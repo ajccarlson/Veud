@@ -1,14 +1,9 @@
-<<<<<<< HEAD
 import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import {
   requireWatchlistOwner,
 } from '#app/utils/lists/authorization.server.ts'
-=======
-import { type ActionFunctionArgs } from 'react-router'
-import { prisma } from '#app/utils/db.server.ts'
-import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
->>>>>>> develop
+import { deleteTrackingStateIfOrphan } from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const searchParams = new URLSearchParams(params.request)
@@ -31,11 +26,22 @@ export async function action({ request, params }: ActionFunctionArgs) {
   // watchlists of this type — all atomically, so a mid-sequence failure can't leave a
   // half-deleted list or gaps in the ordering.
   await prisma.$transaction(async (tx) => {
+    const trackingStateIds = (
+      await tx.entry.findMany({
+        where: { watchlistId: watchlist.id, trackingStateId: { not: null } },
+        select: { trackingStateId: true },
+      })
+    ).map(entry => entry.trackingStateId)
+
     await tx.watchlist.delete({ where: { id: watchlist.id } })
 
     await tx.entry.deleteMany({
       where: { watchlistId: watchlist.id },
     })
+
+    for (const trackingStateId of new Set(trackingStateIds)) {
+      await deleteTrackingStateIfOrphan(tx, trackingStateId)
+    }
 
     const remaining = await tx.watchlist.findMany({
       where: { typeId: typeId as string, ownerId: userId },

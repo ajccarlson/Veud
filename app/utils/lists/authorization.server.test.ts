@@ -19,16 +19,6 @@ import {
 } from '#app/utils/lists/authorization.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
-// Capture a value thrown by a synchronous call.
-function getThrown(fn: () => unknown): unknown {
-	try {
-		fn()
-	} catch (e) {
-		return e
-	}
-	throw new Error('expected the function to throw, but it returned normally')
-}
-
 // ---------- requireWatchlistOwner (session + ownership) ----------
 
 async function createUserRecord() {

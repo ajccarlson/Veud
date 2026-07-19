@@ -255,11 +255,17 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	activityEventLabel,
+	activityListTypeName,
+	diaryActivityLabel,
+} from '#app/utils/activity.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
+import { buildProfileTrackingSummaries } from '#app/utils/profile-tracking.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/user-landing.scss'
 
@@ -305,11 +311,137 @@ export async function loader(params: LoaderFunctionArgs) {
 
 	const listTypes = await prisma.listType.findMany()
 
-	const watchLists = await prisma.watchlist.findMany({
-    where: {
-      ownerId: user.id,
-    },
-  })
+	const [watchLists, activityRows, firstActivity, reviewRows, diaryRows] = await Promise.all([
+		prisma.watchlist.findMany({
+			where: { ownerId: user.id },
+		}),
+		prisma.activityEvent.findMany({
+			where: { actorId: user.id },
+			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+			take: 100,
+			select: {
+				id: true,
+				type: true,
+				status: true,
+				statusLabel: true,
+				previousStatus: true,
+				previousStatusLabel: true,
+				score: true,
+				previousScore: true,
+				progressUnit: true,
+				progressCurrent: true,
+				progressPrevious: true,
+				progressTotal: true,
+				createdAt: true,
+				media: {
+					select: { id: true, kind: true, title: true, thumbnail: true },
+				},
+			},
+		}),
+		prisma.activityEvent.findFirst({
+			where: { actorId: user.id },
+			orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+			select: { createdAt: true },
+		}),
+		prisma.review.findMany({
+			where: { authorId: user.id },
+			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+			take: 100,
+			select: {
+				id: true,
+				body: true,
+				containsSpoilers: true,
+				rating: true,
+				createdAt: true,
+				updatedAt: true,
+				media: {
+					select: { id: true, kind: true, title: true, thumbnail: true },
+				},
+			},
+		}),
+		prisma.diaryEntry.findMany({
+			where: { ownerId: user.id },
+			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+			take: 100,
+			select: {
+				id: true,
+				loggedOn: true,
+				isRepeat: true,
+				rating: true,
+				createdAt: true,
+				media: {
+					select: { id: true, kind: true, title: true, thumbnail: true },
+				},
+			},
+		}),
+	])
+	const listTypeIdByName = new Map(
+		listTypes.map(listType => [listType.name, listType.id]),
+	)
+	const mediaItem = (media: {
+		id: string
+		kind: string
+		title: string | null
+		thumbnail: string | null
+	}) => ({
+		id: media.id,
+		kind: media.kind,
+		title: media.title?.trim() || `Untitled ${media.kind}`,
+		thumbnail: media.thumbnail,
+	})
+	const typeIdForKind = (kind: string) => {
+		const listTypeName = activityListTypeName(kind)
+		return listTypeName ? (listTypeIdByName.get(listTypeName) ?? null) : null
+	}
+	const trackingActivity = activityRows.map(event => {
+		const listTypeName = activityListTypeName(event.media.kind)
+		return {
+			id: `tracking:${event.id}`,
+			action: activityEventLabel(event),
+			time: event.createdAt,
+			typeId: listTypeName
+				? (listTypeIdByName.get(listTypeName) ?? null)
+				: null,
+			media: mediaItem(event.media),
+		}
+	})
+	const reviews = reviewRows.map(review => ({
+		...review,
+		rating: review.rating === null ? null : Number(review.rating),
+		typeId: typeIdForKind(review.media.kind),
+		media: mediaItem(review.media),
+	}))
+	const diaryEntries = diaryRows.map(entry => ({
+		...entry,
+		rating: entry.rating === null ? null : Number(entry.rating),
+		typeId: typeIdForKind(entry.media.kind),
+		media: mediaItem(entry.media),
+	}))
+	const activityEvents = [
+		...trackingActivity,
+		...reviews.map(review => ({
+			id: `review:${review.id}`,
+			action: 'Published a review',
+			time: review.createdAt,
+			typeId: review.typeId,
+			media: review.media,
+		})),
+		...diaryEntries.map(entry => {
+			return {
+				id: `diary:${entry.id}`,
+				action: diaryActivityLabel(entry.media.kind, entry.isRepeat),
+				time: entry.createdAt,
+				typeId: entry.typeId,
+				media: entry.media,
+			}
+		}),
+	]
+		.sort(
+			(a, b) =>
+				new Date(b.time).getTime() - new Date(a.time).getTime() ||
+				b.id.localeCompare(a.id),
+		)
+		.slice(0, 100)
 
 	const typedWatchlists = watchLists.reduce<Record<string, typeof watchLists>>((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
@@ -321,13 +453,32 @@ export async function loader(params: LoaderFunctionArgs) {
   const allEntries = watchLists.length >= 1
     ? await prisma.entry.findMany({
         where: { watchlistId: { in: watchLists.map(w => w.id) } },
+				include: {
+					media: { select: { kind: true } },
+					trackingState: {
+						select: {
+							id: true,
+							status: true,
+							statusWatchlistId: true,
+							score: true,
+							repeatCount: true,
+							progress: { select: { unit: true, current: true } },
+						},
+					},
+				},
       })
     : []
+	const trackingSummaries = buildProfileTrackingSummaries({
+		listTypes,
+		watchlists: watchLists,
+		entries: allEntries,
+	})
+	const historyEntries = allEntries.map(({ media, trackingState, ...entry }) => entry)
 
 	const { typedEntries, typedHistory } = buildProfileHistory({
 		listTypes,
 		watchlists: watchLists,
-		entries: allEntries,
+		entries: historyEntries,
 	})
 
 	const favorites = await prisma.userFavorite.findMany({
@@ -343,11 +494,13 @@ export async function loader(params: LoaderFunctionArgs) {
 		return 0;
 	});
 
-	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
+	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, activityEvents, activityStartedAt: firstActivity?.createdAt ?? null, reviews, diaryEntries, trackingSummaries, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
 }
 
 const PROFILE_TABS = [
 	{ to: '.', end: true, label: 'Overview' },
+	{ to: 'reviews', end: false, label: 'Reviews' },
+	{ to: 'diary', end: false, label: 'Diary' },
 	{ to: 'stats', end: false, label: 'Stats' },
 	{ to: 'favorites', end: false, label: 'Favorites' },
 	{ to: 'activity', end: false, label: 'Activity' },

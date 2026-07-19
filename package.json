@@ -13,6 +13,8 @@
     "build:server": "tsx ./other/build-server.ts",
     "db:backup": "node scripts/backup-db.mjs",
     "db:verify-backup": "node scripts/verify-backup.mjs",
+    "media:backfill": "tsx scripts/backfill-media-identities.ts",
+    "tracking:backfill": "tsx scripts/backfill-tracking-states.ts",
     "predev": "npm run build:icons --silent",
     "dev": "node ./server/dev-server.js",
     "prisma:studio": "prisma studio",
