@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+import { OAuth2Strategy, type OAuth2Profile } from 'remix-auth-oauth2'
+import { z } from 'zod'
+import { cache, cachified } from '../cache.server.ts'
+import { type Timings } from '../timing.server.ts'
+import { type AuthProvider, type ProviderUser } from './provider.ts'
+
+const MALUserSchema = z.object({ login: z.string() })
+=======
 import { CodeChallengeMethod, OAuth2Strategy } from 'remix-auth-oauth2'
 import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
@@ -15,6 +24,7 @@ const MALProfileSchema = z.object({
 })
 
 const MALUserSchema = z.object({ name: z.string() })
+>>>>>>> develop
 const MALUserParseResult = z
 	.object({
 		success: z.literal(true),
@@ -27,6 +37,29 @@ const MALUserParseResult = z
 	)
 
 export class MALProvider implements AuthProvider {
+<<<<<<< HEAD
+  getAuthStrategy() {
+		return new OAuth2Strategy<ProviderUser, OAuth2Profile>(
+			{
+        authorizationEndpoint: 'https://myanimelist.net/v1/oauth2/authorize',
+        tokenEndpoint: 'https://myanimelist.net/v1/oauth2/token',
+				clientId: process.env.MAL_CLIENT_ID,
+				clientSecret: process.env.MAL_CLIENT_SECRET,
+				redirectURI: '/auth/mal/callback',
+			},
+			async ({ profile }) => {
+				const email = profile.emails![0].value.trim().toLowerCase()
+				const username = profile.displayName
+				const imageUrl = profile.photos![0].value
+				return {
+					email,
+					id: profile.id!,
+					username,
+					name: profile.name!.givenName,
+					imageUrl,
+				}
+			},
+=======
 	getAuthStrategy() {
 		return new OAuth2Strategy<ProviderUser>(
 			{
@@ -39,6 +72,7 @@ export class MALProvider implements AuthProvider {
 				tokenEndpoint: 'https://myanimelist.net/v1/oauth2/token',
 			},
 			async ({ tokens }) => getMALProviderUser(tokens.accessToken()),
+>>>>>>> develop
 		)
 	}
 
@@ -55,7 +89,11 @@ export class MALProvider implements AuthProvider {
 			async getFreshValue(context) {
 				const response = await fetch(
 					`https://api.myanimelist.net/v2/users/${providerId}`,
+<<<<<<< HEAD
+					{ headers: { Authorization: `X-MAL-CLIENT-ID ${process.env.MAL_CLIENT_ID}` } },
+=======
 					{ headers: { 'X-MAL-CLIENT-ID': process.env.MAL_CLIENT_ID } },
+>>>>>>> develop
 				)
 				const rawJson = await response.json()
 				const result = MALUserSchema.safeParse(rawJson)
@@ -69,10 +107,15 @@ export class MALProvider implements AuthProvider {
 			checkValue: MALUserParseResult,
 		})
 		return {
+<<<<<<< HEAD
+			displayName: result.success ? result.data.login : 'Unknown',
+			link: result.success ? `https://myanimelist.net/${result.data.login}` : null,
+=======
 			displayName: result.success ? result.data.name : 'Unknown',
 			link: result.success
 				? `https://myanimelist.net/profile/${result.data.name}`
 				: null,
+>>>>>>> develop
 		} as const
 	}
 
@@ -94,6 +137,8 @@ export class MALProvider implements AuthProvider {
 		// })
 	}
 }
+<<<<<<< HEAD
+=======
 
 export async function getMALProviderUser(
 	accessToken: string,
@@ -122,3 +167,4 @@ export async function getMALProviderUser(
 		imageUrl: profile.picture,
 	}
 }
+>>>>>>> develop

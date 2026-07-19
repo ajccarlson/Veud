@@ -1,6 +1,11 @@
 import { invariantResponse } from '@epic-web/invariant'
+<<<<<<< HEAD
+import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { useLoaderData } from '@remix-run/react'
+=======
 import { data as json, type LoaderFunctionArgs } from 'react-router'
 import { useLoaderData } from 'react-router'
+>>>>>>> develop
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
 import { prisma } from '#app/utils/db.server.ts'

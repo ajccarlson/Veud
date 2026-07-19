@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+import { renderAsync } from '@react-email/components'
+=======
 import { render } from 'react-email'
+>>>>>>> develop
 import { type ReactElement } from 'react'
 import { z } from 'zod'
 
@@ -89,10 +93,17 @@ export async function sendEmail({
 	}
 }
 
+<<<<<<< HEAD
+async function renderReactEmail(react: ReactElement) {
+	const [html, text] = await Promise.all([
+		renderAsync(react),
+		renderAsync(react, { plainText: true }),
+=======
 export async function renderReactEmail(react: ReactElement) {
 	const [html, text] = await Promise.all([
 		render(react),
 		render(react, { plainText: true }),
+>>>>>>> develop
 	])
 	return { html, text }
 }
