@@ -21,61 +21,62 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastActiveAt DateTime?
 
-  image         UserImage?
-  banner         UserBanner?
-  password      Password?
-  watchlists    Watchlist[]
-  userFavorites UserFavorite[]
-  roles         Role[]
-  sessions      Session[]
-  connections   Connection[]
-  following     Follow[] @relation("UserFollowing")
-  followers     Follow[] @relation("UserFollowers")
+  image            UserImage?
+  banner           UserBanner?
+  password         Password?
+  watchlists       Watchlist[]
+  userFavorites    UserFavorite[]
+  roles            Role[]
+  sessions         Session[]
+  connections      Connection[]
+  following        Follow[]         @relation("UserFollowing")
+  followers        Follow[]         @relation("UserFollowers")
   commentsAuthored ProfileComment[] @relation("ProfileCommentAuthor")
   profileComments  ProfileComment[] @relation("ProfileCommentProfile")
   trackingStates   TrackingState[]
   activityEvents   ActivityEvent[]
+  reviews          Review[]
+  diaryEntries     DiaryEntry[]
 }
 
 model ListType {
-  id                String @id @default(cuid())
-  
-  name              String @unique
-  header            String
-  columns           String
+  id String @id @default(cuid())
 
-  mediaType         String
-  completionType    String
+  name    String @unique
+  header  String
+  columns String
 
-  watchlists        Watchlist[]
-  userFavorites     UserFavorite[]
+  mediaType      String
+  completionType String
+
+  watchlists    Watchlist[]
+  userFavorites UserFavorite[]
 }
 
 model Watchlist {
-  id                String @id @default(cuid())
-  
-  position 	        Int @default(1)
-  name              String
-  header            String
-  type              ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  typeId            String
-  displayedColumns  String?
-  description       String?
+  id String @id @default(cuid())
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  position         Int      @default(1)
+  name             String
+  header           String
+  type             ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId           String
+  displayedColumns String?
+  description      String?
 
-  owner             User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId           String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  entries           Entry[]
-  trackingStates    TrackingState[]
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  entries        Entry[]
+  trackingStates TrackingState[]
 
   // non-unique foreign key
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
-  
   @@index([typeId])
 }
 
@@ -83,8 +84,8 @@ model Watchlist {
 /// Entry retains a legacy snapshot during the transition, while these fields are
 /// the canonical catalog record used by title-centric pages and future discovery.
 model Media {
-  id        String   @id @default(cuid())
-  kind      String
+  id   String @id @default(cuid())
+  kind String
 
   thumbnail     String?
   title         String?
@@ -111,11 +112,13 @@ model Media {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalIds MediaExternalId[]
-  entries     Entry[]
-  favorites   UserFavorite[]
+  externalIds    MediaExternalId[]
+  entries        Entry[]
+  favorites      UserFavorite[]
   trackingStates TrackingState[]
   activityEvents ActivityEvent[]
+  reviews        Review[]
+  diaryEntries   DiaryEntry[]
 
   @@index([kind])
 }
@@ -137,16 +140,16 @@ model MediaExternalId {
 }
 
 model Entry {
-  id                  String @id @default(cuid())
+  id String @id @default(cuid())
 
-  watchlist           Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  watchlistId         String
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId String
 
-  media               Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  mediaId             String?
+  media   Media?  @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId String?
 
-  trackingState       TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  trackingStateId     String?
+  trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId String?
 
   // Shared core — present on every entry regardless of media type
   position            Int
@@ -170,22 +173,22 @@ model Entry {
   notes               String?
 
   // Media-type-specific — nullable; populated per the watchlist's list type
-  airYear             String?  // live action
-  startSeason         String?  // anime
-  startYear           String?  // manga
-  length              String?  // live action, anime
-  chapters            String?  // manga
-  volumes             String?  // manga
-  rating              String?  // live action, anime
-  language            String?  // live action
-  studios             String?  // anime
-  serialization       String?  // manga
-  authors             String?  // manga
-  priority            String?  // anime, manga
-  sound               Int?     // live action, anime
-  performance         Int?     // live action, anime
-  tmdbScore           Decimal? // live action
-  malScore            Decimal? // anime, manga
+  airYear       String? // live action
+  startSeason   String? // anime
+  startYear     String? // manga
+  length        String? // live action, anime
+  chapters      String? // manga
+  volumes       String? // manga
+  rating        String? // live action, anime
+  language      String? // live action
+  studios       String? // anime
+  serialization String? // manga
+  authors       String? // manga
+  priority      String? // anime, manga
+  sound         Int? // live action, anime
+  performance   Int? // live action, anime
+  tmdbScore     Decimal? // live action
+  malScore      Decimal? // anime, manga
 
   // non-unique foreign key
   @@index([watchlistId])
@@ -197,25 +200,25 @@ model Entry {
 /// remain the editing UI during the transition; this row becomes the stable
 /// source for status, score, dates, repeat count, and progress-based features.
 model TrackingState {
-  id                String   @id @default(cuid())
-  status            String
-  score             Decimal?
-  startedAt         DateTime?
-  completedAt       DateTime?
-  repeatCount       Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id          String    @id @default(cuid())
+  status      String
+  score       Decimal?
+  startedAt   DateTime?
+  completedAt DateTime?
+  repeatCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  owner             User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  owner             User       @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId           String
-  media             Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  media             Media      @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId           String
   statusWatchlist   Watchlist? @relation(fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   statusWatchlistId String?
 
-  entries           Entry[]
-  progress          TrackingProgress[]
-  activityEvents    ActivityEvent[]
+  entries        Entry[]
+  progress       TrackingProgress[]
+  activityEvents ActivityEvent[]
 
   @@unique([ownerId, mediaId])
   @@index([mediaId])
@@ -226,11 +229,11 @@ model TrackingState {
 /// A normalized progress counter. Separate rows support episodes, chapters,
 /// and volumes without encoding media-specific state in another JSON field.
 model TrackingProgress {
-  id              String   @id @default(cuid())
-  unit            String
-  current         Int      @default(0)
-  total           Int?
-  updatedAt       DateTime @updatedAt
+  id        String   @id @default(cuid())
+  unit      String
+  current   Int      @default(0)
+  total     Int?
+  updatedAt DateTime @updatedAt
 
   trackingState   TrackingState @relation(fields: [trackingStateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   trackingStateId String
@@ -256,10 +259,10 @@ model ActivityEvent {
   progressTotal       Int?
   createdAt           DateTime @default(now())
 
-  actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  actorId String
-  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  mediaId String
+  actor           User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId         String
+  media           Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId         String
   trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   trackingStateId String?
 
@@ -269,22 +272,62 @@ model ActivityEvent {
   @@index([type, createdAt])
 }
 
+/// A member's current long-form review of one canonical work. Keeping one row
+/// per member and work makes edits stable while preserving the original publish
+/// time separately from the latest edit time.
+model Review {
+  id               String   @id @default(cuid())
+  body             String
+  containsSpoilers Boolean  @default(false)
+  rating           Decimal?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+  media    Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId  String
+
+  @@unique([authorId, mediaId])
+  @@index([authorId, createdAt])
+  @@index([mediaId, createdAt])
+}
+
+/// A dated consumption log. Unlike TrackingState, diary rows are intentionally
+/// repeatable so rewatches and rereads remain distinct historical records.
+model DiaryEntry {
+  id        String   @id @default(cuid())
+  loggedOn  DateTime
+  isRepeat  Boolean  @default(false)
+  rating    Decimal?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@index([ownerId, loggedOn])
+  @@index([mediaId, loggedOn])
+}
+
 model UserFavorite {
-  id          String  @id @default(cuid())
+  id String @id @default(cuid())
 
-  position 	  Int
-  thumbnail	  String?
-  title		    String
-  type        ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  typeId      String
-  mediaType	  String?
-  startYear	  String?
+  position  Int
+  thumbnail String?
+  title     String
+  type      ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId    String
+  mediaType String?
+  startYear String?
 
-  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId     String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
 
-  media       Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  mediaId     String?
+  media   Media?  @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId String?
 
   // non-unique foreign key
   @@index([typeId])
