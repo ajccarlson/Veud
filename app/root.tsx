@@ -345,6 +345,17 @@ function CommunityDropdown() {
             <Link
               className="root-community-link-item"
               prefetch="intent"
+              to="/discover"
+            >
+              <Icon className="text-body-md" name="magnifying-glass">
+                Discover
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
               to={`/users`}
             >
               <Icon className="text-body-md" name="person">

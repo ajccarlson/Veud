@@ -237,6 +237,9 @@ export function FollowingFeed({
 							? 'The members you follow have not posted any activity yet.'
 							: 'Follow members to build a personalized activity feed.'}
 					</p>
+					<Button asChild variant="outline">
+						<Link to="/discover">Discover something to track</Link>
+					</Button>
 					<Suggestions members={suggestedMembers} />
 				</div>
 			)}
