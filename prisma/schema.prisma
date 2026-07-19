@@ -21,22 +21,26 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastActiveAt DateTime?
 
-  image            UserImage?
-  banner           UserBanner?
-  password         Password?
-  watchlists       Watchlist[]
-  userFavorites    UserFavorite[]
-  roles            Role[]
-  sessions         Session[]
-  connections      Connection[]
-  following        Follow[]         @relation("UserFollowing")
-  followers        Follow[]         @relation("UserFollowers")
-  commentsAuthored ProfileComment[] @relation("ProfileCommentAuthor")
-  profileComments  ProfileComment[] @relation("ProfileCommentProfile")
-  trackingStates   TrackingState[]
-  activityEvents   ActivityEvent[]
-  reviews          Review[]
-  diaryEntries     DiaryEntry[]
+  image                 UserImage?
+  banner                UserBanner?
+  password              Password?
+  watchlists            Watchlist[]
+  userFavorites         UserFavorite[]
+  roles                 Role[]
+  sessions              Session[]
+  connections           Connection[]
+  following             Follow[]         @relation("UserFollowing")
+  followers             Follow[]         @relation("UserFollowers")
+  commentsAuthored      ProfileComment[] @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[] @relation("ProfileCommentProfile")
+  trackingStates        TrackingState[]
+  activityEvents        ActivityEvent[]
+  reviews               Review[]
+  diaryEntries          DiaryEntry[]
+  reviewLikes           ReviewLike[]
+  reviewComments        ReviewComment[]
+  notificationsReceived Notification[]   @relation("NotificationRecipient")
+  notificationsSent     Notification[]   @relation("NotificationActor")
 }
 
 model ListType {
@@ -283,14 +287,77 @@ model Review {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  authorId String
-  media    Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  mediaId  String
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId      String
+  media         Media           @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId       String
+  likes         ReviewLike[]
+  comments      ReviewComment[]
+  notifications Notification[]
 
   @@unique([authorId, mediaId])
   @@index([authorId, createdAt])
   @@index([mediaId, createdAt])
+}
+
+/// A member can like a review once. The unique pair also makes toggling likes
+/// idempotent under repeated form submissions.
+model ReviewLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  review       Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId     String
+  notification Notification?
+
+  @@unique([userId, reviewId])
+  @@index([reviewId, createdAt])
+}
+
+/// Review discussion supports replies while remaining bounded to one review.
+model ReviewComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId     String
+  review       Review          @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId     String
+  parent       ReviewComment?  @relation("ReviewCommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentId     String?
+  replies      ReviewComment[] @relation("ReviewCommentReplies")
+  notification Notification?
+
+  @@index([reviewId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([parentId])
+}
+
+/// A source-linked inbox item. Source relations cascade so undoing a like or
+/// deleting a comment/review cannot leave an orphaned notification behind.
+model Notification {
+  id        String    @id @default(cuid())
+  type      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  recipient       User           @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId     String
+  actor           User           @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId         String
+  review          Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId        String
+  reviewLike      ReviewLike?    @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewLikeId    String?        @unique
+  reviewComment   ReviewComment? @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewCommentId String?        @unique
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([reviewId])
 }
 
 /// A dated consumption log. Unlike TrackingState, diary rows are intentionally

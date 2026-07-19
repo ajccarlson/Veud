@@ -121,6 +121,11 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		// them in the database. Maybe they were deleted? Let's log them out.
 		await logout({ request, redirectTo: '/' })
 	}
+	const unreadNotificationCount = userId
+		? await prisma.notification.count({
+				where: { recipientId: userId, readAt: null },
+			})
+		: 0
 
   const listTypes = await prisma.listType.findMany()
 
@@ -130,6 +135,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	return json(
 		{
 			user,
+			unreadNotificationCount,
       listTypes,
 			requestInfo: {
 				hints: getHints(request),
@@ -251,6 +257,20 @@ function App() {
               <div className="root-user-links">
                 <ListsDropdown/>
                 <div className="root-header-separator"/>
+                <Button asChild variant="secondary">
+                  <Link
+                    to="/notifications"
+                    className="relative"
+                    aria-label={`Notifications (${data.unreadNotificationCount} unread)`}
+                  >
+                    <Icon name="bell" />
+                    {data.unreadNotificationCount ? (
+                      <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-destructive px-1 text-center text-xs font-bold text-destructive-foreground">
+                        {Math.min(data.unreadNotificationCount, 99)}
+                      </span>
+                    ) : null}
+                  </Link>
+                </Button>
                 <UserDropdown/>
                 <Link
                   className="root-user-image"

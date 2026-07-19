@@ -125,6 +125,13 @@ function actionRequest(
 	})
 }
 
+async function cookieFor(userId: string) {
+	const session = await prisma.session.create({
+		data: { userId, expirationDate: getSessionExpirationDate() },
+	})
+	return getSessionCookieHeader(session)
+}
+
 test('public media loader prefers canonical catalog over legacy entry snapshots', async () => {
 	const { media } = await fixture()
 	const result = await loader({
@@ -456,6 +463,133 @@ test('invalid review and diary input is rejected before writing', async () => {
 	expect(await prisma.diaryEntry.count({ where: { mediaId: media.id } })).toBe(
 		0,
 	)
+})
+
+test('review likes, threaded comments, and notifications stay synchronized', async () => {
+	const { media, tracker, otherUser, cookie } = await fixture()
+	const review = await prisma.review.create({
+		data: {
+			authorId: otherUser.id,
+			mediaId: media.id,
+			body: 'A review ready for discussion.',
+		},
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'review-like-toggle',
+			reviewId: review.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	const like = await prisma.reviewLike.findUniqueOrThrow({
+		where: { userId_reviewId: { userId: tracker.id, reviewId: review.id } },
+	})
+	expect(
+		await prisma.notification.findUnique({
+			where: { reviewLikeId: like.id },
+		}),
+	).toMatchObject({
+		type: 'review_like',
+		recipientId: otherUser.id,
+		actorId: tracker.id,
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'review-comment-create',
+			reviewId: review.id,
+			body: '  A thoughtful first comment.  ',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	const parent = await prisma.reviewComment.findFirstOrThrow({
+		where: { reviewId: review.id, authorId: tracker.id },
+	})
+	expect(parent.body).toBe('A thoughtful first comment.')
+	expect(
+		await prisma.notification.findUnique({
+			where: { reviewCommentId: parent.id },
+		}),
+	).toMatchObject({
+		type: 'review_comment',
+		recipientId: otherUser.id,
+		actorId: tracker.id,
+	})
+
+	const authorCookie = await cookieFor(otherUser.id)
+	await action({
+		request: actionRequest(media.id, authorCookie, {
+			intent: 'review-comment-create',
+			reviewId: review.id,
+			parentId: parent.id,
+			body: 'Thanks for joining the discussion.',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	const reply = await prisma.reviewComment.findFirstOrThrow({
+		where: { parentId: parent.id },
+	})
+	expect(
+		await prisma.notification.findUnique({
+			where: { reviewCommentId: reply.id },
+		}),
+	).toMatchObject({
+		type: 'review_reply',
+		recipientId: tracker.id,
+		actorId: otherUser.id,
+	})
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(loaded.data.reviews).toEqual([
+		expect.objectContaining({
+			id: review.id,
+			viewerLiked: true,
+			_count: { likes: 1, comments: 2 },
+			comments: [
+				expect.objectContaining({ id: parent.id, parentId: null }),
+				expect.objectContaining({ id: reply.id, parentId: parent.id }),
+			],
+		}),
+	])
+
+	await action({
+		request: actionRequest(media.id, authorCookie, {
+			intent: 'review-comment-delete',
+			commentId: parent.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.reviewComment.count({ where: { reviewId: review.id } }),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: {
+				reviewId: review.id,
+				type: { in: ['review_comment', 'review_reply'] },
+			},
+		}),
+	).toBe(0)
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'review-like-toggle',
+			reviewId: review.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.reviewLike.count({ where: { reviewId: review.id } }),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({ where: { reviewId: review.id } }),
+	).toBe(0)
 })
 
 test('status action rejects a watchlist owned by someone else', async () => {

@@ -39,6 +39,7 @@ import {
 import {
 	journalTerms,
 	parseDiaryDate,
+	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
@@ -115,6 +116,24 @@ const ActionSchema = z.discriminatedUnion('intent', [
 		rating: OptionalRatingSchema,
 	}),
 	z.object({ intent: z.literal('review-delete') }),
+	z.object({
+		intent: z.literal('review-like-toggle'),
+		reviewId: z.string().min(1).max(100),
+	}),
+	z.object({
+		intent: z.literal('review-comment-create'),
+		reviewId: z.string().min(1).max(100),
+		parentId: z
+			.string()
+			.max(100)
+			.optional()
+			.transform(value => value || null),
+		body: z.string().trim().min(1).max(REVIEW_COMMENT_MAX_LENGTH),
+	}),
+	z.object({
+		intent: z.literal('review-comment-delete'),
+		commentId: z.string().min(1).max(100),
+	}),
 	z.object({
 		intent: z.literal('diary-create'),
 		loggedOn: DiaryDateSchema,
@@ -329,6 +348,25 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				createdAt: true,
 				updatedAt: true,
 				author: { select: { id: true, username: true, name: true } },
+				_count: { select: { likes: true, comments: true } },
+				likes: {
+					where: { userId: viewerId ?? '' },
+					take: 1,
+					select: { id: true },
+				},
+				comments: {
+					orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+					take: 50,
+					select: {
+						id: true,
+						body: true,
+						parentId: true,
+						createdAt: true,
+						author: {
+							select: { id: true, username: true, name: true },
+						},
+					},
+				},
 			},
 		}),
 		viewerId
@@ -436,9 +474,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			reviews: media._count.reviews,
 			diaryEntries: media._count.diaryEntries,
 		},
-		reviews: reviewRows.map(review => ({
+		reviews: reviewRows.map(({ likes, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
+			viewerLiked: likes.length > 0,
 		})),
 		activity: activityRows.map(event => ({
 			id: event.id,
@@ -448,6 +487,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		})),
 		viewer: viewerId
 			? {
+					id: viewerId,
 					tracking,
 					watchlists: viewerWatchlists,
 					progress,
@@ -467,6 +507,183 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				}
 			: null,
 	})
+}
+
+type ReviewCommentItem = {
+	id: string
+	body: string
+	parentId: string | null
+	createdAt: Date | string
+	author: { id: string; username: string; name: string | null }
+}
+
+function ReviewCommentForm({
+	reviewId,
+	parentId,
+	busy,
+}: {
+	reviewId: string
+	parentId?: string
+	busy: boolean
+}) {
+	return (
+		<Form method="post" className="space-y-2">
+			<input type="hidden" name="intent" value="review-comment-create" />
+			<input type="hidden" name="reviewId" value={reviewId} />
+			{parentId ? (
+				<input type="hidden" name="parentId" value={parentId} />
+			) : null}
+			<Textarea
+				name="body"
+				aria-label={parentId ? 'Reply' : 'Comment'}
+				maxLength={REVIEW_COMMENT_MAX_LENGTH}
+				rows={parentId ? 2 : 3}
+				required
+				placeholder={parentId ? 'Write a reply…' : 'Join the discussion…'}
+			/>
+			<Button type="submit" size="sm" disabled={busy}>
+				{parentId ? 'Post reply' : 'Post comment'}
+			</Button>
+		</Form>
+	)
+}
+
+function ReviewCommentThread({
+	comments,
+	parentId,
+	reviewId,
+	reviewAuthorId,
+	viewerId,
+	busy,
+	depth = 0,
+}: {
+	comments: ReviewCommentItem[]
+	parentId: string | null
+	reviewId: string
+	reviewAuthorId: string
+	viewerId: string | null
+	busy: boolean
+	depth?: number
+}) {
+	const children = comments.filter(comment => comment.parentId === parentId)
+	if (!children.length) return null
+
+	return (
+		<div className={depth ? 'ml-4 border-l pl-4 sm:ml-8' : 'space-y-3'}>
+			{children.map(comment => (
+				<div
+					key={comment.id}
+					id={`comment-${comment.id}`}
+					className="space-y-2 rounded-lg border bg-background p-3"
+				>
+					<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+						<Link
+							to={`/users/${comment.author.username}`}
+							className="font-semibold hover:underline"
+						>
+							{comment.author.name ?? comment.author.username}
+						</Link>
+						<time className="text-muted-foreground">
+							{displayDate(comment.createdAt)}
+						</time>
+					</div>
+					<p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+						{comment.body}
+					</p>
+					{viewerId ? (
+						<div className="flex flex-wrap items-start gap-2">
+							<details>
+								<summary className="cursor-pointer text-xs font-semibold text-primary">
+									Reply
+								</summary>
+								<div className="mt-2 min-w-64">
+									<ReviewCommentForm
+										reviewId={reviewId}
+										parentId={comment.id}
+										busy={busy}
+									/>
+								</div>
+							</details>
+							{viewerId === comment.author.id || viewerId === reviewAuthorId ? (
+								<Form method="post">
+									<input
+										type="hidden"
+										name="intent"
+										value="review-comment-delete"
+									/>
+									<input type="hidden" name="commentId" value={comment.id} />
+									<button
+										type="submit"
+										disabled={busy}
+										className="text-xs font-semibold text-destructive disabled:opacity-50"
+									>
+										Delete
+									</button>
+								</Form>
+							) : null}
+						</div>
+					) : null}
+					<ReviewCommentThread
+						comments={comments}
+						parentId={comment.id}
+						reviewId={reviewId}
+						reviewAuthorId={reviewAuthorId}
+						viewerId={viewerId}
+						busy={busy}
+						depth={depth + 1}
+					/>
+				</div>
+			))}
+		</div>
+	)
+}
+
+function ReviewDiscussion({
+	reviewId,
+	reviewAuthorId,
+	comments,
+	commentCount,
+	viewerId,
+	busy,
+}: {
+	reviewId: string
+	reviewAuthorId: string
+	comments: ReviewCommentItem[]
+	commentCount: number
+	viewerId: string | null
+	busy: boolean
+}) {
+	return (
+		<div className="space-y-3 rounded-lg bg-muted/30 p-3">
+			<div className="text-sm font-semibold">Discussion · {commentCount}</div>
+			{viewerId ? (
+				<ReviewCommentForm reviewId={reviewId} busy={busy} />
+			) : (
+				<p className="text-sm text-muted-foreground">
+					<Link
+						to="/login"
+						className="font-semibold text-primary hover:underline"
+					>
+						Log in
+					</Link>{' '}
+					to join the discussion.
+				</p>
+			)}
+			<ReviewCommentThread
+				comments={comments}
+				parentId={null}
+				reviewId={reviewId}
+				reviewAuthorId={reviewAuthorId}
+				viewerId={viewerId}
+				busy={busy}
+			/>
+			{commentCount > comments.length ? (
+				<p className="text-xs text-muted-foreground">
+					Showing the first {comments.length} comments.
+				</p>
+			) : null}
+		</div>
+	)
 }
 
 function authoritativeEntry<
@@ -561,6 +778,102 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			})
 			if (!deleted.count)
 				throw new Response('Review not found', { status: 404 })
+			return json({ ok: true })
+		}
+
+		if (parsed.data.intent === 'review-like-toggle') {
+			const review = await tx.review.findFirst({
+				where: { id: parsed.data.reviewId, mediaId },
+				select: { id: true, authorId: true },
+			})
+			if (!review) throw new Response('Review not found', { status: 404 })
+
+			const existing = await tx.reviewLike.findUnique({
+				where: {
+					userId_reviewId: { userId, reviewId: review.id },
+				},
+				select: { id: true },
+			})
+			if (existing) {
+				await tx.reviewLike.delete({ where: { id: existing.id } })
+				return json({ ok: true, liked: false })
+			}
+
+			const like = await tx.reviewLike.create({
+				data: { userId, reviewId: review.id },
+				select: { id: true },
+			})
+			if (review.authorId !== userId) {
+				await tx.notification.create({
+					data: {
+						type: 'review_like',
+						recipientId: review.authorId,
+						actorId: userId,
+						reviewId: review.id,
+						reviewLikeId: like.id,
+					},
+				})
+			}
+			return json({ ok: true, liked: true })
+		}
+
+		if (parsed.data.intent === 'review-comment-create') {
+			const review = await tx.review.findFirst({
+				where: { id: parsed.data.reviewId, mediaId },
+				select: { id: true, authorId: true },
+			})
+			if (!review) throw new Response('Review not found', { status: 404 })
+
+			const parent = parsed.data.parentId
+				? await tx.reviewComment.findFirst({
+						where: { id: parsed.data.parentId, reviewId: review.id },
+						select: { id: true, authorId: true },
+					})
+				: null
+			if (parsed.data.parentId && !parent) {
+				throw new Response('Parent comment not found', { status: 400 })
+			}
+
+			const comment = await tx.reviewComment.create({
+				data: {
+					authorId: userId,
+					reviewId: review.id,
+					parentId: parent?.id,
+					body: parsed.data.body,
+				},
+				select: { id: true },
+			})
+			const recipientId = parent?.authorId ?? review.authorId
+			if (recipientId !== userId) {
+				await tx.notification.create({
+					data: {
+						type: parent ? 'review_reply' : 'review_comment',
+						recipientId,
+						actorId: userId,
+						reviewId: review.id,
+						reviewCommentId: comment.id,
+					},
+				})
+			}
+			return json({ ok: true, commentId: comment.id })
+		}
+
+		if (parsed.data.intent === 'review-comment-delete') {
+			const comment = await tx.reviewComment.findFirst({
+				where: { id: parsed.data.commentId, review: { mediaId } },
+				select: {
+					id: true,
+					authorId: true,
+					review: { select: { authorId: true } },
+				},
+			})
+			if (
+				!comment ||
+				(comment.authorId !== userId && comment.review.authorId !== userId)
+			) {
+				throw new Response('Comment not found', { status: 404 })
+			}
+			await tx.reviewComment.delete({ where: { id: comment.id } })
 			return json({ ok: true })
 		}
 
@@ -1185,6 +1498,7 @@ export default function MediaDetailRoute() {
 								{data.reviews.map(review => (
 									<article
 										key={review.id}
+										id={`review-${review.id}`}
 										className="space-y-3 rounded-xl border bg-card p-5"
 									>
 										<header className="flex flex-wrap items-center justify-between gap-2">
@@ -1218,6 +1532,67 @@ export default function MediaDetailRoute() {
 											<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
 												{review.body}
 											</p>
+										)}
+										<div className="flex flex-wrap items-center gap-3 border-t pt-3 text-sm">
+											{data.viewer ? (
+												<Form method="post">
+													<input
+														type="hidden"
+														name="intent"
+														value="review-like-toggle"
+													/>
+													<input
+														type="hidden"
+														name="reviewId"
+														value={review.id}
+													/>
+													<Button
+														type="submit"
+														variant={
+															review.viewerLiked ? 'secondary' : 'outline'
+														}
+														size="sm"
+														disabled={busy}
+													>
+														{review.viewerLiked ? 'Unlike' : 'Like'} ·{' '}
+														{review._count.likes}
+													</Button>
+												</Form>
+											) : (
+												<Button asChild variant="outline" size="sm">
+													<Link to="/login">Like · {review._count.likes}</Link>
+												</Button>
+											)}
+											<span className="text-muted-foreground">
+												{review._count.comments}{' '}
+												{review._count.comments === 1 ? 'comment' : 'comments'}
+											</span>
+										</div>
+										{review.containsSpoilers ? (
+											<details className="rounded-lg border p-3">
+												<summary className="cursor-pointer text-sm font-semibold">
+													Discussion may contain spoilers
+												</summary>
+												<div className="mt-3">
+													<ReviewDiscussion
+														reviewId={review.id}
+														reviewAuthorId={review.author.id}
+														comments={review.comments}
+														commentCount={review._count.comments}
+														viewerId={data.viewer?.id ?? null}
+														busy={busy}
+													/>
+												</div>
+											</details>
+										) : (
+											<ReviewDiscussion
+												reviewId={review.id}
+												reviewAuthorId={review.author.id}
+												comments={review.comments}
+												commentCount={review._count.comments}
+												viewerId={data.viewer?.id ?? null}
+												busy={busy}
+											/>
 										)}
 									</article>
 								))}
