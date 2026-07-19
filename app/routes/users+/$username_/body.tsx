@@ -10,6 +10,8 @@ import {
 import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
+const LEGACY_ACTIVITY_GRACE_MS = 60_000
+
 export function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
   const PAGE_SIZE = 15
   const [filterIndex, setFilterIndex] = useState(0);
@@ -25,10 +27,35 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
     setVisibleCount(PAGE_SIZE)
   }, [filterIndex]);
 
-  // Merge every list type's history into a single newest-first feed, tagging each
-  // item with its type so we can look the entry (thumbnail/title) back up.
-  const allActivity = Object.entries(loaderData.typedHistory)
-    .flatMap(([typeId, items]) => items.map(item => ({ ...item, typeId })))
+  const normalizedActivity = loaderData.activityEvents.map(event => ({
+    key: event.id,
+    typeId: event.typeId,
+    time: event.time,
+    action: event.action,
+    mediaId: event.media.id,
+    title: event.media.title,
+    thumbnail: event.media.thumbnail,
+  }))
+  const normalizedCutoff = loaderData.activityStartedAt
+    ? new Date(loaderData.activityStartedAt).getTime()
+    : null
+  // Keep legacy history from before the first normalized event. Newer legacy
+  // writes mirror the same actions and would otherwise appear twice.
+  const legacyActivity = Object.entries(loaderData.typedHistory)
+    .flatMap(([typeId, items]) => items.map((item, legacyIndex) => {
+      const entry = loaderData.typedEntries[typeId]?.[item.index]
+      return {
+        key: `legacy-${typeId}-${item.index}-${legacyIndex}`,
+        typeId,
+        time: item.time,
+        action: item.type,
+        mediaId: entry?.mediaId ?? null,
+        title: entry?.title ?? null,
+        thumbnail: entry?.thumbnail ?? null,
+      }
+    }))
+    .filter(item => normalizedCutoff === null || new Date(item.time).getTime() < normalizedCutoff - LEGACY_ACTIVITY_GRACE_MS)
+  const allActivity = [...normalizedActivity, ...legacyActivity]
     .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
   const filtered = selectedFilter.key === 'all'
@@ -52,26 +79,25 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
           </div>
           {visible.length > 0 ? (
             <ul className="user-landing-feed">
-              {visible.map((item, i) => {
-                const entry = loaderData.typedEntries[item.typeId]?.[item.index]
-                const thumb = entry?.thumbnail ? getThumbnailInfo(entry.thumbnail) : null
+              {visible.map(item => {
+                const thumb = item.thumbnail ? getThumbnailInfo(item.thumbnail) : null
                 return (
-                  <li className="user-landing-feed-item" key={`${item.typeId}-${item.index}-${i}`}>
+                  <li className="user-landing-feed-item" key={item.key}>
                     {thumb ? (
                       <Link
-                        to={entry?.mediaId ? `/media/${entry.mediaId}` : thumb.url}
+                        to={item.mediaId ? `/media/${item.mediaId}` : thumb.url}
                         className="user-landing-feed-thumbnail"
                         style={{ backgroundImage: `url("${thumb.content}")` }}
-                        aria-label={entry?.title}
+                        aria-label={item.title ?? undefined}
                       />
                     ) : (
                       <div className="user-landing-feed-thumbnail" />
                     )}
                     <div className="user-landing-feed-body">
-                      {entry?.title ? (
-                        <span className="user-landing-feed-title">{entry.title}</span>
+                      {item.title ? (
+                        <span className="user-landing-feed-title">{item.title}</span>
                       ) : null}
-                      <span className="user-landing-feed-action">{item.type}</span>
+                      <span className="user-landing-feed-action">{item.action}</span>
                     </div>
                     <span className="user-landing-feed-time">
                       {`${timeSince(new Date(item.time))} ago`}

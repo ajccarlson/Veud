@@ -15,6 +15,11 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
+import {
+	getTrackingActivityState,
+	recordTrackingActivityDiff,
+} from '#app/utils/activity.server.ts'
+import { activityEventLabel } from '#app/utils/activity.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -152,6 +157,16 @@ function displayDate(value: Date | string | null | undefined) {
 	})
 }
 
+function displayDateTime(value: Date | string) {
+	return new Date(value).toLocaleString('en-US', {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+	})
+}
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -176,7 +191,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		representativeEntry(media.entries),
 	)
 	const listTypeName = listTypeNameForMediaKind(media.kind)
-	const [community, viewerState, viewerEntries, viewerWatchlists] =
+	const [community, viewerState, viewerEntries, viewerWatchlists, activityRows] =
 		await Promise.all([
 			prisma.trackingState.aggregate({
 				where: { mediaId: media.id },
@@ -216,6 +231,29 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 						orderBy: [{ position: 'asc' }, { header: 'asc' }],
 					})
 				: [],
+			prisma.activityEvent.findMany({
+				where: { mediaId: media.id },
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take: 20,
+				select: {
+					id: true,
+					type: true,
+					status: true,
+					statusLabel: true,
+					previousStatus: true,
+					previousStatusLabel: true,
+					score: true,
+					previousScore: true,
+					progressUnit: true,
+					progressCurrent: true,
+					progressPrevious: true,
+					progressTotal: true,
+					createdAt: true,
+					actor: {
+						select: { username: true, name: true },
+					},
+				},
+			}),
 		])
 
 	const legacyTracking = viewerEntries
@@ -286,6 +324,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			ratings: community._count.score,
 			meanScore: community._avg.score ? Number(community._avg.score) : null,
 		},
+		activity: activityRows.map(event => ({
+			id: event.id,
+			action: activityEventLabel(event),
+			createdAt: event.createdAt,
+			actor: event.actor,
+		})),
 		viewer: viewerId
 			? { tracking, watchlists: viewerWatchlists, progress }
 			: null,
@@ -433,26 +477,17 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			}
 			if (!target) throw new Response('Unable to track media', { status: 500 })
 
-			if (!state) {
-				const stateId = await ensureTrackingStateForEntry(tx, {
-					ownerId: userId,
-					mediaId,
-					mediaKind: media.kind,
-					status: destination.name,
-					statusWatchlistId: destination.id,
-					entry: target,
-					mode: 'status',
-				})
-				state = { id: stateId, statusWatchlistId: destination.id }
-			} else {
-				await tx.trackingState.update({
-					where: { id: state.id },
-					data: {
-						status: destination.name,
-						statusWatchlistId: destination.id,
-					},
-				})
-			}
+			const stateId = await ensureTrackingStateForEntry(tx, {
+				ownerId: userId,
+				mediaId,
+				mediaKind: media.kind,
+				status: destination.name,
+				statusWatchlistId: destination.id,
+				entry: target,
+				mode: 'status',
+				recordActivity: true,
+			})
+			state = { id: stateId, statusWatchlistId: destination.id }
 			await tx.entry.updateMany({
 				where: { mediaId, watchlist: { ownerId: userId } },
 				data: { trackingStateId: state.id },
@@ -479,6 +514,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				statusWatchlistId: primary.watchlist.id,
 				entry: primary,
 				mode: 'all',
+				recordActivity: true,
 			})
 			state = { id: stateId, statusWatchlistId: primary.watchlist.id }
 		}
@@ -488,6 +524,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		})
 
 		if (parsed.data.intent === 'score') {
+			const before = await getTrackingActivityState(tx, userId, mediaId)
 			await tx.trackingState.update({
 				where: { id: state.id },
 				data: { score: parsed.data.score > 0 ? parsed.data.score : null },
@@ -495,6 +532,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			await tx.entry.updateMany({
 				where: { mediaId, watchlist: { ownerId: userId } },
 				data: { personal: parsed.data.score },
+			})
+			const after = await getTrackingActivityState(tx, userId, mediaId)
+			if (!after) throw new Error('Tracking state missing after score update')
+			await recordTrackingActivityDiff(tx, {
+				actorId: userId,
+				mediaId,
+				before,
+				after,
 			})
 			return json({ ok: true })
 		}
@@ -522,6 +567,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			})
 		}
 		const previousCurrent = savedProgress?.current ?? 0
+		const before = await getTrackingActivityState(tx, userId, mediaId)
 		await tx.trackingProgress.upsert({
 			where: {
 				trackingStateId_unit: {
@@ -547,6 +593,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				total,
 				now,
 			}) as Prisma.EntryUpdateInput,
+		})
+		const after = await getTrackingActivityState(tx, userId, mediaId)
+		if (!after) throw new Error('Tracking state missing after progress update')
+		await recordTrackingActivityDiff(tx, {
+			actorId: userId,
+			mediaId,
+			before,
+			after,
 		})
 		return json({ ok: true })
 	})
@@ -757,6 +811,39 @@ export default function MediaDetailRoute() {
 								{data.media.genres}
 							</p>
 						) : null}
+					</section>
+
+					<section className="space-y-3">
+						<h2 className="text-2xl font-bold">Recent activity</h2>
+						{data.activity.length ? (
+							<ul className="divide-y rounded-xl border bg-card">
+								{data.activity.map(event => (
+									<li
+										key={event.id}
+										className="flex flex-wrap items-center justify-between gap-2 p-4"
+									>
+										<div>
+											<Link
+												to={`/users/${event.actor.username}`}
+												className="font-semibold hover:underline"
+											>
+												{event.actor.name ?? event.actor.username}
+											</Link>{' '}
+											<span className="text-muted-foreground">
+												{event.action.toLowerCase()}
+											</span>
+										</div>
+										<time className="text-sm text-muted-foreground">
+											{displayDateTime(event.createdAt)}
+										</time>
+									</li>
+								))}
+							</ul>
+						) : (
+							<p className="text-sm text-muted-foreground">
+								No tracking activity yet.
+							</p>
+						)}
 					</section>
 				</div>
 			</div>

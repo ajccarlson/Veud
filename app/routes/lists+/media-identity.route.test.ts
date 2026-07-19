@@ -126,6 +126,15 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 			statusWatchlistId: owner.watchlistId,
 		}),
 	])
+	expect(await prisma.activityEvent.findMany()).toEqual([
+		expect.objectContaining({
+			type: 'status',
+			actorId: owner.ownerId,
+			mediaId: first.mediaId,
+			status: 'watching',
+			statusLabel: 'Watching',
+		}),
+	])
 })
 
 test('provider identity must agree with the destination list type', async () => {

@@ -11,6 +11,10 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	activityEventLabel,
+	activityListTypeName,
+} from '#app/utils/activity.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
@@ -62,11 +66,58 @@ export async function loader(params: LoaderFunctionArgs) {
 
 	const listTypes = await prisma.listType.findMany()
 
-	const watchLists = await prisma.watchlist.findMany({
-    where: {
-      ownerId: user.id,
-    },
-  })
+	const [watchLists, activityRows, firstActivity] = await Promise.all([
+		prisma.watchlist.findMany({
+			where: { ownerId: user.id },
+		}),
+		prisma.activityEvent.findMany({
+			where: { actorId: user.id },
+			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+			take: 100,
+			select: {
+				id: true,
+				type: true,
+				status: true,
+				statusLabel: true,
+				previousStatus: true,
+				previousStatusLabel: true,
+				score: true,
+				previousScore: true,
+				progressUnit: true,
+				progressCurrent: true,
+				progressPrevious: true,
+				progressTotal: true,
+				createdAt: true,
+				media: {
+					select: { id: true, kind: true, title: true, thumbnail: true },
+				},
+			},
+		}),
+		prisma.activityEvent.findFirst({
+			where: { actorId: user.id },
+			orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+			select: { createdAt: true },
+		}),
+	])
+	const listTypeIdByName = new Map(
+		listTypes.map(listType => [listType.name, listType.id]),
+	)
+	const activityEvents = activityRows.map(event => {
+		const listTypeName = activityListTypeName(event.media.kind)
+		return {
+			id: event.id,
+			action: activityEventLabel(event),
+			time: event.createdAt,
+			typeId: listTypeName
+				? (listTypeIdByName.get(listTypeName) ?? null)
+				: null,
+			media: {
+				id: event.media.id,
+				title: event.media.title?.trim() || `Untitled ${event.media.kind}`,
+				thumbnail: event.media.thumbnail,
+			},
+		}
+	})
 
 	const typedWatchlists = watchLists.reduce<Record<string, typeof watchLists>>((x, y) => {
     (x[y.typeId] = x[y.typeId] || []).push(y);
@@ -119,7 +170,7 @@ export async function loader(params: LoaderFunctionArgs) {
 		return 0;
 	});
 
-	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, trackingSummaries, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
+	return json({ user: profileUser, userJoinedDisplay: user.createdAt.toLocaleDateString('en-us', { year:"numeric", month:"short", day:"numeric"}), lastActiveDisplay, listTypes, watchLists, typedWatchlists, typedEntries, typedHistory, activityEvents, activityStartedAt: firstActivity?.createdAt ?? null, trackingSummaries, favorites: favoritesSorted, followerCount: user._count.followers, followingCount: user._count.following, isFollowing })
 }
 
 const PROFILE_TABS = [

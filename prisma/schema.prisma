@@ -34,6 +34,7 @@ model User {
   commentsAuthored ProfileComment[] @relation("ProfileCommentAuthor")
   profileComments  ProfileComment[] @relation("ProfileCommentProfile")
   trackingStates   TrackingState[]
+  activityEvents   ActivityEvent[]
 }
 
 model ListType {
@@ -114,6 +115,7 @@ model Media {
   entries     Entry[]
   favorites   UserFavorite[]
   trackingStates TrackingState[]
+  activityEvents ActivityEvent[]
 
   @@index([kind])
 }
@@ -213,6 +215,7 @@ model TrackingState {
 
   entries           Entry[]
   progress          TrackingProgress[]
+  activityEvents    ActivityEvent[]
 
   @@unique([ownerId, mediaId])
   @@index([mediaId])
@@ -234,6 +237,36 @@ model TrackingProgress {
 
   @@unique([trackingStateId, unit])
   @@index([trackingStateId])
+}
+
+/// An immutable, user-visible change to tracking state. Application code only
+/// inserts rows; corrections create another event rather than rewriting history.
+model ActivityEvent {
+  id                  String   @id @default(cuid())
+  type                String
+  status              String?
+  statusLabel         String?
+  previousStatus      String?
+  previousStatusLabel String?
+  score               Decimal?
+  previousScore       Decimal?
+  progressUnit        String?
+  progressCurrent     Int?
+  progressPrevious    Int?
+  progressTotal       Int?
+  createdAt           DateTime @default(now())
+
+  actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+  trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId String?
+
+  @@index([actorId, createdAt])
+  @@index([mediaId, createdAt])
+  @@index([trackingStateId])
+  @@index([type, createdAt])
 }
 
 model UserFavorite {

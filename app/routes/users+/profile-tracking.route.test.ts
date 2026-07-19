@@ -46,7 +46,11 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 		select: { id: true },
 	})
 	const media = await prisma.media.create({
-		data: { kind: 'anime' },
+		data: {
+			kind: 'anime',
+			title: 'Canonical Activity Title',
+			thumbnail: 'https://example.com/poster.jpg|https://example.com/title',
+		},
 		select: { id: true },
 	})
 	const state = await prisma.trackingState.create({
@@ -80,6 +84,15 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			},
 		],
 	})
+	const activity = await prisma.activityEvent.create({
+		data: {
+			type: 'score',
+			actorId: user.id,
+			mediaId: media.id,
+			trackingStateId: state.id,
+			score: 8.5,
+		},
+	})
 
 	const result = await loader({
 		request: new Request(`${BASE_URL}/users/${user.username}`),
@@ -96,4 +109,15 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			{ key: completed.id, label: 'Completed', count: 1 },
 		],
 	})
+	expect(result.data.activityEvents).toEqual([
+		expect.objectContaining({
+			action: 'Rated 8.5/10',
+			typeId: listType.id,
+			media: expect.objectContaining({
+				id: media.id,
+				title: 'Canonical Activity Title',
+			}),
+		}),
+	])
+	expect(result.data.activityStartedAt).toEqual(activity.createdAt)
 })

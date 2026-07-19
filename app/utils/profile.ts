@@ -51,6 +51,19 @@ export type ActivityItem = {
 	index: number
 }
 
+/** A normalized append-only tracking event shown in public activity feeds. */
+export type ProfileActivityEvent = {
+	id: string
+	action: string
+	time: Date | string
+	typeId: string | null
+	media: {
+		id: string
+		title: string
+		thumbnail: string | null
+	}
+}
+
 /** A user's public profile header data. */
 export type ProfileUser = {
 	id: string
@@ -93,6 +106,8 @@ export type ProfileData = {
 	typedWatchlists: Record<string, WatchlistMeta[]>
 	typedEntries: Record<string, any[]>
 	typedHistory: Record<string, ActivityItem[]>
+	activityEvents: ProfileActivityEvent[]
+	activityStartedAt: Date | string | null
 	trackingSummaries: Record<string, ProfileTrackingSummary>
 	favorites: FavoriteItem[]
 	followerCount: number

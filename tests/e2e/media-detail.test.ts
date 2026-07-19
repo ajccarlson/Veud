@@ -60,6 +60,14 @@ test('member can open a canonical media page and change status', async ({
 				}),
 			)
 			.toEqual({ title: 'Canonical Media Browser Test' })
+		await expect(page.getByText('added to completed', { exact: true })).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.activityEvent.count({
+					where: { actorId: user.id, mediaId: media.id, type: 'status' },
+				}),
+			)
+			.toBe(1)
 	} finally {
 		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
 	}
