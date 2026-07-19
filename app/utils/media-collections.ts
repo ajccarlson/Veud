@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const COLLECTION_TITLE_MAX_LENGTH = 80
 export const COLLECTION_DESCRIPTION_MAX_LENGTH = 2000
+export const COLLECTION_COMMENT_MAX_LENGTH = 1000
 
 export const CollectionDetailsSchema = z.object({
 	title: z

@@ -29,19 +29,21 @@ model User {
   roles                 Role[]
   sessions              Session[]
   connections           Connection[]
-  following             Follow[]          @relation("UserFollowing")
-  followers             Follow[]          @relation("UserFollowers")
-  commentsAuthored      ProfileComment[]  @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[]  @relation("ProfileCommentProfile")
+  following             Follow[]            @relation("UserFollowing")
+  followers             Follow[]            @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]    @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]    @relation("ProfileCommentProfile")
   trackingStates        TrackingState[]
   activityEvents        ActivityEvent[]
   reviews               Review[]
   diaryEntries          DiaryEntry[]
   reviewLikes           ReviewLike[]
   reviewComments        ReviewComment[]
-  notificationsReceived Notification[]    @relation("NotificationRecipient")
-  notificationsSent     Notification[]    @relation("NotificationActor")
+  notificationsReceived Notification[]      @relation("NotificationRecipient")
+  notificationsSent     Notification[]      @relation("NotificationActor")
   mediaCollections      MediaCollection[]
+  collectionLikes       CollectionLike[]
+  collectionComments    CollectionComment[]
 }
 
 model ListType {
@@ -347,19 +349,26 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  recipient       User           @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  recipientId     String
-  actor           User           @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  actorId         String
-  review          Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewId        String
-  reviewLike      ReviewLike?    @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewLikeId    String?        @unique
-  reviewComment   ReviewComment? @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewCommentId String?        @unique
+  recipient           User               @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId         String
+  actor               User               @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId             String
+  review              Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId            String?
+  reviewLike          ReviewLike?        @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewLikeId        String?            @unique
+  reviewComment       ReviewComment?     @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewCommentId     String?            @unique
+  collection          MediaCollection?   @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId        String?
+  collectionLike      CollectionLike?    @relation(fields: [collectionLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionLikeId    String?            @unique
+  collectionComment   CollectionComment? @relation(fields: [collectionCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionCommentId String?            @unique
 
   @@index([recipientId, readAt, createdAt])
   @@index([reviewId])
+  @@index([collectionId])
 }
 
 /// A dated consumption log. Unlike TrackingState, diary rows are intentionally
@@ -392,9 +401,12 @@ model MediaCollection {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner   User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  ownerId String
-  items   MediaCollectionItem[]
+  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+  items         MediaCollectionItem[]
+  likes         CollectionLike[]
+  comments      CollectionComment[]
+  notifications Notification[]
 
   @@index([ownerId, updatedAt])
   @@index([isPublic, updatedAt])
@@ -416,6 +428,39 @@ model MediaCollectionItem {
   @@unique([collectionId, mediaId])
   @@index([collectionId, position])
   @@index([mediaId])
+}
+
+/// Unique appreciation for a public or owner-visible curated collection.
+model CollectionLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@unique([userId, collectionId])
+  @@index([collectionId, createdAt])
+}
+
+/// Flat collection discussion. Owners can moderate comments on their lists;
+/// authors can always remove their own comments.
+model CollectionComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId     String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@index([collectionId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model UserFavorite {

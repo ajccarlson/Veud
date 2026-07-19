@@ -221,3 +221,216 @@ test('owners can add, reorder, and remove canonical media without duplicates', a
 		}),
 	).toEqual([expect.objectContaining({ mediaId: first.id, position: 1 })])
 })
+
+test('members can like and discuss public collections with source-linked notifications', async () => {
+	const [owner, member, unrelated] = await Promise.all([
+		createUser('engagement_owner'),
+		createUser('engagement_member'),
+		createUser('engagement_unrelated'),
+	])
+	const [ownerCookie, memberCookie, unrelatedCookie] = await Promise.all([
+		cookieFor(owner.id),
+		cookieFor(member.id),
+		cookieFor(unrelated.id),
+	])
+	const collection = await prisma.mediaCollection.create({
+		data: { ownerId: owner.id, title: 'Shared discoveries', isPublic: true },
+	})
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'like-toggle' },
+			memberCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	const like = await prisma.collectionLike.findUniqueOrThrow({
+		where: {
+			userId_collectionId: { userId: member.id, collectionId: collection.id },
+		},
+	})
+	expect(
+		await prisma.notification.findUnique({
+			where: { collectionLikeId: like.id },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			type: 'collection_like',
+			recipientId: owner.id,
+			actorId: member.id,
+			collectionId: collection.id,
+		}),
+	)
+
+	const likedView = await detailLoader({
+		request: new Request(`${BASE_URL}/collections/${collection.id}`, {
+			headers: { cookie: memberCookie },
+		}),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(likedView.data.viewerLiked).toBe(true)
+	expect(likedView.data.collection._count.likes).toBe(1)
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'like-toggle' },
+			memberCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.collectionLike.count({
+			where: { collectionId: collection.id },
+		}),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: { collectionLikeId: like.id },
+		}),
+	).toBe(0)
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'comment-create', body: '  This list has range.  ' },
+			memberCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	const comment = await prisma.collectionComment.findFirstOrThrow({
+		where: { collectionId: collection.id, authorId: member.id },
+	})
+	expect(comment.body).toBe('This list has range.')
+	expect(
+		await prisma.notification.findUnique({
+			where: { collectionCommentId: comment.id },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			type: 'collection_comment',
+			recipientId: owner.id,
+			actorId: member.id,
+			collectionId: collection.id,
+		}),
+	)
+
+	const denied = await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'comment-delete', commentId: comment.id },
+			unrelatedCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(404)
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'comment-delete', commentId: comment.id },
+			ownerCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.collectionComment.findUnique({ where: { id: comment.id } }),
+	).toBeNull()
+	expect(
+		await prisma.notification.count({
+			where: { collectionCommentId: comment.id },
+		}),
+	).toBe(0)
+})
+
+test('members can clone a public collection into a private editable copy', async () => {
+	const [owner, member] = await Promise.all([
+		createUser('clone_owner'),
+		createUser('clone_member'),
+	])
+	const memberCookie = await cookieFor(member.id)
+	const [first, second] = await Promise.all([
+		prisma.media.create({ data: { kind: 'movie', title: 'First clone item' } }),
+		prisma.media.create({
+			data: { kind: 'movie', title: 'Second clone item' },
+		}),
+	])
+	const source = await prisma.mediaCollection.create({
+		data: {
+			ownerId: owner.id,
+			title: 'Clone-worthy cinema',
+			description: 'Keep the curator context.',
+			isPublic: true,
+			items: {
+				create: [
+					{ mediaId: first.id, position: 2 },
+					{ mediaId: second.id, position: 1 },
+				],
+			},
+		},
+	})
+
+	const response = await detailAction({
+		request: postRequest(
+			`/collections/${source.id}`,
+			{ intent: 'clone' },
+			memberCookie,
+		),
+		params: { collectionId: source.id },
+	} as any)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(303)
+	const cloneId = (response as Response).headers
+		.get('location')
+		?.split('/')
+		.at(-1)
+	expect(cloneId).toBeTruthy()
+
+	const clone = await prisma.mediaCollection.findUniqueOrThrow({
+		where: { id: cloneId },
+		include: { items: { orderBy: { position: 'asc' } } },
+	})
+	expect(clone).toMatchObject({
+		ownerId: member.id,
+		title: 'Clone-worthy cinema (copy)',
+		description: 'Keep the curator context.',
+		isPublic: false,
+	})
+	expect(clone.items.map(item => item.mediaId)).toEqual([second.id, first.id])
+})
+
+test('community collections can be sorted by like count', async () => {
+	const [owner, firstVoter, secondVoter] = await Promise.all([
+		createUser('popular_owner'),
+		createUser('popular_voter_one'),
+		createUser('popular_voter_two'),
+	])
+	const [lessPopular, morePopular] = await Promise.all([
+		prisma.mediaCollection.create({
+			data: { ownerId: owner.id, title: 'One vote', isPublic: true },
+		}),
+		prisma.mediaCollection.create({
+			data: { ownerId: owner.id, title: 'Two votes', isPublic: true },
+		}),
+	])
+	await prisma.collectionLike.createMany({
+		data: [
+			{ userId: firstVoter.id, collectionId: lessPopular.id },
+			{ userId: firstVoter.id, collectionId: morePopular.id },
+			{ userId: secondVoter.id, collectionId: morePopular.id },
+		],
+	})
+
+	const result = await indexLoader({
+		request: new Request(`${BASE_URL}/collections?sort=popular`),
+		params: {},
+	} as any)
+	expect(result.data.sort).toBe('popular')
+	expect(result.data.collections.map(collection => collection.id)).toEqual([
+		morePopular.id,
+		lessPopular.id,
+	])
+	expect(result.data.collections[0]?._count.likes).toBe(2)
+})
