@@ -29,6 +29,7 @@ test('member can curate, reorder, and publish a media collection', async ({
 		await page
 			.getByLabel('Description')
 			.fill('A browser-tested collection of thoughtful science fiction.')
+		await page.getByLabel('Tags').fill('browser tested, science fiction')
 		await page.getByRole('button', { name: 'Create collection' }).click()
 		await expect(page).not.toHaveURL(/\/collections\/new$/)
 		await expect(page).toHaveURL(/\/collections\/[a-z0-9]+$/)
@@ -51,6 +52,16 @@ test('member can curate, reorder, and publish a media collection', async ({
 		await expect(
 			page.getByRole('heading', { name: 'Collection Browser Arrival' }),
 		).toBeVisible()
+		await page.getByText('Add curator note', { exact: true }).click()
+		await page
+			.getByLabel('Why does this title belong here?')
+			.fill('The emotional foundation of this ranking.')
+		await page.getByRole('button', { name: 'Save note' }).click()
+		await expect(
+			page
+				.getByRole('blockquote')
+				.filter({ hasText: 'The emotional foundation of this ranking.' }),
+		).toBeVisible()
 
 		await page.goto(`/media/${second.id}`)
 		await page
@@ -68,6 +79,12 @@ test('member can curate, reorder, and publish a media collection', async ({
 		await expect(
 			page.getByRole('heading', { name: 'Collection Browser Moon' }),
 		).toBeVisible()
+		await expect(
+			page
+				.getByRole('blockquote')
+				.filter({ hasText: 'The emotional foundation of this ranking.' }),
+		).toBeVisible()
+		await expect(page.getByText('#browser tested')).toBeVisible()
 		await page.getByLabel('Move Collection Browser Moon up').click()
 		await expect
 			.poll(() =>
@@ -85,6 +102,11 @@ test('member can curate, reorder, and publish a media collection', async ({
 		await expect(
 			page.getByRole('heading', { name: 'Browser Science Fiction Picks' }),
 		).toBeVisible()
+		await page.goto('/collections?tag=browser-tested')
+		await expect(
+			page.getByRole('heading', { name: 'Browser Science Fiction Picks' }),
+		).toBeVisible()
+		await expect(page.getByText('tagged #browser tested')).toBeVisible()
 		await page.goto('/collections?q=Browser+Science+Fiction')
 		await expect(
 			page.getByRole('heading', { name: 'Browser Science Fiction Picks' }),

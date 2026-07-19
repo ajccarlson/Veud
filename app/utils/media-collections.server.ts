@@ -2,6 +2,18 @@ import { invariantResponse } from '@epic-web/invariant'
 import { type Prisma } from '@prisma/client'
 import { requireUserId } from './auth.server.ts'
 import { prisma } from './db.server.ts'
+import { type NormalizedCollectionTag } from './media-collections.ts'
+
+export function collectionTagCreateData(tags: NormalizedCollectionTag[]) {
+	return tags.map(tag => ({
+		tag: {
+			connectOrCreate: {
+				where: { slug: tag.slug },
+				create: tag,
+			},
+		},
+	}))
+}
 
 export async function requireCollectionOwner(
 	request: Request,
@@ -138,5 +150,29 @@ export async function moveCollectionItem({
 			data: { updatedAt: new Date() },
 		})
 		return true
+	})
+}
+
+export async function updateCollectionItemNote({
+	collectionId,
+	itemId,
+	note,
+}: {
+	collectionId: string
+	itemId: string
+	note: string | null
+}) {
+	return prisma.$transaction(async transaction => {
+		const updated = await transaction.mediaCollectionItem.updateMany({
+			where: { id: itemId, collectionId },
+			data: { note },
+		})
+		invariantResponse(updated.count === 1, 'Collection item not found', {
+			status: 404,
+		})
+		await transaction.mediaCollection.update({
+			where: { id: collectionId },
+			data: { updatedAt: new Date() },
+		})
 	})
 }

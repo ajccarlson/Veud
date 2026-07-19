@@ -9,6 +9,7 @@ type CollectionCardData = {
 	updatedAt: Date | string
 	owner: { username: string; name: string | null }
 	_count: { items: number; likes: number; comments: number }
+	tags: Array<{ tag: { name: string; slug: string } }>
 	items: Array<{
 		media: { id: string; title: string | null; thumbnail: string | null }
 	}>
@@ -67,6 +68,18 @@ export function MediaCollectionCard({
 						<p className="line-clamp-2 text-sm leading-6 text-[#c6ded2]">
 							{collection.description}
 						</p>
+					) : null}
+					{collection.tags.length ? (
+						<div className="flex flex-wrap gap-1.5">
+							{collection.tags.map(({ tag }) => (
+								<span
+									key={tag.slug}
+									className="rounded-full border border-[#54806c] px-2 py-0.5 text-xs font-bold text-[#a2ffd5]"
+								>
+									#{tag.name}
+								</span>
+							))}
+						</div>
 					) : null}
 					{showOwner ? (
 						<p className="text-sm text-[#a2ffd5]">

@@ -20,12 +20,15 @@ import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	addCollectionItem,
+	collectionTagCreateData,
 	moveCollectionItem,
 	removeCollectionItem,
+	updateCollectionItemNote,
 	visibleCollectionWhere,
 } from '#app/utils/media-collections.server.ts'
 import {
 	COLLECTION_COMMENT_MAX_LENGTH,
+	COLLECTION_ITEM_NOTE_MAX_LENGTH,
 	COLLECTION_TITLE_MAX_LENGTH,
 } from '#app/utils/media-collections.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
@@ -45,6 +48,15 @@ const CollectionItemActionSchema = z.discriminatedUnion('intent', [
 		direction: z.enum(['up', 'down']),
 	}),
 	z.object({ intent: z.literal('like-toggle') }),
+	z.object({
+		intent: z.literal('note-item'),
+		itemId: z.string().min(1).max(100),
+		note: z
+			.string()
+			.trim()
+			.max(COLLECTION_ITEM_NOTE_MAX_LENGTH)
+			.transform(value => value || null),
+	}),
 	z.object({
 		intent: z.literal('comment-create'),
 		body: z.string().trim().min(1).max(COLLECTION_COMMENT_MAX_LENGTH),
@@ -71,6 +83,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			updatedAt: true,
 			ownerId: true,
 			owner: { select: { id: true, username: true, name: true } },
+			tags: {
+				orderBy: { tag: { name: 'asc' } },
+				select: { tag: { select: { name: true, slug: true } } },
+			},
 			_count: { select: { likes: true, comments: true } },
 			likes: {
 				where: { userId: viewerId ?? '' },
@@ -94,6 +110,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				select: {
 					id: true,
 					position: true,
+					note: true,
 					media: {
 						select: {
 							id: true,
@@ -161,9 +178,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			title: true,
 			description: true,
 			ownerId: true,
+			tags: {
+				select: { tag: { select: { name: true, slug: true } } },
+			},
 			items: {
 				orderBy: [{ position: 'asc' }, { id: 'asc' }],
-				select: { mediaId: true, position: true },
+				select: { mediaId: true, position: true, note: true },
 			},
 		},
 	})
@@ -222,6 +242,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				})
 			}
 		})
+	} else if (parsed.data.intent === 'note-item') {
+		invariantResponse(collection.ownerId === userId, 'Collection not found', {
+			status: 404,
+		})
+		await updateCollectionItemNote({
+			collectionId: collection.id,
+			itemId: parsed.data.itemId,
+			note: parsed.data.note,
+		})
 	} else if (parsed.data.intent === 'comment-create') {
 		const body = parsed.data.body
 		await prisma.$transaction(async transaction => {
@@ -268,7 +297,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 					create: collection.items.map(item => ({
 						mediaId: item.mediaId,
 						position: item.position,
+						note: item.note,
 					})),
+				},
+				tags: {
+					create: collectionTagCreateData(
+						collection.tags.map(({ tag }) => tag),
+					),
 				},
 			},
 			select: { id: true },
@@ -373,6 +408,19 @@ export default function CollectionDetail() {
 					<p className="whitespace-pre-wrap leading-7 text-[#c6ded2]">
 						{data.collection.description}
 					</p>
+				) : null}
+				{data.collection.tags.length ? (
+					<nav aria-label="Collection tags" className="flex flex-wrap gap-2">
+						{data.collection.tags.map(({ tag }) => (
+							<Link
+								key={tag.slug}
+								to={`/collections?tag=${encodeURIComponent(tag.slug)}`}
+								className="rounded-full border border-[#54806c] bg-[#2e2f2b] px-3 py-1 text-xs font-bold text-[#a2ffd5] hover:border-[#a2ffd5]"
+							>
+								#{tag.name}
+							</Link>
+						))}
+					</nav>
 				) : null}
 			</header>
 
@@ -497,6 +545,44 @@ export default function CollectionDetail() {
 											<p className="mt-2 line-clamp-2 text-sm leading-6 text-[#c6ded2]">
 												{item.media.description}
 											</p>
+										) : null}
+										{item.note ? (
+											<blockquote className="mt-3 border-l-2 border-[#ff9900] pl-3 text-sm italic leading-6 text-[#ffefcc]">
+												{item.note}
+											</blockquote>
+										) : null}
+										{data.isOwner ? (
+											<details className="mt-3 text-sm">
+												<summary className="cursor-pointer font-bold text-[#a2ffd5]">
+													{item.note ? 'Edit curator note' : 'Add curator note'}
+												</summary>
+												<Form method="post" className="mt-3 space-y-2">
+													<input
+														type="hidden"
+														name="intent"
+														value="note-item"
+													/>
+													<input type="hidden" name="itemId" value={item.id} />
+													<Label htmlFor={`item-note-${item.id}`}>
+														Why does this title belong here?
+													</Label>
+													<Textarea
+														id={`item-note-${item.id}`}
+														name="note"
+														defaultValue={item.note ?? ''}
+														maxLength={COLLECTION_ITEM_NOTE_MAX_LENGTH}
+														rows={3}
+													/>
+													<Button
+														type="submit"
+														size="sm"
+														variant="outline"
+														disabled={busy}
+													>
+														Save note
+													</Button>
+												</Form>
+											</details>
 										) : null}
 									</div>
 									{data.isOwner ? (
