@@ -50,6 +50,25 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 
 test('signed-in discovery returns unseen personalized results', async () => {
 	const viewer = await createUser('discover_viewer')
+	const listType = await prisma.listType.upsert({
+		where: { name: 'anime' },
+		update: {},
+		create: {
+			name: 'anime',
+			header: 'Anime',
+			columns: '{}',
+			mediaType: '["episode"]',
+			completionType: '{}',
+		},
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: viewer.id,
+			typeId: listType.id,
+			name: 'completed',
+			header: 'Completed',
+		},
+	})
 	const [tracked, unseen] = await Promise.all([
 		prisma.media.create({
 			data: { kind: 'anime', title: 'Seen Fantasy', genres: 'Fantasy' },
@@ -63,10 +82,21 @@ test('signed-in discovery returns unseen personalized results', async () => {
 			ownerId: viewer.id,
 			mediaId: tracked.id,
 			status: 'completed',
+			statusWatchlistId: watchlist.id,
 			score: 9,
 		},
 	})
 	const cookie = await cookieFor(viewer.id)
+	const popular = await loader({
+		request: new Request(`${BASE_URL}/discover`, { headers: { cookie } }),
+		params: {},
+	} as any)
+	expect(popular.data.watchlists).toEqual([
+		expect.objectContaining({ id: watchlist.id, name: 'completed' }),
+	])
+	expect(
+		popular.data.items.find(item => item.id === tracked.id)?.viewerTracking,
+	).toEqual({ status: 'completed', statusWatchlistId: watchlist.id })
 
 	const result = await loader({
 		request: new Request(`${BASE_URL}/discover?sort=for-you`, {

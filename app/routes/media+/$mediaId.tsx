@@ -47,6 +47,7 @@ import {
 	trackingStateFromEntry,
 	type TrackingEntryLike,
 } from '#app/utils/tracking-state.ts'
+import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 
 const catalogEntrySelect = {
 	id: true,
@@ -166,35 +167,6 @@ function representativeEntry(entries: CatalogEntry[]) {
 			(a, b) =>
 				catalogRichness(b) - catalogRichness(a) || a.id.localeCompare(b.id),
 		)[0]
-}
-
-function catalogCreateData(
-	entry: MediaCatalogSnapshot | undefined,
-	kind: string,
-) {
-	return {
-		thumbnail: entry?.thumbnail,
-		title: entry?.title?.trim() || `Untitled ${kind}`,
-		type: entry?.type,
-		releaseStart: entry?.releaseStart,
-		releaseEnd: entry?.releaseEnd,
-		nextRelease: entry?.nextRelease,
-		genres: entry?.genres,
-		description: entry?.description,
-		airYear: entry?.airYear,
-		startSeason: entry?.startSeason,
-		startYear: entry?.startYear,
-		length: entry?.length,
-		chapters: entry?.chapters,
-		volumes: entry?.volumes,
-		rating: entry?.rating,
-		language: entry?.language,
-		studios: entry?.studios,
-		serialization: entry?.serialization,
-		authors: entry?.authors,
-		tmdbScore: entry?.tmdbScore,
-		malScore: entry?.malScore,
-	}
 }
 
 function progressTotal(entry: MediaCatalogSnapshot | undefined, unit: string) {
@@ -712,24 +684,6 @@ function authoritativeEntry<
 	})[0]
 }
 
-async function renumberWatchlist(
-	tx: Prisma.TransactionClient,
-	watchlistId: string,
-) {
-	const entries = await tx.entry.findMany({
-		where: { watchlistId },
-		orderBy: [{ position: 'asc' }, { id: 'asc' }],
-		select: { id: true, position: true },
-	})
-	for (const [index, entry] of entries.entries()) {
-		if (entry.position === index + 1) continue
-		await tx.entry.update({
-			where: { id: entry.id },
-			data: { position: index + 1 },
-		})
-	}
-}
-
 export async function action({ request, params }: ActionFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -904,6 +858,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			return json({ ok: true })
 		}
 
+		if (parsed.data.intent === 'status') {
+			const tracking = await setMediaTrackingStatus(tx, {
+				ownerId: userId,
+				mediaId,
+				watchlistId: parsed.data.watchlistId,
+			})
+			return json({ ok: true, tracking })
+		}
+
 		const listTypeName = listTypeNameForMediaKind(media.kind)
 		if (!listTypeName)
 			throw new Response('Unsupported media kind', { status: 400 })
@@ -911,7 +874,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			media,
 			representativeEntry(media.entries),
 		)
-		let entries = await tx.entry.findMany({
+		const entries = await tx.entry.findMany({
 			where: { mediaId, watchlist: { ownerId: userId } },
 			include: { watchlist: true, media: true },
 		})
@@ -919,84 +882,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			where: { ownerId_mediaId: { ownerId: userId, mediaId } },
 			select: { id: true, statusWatchlistId: true },
 		})
-
-		if (parsed.data.intent === 'status') {
-			const destination = await tx.watchlist.findFirst({
-				where: {
-					id: parsed.data.watchlistId,
-					ownerId: userId,
-					type: { name: listTypeName },
-				},
-			})
-			if (!destination) {
-				throw new Response('Tracking status not found', { status: 400 })
-			}
-
-			let target = entries.find(entry => entry.watchlistId === destination.id)
-			if (!target) {
-				const maxPosition = await tx.entry.aggregate({
-					where: { watchlistId: destination.id },
-					_max: { position: true },
-				})
-				const primary = authoritativeEntry(
-					entries,
-					media.kind,
-					state?.statusWatchlistId,
-				)
-				if (primary) {
-					const sourceWatchlistId = primary.watchlistId
-					await tx.entry.update({
-						where: { id: primary.id },
-						data: {
-							watchlistId: destination.id,
-							position: (maxPosition._max.position ?? 0) + 1,
-						},
-					})
-					if (sourceWatchlistId !== destination.id) {
-						await renumberWatchlist(tx, sourceWatchlistId)
-					}
-				} else {
-					await tx.entry.create({
-						data: {
-							...catalogCreateData(catalog, media.kind),
-							watchlistId: destination.id,
-							mediaId,
-							position: (maxPosition._max.position ?? 0) + 1,
-							history: JSON.stringify({
-								added: Date.now(),
-								started: null,
-								finished: null,
-								progress: null,
-								lastUpdated: Date.now(),
-							}),
-						},
-					})
-				}
-				entries = await tx.entry.findMany({
-					where: { mediaId, watchlist: { ownerId: userId } },
-					include: { watchlist: true, media: true },
-				})
-				target = entries.find(entry => entry.watchlistId === destination.id)
-			}
-			if (!target) throw new Response('Unable to track media', { status: 500 })
-
-			const stateId = await ensureTrackingStateForEntry(tx, {
-				ownerId: userId,
-				mediaId,
-				mediaKind: media.kind,
-				status: destination.name,
-				statusWatchlistId: destination.id,
-				entry: target,
-				mode: 'status',
-				recordActivity: true,
-			})
-			state = { id: stateId, statusWatchlistId: destination.id }
-			await tx.entry.updateMany({
-				where: { mediaId, watchlist: { ownerId: userId } },
-				data: { trackingStateId: state.id },
-			})
-			return json({ ok: true })
-		}
 
 		const primary = authoritativeEntry(
 			entries,
