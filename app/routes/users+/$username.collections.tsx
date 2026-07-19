@@ -28,7 +28,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			isPublic: true,
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
-			_count: { select: { items: true } },
+			_count: { select: { items: true, likes: true, comments: true } },
 			items: {
 				orderBy: [{ position: 'asc' }, { id: 'asc' }],
 				take: 4,

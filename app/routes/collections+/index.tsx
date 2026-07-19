@@ -14,15 +14,17 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 
 const PAGE_SIZE = 24
+type CollectionSort = 'recent' | 'popular'
 
 function parsePage(value: string | null) {
 	const page = Number(value)
 	return Number.isInteger(page) && page > 0 ? page : 1
 }
 
-function collectionsHref(query: string, page: number) {
+function collectionsHref(query: string, sort: CollectionSort, page: number) {
 	const params = new URLSearchParams()
 	if (query) params.set('q', query)
+	if (sort !== 'recent') params.set('sort', sort)
 	if (page > 1) params.set('page', String(page))
 	const search = params.toString()
 	return search ? `/collections?${search}` : '/collections'
@@ -32,6 +34,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const url = new URL(request.url)
 	const query = url.searchParams.get('q')?.trim().slice(0, 100) ?? ''
+	const sort: CollectionSort =
+		url.searchParams.get('sort') === 'popular' ? 'popular' : 'recent'
 	const requestedPage = parsePage(url.searchParams.get('page'))
 	const visibility = viewerId
 		? { OR: [{ isPublic: true }, { ownerId: viewerId }] }
@@ -57,7 +61,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const page = Math.min(requestedPage, pageCount)
 	const collections = await prisma.mediaCollection.findMany({
 		where,
-		orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+		orderBy:
+			sort === 'popular'
+				? [{ likes: { _count: 'desc' } }, { updatedAt: 'desc' }, { id: 'desc' }]
+				: [{ updatedAt: 'desc' }, { id: 'desc' }],
 		skip: (page - 1) * PAGE_SIZE,
 		take: PAGE_SIZE,
 		select: {
@@ -67,7 +74,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			isPublic: true,
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
-			_count: { select: { items: true } },
+			_count: { select: { items: true, likes: true, comments: true } },
 			items: {
 				orderBy: [{ position: 'asc' }, { id: 'asc' }],
 				take: 4,
@@ -80,6 +87,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({
 		collections,
 		query,
+		sort,
 		total,
 		page,
 		pageCount,
@@ -117,7 +125,7 @@ export default function CollectionsIndex() {
 
 			<Form
 				method="get"
-				className="flex max-w-2xl items-end gap-3 rounded-2xl border border-[#54806c] bg-[#383040] p-4"
+				className="grid max-w-3xl gap-3 rounded-2xl border border-[#54806c] bg-[#383040] p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end"
 			>
 				<div className="flex-1 space-y-2">
 					<Label htmlFor="collection-query">Find collections</Label>
@@ -128,6 +136,18 @@ export default function CollectionsIndex() {
 						placeholder="Title, description, or creator"
 						maxLength={100}
 					/>
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="collection-sort">Sort by</Label>
+					<select
+						id="collection-sort"
+						name="sort"
+						defaultValue={data.sort}
+						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+					>
+						<option value="recent">Recently updated</option>
+						<option value="popular">Most liked</option>
+					</select>
 				</div>
 				<Button type="submit" variant="outline">
 					Search
@@ -170,7 +190,7 @@ export default function CollectionsIndex() {
 						disabled={data.page <= 1}
 					>
 						{data.page > 1 ? (
-							<Link to={collectionsHref(data.query, data.page - 1)}>
+							<Link to={collectionsHref(data.query, data.sort, data.page - 1)}>
 								Previous
 							</Link>
 						) : (
@@ -186,7 +206,9 @@ export default function CollectionsIndex() {
 						disabled={data.page >= data.pageCount}
 					>
 						{data.page < data.pageCount ? (
-							<Link to={collectionsHref(data.query, data.page + 1)}>Next</Link>
+							<Link to={collectionsHref(data.query, data.sort, data.page + 1)}>
+								Next
+							</Link>
 						) : (
 							<span>Next</span>
 						)}

@@ -95,3 +95,60 @@ test('member can curate, reorder, and publish a media collection', async ({
 			.catch(() => {})
 	}
 })
+
+test('member can like, comment on, and clone a public collection', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Collection Engagement Fixture' },
+	})
+	const source = await prisma.mediaCollection.create({
+		data: {
+			ownerId: user.id,
+			title: 'Browser Engagement Picks',
+			description: 'A collection ready for community engagement.',
+			isPublic: true,
+			items: { create: { mediaId: media.id, position: 1 } },
+		},
+	})
+
+	try {
+		await page.goto(`/collections/${source.id}`)
+		await page.getByRole('button', { name: 'Like', exact: true }).click()
+		await expect(
+			page.getByRole('button', { name: 'Unlike', exact: true }),
+		).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.collectionLike.count({ where: { collectionId: source.id } }),
+			)
+			.toBe(1)
+
+		await page.getByLabel('Add a comment').fill('A browser-tested comment.')
+		await page.getByRole('button', { name: 'Post comment' }).click()
+		await expect(page.getByText('A browser-tested comment.')).toBeVisible()
+
+		await page.getByRole('button', { name: 'Clone', exact: true }).click()
+		await expect.poll(() => page.url().split('/').at(-1)).not.toBe(source.id)
+		const cloneId = page.url().split('/').at(-1)
+		if (!cloneId) throw new Error('Clone redirect did not include an ID')
+		await expect(page.getByText('Private', { exact: true })).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Browser Engagement Picks (copy)' }),
+		).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Collection Engagement Fixture' }),
+		).toBeVisible()
+
+		const clone = await prisma.mediaCollection.findUniqueOrThrow({
+			where: { id: cloneId },
+			include: { items: true },
+		})
+		expect(clone).toMatchObject({ ownerId: user.id, isPublic: false })
+		expect(clone.items.map(item => item.mediaId)).toEqual([media.id])
+	} finally {
+		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
+	}
+})
