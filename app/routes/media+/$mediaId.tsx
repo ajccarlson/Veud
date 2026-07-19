@@ -148,6 +148,10 @@ const ActionSchema = z.discriminatedUnion('intent', [
 		intent: z.literal('diary-delete'),
 		diaryEntryId: z.string().min(1).max(100),
 	}),
+	z.object({
+		intent: z.literal('collection-add'),
+		collectionId: z.string().min(1).max(100),
+	}),
 ])
 
 function catalogRichness(entry: CatalogEntry) {
@@ -246,6 +250,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		reviewRows,
 		viewerReview,
 		viewerDiaryEntries,
+		viewerCollections,
 	] = await Promise.all([
 		prisma.trackingState.aggregate({
 			where: { mediaId: media.id },
@@ -374,6 +379,21 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					},
 				})
 			: [],
+		viewerId
+			? prisma.mediaCollection.findMany({
+					where: { ownerId: viewerId },
+					orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }],
+					select: {
+						id: true,
+						title: true,
+						items: {
+							where: { mediaId: media.id },
+							take: 1,
+							select: { id: true },
+						},
+					},
+				})
+			: [],
 	])
 
 	const legacyTracking = viewerEntries
@@ -475,6 +495,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					diaryEntries: viewerDiaryEntries.map(entry => ({
 						...entry,
 						rating: entry.rating === null ? null : Number(entry.rating),
+					})),
+					collections: viewerCollections.map(({ items, ...collection }) => ({
+						...collection,
+						containsMedia: items.length > 0,
 					})),
 				}
 			: null,
@@ -858,6 +882,39 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			return json({ ok: true })
 		}
 
+		if (parsed.data.intent === 'collection-add') {
+			const collection = await tx.mediaCollection.findFirst({
+				where: { id: parsed.data.collectionId, ownerId: userId },
+				select: { id: true },
+			})
+			if (!collection)
+				throw new Response('Collection not found', { status: 404 })
+			const existing = await tx.mediaCollectionItem.findUnique({
+				where: {
+					collectionId_mediaId: { collectionId: collection.id, mediaId },
+				},
+				select: { id: true },
+			})
+			if (!existing) {
+				const highest = await tx.mediaCollectionItem.aggregate({
+					where: { collectionId: collection.id },
+					_max: { position: true },
+				})
+				await tx.mediaCollectionItem.create({
+					data: {
+						collectionId: collection.id,
+						mediaId,
+						position: (highest._max.position ?? 0) + 1,
+					},
+				})
+				await tx.mediaCollection.update({
+					where: { id: collection.id },
+					data: { updatedAt: new Date() },
+				})
+			}
+			return json({ ok: true, collectionId: collection.id })
+		}
+
 		if (parsed.data.intent === 'status') {
 			const tracking = await setMediaTrackingStatus(tx, {
 				ownerId: userId,
@@ -1198,6 +1255,50 @@ export default function MediaDetailRoute() {
 							</p>
 						</section>
 					)}
+
+					{data.viewer ? (
+						<section className="space-y-4 rounded-xl border bg-card p-5">
+							<div>
+								<h2 className="text-xl font-bold">Save to a collection</h2>
+								<p className="text-sm text-muted-foreground">
+									Add this title to one of your curated lists.
+								</p>
+							</div>
+							{data.viewer.collections.length ? (
+								<Form method="post" className="flex flex-wrap items-end gap-3">
+									<input type="hidden" name="intent" value="collection-add" />
+									<div className="min-w-52 flex-1 space-y-2">
+										<Label htmlFor="collection-id">Collection</Label>
+										<select
+											id="collection-id"
+											name="collectionId"
+											className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+										>
+											{data.viewer.collections.map(collection => (
+												<option key={collection.id} value={collection.id}>
+													{collection.containsMedia ? '✓ ' : ''}
+													{collection.title}
+												</option>
+											))}
+										</select>
+									</div>
+									<Button type="submit" variant="outline" disabled={busy}>
+										Add to collection
+									</Button>
+								</Form>
+							) : (
+								<p className="text-sm text-muted-foreground">
+									<Link
+										to="/collections/new"
+										className="font-semibold underline"
+									>
+										Create your first collection
+									</Link>{' '}
+									to save this title.
+								</p>
+							)}
+						</section>
+					) : null}
 
 					{data.viewer ? (
 						<section className="grid gap-5 lg:grid-cols-2">

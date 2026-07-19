@@ -356,6 +356,17 @@ function CommunityDropdown() {
             <Link
               className="root-community-link-item"
               prefetch="intent"
+              to="/collections"
+            >
+              <Icon className="text-body-md" name="list-bullet">
+                Collections
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
               to={`/users`}
             >
               <Icon className="text-body-md" name="person">
