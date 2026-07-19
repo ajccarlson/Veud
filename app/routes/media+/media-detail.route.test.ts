@@ -176,6 +176,13 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 	} as any)
 	await action({
 		request: actionRequest(media.id, cookie, {
+			intent: 'score',
+			score: '8.5',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	await action({
+		request: actionRequest(media.id, cookie, {
 			intent: 'progress',
 			unit: 'episode',
 			current: '3',
@@ -207,6 +214,36 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 	expect(finalState.progress).toEqual([
 		expect.objectContaining({ unit: 'episode', current: 3, total: 12 }),
 	])
+	const events = await prisma.activityEvent.findMany({
+		where: { actorId: tracker.id, mediaId: media.id },
+	})
+	expect(events).toHaveLength(4)
+	expect(events.filter(event => event.type === 'status')).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				status: 'watching',
+				statusLabel: 'Watching',
+				previousStatus: null,
+			}),
+			expect.objectContaining({
+				status: 'completed',
+				statusLabel: 'Completed',
+				previousStatus: 'watching',
+			}),
+		]),
+	)
+	expect(Number(events.find(event => event.type === 'score')?.score)).toBe(8.5)
+	expect(events).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				type: 'progress',
+				progressUnit: 'episode',
+				progressPrevious: 0,
+				progressCurrent: 3,
+				progressTotal: 12,
+			}),
+		]),
+	)
 
 	const loaded = await loader({
 		request: new Request(`${BASE_URL}/media/${media.id}`, {
@@ -225,6 +262,14 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 			score: 8.5,
 			progress: [expect.objectContaining({ unit: 'episode', current: 3 })],
 		}),
+	)
+	expect(loaded.data.activity.map(event => event.action)).toEqual(
+		expect.arrayContaining([
+			'Added to Watching',
+			'Rated 8.5/10',
+			'Watched episodes 1–3',
+			'Moved from Watching to Completed',
+		]),
 	)
 })
 

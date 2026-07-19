@@ -87,6 +87,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 						statusWatchlistId: watchlist.id,
 						entry: { ...entry, ...data },
 						mode: 'all',
+						recordActivity: true,
 					})
 				: undefined
 

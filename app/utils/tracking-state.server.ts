@@ -1,5 +1,9 @@
 import { type Prisma } from '@prisma/client'
 import {
+	getTrackingActivityState,
+	recordTrackingActivityDiff,
+} from './activity.server.ts'
+import {
 	trackingStateFromEntry,
 	type TrackingEntryLike,
 } from './tracking-state.ts'
@@ -16,8 +20,12 @@ export async function ensureTrackingStateForEntry(
 		statusWatchlistId?: string | null
 		entry: TrackingEntryLike
 		mode?: TrackingStateWriteMode
+		recordActivity?: boolean
 	},
 ) {
+	const before = input.recordActivity
+		? await getTrackingActivityState(tx, input.ownerId, input.mediaId)
+		: null
 	const mode = input.mode ?? 'status'
 	const snapshot = trackingStateFromEntry(input.entry, {
 		status: input.status,
@@ -95,6 +103,21 @@ export async function ensureTrackingStateForEntry(
 		}
 	}
 
+	if (input.recordActivity) {
+		const after = await getTrackingActivityState(
+			tx,
+			input.ownerId,
+			input.mediaId,
+		)
+		if (!after) throw new Error('Tracking state was not available after sync')
+		await recordTrackingActivityDiff(tx, {
+			actorId: input.ownerId,
+			mediaId: input.mediaId,
+			before,
+			after,
+		})
+	}
+
 	return state.id
 }
 
@@ -119,6 +142,7 @@ export async function syncTrackingStateForEntry(
 		statusWatchlistId: entry.watchlist.id,
 		entry,
 		mode: 'all',
+		recordActivity: true,
 	})
 	if (entry.trackingStateId !== trackingStateId) {
 		await tx.entry.update({
