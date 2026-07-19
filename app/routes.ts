@@ -66,6 +66,7 @@ export default [
 			}),
 		],
 	}),
+	appRoute('routes/discover.tsx', { path: 'discover' }),
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
 		path: 'lists/:username/:list-type',
 		children: [
@@ -134,6 +135,8 @@ export default [
 	}),
 	appRoute('routes/media+/mal.ts', { path: 'media/mal' }),
 	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
+	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
+	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
 	}),
@@ -145,6 +148,9 @@ export default [
 	}),
 	appRoute('routes/resources+/profile-comment.$request.ts', {
 		path: 'resources/profile-comment/:request',
+	}),
+	appRoute('routes/resources+/quick-track.ts', {
+		path: 'resources/quick-track',
 	}),
 	appRoute('routes/resources+/user-banners.$imageId.tsx', {
 		path: 'resources/user-banners/:imageId',
@@ -194,10 +200,16 @@ export default [
 			appRoute('routes/users+/$username.activity.tsx', {
 				path: 'activity',
 			}),
+			appRoute('routes/users+/$username.diary.tsx', {
+				path: 'diary',
+			}),
 			appRoute('routes/users+/$username.favorites.tsx', {
 				path: 'favorites',
 			}),
 			appRoute('routes/users+/$username.index.tsx', { index: true }),
+			appRoute('routes/users+/$username.reviews.tsx', {
+				path: 'reviews',
+			}),
 			appRoute('routes/users+/$username.social.tsx', { path: 'social' }),
 			appRoute('routes/users+/$username.stats.tsx', { path: 'stats' }),
 		],
