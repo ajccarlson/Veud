@@ -102,7 +102,15 @@ async function fixture() {
 		},
 	})
 	const cookie = await getSessionCookieHeader(session)
-	return { media, tracker, watching, completed, otherList, cookie }
+	return {
+		media,
+		tracker,
+		otherUser,
+		watching,
+		completed,
+		otherList,
+		cookie,
+	}
 }
 
 function actionRequest(
@@ -142,6 +150,8 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 		trackers: 0,
 		ratings: 0,
 		meanScore: null,
+		reviews: 0,
+		diaryEntries: 0,
 	})
 	expect(result.data.viewer).toBeNull()
 })
@@ -255,6 +265,8 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 		trackers: 1,
 		ratings: 1,
 		meanScore: 8.5,
+		reviews: 0,
+		diaryEntries: 0,
 	})
 	expect(loaded.data.viewer?.tracking).toEqual(
 		expect.objectContaining({
@@ -270,6 +282,179 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 			'Watched episodes 1–3',
 			'Moved from Watching to Completed',
 		]),
+	)
+})
+
+test('members can publish and edit one spoiler-aware review per title', async () => {
+	const { media, tracker, otherUser, cookie } = await fixture()
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'review-save',
+			body: '  The adaptation earns its emotional ending.  ',
+			containsSpoilers: 'true',
+			rating: '9.2',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+
+	const original = await prisma.review.findUniqueOrThrow({
+		where: { authorId_mediaId: { authorId: tracker.id, mediaId: media.id } },
+	})
+	expect(original.body).toBe('The adaptation earns its emotional ending.')
+	expect(original.containsSpoilers).toBe(true)
+	expect(Number(original.rating)).toBe(9.2)
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'review-save',
+			body: 'A tighter second draft.',
+			rating: '',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+
+	const updated = await prisma.review.findUniqueOrThrow({
+		where: { authorId_mediaId: { authorId: tracker.id, mediaId: media.id } },
+	})
+	expect(updated.id).toBe(original.id)
+	expect(updated.body).toBe('A tighter second draft.')
+	expect(updated.containsSpoilers).toBe(false)
+	expect(updated.rating).toBeNull()
+	expect(await prisma.review.count({ where: { mediaId: media.id } })).toBe(1)
+
+	const publicResult = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`),
+		params: { mediaId: media.id },
+	} as any)
+	expect(publicResult.data.community.reviews).toBe(1)
+	expect(publicResult.data.reviews).toEqual([
+		expect.objectContaining({
+			id: original.id,
+			body: 'A tighter second draft.',
+			containsSpoilers: false,
+			rating: null,
+			author: expect.objectContaining({ id: tracker.id }),
+		}),
+	])
+
+	const otherSession = await prisma.session.create({
+		data: {
+			userId: otherUser.id,
+			expirationDate: getSessionExpirationDate(),
+		},
+	})
+	const otherCookie = await getSessionCookieHeader(otherSession)
+	const denied = await action({
+		request: actionRequest(media.id, otherCookie, {
+			intent: 'review-delete',
+		}),
+		params: { mediaId: media.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(404)
+	expect(
+		await prisma.review.findUnique({ where: { id: original.id } }),
+	).not.toBeNull()
+})
+
+test('diary logs are repeatable, dated, and protected by ownership', async () => {
+	const { media, tracker, otherUser, cookie } = await fixture()
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'diary-create',
+			loggedOn: '2026-07-18',
+			isRepeat: 'true',
+			rating: '8.7',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'diary-create',
+			loggedOn: '2026-07-19',
+			rating: '',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+
+	const entries = await prisma.diaryEntry.findMany({
+		where: { ownerId: tracker.id, mediaId: media.id },
+		orderBy: { loggedOn: 'asc' },
+	})
+	expect(entries).toHaveLength(2)
+	expect(entries[0]).toEqual(
+		expect.objectContaining({
+			loggedOn: new Date('2026-07-18T00:00:00.000Z'),
+			isRepeat: true,
+		}),
+	)
+	expect(Number(entries[0]?.rating)).toBe(8.7)
+	expect(entries[1]?.rating).toBeNull()
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(loaded.data.community.diaryEntries).toBe(2)
+	expect(loaded.data.viewer?.diaryEntries.map(entry => entry.id)).toEqual([
+		entries[1]?.id,
+		entries[0]?.id,
+	])
+
+	const otherSession = await prisma.session.create({
+		data: {
+			userId: otherUser.id,
+			expirationDate: getSessionExpirationDate(),
+		},
+	})
+	const otherCookie = await getSessionCookieHeader(otherSession)
+	const denied = await action({
+		request: actionRequest(media.id, otherCookie, {
+			intent: 'diary-delete',
+			diaryEntryId: entries[0]!.id,
+		}),
+		params: { mediaId: media.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(404)
+	expect(
+		await prisma.diaryEntry.findUnique({ where: { id: entries[0]!.id } }),
+	).not.toBeNull()
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'diary-delete',
+			diaryEntryId: entries[0]!.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.diaryEntry.findUnique({ where: { id: entries[0]!.id } }),
+	).toBeNull()
+})
+
+test('invalid review and diary input is rejected before writing', async () => {
+	const { media, cookie } = await fixture()
+	const invalidData: Array<Record<string, string>> = [
+		{ intent: 'review-save', body: '   ', rating: '8' },
+		{ intent: 'diary-create', loggedOn: '2026-02-29', rating: '8' },
+		{ intent: 'diary-create', loggedOn: '2026-07-19', rating: '11' },
+	]
+	for (const data of invalidData) {
+		const result = await action({
+			request: actionRequest(media.id, cookie, data),
+			params: { mediaId: media.id },
+		} as any).catch(error => error)
+		expect(result).toBeInstanceOf(Response)
+		expect((result as Response).status).toBe(400)
+	}
+	expect(await prisma.review.count({ where: { mediaId: media.id } })).toBe(0)
+	expect(await prisma.diaryEntry.count({ where: { mediaId: media.id } })).toBe(
+		0,
 	)
 })
 
