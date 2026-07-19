@@ -195,10 +195,16 @@ export default [
 			appRoute('routes/users+/$username.activity.tsx', {
 				path: 'activity',
 			}),
+			appRoute('routes/users+/$username.diary.tsx', {
+				path: 'diary',
+			}),
 			appRoute('routes/users+/$username.favorites.tsx', {
 				path: 'favorites',
 			}),
 			appRoute('routes/users+/$username.index.tsx', { index: true }),
+			appRoute('routes/users+/$username.reviews.tsx', {
+				path: 'reviews',
+			}),
 			appRoute('routes/users+/$username.social.tsx', { path: 'social' }),
 			appRoute('routes/users+/$username.stats.tsx', { path: 'stats' }),
 		],

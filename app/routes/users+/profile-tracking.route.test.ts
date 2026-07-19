@@ -93,6 +93,26 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			score: 8.5,
 		},
 	})
+	const [review, diaryEntry] = await Promise.all([
+		prisma.review.create({
+			data: {
+				authorId: user.id,
+				mediaId: media.id,
+				body: 'A profile-visible review.',
+				containsSpoilers: true,
+				rating: 9,
+			},
+		}),
+		prisma.diaryEntry.create({
+			data: {
+				ownerId: user.id,
+				mediaId: media.id,
+				loggedOn: new Date('2026-07-19T00:00:00.000Z'),
+				isRepeat: true,
+				rating: 8.5,
+			},
+		}),
+	])
 
 	const result = await loader({
 		request: new Request(`${BASE_URL}/users/${user.username}`),
@@ -109,15 +129,48 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			{ key: completed.id, label: 'Completed', count: 1 },
 		],
 	})
-	expect(result.data.activityEvents).toEqual([
-		expect.objectContaining({
-			action: 'Rated 8.5/10',
-			typeId: listType.id,
-			media: expect.objectContaining({
-				id: media.id,
-				title: 'Canonical Activity Title',
+	expect(result.data.activityEvents).toHaveLength(3)
+	expect(result.data.activityEvents).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				action: 'Rated 8.5/10',
+				typeId: listType.id,
+				media: expect.objectContaining({
+					id: media.id,
+					title: 'Canonical Activity Title',
+				}),
 			}),
+			expect.objectContaining({
+				id: `review:${review.id}`,
+				action: 'Published a review',
+				typeId: listType.id,
+			}),
+			expect.objectContaining({
+				id: `diary:${diaryEntry.id}`,
+				action: 'Logged a rewatch',
+				typeId: listType.id,
+			}),
+		]),
+	)
+	expect(result.data.activityStartedAt).toEqual(activity.createdAt)
+	expect(result.data.reviews).toEqual([
+		expect.objectContaining({
+			id: review.id,
+			body: 'A profile-visible review.',
+			containsSpoilers: true,
+			rating: 9,
+			typeId: listType.id,
+			media: expect.objectContaining({ id: media.id }),
 		}),
 	])
-	expect(result.data.activityStartedAt).toEqual(activity.createdAt)
+	expect(result.data.diaryEntries).toEqual([
+		expect.objectContaining({
+			id: diaryEntry.id,
+			loggedOn: new Date('2026-07-19T00:00:00.000Z'),
+			isRepeat: true,
+			rating: 8.5,
+			typeId: listType.id,
+			media: expect.objectContaining({ id: media.id }),
+		}),
+	])
 })
