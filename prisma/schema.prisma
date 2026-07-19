@@ -29,18 +29,19 @@ model User {
   roles                 Role[]
   sessions              Session[]
   connections           Connection[]
-  following             Follow[]         @relation("UserFollowing")
-  followers             Follow[]         @relation("UserFollowers")
-  commentsAuthored      ProfileComment[] @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[] @relation("ProfileCommentProfile")
+  following             Follow[]          @relation("UserFollowing")
+  followers             Follow[]          @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]  @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]  @relation("ProfileCommentProfile")
   trackingStates        TrackingState[]
   activityEvents        ActivityEvent[]
   reviews               Review[]
   diaryEntries          DiaryEntry[]
   reviewLikes           ReviewLike[]
   reviewComments        ReviewComment[]
-  notificationsReceived Notification[]   @relation("NotificationRecipient")
-  notificationsSent     Notification[]   @relation("NotificationActor")
+  notificationsReceived Notification[]    @relation("NotificationRecipient")
+  notificationsSent     Notification[]    @relation("NotificationActor")
+  mediaCollections      MediaCollection[]
 }
 
 model ListType {
@@ -116,13 +117,14 @@ model Media {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalIds    MediaExternalId[]
-  entries        Entry[]
-  favorites      UserFavorite[]
-  trackingStates TrackingState[]
-  activityEvents ActivityEvent[]
-  reviews        Review[]
-  diaryEntries   DiaryEntry[]
+  externalIds     MediaExternalId[]
+  entries         Entry[]
+  favorites       UserFavorite[]
+  trackingStates  TrackingState[]
+  activityEvents  ActivityEvent[]
+  reviews         Review[]
+  diaryEntries    DiaryEntry[]
+  collectionItems MediaCollectionItem[]
 
   @@index([kind])
 }
@@ -377,6 +379,43 @@ model DiaryEntry {
 
   @@index([ownerId, loggedOn])
   @@index([mediaId, loggedOn])
+}
+
+/// A member-curated, shareable set of canonical works. These are intentionally
+/// distinct from status watchlists: a collection expresses a theme or opinion,
+/// while TrackingState represents consumption progress.
+model MediaCollection {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner   User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+  items   MediaCollectionItem[]
+
+  @@index([ownerId, updatedAt])
+  @@index([isPublic, updatedAt])
+}
+
+/// One ordered title in a curated collection. Position is indexed rather than
+/// unique so multi-row reordering remains safe inside a transaction.
+model MediaCollectionItem {
+  id        String   @id @default(cuid())
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  media        Media           @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId      String
+
+  @@unique([collectionId, mediaId])
+  @@index([collectionId, position])
+  @@index([mediaId])
 }
 
 model UserFavorite {

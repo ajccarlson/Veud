@@ -610,3 +610,55 @@ test('status action rejects a watchlist owned by someone else', async () => {
 		}),
 	).toBe(0)
 })
+
+test('media pages add titles only to collections owned by the viewer', async () => {
+	const { media, tracker, otherUser, cookie } = await fixture()
+	const [owned, other] = await Promise.all([
+		prisma.mediaCollection.create({
+			data: { ownerId: tracker.id, title: 'Owned picks' },
+		}),
+		prisma.mediaCollection.create({
+			data: { ownerId: otherUser.id, title: 'Someone else’s picks' },
+		}),
+	])
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: owned.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: owned.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.mediaCollectionItem.count({
+			where: { collectionId: owned.id, mediaId: media.id },
+		}),
+	).toBe(1)
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(loaded.data.viewer?.collections).toEqual([
+		expect.objectContaining({ id: owned.id, containsMedia: true }),
+	])
+
+	const denied = await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: other.id,
+		}),
+		params: { mediaId: media.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(404)
+})

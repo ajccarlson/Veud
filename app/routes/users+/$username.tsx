@@ -257,6 +257,7 @@ const PROFILE_TABS = [
 	{ to: '.', end: true, label: 'Overview' },
 	{ to: 'reviews', end: false, label: 'Reviews' },
 	{ to: 'diary', end: false, label: 'Diary' },
+	{ to: 'collections', end: false, label: 'Collections' },
 	{ to: 'stats', end: false, label: 'Stats' },
 	{ to: 'favorites', end: false, label: 'Favorites' },
 	{ to: 'activity', end: false, label: 'Activity' },
