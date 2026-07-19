@@ -37,6 +37,10 @@ export type DiscoveryResult = {
 	trackerCount: number
 	reviewCount: number
 	diaryCount: number
+	viewerTracking: {
+		status: string
+		statusWatchlistId: string | null
+	} | null
 }
 
 export type DiscoveryResults = {
@@ -59,7 +63,14 @@ const discoveryMediaSelect = {
 	genres: true,
 	description: true,
 	createdAt: true,
-	trackingStates: { select: { score: true } },
+	trackingStates: {
+		select: {
+			ownerId: true,
+			status: true,
+			statusWatchlistId: true,
+			score: true,
+		},
+	},
 	_count: {
 		select: {
 			trackingStates: true,
@@ -78,6 +89,7 @@ type RankedMedia = DiscoveryMedia & {
 	ratingCount: number
 	popularityScore: number
 	affinityScore: number
+	viewerTracking: DiscoveryResult['viewerTracking']
 }
 
 function boundedSearchValue(value: string | null, maximum: number) {
@@ -200,6 +212,7 @@ function resultFromMedia(media: RankedMedia): DiscoveryResult {
 		trackerCount: media._count.trackingStates,
 		reviewCount: media._count.reviews,
 		diaryCount: media._count.diaryEntries,
+		viewerTracking: media.viewerTracking,
 	}
 }
 
@@ -296,11 +309,20 @@ export async function getDiscoveryResults(
 	const ranked = rankMedia(
 		filteredMedia.map(item => {
 			const score = communityScore(item)
+			const viewerState = viewerId
+				? item.trackingStates.find(state => state.ownerId === viewerId)
+				: null
 			const ratingCount = item.trackingStates.filter(
 				state => state.score !== null,
 			).length
 			return {
 				...item,
+				viewerTracking: viewerState
+					? {
+							status: viewerState.status,
+							statusWatchlistId: viewerState.statusWatchlistId,
+						}
+					: null,
 				communityScore: score,
 				ratingCount,
 				popularityScore: popularityScore(item),

@@ -149,6 +149,9 @@ export default [
 	appRoute('routes/resources+/profile-comment.$request.ts', {
 		path: 'resources/profile-comment/:request',
 	}),
+	appRoute('routes/resources+/quick-track.ts', {
+		path: 'resources/quick-track',
+	}),
 	appRoute('routes/resources+/user-banners.$imageId.tsx', {
 		path: 'resources/user-banners/:imageId',
 	}),
