@@ -404,6 +404,7 @@ model MediaCollection {
   owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId       String
   items         MediaCollectionItem[]
+  tags          MediaCollectionTag[]
   likes         CollectionLike[]
   comments      CollectionComment[]
   notifications Notification[]
@@ -417,6 +418,7 @@ model MediaCollection {
 model MediaCollectionItem {
   id        String   @id @default(cuid())
   position  Int
+  note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -428,6 +430,29 @@ model MediaCollectionItem {
   @@unique([collectionId, mediaId])
   @@index([collectionId, position])
   @@index([mediaId])
+}
+
+/// A normalized discovery label shared across curated collections.
+model CollectionTag {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  collections MediaCollectionTag[]
+
+  @@index([name])
+}
+
+/// Explicit tag membership keeps collection cleanup predictable and makes
+/// filtering by a normalized tag efficient.
+model MediaCollectionTag {
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  tag          CollectionTag   @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tagId        String
+
+  @@id([collectionId, tagId])
+  @@index([tagId, collectionId])
 }
 
 /// Unique appreciation for a public or owner-visible curated collection.

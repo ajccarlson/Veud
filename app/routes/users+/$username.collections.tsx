@@ -29,6 +29,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
 			_count: { select: { items: true, likes: true, comments: true } },
+			tags: {
+				orderBy: { tag: { name: 'asc' } },
+				select: { tag: { select: { name: true, slug: true } } },
+			},
 			items: {
 				orderBy: [{ position: 'asc' }, { id: 'asc' }],
 				take: 4,

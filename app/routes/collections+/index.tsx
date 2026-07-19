@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import {
 	data as json,
 	Form,
@@ -12,6 +13,7 @@ import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { normalizeCollectionTag } from '#app/utils/media-collections.ts'
 
 const PAGE_SIZE = 24
 type CollectionSort = 'recent' | 'popular'
@@ -21,10 +23,16 @@ function parsePage(value: string | null) {
 	return Number.isInteger(page) && page > 0 ? page : 1
 }
 
-function collectionsHref(query: string, sort: CollectionSort, page: number) {
+function collectionsHref(
+	query: string,
+	sort: CollectionSort,
+	page: number,
+	tag: string,
+) {
 	const params = new URLSearchParams()
 	if (query) params.set('q', query)
 	if (sort !== 'recent') params.set('sort', sort)
+	if (tag) params.set('tag', tag)
 	if (page > 1) params.set('page', String(page))
 	const search = params.toString()
 	return search ? `/collections?${search}` : '/collections'
@@ -34,10 +42,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const url = new URL(request.url)
 	const query = url.searchParams.get('q')?.trim().slice(0, 100) ?? ''
+	const requestedTag = url.searchParams.get('tag')?.trim().slice(0, 100) ?? ''
+	const normalizedTag = requestedTag
+		? normalizeCollectionTag(requestedTag)
+		: null
+	const tagSlug = normalizedTag?.slug ?? ''
 	const sort: CollectionSort =
 		url.searchParams.get('sort') === 'popular' ? 'popular' : 'recent'
 	const requestedPage = parsePage(url.searchParams.get('page'))
-	const visibility = viewerId
+	const visibility: Prisma.MediaCollectionWhereInput = viewerId
 		? { OR: [{ isPublic: true }, { ownerId: viewerId }] }
 		: { isPublic: true }
 	const where = {
@@ -54,9 +67,27 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						},
 					]
 				: []),
+			...(tagSlug ? [{ tags: { some: { tag: { slug: tagSlug } } } }] : []),
 		],
 	}
-	const total = await prisma.mediaCollection.count({ where })
+	const [total, availableTags, activeTag] = await Promise.all([
+		prisma.mediaCollection.count({ where }),
+		prisma.collectionTag.findMany({
+			where: { collections: { some: { collection: visibility } } },
+			orderBy: [{ collections: { _count: 'desc' } }, { name: 'asc' }],
+			take: 30,
+			select: { name: true, slug: true },
+		}),
+		tagSlug
+			? prisma.collectionTag.findFirst({
+					where: {
+						slug: tagSlug,
+						collections: { some: { collection: visibility } },
+					},
+					select: { name: true, slug: true },
+				})
+			: null,
+	])
 	const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 	const page = Math.min(requestedPage, pageCount)
 	const collections = await prisma.mediaCollection.findMany({
@@ -75,6 +106,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
 			_count: { select: { items: true, likes: true, comments: true } },
+			tags: {
+				orderBy: { tag: { name: 'asc' } },
+				select: { tag: { select: { name: true, slug: true } } },
+			},
 			items: {
 				orderBy: [{ position: 'asc' }, { id: 'asc' }],
 				take: 4,
@@ -88,6 +123,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		collections,
 		query,
 		sort,
+		activeTag,
+		availableTags,
 		total,
 		page,
 		pageCount,
@@ -127,6 +164,9 @@ export default function CollectionsIndex() {
 				method="get"
 				className="grid max-w-3xl gap-3 rounded-2xl border border-[#54806c] bg-[#383040] p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end"
 			>
+				{data.activeTag ? (
+					<input type="hidden" name="tag" value={data.activeTag.slug} />
+				) : null}
 				<div className="flex-1 space-y-2">
 					<Label htmlFor="collection-query">Find collections</Label>
 					<Input
@@ -154,9 +194,41 @@ export default function CollectionsIndex() {
 				</Button>
 			</Form>
 
+			{data.availableTags.length ? (
+				<nav
+					aria-label="Browse collection tags"
+					className="flex flex-wrap gap-2"
+				>
+					<Link
+						to={collectionsHref(data.query, data.sort, 1, '')}
+						className={`rounded-full border px-3 py-1 text-sm font-bold ${
+							data.activeTag
+								? 'border-[#54806c] text-[#a2ffd5]'
+								: 'border-[#ff9900] bg-[#ff9900]/10 text-[#ffffb1]'
+						}`}
+					>
+						All tags
+					</Link>
+					{data.availableTags.map(tag => (
+						<Link
+							key={tag.slug}
+							to={collectionsHref(data.query, data.sort, 1, tag.slug)}
+							className={`rounded-full border px-3 py-1 text-sm font-bold ${
+								data.activeTag?.slug === tag.slug
+									? 'border-[#ff9900] bg-[#ff9900]/10 text-[#ffffb1]'
+									: 'border-[#54806c] text-[#a2ffd5] hover:border-[#a2ffd5]'
+							}`}
+						>
+							#{tag.name}
+						</Link>
+					))}
+				</nav>
+			) : null}
+
 			<section className="space-y-4">
 				<p className="text-sm font-semibold text-[#a2ffd5]">
 					{data.total} {data.total === 1 ? 'collection' : 'collections'}
+					{data.activeTag ? ` tagged #${data.activeTag.name}` : ''}
 				</p>
 				{data.collections.length ? (
 					<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -190,7 +262,14 @@ export default function CollectionsIndex() {
 						disabled={data.page <= 1}
 					>
 						{data.page > 1 ? (
-							<Link to={collectionsHref(data.query, data.sort, data.page - 1)}>
+							<Link
+								to={collectionsHref(
+									data.query,
+									data.sort,
+									data.page - 1,
+									data.activeTag?.slug ?? '',
+								)}
+							>
 								Previous
 							</Link>
 						) : (
@@ -206,7 +285,14 @@ export default function CollectionsIndex() {
 						disabled={data.page >= data.pageCount}
 					>
 						{data.page < data.pageCount ? (
-							<Link to={collectionsHref(data.query, data.sort, data.page + 1)}>
+							<Link
+								to={collectionsHref(
+									data.query,
+									data.sort,
+									data.page + 1,
+									data.activeTag?.slug ?? '',
+								)}
+							>
 								Next
 							</Link>
 						) : (

@@ -15,9 +15,12 @@ import { Label } from '#app/components/ui/label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { collectionTagCreateData } from '#app/utils/media-collections.server.ts'
 import {
 	COLLECTION_DESCRIPTION_MAX_LENGTH,
 	CollectionDetailsSchema,
+	COLLECTION_TAG_INPUT_MAX_LENGTH,
+	COLLECTION_TAG_MAX_COUNT,
 	COLLECTION_TITLE_MAX_LENGTH,
 } from '#app/utils/media-collections.ts'
 
@@ -36,8 +39,13 @@ export async function action({ request }: ActionFunctionArgs) {
 			{ status: 400 },
 		)
 	}
+	const { tags, ...details } = parsed.data
 	const collection = await prisma.mediaCollection.create({
-		data: { ownerId, ...parsed.data },
+		data: {
+			ownerId,
+			...details,
+			tags: { create: collectionTagCreateData(tags) },
+		},
 		select: { id: true },
 	})
 	return redirect(`/collections/${collection.id}`, { status: 303 })
@@ -89,6 +97,21 @@ export default function NewCollection() {
 						<p className="text-sm text-red-300">
 							{actionData.errors.description[0]}
 						</p>
+					) : null}
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="tags">Tags</Label>
+					<Input
+						id="tags"
+						name="tags"
+						maxLength={COLLECTION_TAG_INPUT_MAX_LENGTH}
+						placeholder="science fiction, comfort watches, 1990s"
+					/>
+					<p className="text-xs text-[#a2ffd5]">
+						Up to {COLLECTION_TAG_MAX_COUNT} comma-separated discovery tags.
+					</p>
+					{actionData?.errors.tags?.[0] ? (
+						<p className="text-sm text-red-300">{actionData.errors.tags[0]}</p>
 					) : null}
 				</div>
 				<div className="flex items-start gap-3 rounded-xl border border-[#54806c] bg-[#2e2f2b] p-4">

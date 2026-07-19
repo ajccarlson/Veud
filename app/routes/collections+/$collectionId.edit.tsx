@@ -22,6 +22,8 @@ import { requireCollectionOwner } from '#app/utils/media-collections.server.ts'
 import {
 	COLLECTION_DESCRIPTION_MAX_LENGTH,
 	CollectionDetailsSchema,
+	COLLECTION_TAG_INPUT_MAX_LENGTH,
+	COLLECTION_TAG_MAX_COUNT,
 	COLLECTION_TITLE_MAX_LENGTH,
 } from '#app/utils/media-collections.ts'
 
@@ -34,7 +36,16 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const owned = await requireCollectionOwner(request, params.collectionId)
 	const collection = await prisma.mediaCollection.findUnique({
 		where: { id: owned.id },
-		select: { id: true, title: true, description: true, isPublic: true },
+		select: {
+			id: true,
+			title: true,
+			description: true,
+			isPublic: true,
+			tags: {
+				orderBy: { tag: { name: 'asc' } },
+				select: { tag: { select: { name: true } } },
+			},
+		},
 	})
 	invariantResponse(collection, 'Collection not found', { status: 404 })
 	return json({ collection })
@@ -55,10 +66,33 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		await prisma.mediaCollection.delete({ where: { id: owned.id } })
 		return redirect('/collections', { status: 303 })
 	}
-	const { intent: _intent, ...details } = parsed.data
-	await prisma.mediaCollection.update({
-		where: { id: owned.id },
-		data: details,
+	const { intent: _intent, tags, ...details } = parsed.data
+	await prisma.$transaction(async transaction => {
+		await transaction.mediaCollection.update({
+			where: { id: owned.id },
+			data: details,
+		})
+		await transaction.mediaCollectionTag.deleteMany({
+			where: { collectionId: owned.id },
+		})
+		const tagRows = await Promise.all(
+			tags.map(tag =>
+				transaction.collectionTag.upsert({
+					where: { slug: tag.slug },
+					create: tag,
+					update: {},
+					select: { id: true },
+				}),
+			),
+		)
+		if (tagRows.length) {
+			await transaction.mediaCollectionTag.createMany({
+				data: tagRows.map(tag => ({
+					collectionId: owned.id,
+					tagId: tag.id,
+				})),
+			})
+		}
 	})
 	return redirect(`/collections/${owned.id}`, { status: 303 })
 }
@@ -109,6 +143,22 @@ export default function EditCollection() {
 						<p className="text-sm text-red-300">
 							{actionData.errors.description[0]}
 						</p>
+					) : null}
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="tags">Tags</Label>
+					<Input
+						id="tags"
+						name="tags"
+						maxLength={COLLECTION_TAG_INPUT_MAX_LENGTH}
+						defaultValue={collection.tags.map(({ tag }) => tag.name).join(', ')}
+						placeholder="science fiction, comfort watches, 1990s"
+					/>
+					<p className="text-xs text-[#a2ffd5]">
+						Up to {COLLECTION_TAG_MAX_COUNT} comma-separated discovery tags.
+					</p>
+					{actionData?.errors.tags?.[0] ? (
+						<p className="text-sm text-red-300">{actionData.errors.tags[0]}</p>
 					) : null}
 				</div>
 				<div className="flex items-start gap-3 rounded-xl border border-[#54806c] bg-[#2e2f2b] p-4">

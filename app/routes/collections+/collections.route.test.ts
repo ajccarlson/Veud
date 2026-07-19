@@ -53,6 +53,21 @@ test('collection creation validates input and preserves public/private metadata'
 	if (invalid instanceof Response) throw new Error('Expected validation data')
 	expect(invalid.init?.status).toBe(400)
 	expect(invalid.data.errors.title?.[0]).toBeTruthy()
+	const tooManyTags = await newAction({
+		request: postRequest(
+			'/collections/new',
+			{
+				title: 'Too many tags',
+				tags: 'one, two, three, four, five, six',
+			},
+			cookie,
+		),
+		params: {},
+	} as any)
+	if (tooManyTags instanceof Response)
+		throw new Error('Expected validation data')
+	expect(tooManyTags.init?.status).toBe(400)
+	expect(tooManyTags.data.errors.tags?.[0]).toContain('no more than 5')
 
 	const response = await newAction({
 		request: postRequest(
@@ -60,6 +75,7 @@ test('collection creation validates input and preserves public/private metadata'
 			{
 				title: '  Essential Space Operas  ',
 				description: '  A personal ranked list.  ',
+				tags: ' Sci-Fi, Space Opera, sci-fi ',
 			},
 			cookie,
 		),
@@ -69,13 +85,44 @@ test('collection creation validates input and preserves public/private metadata'
 	expect(response.status).toBe(303)
 	const collection = await prisma.mediaCollection.findFirstOrThrow({
 		where: { ownerId: owner.id },
+		include: {
+			tags: { include: { tag: true }, orderBy: { tag: { name: 'asc' } } },
+		},
 	})
 	expect(collection).toMatchObject({
 		title: 'Essential Space Operas',
 		description: 'A personal ranked list.',
 		isPublic: false,
 	})
+	expect(collection.tags.map(({ tag }) => [tag.name, tag.slug])).toEqual([
+		['sci-fi', 'sci-fi'],
+		['space opera', 'space-opera'],
+	])
 	expect(response.headers.get('location')).toBe(`/collections/${collection.id}`)
+
+	await editAction({
+		request: postRequest(
+			`/collections/${collection.id}/edit`,
+			{
+				intent: 'save',
+				title: collection.title,
+				description: collection.description ?? '',
+				tags: 'classics, Space Opera',
+			},
+			cookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.mediaCollectionTag.findMany({
+			where: { collectionId: collection.id },
+			orderBy: { tag: { name: 'asc' } },
+			select: { tag: { select: { name: true, slug: true } } },
+		}),
+	).toEqual([
+		{ tag: { name: 'classics', slug: 'classics' } },
+		{ tag: { name: 'space opera', slug: 'space-opera' } },
+	])
 })
 
 test('private collections are owner-only while public collections are discoverable', async () => {
@@ -181,6 +228,35 @@ test('owners can add, reorder, and remove canonical media without duplicates', a
 	})
 	expect(items).toHaveLength(2)
 	expect(items.map(item => item.mediaId)).toEqual([first.id, second.id])
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{
+				intent: 'note-item',
+				itemId: items[0]!.id,
+				note: '  The emotional anchor of the list.  ',
+			},
+			ownerCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.mediaCollectionItem.findUnique({
+			where: { id: items[0]!.id },
+			select: { note: true },
+		}),
+	).toEqual({ note: 'The emotional anchor of the list.' })
+	const deniedNote = await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'note-item', itemId: items[0]!.id, note: 'Hijacked note' },
+			otherCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any).catch(error => error)
+	expect(deniedNote).toBeInstanceOf(Response)
+	expect((deniedNote as Response).status).toBe(404)
 
 	const denied = await detailAction({
 		request: postRequest(
@@ -365,9 +441,22 @@ test('members can clone a public collection into a private editable copy', async
 			isPublic: true,
 			items: {
 				create: [
-					{ mediaId: first.id, position: 2 },
-					{ mediaId: second.id, position: 1 },
+					{
+						mediaId: first.id,
+						position: 2,
+						note: 'A patient finale.',
+					},
+					{
+						mediaId: second.id,
+						position: 1,
+						note: 'The ideal opener.',
+					},
 				],
+			},
+			tags: {
+				create: {
+					tag: { create: { name: 'science fiction', slug: 'science-fiction' } },
+				},
 			},
 		},
 	})
@@ -390,7 +479,10 @@ test('members can clone a public collection into a private editable copy', async
 
 	const clone = await prisma.mediaCollection.findUniqueOrThrow({
 		where: { id: cloneId },
-		include: { items: { orderBy: { position: 'asc' } } },
+		include: {
+			items: { orderBy: { position: 'asc' } },
+			tags: { include: { tag: true } },
+		},
 	})
 	expect(clone).toMatchObject({
 		ownerId: member.id,
@@ -399,6 +491,11 @@ test('members can clone a public collection into a private editable copy', async
 		isPublic: false,
 	})
 	expect(clone.items.map(item => item.mediaId)).toEqual([second.id, first.id])
+	expect(clone.items.map(item => item.note)).toEqual([
+		'The ideal opener.',
+		'A patient finale.',
+	])
+	expect(clone.tags.map(({ tag }) => tag.slug)).toEqual(['science-fiction'])
 })
 
 test('community collections can be sorted by like count', async () => {
@@ -412,7 +509,16 @@ test('community collections can be sorted by like count', async () => {
 			data: { ownerId: owner.id, title: 'One vote', isPublic: true },
 		}),
 		prisma.mediaCollection.create({
-			data: { ownerId: owner.id, title: 'Two votes', isPublic: true },
+			data: {
+				ownerId: owner.id,
+				title: 'Two votes',
+				isPublic: true,
+				tags: {
+					create: {
+						tag: { create: { name: 'mind bending', slug: 'mind-bending' } },
+					},
+				},
+			},
 		}),
 	])
 	await prisma.collectionLike.createMany({
@@ -433,4 +539,20 @@ test('community collections can be sorted by like count', async () => {
 		lessPopular.id,
 	])
 	expect(result.data.collections[0]?._count.likes).toBe(2)
+
+	const tagged = await indexLoader({
+		request: new Request(`${BASE_URL}/collections?tag=Mind%20Bending`),
+		params: {},
+	} as any)
+	expect(tagged.data.activeTag).toEqual({
+		name: 'mind bending',
+		slug: 'mind-bending',
+	})
+	expect(tagged.data.collections.map(collection => collection.id)).toEqual([
+		morePopular.id,
+	])
+	expect(tagged.data.availableTags).toContainEqual({
+		name: 'mind bending',
+		slug: 'mind-bending',
+	})
 })
