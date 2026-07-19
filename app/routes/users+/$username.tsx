@@ -14,11 +14,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import {
 	activityEventLabel,
 	activityListTypeName,
+	diaryActivityLabel,
 } from '#app/utils/activity.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
-import { journalTerms } from '#app/utils/media-journal.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { buildProfileTrackingSummaries } from '#app/utils/profile-tracking.ts'
@@ -183,12 +183,9 @@ export async function loader(params: LoaderFunctionArgs) {
 			media: review.media,
 		})),
 		...diaryEntries.map(entry => {
-			const terms = journalTerms(entry.media.kind)
 			return {
 				id: `diary:${entry.id}`,
-				action: entry.isRepeat
-					? `Logged a ${terms.repeat.toLowerCase()}`
-					: `Logged a ${terms.action}`,
+				action: diaryActivityLabel(entry.media.kind, entry.isRepeat),
 				time: entry.createdAt,
 				typeId: entry.typeId,
 				media: entry.media,

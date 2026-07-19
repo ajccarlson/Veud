@@ -19,14 +19,20 @@ function titleCase(value: string) {
 		.replace(/\b\w/g, character => character.toUpperCase())
 }
 
-function statusLabel(label: string | null | undefined, status: string | null | undefined) {
+function statusLabel(
+	label: string | null | undefined,
+	status: string | null | undefined,
+) {
 	return label?.trim() || (status ? titleCase(status) : 'Tracked')
 }
 
 function progressCopy(unit: string) {
-	if (unit === 'episode') return { verb: 'Watched', singular: 'episode', plural: 'episodes' }
-	if (unit === 'chapter') return { verb: 'Read', singular: 'chapter', plural: 'chapters' }
-	if (unit === 'volume') return { verb: 'Read', singular: 'volume', plural: 'volumes' }
+	if (unit === 'episode')
+		return { verb: 'Watched', singular: 'episode', plural: 'episodes' }
+	if (unit === 'chapter')
+		return { verb: 'Read', singular: 'chapter', plural: 'chapters' }
+	if (unit === 'volume')
+		return { verb: 'Read', singular: 'volume', plural: 'volumes' }
 	return { verb: 'Completed', singular: unit, plural: `${unit}s` }
 }
 
@@ -38,11 +44,16 @@ export function activityEventLabel(event: ActivityEventLike) {
 			event.previousStatusLabel,
 			event.previousStatus,
 		)
-		return previous === next ? `Updated status to ${next}` : `Moved from ${previous} to ${next}`
+		return previous === next
+			? `Updated status to ${next}`
+			: `Moved from ${previous} to ${next}`
 	}
 
 	if (event.type === 'score') {
-		const score = event.score === null || event.score === undefined ? null : Number(event.score)
+		const score =
+			event.score === null || event.score === undefined
+				? null
+				: Number(event.score)
 		return score === null || !Number.isFinite(score)
 			? 'Removed rating'
 			: `Rated ${score.toLocaleString('en-US', { maximumFractionDigits: 1 })}/10`
@@ -69,4 +80,10 @@ export function activityListTypeName(mediaKind: string) {
 	if (mediaKind === 'movie' || mediaKind === 'tv') return 'liveaction'
 	if (mediaKind === 'anime' || mediaKind === 'manga') return mediaKind
 	return null
+}
+
+export function diaryActivityLabel(mediaKind: string, isRepeat: boolean) {
+	const reading = mediaKind === 'manga'
+	if (isRepeat) return reading ? 'Logged a reread' : 'Logged a rewatch'
+	return reading ? 'Logged a read' : 'Logged a watch'
 }
