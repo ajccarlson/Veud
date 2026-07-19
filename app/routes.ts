@@ -135,6 +135,7 @@ export default [
 	appRoute('routes/media+/mal.ts', { path: 'media/mal' }),
 	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
+	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
 	}),

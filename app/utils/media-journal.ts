@@ -1,4 +1,5 @@
 export const REVIEW_MAX_LENGTH = 5_000
+export const REVIEW_COMMENT_MAX_LENGTH = 1_000
 
 export function parseDiaryDate(value: string) {
 	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
