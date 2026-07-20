@@ -5,9 +5,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { journalTerms } from '#app/utils/media-journal.ts'
 import {
-	type ProfileData,
+	type ProfileDiaryData,
 	type ProfileDiaryItem,
+	type ProfileReviewsData,
 	type ProfileReviewItem,
+	type ProfileShellData,
 } from '#app/utils/profile.ts'
 
 const PAGE_SIZE = 15
@@ -45,7 +47,7 @@ function ProfileFilter({
 	filterIndex,
 	onChange,
 }: {
-	data: ProfileData
+	data: Pick<ProfileShellData, 'listTypes'>
 	filterIndex: number
 	onChange: (index: number) => void
 }) {
@@ -72,7 +74,7 @@ function LoadMore({ onClick }: { onClick: () => void }) {
 	)
 }
 
-export function ProfileReviewsData({ data }: { data: ProfileData }) {
+export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 	const [filterIndex, setFilterIndex] = useState(0)
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 	const selectedTypeId =
@@ -172,7 +174,7 @@ export function ProfileReviewsData({ data }: { data: ProfileData }) {
 	)
 }
 
-export function ProfileDiaryData({ data }: { data: ProfileData }) {
+export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 	const [filterIndex, setFilterIndex] = useState(0)
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 	const selectedTypeId =

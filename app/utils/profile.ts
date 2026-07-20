@@ -124,30 +124,51 @@ export type ProfileCommentItem = {
 	}
 }
 
-/**
- * The full loader payload the profile container passes down to its sections.
- *
- * `typedEntries` holds the raw per-type entries with their `history` parsed from
- * JSON into dynamic, per-media-type shapes. Its legacy chart consumers still
- * read dynamic columns, so the payload remains loose here; parsing and activity
- * construction are typed and tested in `profile-history.ts`.
- */
-export type ProfileData = {
+/** Stable identity and navigation data loaded once by the profile shell. */
+export type ProfileShellData = {
 	user: ProfileUser
 	userJoinedDisplay: string
 	lastActiveDisplay: string | null
 	listTypes: ListTypeMeta[]
 	watchLists: WatchlistMeta[]
-	typedWatchlists: Record<string, WatchlistMeta[]>
-	typedEntries: Record<string, any[]>
-	typedHistory: Record<string, ActivityItem[]>
-	activityEvents: ProfileActivityEvent[]
-	activityStartedAt: Date | string | null
-	reviews: ProfileReviewItem[]
-	diaryEntries: ProfileDiaryItem[]
-	trackingSummaries: Record<string, ProfileTrackingSummary>
-	favorites: FavoriteItem[]
 	followerCount: number
 	followingCount: number
 	isFollowing: boolean
 }
+
+/** Heavy chart inputs, loaded only for Overview and Stats. */
+export type ProfileAnalyticsData = {
+	typedEntries: Record<string, any[]>
+	trackingSummaries: Record<string, ProfileTrackingSummary>
+}
+
+/** Bounded normalized activity with legacy history merged on the server. */
+export type ProfileActivityData = Pick<ProfileShellData, 'listTypes'> & {
+	activityEvents: ProfileActivityEvent[]
+}
+
+export type ProfileReviewsData = Pick<
+	ProfileShellData,
+	'user' | 'listTypes'
+> & {
+	reviews: ProfileReviewItem[]
+}
+
+export type ProfileDiaryData = Pick<ProfileShellData, 'user' | 'listTypes'> & {
+	diaryEntries: ProfileDiaryItem[]
+}
+
+export type ProfileFavoritesData = Pick<
+	ProfileShellData,
+	'user' | 'listTypes'
+> & {
+	favorites: FavoriteItem[]
+}
+
+/** Compatibility shape for code that intentionally consumes every profile area. */
+export type ProfileData = ProfileShellData &
+	ProfileAnalyticsData &
+	ProfileActivityData &
+	ProfileReviewsData &
+	ProfileDiaryData &
+	ProfileFavoritesData

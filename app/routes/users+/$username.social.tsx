@@ -17,7 +17,7 @@ import { getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import {
 	PROFILE_COMMENT_MAX_LENGTH,
 	type ProfileCommentItem,
-	type ProfileData,
+	type ProfileShellData,
 } from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
@@ -153,7 +153,7 @@ function CommentRow({
 
 export default function ProfileSocial() {
 	const { comments } = useLoaderData<typeof loader>()
-	const profileData = useOutletContext<ProfileData>()
+	const profileData = useOutletContext<ProfileShellData>()
 	const currentUser = useOptionalUser()
 	const location = useLocation()
 	const revalidator = useRevalidator()
