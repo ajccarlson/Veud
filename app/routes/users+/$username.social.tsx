@@ -9,6 +9,10 @@ import {
 	useOutletContext,
 	useRevalidator,
 } from 'react-router'
+import {
+	ProfileEmptyState,
+	ProfilePageHeader,
+} from '#app/components/profile-ui.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
@@ -20,6 +24,8 @@ import {
 	type ProfileShellData,
 } from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
+
+export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profile-ui.tsx'
 
 const PROFILE_COMMENT_PAGE_SIZE = 50
 
@@ -225,18 +231,17 @@ export default function ProfileSocial() {
 
 	return (
 		<section className="user-landing-social">
-			<header className="user-landing-social-heading">
-				<div>
-					<h1>Guestbook</h1>
-					<p>
+			<ProfilePageHeader
+				eyebrow="Community"
+				title="Guestbook"
+				description={
+					<>
 						Leave a message for{' '}
 						{profileData.user.name ?? profileData.user.username}.
-					</p>
-				</div>
-				<span>
-					{comments.length} {comments.length === 1 ? 'comment' : 'comments'}
-				</span>
-			</header>
+					</>
+				}
+				meta={`${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`}
+			/>
 
 			{currentUser ? (
 				<form className="user-landing-social-composer" onSubmit={submitComment}>
@@ -285,9 +290,11 @@ export default function ProfileSocial() {
 						/>
 					))
 				) : (
-					<p className="user-landing-empty-message">
-						No comments yet. Be the first to leave one.
-					</p>
+					<ProfileEmptyState
+						icon="chat-bubble"
+						title="No messages yet"
+						description="Be the first to leave a note in this member's guestbook."
+					/>
 				)}
 			</div>
 		</section>
