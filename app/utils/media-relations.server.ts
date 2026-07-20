@@ -216,6 +216,7 @@ export async function syncMediaRelations(
 		sourceMediaId: string
 		sourceIdentity: MediaIdentity
 		relations: MediaRelationCandidate[]
+		requestTargetHydration?: boolean
 	},
 ) {
 	const deduplicated = new Map<string, MediaRelationCandidate>()
@@ -231,6 +232,7 @@ export async function syncMediaRelations(
 			tx,
 			relation.targetIdentity,
 			relation.targetCatalog,
+			{ requestHydration: input.requestTargetHydration },
 		)
 		if (targetMediaId === input.sourceMediaId) continue
 		const saved = await tx.mediaRelation.upsert({

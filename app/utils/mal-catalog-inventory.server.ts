@@ -459,7 +459,7 @@ function summaryFrom(
 	}
 }
 
-function sourceIsAdult(nsfw: string | null) {
+export function malSourceIsAdult(nsfw: string | null) {
 	if (!nsfw) return null
 	return nsfw.toLowerCase() === 'white' ? false : true
 }
@@ -876,7 +876,7 @@ export async function importMalInventory(
 						sourceUpdatedAt: record.sourceUpdatedAt,
 						sourceTitle: record.title,
 						sourcePopularity: record.catalogPopularity,
-						sourceIsAdult: sourceIsAdult(record.nsfw),
+						sourceIsAdult: malSourceIsAdult(record.nsfw),
 						seenAt: scanStartedAt,
 					})
 					await replaceMalInventoryTitles(tx, source.mediaId, record.titles)
@@ -887,16 +887,27 @@ export async function importMalInventory(
 						})
 					}
 					const priority = hydrationPriority(record)
-					if (
-						catalogSourceNeedsFetch(source, scanStartedAt) &&
-						source.hydrationPriority <= priority
-					) {
+					const needsHydration = catalogSourceNeedsFetch(source, scanStartedAt)
+					if (needsHydration) {
+						const changedSinceFetch = Boolean(
+							source.sourceUpdatedAt &&
+							(!source.lastFetchedAt ||
+								source.sourceUpdatedAt > source.lastFetchedAt),
+						)
+						const shouldRaisePriority = source.hydrationPriority <= priority
 						await tx.mediaExternalId.update({
 							where: { id: source.id },
 							data: {
-								hydrationPriority: priority,
-								hydrationReason: 'mal-inventory',
-								hydrationRequestedAt: scanStartedAt,
+								...(shouldRaisePriority
+									? {
+											hydrationPriority: priority,
+											hydrationReason: 'mal-inventory',
+											hydrationRequestedAt: scanStartedAt,
+										}
+									: {}),
+								...(source.fetchStatus === 'fresh' && changedSinceFetch
+									? { fetchStatus: 'pending', refreshAfter: null }
+									: {}),
 							},
 						})
 					}
