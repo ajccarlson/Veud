@@ -256,6 +256,15 @@ test('a bounded commit resumes by offset and a completed rerun is idempotent', a
 			recordsCommittedForScan: 2,
 		}),
 	)
+	expect(
+		await prisma.catalogSyncRun.findUniqueOrThrow({
+			where: { id: first.runId as string },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			policyApprovalRef: 'test-policy-approval',
+		}),
+	)
 
 	const secondFetch = inventoryFetch(records)
 	const second = await importMalInventory({
