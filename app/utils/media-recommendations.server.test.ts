@@ -106,16 +106,21 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 			title: broadMatch.title ?? 'Broad Match',
 		},
 	})
+	await prisma.mediaRelation.create({
+		data: {
+			sourceMediaId: source.id,
+			targetMediaId: broadMatch.id,
+			relationType: 'sequel',
+		},
+	})
 
 	const anonymous = await getSimilarMediaRecommendations(source, null)
 	expect(anonymous.items.map(item => item.title)).toEqual([
 		'Focused Match',
-		'Broad Match',
 		'Popular Weak Match',
 	])
 	expect(anonymous.items.map(item => item.id)).toEqual([
 		focusedMatch.id,
-		broadMatch.id,
 		popularWeakMatch.id,
 	])
 	expect(anonymous.items[0]?.matchedGenres).toEqual(['Action', 'Fantasy'])

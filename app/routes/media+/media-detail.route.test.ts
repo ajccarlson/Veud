@@ -170,6 +170,48 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 	expect(result.data.viewer).toBeNull()
 })
 
+test('public media loader exposes grouped canonical title relations', async () => {
+	const { media } = await fixture()
+	const sequel = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Fullmetal Alchemist: The Next Chapter',
+			type: 'TV Series',
+			startSeason: 'Spring 2011',
+			thumbnail:
+				'https://example.com/sequel.jpg|https://myanimelist.net/anime/6000',
+		},
+	})
+	await prisma.mediaRelation.create({
+		data: {
+			sourceMediaId: media.id,
+			targetMediaId: sequel.id,
+			relationType: 'sequel',
+			provider: 'mal',
+		},
+	})
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`),
+		params: { mediaId: media.id },
+	} as any)
+	expect(result.data.relations).toEqual([
+		{
+			relationType: 'sequel',
+			label: 'Sequel',
+			items: [
+				expect.objectContaining({
+					id: sequel.id,
+					title: 'Fullmetal Alchemist: The Next Chapter',
+					type: 'TV Series',
+					year: '2011',
+					imageUrl: 'https://example.com/sequel.jpg',
+				}),
+			],
+		},
+	])
+})
+
 test('signed-in media loader shows tracking only from followed members', async () => {
 	const { media, tracker, otherUser, otherList, cookie } = await fixture()
 	const stranger = await user('media_stranger')

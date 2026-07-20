@@ -24,7 +24,7 @@ test('member can open a canonical media page and change status', async ({
 			typeId: listType.id,
 		},
 	})
-	const [media, recommendedMedia, trackedMatch, unrelatedMedia] =
+	const [media, relatedMedia, recommendedMedia, trackedMatch, unrelatedMedia] =
 		await Promise.all([
 			prisma.media.create({
 				data: {
@@ -40,6 +40,14 @@ test('member can open a canonical media page and change status', async ({
 							externalId: faker.string.numeric(10),
 						},
 					},
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: 'Canonical Browser Sequel',
+					type: 'TV Series',
+					startSeason: 'Fall 2027',
 				},
 			}),
 			prisma.media.create({
@@ -65,6 +73,14 @@ test('member can open a canonical media page and change status', async ({
 			}),
 		])
 	await Promise.all([
+		prisma.mediaRelation.create({
+			data: {
+				sourceMediaId: media.id,
+				targetMediaId: relatedMedia.id,
+				relationType: 'sequel',
+				provider: 'mal',
+			},
+		}),
 		prisma.follow.create({
 			data: { followerId: user.id, followingId: watchingMember.id },
 		}),
@@ -121,6 +137,13 @@ test('member can open a canonical media page and change status', async ({
 				exact: true,
 			}),
 		).toHaveCount(0)
+		await expect(
+			page.getByRole('heading', { name: 'Related titles' }),
+		).toBeVisible()
+		await expect(page.getByText('Sequel', { exact: true })).toBeVisible()
+		await expect(
+			page.getByRole('link', { name: /Canonical Browser Sequel/ }),
+		).toHaveAttribute('href', `/media/${relatedMedia.id}`)
 		await expect(
 			page.getByRole('heading', { name: 'More like this' }),
 		).toBeVisible()
@@ -252,6 +275,7 @@ test('member can open a canonical media page and change status', async ({
 					id: {
 						in: [
 							media.id,
+							relatedMedia.id,
 							recommendedMedia.id,
 							trackedMatch.id,
 							unrelatedMedia.id,
