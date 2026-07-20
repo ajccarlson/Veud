@@ -126,8 +126,9 @@ provider-scale capacity evidence.
 Before the real maintenance window:
 
 1. Repeat the complete process against a production-like staging snapshot.
-2. Load representative catalog volume and record transfer, index-build, search,
-   hydration, backup, and restore behavior under concurrency.
+2. Follow the [PostgreSQL catalog load runbook](postgresql-load-readiness.md) at
+   representative volume and record transfer, index-build, search, hydration,
+   backup, and restore behavior under concurrency.
 3. Stop application writes; take and verify the final SQLite snapshot.
 4. Transfer to a new empty PostgreSQL target and run migration, schema, smoke,
    count, backup, and restore verification.
