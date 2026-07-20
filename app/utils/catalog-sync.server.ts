@@ -168,6 +168,14 @@ export async function upsertCatalogIdentity(
 			...(input.sourceIsVideo === undefined
 				? {}
 				: { sourceIsVideo: input.sourceIsVideo }),
+			...(input.sourcePopularity === undefined ||
+			input.sourcePopularity === null
+				? {}
+				: {
+						media: {
+							update: { catalogPopularity: input.sourcePopularity },
+						},
+					}),
 		},
 		create: {
 			provider,
@@ -180,7 +188,13 @@ export async function upsertCatalogIdentity(
 			sourcePopularity: input.sourcePopularity,
 			sourceIsAdult: input.sourceIsAdult,
 			sourceIsVideo: input.sourceIsVideo,
-			media: { create: { kind, title: sourceTitle } },
+			media: {
+				create: {
+					kind,
+					title: sourceTitle,
+					catalogPopularity: input.sourcePopularity,
+				},
+			},
 		},
 		include: { media: true },
 	})

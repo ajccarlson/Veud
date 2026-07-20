@@ -176,6 +176,10 @@ Prioritized detail fetching is documented in the
 user-demand, upcoming, trending, and popular works before the long tail while
 persisting freshness, retry, request-count, and rate-limit state.
 
+The [global catalog search design](docs/global-catalog-search.md) documents how
+`/discover` searches canonical and alternate titles, filters provider metadata,
+preserves private-list boundaries, and paginates the catalog in the database.
+
 ## Testing
 
 ### Playwright

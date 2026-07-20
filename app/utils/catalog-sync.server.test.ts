@@ -38,6 +38,7 @@ test('inventory upserts revive identities and replace provider titles idempotent
 			...identity,
 			seenAt: firstSeenAt,
 			sourceUpdatedAt,
+			sourcePopularity: 42.5,
 		}),
 	)
 	await prisma.mediaExternalId.update({
@@ -54,6 +55,7 @@ test('inventory upserts revive identities and replace provider titles idempotent
 	expect(revived.firstSeenAt).toEqual(firstSeenAt)
 	expect(revived.lastSeenAt).toEqual(seenAgainAt)
 	expect(revived.sourceUpdatedAt).toEqual(sourceUpdatedAt)
+	expect(revived.media.catalogPopularity).toBe(42.5)
 	expect(revived.tombstonedAt).toBeNull()
 	expect(await prisma.media.count()).toBe(1)
 	expect(await prisma.mediaExternalId.count()).toBe(1)

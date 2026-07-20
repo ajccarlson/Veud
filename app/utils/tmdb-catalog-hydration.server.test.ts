@@ -44,6 +44,7 @@ function moviePayload(id: number, title = `Movie ${id}`) {
 			],
 		},
 		runtime: 125,
+		status: 'Released',
 		title,
 		video: false,
 		vote_average: 8.25,
@@ -69,6 +70,7 @@ function tvPayload(id: number) {
 		popularity: 50,
 		poster_path: '/series.jpg',
 		production_companies: [{ name: 'Series Studio' }],
+		status: 'Returning Series',
 		vote_average: 7.5,
 	}
 }
@@ -114,6 +116,9 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 				language: 'French',
 				studios: 'Studio Example',
 				tmdbScore: 8.25,
+				catalogScore: 8.25,
+				catalogPopularity: 420,
+				releaseStatus: 'Released',
 			}),
 		}),
 	)
@@ -133,6 +138,8 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 			length: '24 eps',
 			rating: 'TV-14',
 			language: 'Japanese',
+			catalogScore: 7.5,
+			releaseStatus: 'Returning Series',
 		}),
 	)
 	expect(
@@ -289,6 +296,9 @@ test('quick-add demand outranks seeded upcoming, trending, popular, and inventor
 			title: 'Movie 2',
 			genres: 'Drama, Mystery',
 			length: '2h 5m',
+			catalogScore: 8.25,
+			catalogPopularity: 20,
+			releaseStatus: 'Released',
 		}),
 	)
 	expect(await prisma.mediaTitle.count()).toBe(12)
