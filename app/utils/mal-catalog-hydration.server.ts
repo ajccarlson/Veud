@@ -710,6 +710,7 @@ export async function hydrateMalCatalog(
 			mode: 'hydrate',
 			leaseOwner,
 			leaseDurationMs,
+			policyApprovalRef: options.policyApprovalReference,
 			now,
 		}),
 	)

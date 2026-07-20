@@ -99,8 +99,9 @@ npm run catalog:mal-hydrate -- --help
 
 The command prints before/after coverage, freshness, eligible queue, prioritized
 count, deferred failures, request count, and `429` count. `CatalogSyncRun`
-persists per-run progress and telemetry. The hydration cursor persists the
-provider cooldown and last completed source ID.
+persists the policy approval reference alongside per-run progress and telemetry.
+The hydration cursor persists the provider cooldown and last completed source
+ID.
 
 Each identity's detail write, title replacement, relation replacement, source
 freshness, success/failure state, and run checkpoint share one transaction. If

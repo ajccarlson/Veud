@@ -56,6 +56,14 @@ function requireNonEmpty(value: string, label: string) {
 	return normalized
 }
 
+function optionalPolicyApprovalRef(value: string | null | undefined) {
+	const normalized = value?.trim() || null
+	if (normalized && normalized.length > 200) {
+		throw new Error('policyApprovalRef cannot exceed 200 characters')
+	}
+	return normalized
+}
+
 function requireProgress(progress: CatalogSyncProgress) {
 	for (const [label, value] of Object.entries(progress)) {
 		if (label === 'cursor') continue
@@ -391,12 +399,14 @@ export async function acquireCatalogSyncLease(
 		mode: CatalogSyncMode
 		leaseOwner: string
 		leaseDurationMs: number
+		policyApprovalRef?: string | null
 		now?: Date
 	},
 ) {
 	const provider = requireNonEmpty(input.provider, 'provider')
 	const kind = requireNonEmpty(input.kind, 'kind')
 	const leaseOwner = requireNonEmpty(input.leaseOwner, 'leaseOwner')
+	const policyApprovalRef = optionalPolicyApprovalRef(input.policyApprovalRef)
 	const now = input.now ?? new Date()
 	const leaseExpiresAt = leaseExpiration(now, input.leaseDurationMs)
 	const key = { provider, kind, mode: input.mode }
@@ -427,6 +437,7 @@ export async function acquireCatalogSyncLease(
 		data: {
 			...key,
 			leaseOwner,
+			policyApprovalRef,
 			cursor: cursor.cursor,
 			startedAt: now,
 			heartbeatAt: now,

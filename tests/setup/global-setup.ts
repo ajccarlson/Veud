@@ -8,17 +8,16 @@ export const BASE_DATABASE_PATH = path.join(
 )
 
 export async function setup() {
-	const databaseExists = await fsExtra.pathExists(BASE_DATABASE_PATH)
-	if (databaseExists) return
+	await fsExtra.ensureDir(path.dirname(BASE_DATABASE_PATH))
 
-	await execaCommand(
-		'prisma migrate reset --force --skip-seed --skip-generate',
-		{
-			stdio: 'inherit',
-			env: {
-				...process.env,
-				DATABASE_URL: `file:${BASE_DATABASE_PATH}`,
-			},
+	// Keep the reusable template current when a migration is added after it was
+	// first created. Test workers clone this file, so a stale template otherwise
+	// fails with missing-column errors until every developer deletes it manually.
+	await execaCommand('prisma migrate deploy', {
+		stdio: 'inherit',
+		env: {
+			...process.env,
+			DATABASE_URL: `file:${BASE_DATABASE_PATH}`,
 		},
-	)
+	})
 }
