@@ -11,6 +11,7 @@ import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { getHomeTrending } from '#app/utils/home-trending.server.ts'
 import {
 	dateKeyInTimeZone,
 	getReleaseCalendar,
@@ -20,6 +21,20 @@ import { useOptionalUser } from '#app/utils/user.ts'
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
 	const timeZone = getHints(request).timeZone
+	const trendingPromise = getHomeTrending(userId)
+	const watchlistsPromise = userId
+		? prisma.watchlist.findMany({
+				where: { ownerId: userId },
+				select: {
+					id: true,
+					name: true,
+					header: true,
+					position: true,
+					type: { select: { name: true } },
+				},
+				orderBy: [{ position: 'asc' }, { header: 'asc' }],
+			})
+		: Promise.resolve([])
 	const [followingRows, upcomingCalendar] = userId
 		? await Promise.all([
 				prisma.follow.findMany({
@@ -53,8 +68,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					},
 				})
 			: []
+	const [trendingRails, watchlists] = await Promise.all([
+		trendingPromise,
+		watchlistsPromise,
+	])
 
 	return json({
+		trendingRails,
+		watchlists,
+		isSignedIn: Boolean(userId),
 		upcomingCalendar,
 		followingFeed,
 		followingCount: followedUserIds.length,
@@ -70,6 +92,11 @@ export default function Index() {
 		<div className="home">
 			<main className="home-main">
 				<div className="home-container">
+					<TrendingData
+						rails={data.trendingRails}
+						watchlists={data.watchlists}
+						isSignedIn={data.isSignedIn}
+					/>
 					{currentUser ? (
 						<FollowingFeed
 							items={data.followingFeed}
@@ -78,7 +105,6 @@ export default function Index() {
 						/>
 					) : null}
 					<UpcomingData calendar={data.upcomingCalendar} />
-					<TrendingData currentUser={currentUser} />
 				</div>
 			</main>
 		</div>
