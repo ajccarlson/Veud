@@ -68,6 +68,9 @@ async function handleSubmit(e: any, columns: string[], watchlist: any, listParam
         settingsObject["header"] = entry[1]
         settingsObject["name"] = (entry[1] as string).replace(/\W/g, '').toLowerCase()
       }
+      else if (settingType == "visibility") {
+        settingsObject["isPublic"] = entry[1] === "public"
+      }
       else {
         settingsObject[settingType] = entry[1]
       }
@@ -148,11 +151,29 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
                     <em>Name must be at least 3 characters long</em>
                   ) : null}
                 </div>
-                <div className="list-landing-settings-input-row"> 
-                  <div> 
+                <div className="list-landing-settings-input-row">
+                  <div>
                     Description
                   </div>
                   <textarea className="list-landing-settings-input-item" id="description-input" name="description-input" cols={50} rows={5} defaultValue={entryData.watchlist.description}  maxLength={1000}></textarea>
+                </div>
+                <div className="list-landing-settings-input-row">
+                  <label htmlFor={`visibility-${entryData.watchlist.id}`}>
+                    Visibility
+                  </label>
+                  <select
+                    className="list-landing-settings-input-item"
+                    id={`visibility-${entryData.watchlist.id}`}
+                    name="visibility-input"
+                    defaultValue={entryData.watchlist.isPublic ? "public" : "private"}
+                  >
+                    <option value="public">Public — visible to everyone</option>
+                    <option value="private">Private — only visible to you</option>
+                  </select>
+                  <small>
+                    Private lists are hidden from direct links, profiles, feeds,
+                    search, and community activity.
+                  </small>
                 </div>
                 <div className="list-landing-settings-input-row"> 
                   <div>

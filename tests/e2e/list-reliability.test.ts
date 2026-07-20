@@ -633,3 +633,51 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 		.toBeGreaterThan(100)
 	await page.mouse.up()
 })
+
+test('member can make a list private and visitors cannot open or discover it', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'privacysettingslist',
+			header: 'Privacy settings list',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			description: 'A list used to verify private visibility.',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	const listLanding = `/lists/${user.username}/anime`
+	const directList = `${listLanding}/${watchlist.name}`
+
+	await page.goto(listLanding)
+	await page.getByRole('button', { name: 'Settings' }).click()
+	await page.getByLabel('Visibility').selectOption('private')
+	await page.getByRole('button', { name: 'Submit' }).click()
+
+	await expect(page.getByText('Private', { exact: true })).toBeVisible()
+	await expect
+		.poll(() =>
+			prisma.watchlist
+				.findUniqueOrThrow({ where: { id: watchlist.id } })
+				.then(list => list.isPublic),
+		)
+		.toBe(false)
+
+	const ownerResponse = await page.goto(directList)
+	expect(ownerResponse?.status()).toBe(200)
+
+	await page.context().clearCookies()
+	const visitorLandingResponse = await page.goto(listLanding)
+	expect(visitorLandingResponse?.status()).toBe(200)
+	await expect(page.getByText(watchlist.header, { exact: true })).toHaveCount(0)
+
+	const visitorDirectResponse = await page.goto(directList)
+	expect(visitorDirectResponse?.status()).toBe(404)
+})

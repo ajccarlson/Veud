@@ -82,6 +82,7 @@ test('applies whitelisted settings', async () => {
 			request: settingsParams(watchlistId, listTypeId, [
 				['name', 'renamed'],
 				['header', 'New Header'],
+				['isPublic', false],
 			]),
 		},
 	} as any)
@@ -89,6 +90,99 @@ test('applies whitelisted settings', async () => {
 	const wl = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
 	expect(wl?.name).toBe('renamed')
 	expect(wl?.header).toBe('New Header')
+	expect(wl?.isPublic).toBe(false)
+})
+
+test('visibility changes hide linked and legacy list activity', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const request = await authedRequestFor(userId)
+	const watchlist = await prisma.watchlist.findUniqueOrThrow({
+		where: { id: watchlistId },
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Private activity fixture' },
+	})
+	const state = await prisma.trackingState.create({
+		data: {
+			ownerId: userId,
+			mediaId: media.id,
+			status: 'watching',
+			statusWatchlistId: watchlistId,
+		},
+	})
+	const [linked, legacy] = await Promise.all([
+		prisma.activityEvent.create({
+			data: {
+				type: 'status',
+				actorId: userId,
+				mediaId: media.id,
+				trackingStateId: state.id,
+				statusLabel: watchlist.header,
+				statusWatchlistId: watchlistId,
+			},
+		}),
+		prisma.activityEvent.create({
+			data: {
+				type: 'score',
+				actorId: userId,
+				mediaId: media.id,
+				trackingStateId: state.id,
+				statusLabel: watchlist.header,
+			},
+		}),
+	])
+
+	await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [
+				['isPublic', false],
+			]),
+		},
+	} as any)
+	expect(
+		await prisma.activityEvent.findMany({
+			where: { id: { in: [linked.id, legacy.id] } },
+			orderBy: { id: 'asc' },
+			select: { isPublic: true },
+		}),
+	).toEqual([{ isPublic: false }, { isPublic: false }])
+
+	await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [
+				['isPublic', true],
+			]),
+		},
+	} as any)
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: linked.id },
+			select: { isPublic: true },
+		}),
+	).toEqual({ isPublic: true })
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: legacy.id },
+			select: { isPublic: true },
+		}),
+	).toEqual({ isPublic: false })
+})
+
+test('rejects non-boolean visibility values', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const request = await authedRequestFor(userId)
+	const response = await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [
+				['isPublic', 'false'],
+			]),
+		},
+	} as any).catch(error => error)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
 })
 
 test('ignores non-whitelisted fields so ownership/id cannot be reassigned', async () => {

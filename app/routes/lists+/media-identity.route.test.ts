@@ -135,8 +135,101 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 			mediaId: first.mediaId,
 			status: 'watching',
 			statusLabel: 'Watching',
+			statusWatchlistId: owner.watchlistId,
+			isPublic: true,
 		}),
 	])
+})
+
+test('tracking activity created from a private list stays private', async () => {
+	const owner = await createOwner('anime')
+	await prisma.watchlist.update({
+		where: { id: owner.watchlistId },
+		data: { isPublic: false },
+	})
+	const entry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'Private tracking title',
+			type: 'TV Series',
+			thumbnail:
+				'https://cdn.myanimelist.net/private.jpg|https://myanimelist.net/anime/99991',
+		}),
+	} as any)
+	const event = await prisma.activityEvent.findFirstOrThrow({
+		where: { actorId: owner.ownerId, mediaId: entry.mediaId as string },
+	})
+	expect(event).toEqual(
+		expect.objectContaining({
+			statusWatchlistId: owner.watchlistId,
+			isPublic: false,
+		}),
+	)
+})
+
+test('deleting the current public entry restores a surviving private status', async () => {
+	const owner = await createOwner('anime')
+	const privateList = await prisma.watchlist.create({
+		data: {
+			name: 'private-backlog',
+			header: 'Private backlog',
+			position: 2,
+			ownerId: owner.ownerId,
+			typeId: owner.listTypeId,
+			isPublic: false,
+		},
+	})
+	const mediaIdentity = {
+		provider: 'mal',
+		kind: 'anime',
+		externalId: '99992',
+	}
+	const privateEntry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: privateList.id,
+			position: 1,
+			title: 'Private fallback title',
+			type: 'TV Series',
+			mediaIdentity,
+		}),
+	} as any)
+	const publicEntry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'Private fallback title',
+			type: 'TV Series',
+			mediaIdentity,
+		}),
+	} as any)
+
+	await deleteRow({
+		request: owner.request,
+		params: {
+			request: new URLSearchParams({ id: publicEntry.id }).toString(),
+		},
+	} as any)
+
+	const state = await prisma.trackingState.findUniqueOrThrow({
+		where: { id: privateEntry.trackingStateId as string },
+	})
+	expect(state.statusWatchlistId).toBe(privateList.id)
+	expect(state.status).toBe(privateList.name)
+	const latestEvent = await prisma.activityEvent.findFirstOrThrow({
+		where: { trackingStateId: state.id },
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+	})
+	expect(latestEvent).toEqual(
+		expect.objectContaining({
+			statusWatchlistId: privateList.id,
+			previousStatusWatchlistId: owner.watchlistId,
+			isPublic: false,
+		}),
+	)
 })
 
 test('new rows insert atomically without duplicate positions', async () => {

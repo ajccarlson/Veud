@@ -68,6 +68,7 @@ const discoveryMediaSelect = {
 			ownerId: true,
 			status: true,
 			statusWatchlistId: true,
+			statusWatchlist: { select: { isPublic: true } },
 			score: true,
 		},
 	},
@@ -90,6 +91,7 @@ type RankedMedia = DiscoveryMedia & {
 	popularityScore: number
 	affinityScore: number
 	viewerTracking: DiscoveryResult['viewerTracking']
+	publicTrackerCount: number
 }
 
 function boundedSearchValue(value: string | null, maximum: number) {
@@ -118,8 +120,14 @@ function titleForSort(media: DiscoveryMedia) {
 	return (media.title ?? '').toLocaleLowerCase()
 }
 
+function publicTrackingStates(media: DiscoveryMedia) {
+	return media.trackingStates.filter(
+		state => state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
+	)
+}
+
 function communityScore(media: DiscoveryMedia) {
-	const scores = media.trackingStates
+	const scores = publicTrackingStates(media)
 		.map(state => (state.score === null ? null : Number(state.score)))
 		.filter(
 			(score): score is number => score !== null && Number.isFinite(score),
@@ -146,7 +154,7 @@ function compareTitle(left: DiscoveryMedia, right: DiscoveryMedia) {
 function comparePopularity(left: RankedMedia, right: RankedMedia) {
 	return (
 		right.popularityScore - left.popularityScore ||
-		right._count.trackingStates - left._count.trackingStates ||
+		right.publicTrackerCount - left.publicTrackerCount ||
 		right._count.reviews - left._count.reviews ||
 		compareTitle(left, right)
 	)
@@ -209,7 +217,7 @@ function resultFromMedia(media: RankedMedia): DiscoveryResult {
 		description: media.description,
 		communityScore: media.communityScore,
 		ratingCount: media.ratingCount,
-		trackerCount: media._count.trackingStates,
+		trackerCount: media.publicTrackerCount,
 		reviewCount: media._count.reviews,
 		diaryCount: media._count.diaryEntries,
 		viewerTracking: media.viewerTracking,
@@ -320,11 +328,12 @@ export async function getDiscoveryResults(
 		: media
 	const ranked = rankMedia(
 		filteredMedia.map(item => {
+			const publicStates = publicTrackingStates(item)
 			const score = communityScore(item)
 			const viewerState = viewerId
 				? item.trackingStates.find(state => state.ownerId === viewerId)
 				: null
-			const ratingCount = item.trackingStates.filter(
+			const ratingCount = publicStates.filter(
 				state => state.score !== null,
 			).length
 			return {
@@ -337,7 +346,11 @@ export async function getDiscoveryResults(
 					: null,
 				communityScore: score,
 				ratingCount,
-				popularityScore: catalogPopularityScore(item._count),
+				publicTrackerCount: publicStates.length,
+				popularityScore: catalogPopularityScore({
+					...item._count,
+					trackingStates: publicStates.length,
+				}),
 				affinityScore: splitGenres(item.genres).reduce(
 					(total, genre) =>
 						total + (preferenceWeights.get(genre.toLocaleLowerCase()) ?? 0),
@@ -346,7 +359,7 @@ export async function getDiscoveryResults(
 			}
 		}),
 		filters.sort,
-	)
+	).filter(item => filters.sort !== 'top-rated' || item.ratingCount > 0)
 	const total = ranked.length
 	const pageCount = Math.max(1, Math.ceil(total / DISCOVERY_PAGE_SIZE))
 	const page = Math.min(filters.page, pageCount)

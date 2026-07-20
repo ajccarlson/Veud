@@ -22,7 +22,7 @@ test('following activity merges supported events in time order and scopes actors
 	const media = await prisma.media.create({
 		data: { kind: 'anime', title: 'Feed Fixture' },
 	})
-	const [tracking, review, diary, collection] = await Promise.all([
+	const [tracking, privateTracking, review, diary, collection] = await Promise.all([
 		prisma.activityEvent.create({
 			data: {
 				type: 'progress',
@@ -33,6 +33,17 @@ test('following activity merges supported events in time order and scopes actors
 				progressCurrent: 4,
 				progressTotal: 12,
 				createdAt: new Date('2026-07-17T12:00:00.000Z'),
+			},
+		}),
+		prisma.activityEvent.create({
+			data: {
+				type: 'status',
+				actorId: followed.id,
+				mediaId: media.id,
+				status: 'watching',
+				statusLabel: 'Private queue',
+				isPublic: false,
+				createdAt: new Date('2026-07-20T18:00:00.000Z'),
 			},
 		}),
 		prisma.review.create({
@@ -91,6 +102,9 @@ test('following activity merges supported events in time order and scopes actors
 		`diary:${diary.id}`,
 		`tracking:${tracking.id}`,
 	])
+	expect(feed.map(item => item.id)).not.toContain(
+		`tracking:${privateTracking.id}`,
+	)
 	expect(feed.every(item => item.actor.id === followed.id)).toBe(true)
 	expect(feed).toEqual(
 		expect.arrayContaining([

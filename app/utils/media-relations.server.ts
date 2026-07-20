@@ -20,7 +20,12 @@ const relatedMediaSelect = {
 	startSeason: true,
 	startYear: true,
 	airYear: true,
-	_count: { select: { trackingStates: true } },
+	trackingStates: {
+		select: {
+			statusWatchlistId: true,
+			statusWatchlist: { select: { isPublic: true } },
+		},
+	},
 } satisfies Prisma.MediaSelect
 
 type RelatedMedia = Prisma.MediaGetPayload<{
@@ -157,7 +162,11 @@ export async function getMediaRelations(
 				imageUrl: splitLegacyThumbnail(media.thumbnail).imageUrl,
 				type: media.type,
 				year: yearFor(media),
-				trackerCount: media._count.trackingStates,
+				trackerCount: media.trackingStates.filter(
+					state =>
+						state.statusWatchlistId === null ||
+						state.statusWatchlist?.isPublic,
+				).length,
 				viewerTracking: viewerTrackingByMedia.get(media.id) ?? null,
 				chronology: chronologyFor(media),
 			},
