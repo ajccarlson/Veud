@@ -24,6 +24,7 @@ function filters(
 	return {
 		q: '',
 		kind: 'all' as const,
+		mode: 'standard' as const,
 		genre: '',
 		year: null,
 		status: '',
@@ -39,6 +40,7 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 		new URLSearchParams({
 			q: `  ${'a'.repeat(120)}  `,
 			kind: 'podcast',
+			mode: 'unsupported',
 			genre: '  Drama  ',
 			year: '1700',
 			provider: 'other',
@@ -50,6 +52,7 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 	expect(parsed).toEqual({
 		q: 'a'.repeat(100),
 		kind: 'all',
+		mode: 'standard',
 		genre: 'Drama',
 		year: null,
 		status: '',

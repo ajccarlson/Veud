@@ -29,8 +29,8 @@ export function positionColumn() {
 			headerName: '#',
 			editable: false,
 			resizable: false,
-			minWidth: 120,
-			maxWidth: 120,
+			minWidth: 156,
+			maxWidth: 164,
 			filter: 'agNumberColumnFilter',
 			rowDrag: columnParams.currentUserId == columnParams.listOwner.id,
 			cellRenderer: (params: any) => {
