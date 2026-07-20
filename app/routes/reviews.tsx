@@ -14,21 +14,33 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
+import { Textarea } from '#app/components/ui/textarea.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import { REVIEW_COMMENT_MAX_LENGTH } from '#app/utils/media-journal.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	getReviewDiscoveryResults,
 	parseReviewDiscoveryQuery,
 	type ReviewDiscoveryQuery,
 } from '#app/utils/review-discovery.server.ts'
-import { toggleReviewLike } from '#app/utils/review-engagement.server.ts'
+import {
+	createReviewComment,
+	toggleReviewLike,
+} from '#app/utils/review-engagement.server.ts'
 
-const ReviewHubActionSchema = z.object({
-	intent: z.literal('review-like-toggle'),
-	reviewId: z.string().min(1).max(100),
-})
+const ReviewHubActionSchema = z.discriminatedUnion('intent', [
+	z.object({
+		intent: z.literal('review-like-toggle'),
+		reviewId: z.string().min(1).max(100),
+	}),
+	z.object({
+		intent: z.literal('review-comment-create'),
+		reviewId: z.string().min(1).max(100),
+		body: z.string().trim().min(1).max(REVIEW_COMMENT_MAX_LENGTH),
+	}),
+])
 
 const kindLabels: Record<ReviewDiscoveryQuery['kind'], string> = {
 	all: 'All media',
@@ -63,12 +75,19 @@ export async function action({ request }: ActionFunctionArgs) {
 		throw new Response('Invalid review action', { status: 400 })
 	}
 
-	const result = await prisma.$transaction(tx =>
-		toggleReviewLike(tx, {
+	const result = await prisma.$transaction(async tx => {
+		if (parsed.data.intent === 'review-like-toggle') {
+			return await toggleReviewLike(tx, {
+				userId,
+				reviewId: parsed.data.reviewId,
+			})
+		}
+		return await createReviewComment(tx, {
 			userId,
 			reviewId: parsed.data.reviewId,
-		}),
-	)
+			body: parsed.data.body,
+		})
+	})
 	return json({ ok: true, ...result })
 }
 
@@ -98,6 +117,7 @@ export default function ReviewsRoute() {
 	const location = useLocation()
 	const navigation = useNavigation()
 	const pendingReviewId = navigation.formData?.get('reviewId')
+	const pendingIntent = navigation.formData?.get('intent')
 	const loginHref = `/login?${new URLSearchParams({
 		redirectTo: `${location.pathname}${location.search}`,
 	})}`
@@ -339,6 +359,97 @@ export default function ReviewsRoute() {
 												Read and discuss
 											</Link>
 										</footer>
+										{review.containsSpoilers ? null : (
+											<details className="rounded-lg border border-[#54806c]/60 bg-[#2e2f2b] p-3">
+												<summary className="cursor-pointer text-sm font-bold text-[#ffffb1]">
+													Quick discussion · {review.commentCount}
+												</summary>
+												<div className="mt-4 space-y-4">
+													{review.recentComments.length ? (
+														<div className="space-y-3">
+															{review.recentComments.map(comment => (
+																<div
+																	key={comment.id}
+																	className="rounded-lg border border-[#54806c]/50 bg-[#383040] p-3"
+																>
+																	<div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#a2ffd5]">
+																		<Link
+																			to={`/users/${comment.author.username}`}
+																			className="font-bold text-[#ffffb1] hover:underline"
+																		>
+																			{comment.author.name ??
+																				comment.author.username}
+																		</Link>
+																		<time>
+																			{displayDate(comment.createdAt)}
+																		</time>
+																	</div>
+																	<p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#c6ded2]">
+																		{comment.body}
+																	</p>
+																</div>
+															))}
+														</div>
+													) : (
+														<p className="text-sm text-[#a2ffd5]">
+															No comments yet. Start the conversation.
+														</p>
+													)}
+													{data.isSignedIn ? (
+														<Form method="post" className="space-y-2">
+															<input
+																type="hidden"
+																name="intent"
+																value="review-comment-create"
+															/>
+															<input
+																type="hidden"
+																name="reviewId"
+																value={review.id}
+															/>
+															<Textarea
+																name="body"
+																aria-label={`Comment on ${review.media.title}`}
+																maxLength={REVIEW_COMMENT_MAX_LENGTH}
+																rows={3}
+																required
+																placeholder="Join the discussion…"
+															/>
+															<Button
+																type="submit"
+																size="sm"
+																disabled={
+																	navigation.state !== 'idle' &&
+																	pendingReviewId === review.id &&
+																	pendingIntent === 'review-comment-create'
+																}
+															>
+																Post comment
+															</Button>
+														</Form>
+													) : (
+														<p className="text-sm text-[#a2ffd5]">
+															<Link
+																to={loginHref}
+																className="font-bold text-[#ffffb1] hover:underline"
+															>
+																Log in
+															</Link>{' '}
+															to join the discussion.
+														</p>
+													)}
+													{review.commentCount >
+													review.recentComments.length ? (
+														<Link
+															to={`/media/${review.media.id}#review-${review.id}`}
+															className="inline-block text-sm font-bold text-[#ffffb1] hover:underline"
+														>
+															Continue the full thread
+														</Link>
+													) : null}
+												</div>
+											</details>
+										)}
 									</div>
 								</article>
 							)
