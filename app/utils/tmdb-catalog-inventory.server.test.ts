@@ -89,13 +89,9 @@ test('streams and decompresses an HTTPS export response', async () => {
 })
 
 test('rejects non-HTTPS export URLs', async () => {
-	await expect(async () => {
-		for await (const _line of readTmdbExportLines(
-			'http://example.test/export.gz',
-		)) {
-			// The source is rejected before any lines can be read.
-		}
-	}).rejects.toThrow('must be a local path or HTTPS URL')
+	await expect(
+		readTmdbExportLines('http://example.test/export.gz').next(),
+	).rejects.toThrow('must be a local path or HTTPS URL')
 })
 
 test('dry-run validates a bounded export without writing sync or media rows', async () => {
