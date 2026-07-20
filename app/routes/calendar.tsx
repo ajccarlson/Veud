@@ -33,6 +33,15 @@ function calendarHref(filters: ReleaseCalendarQuery, start: string) {
 	return `/calendar?${search.toString()}`
 }
 
+function calendarExportHref(filters: ReleaseCalendarQuery) {
+	const search = new URLSearchParams({
+		start: filters.start,
+		kind: filters.kind,
+		scope: filters.scope,
+	})
+	return `/resources/calendar.ics?${search.toString()}`
+}
+
 function displayDay(value: string) {
 	return new Date(`${value}T00:00:00.000Z`).toLocaleDateString('en-US', {
 		weekday: 'long',
@@ -94,13 +103,18 @@ export default function ReleaseCalendarRoute() {
 						and date boundaries are shown in UTC.
 					</p>
 				</div>
-				<div className="text-right">
+				<div className="space-y-3 text-right">
 					<div className="text-lg font-black text-[#ffffb1]">
 						{displayRange(data.start, data.end)}
 					</div>
 					<div className="text-sm text-[#a2ffd5]">
 						{data.total} scheduled {data.total === 1 ? 'release' : 'releases'}
 					</div>
+					<Button asChild variant="outline" size="sm">
+						<a href={calendarExportHref(data.filters)} download>
+							Export this week (.ics)
+						</a>
+					</Button>
 				</div>
 			</header>
 

@@ -78,6 +78,24 @@ test('member can browse a release week and focus on tracked titles', async ({
 		await expect(
 			page.getByRole('link', { name: 'Next week →' }),
 		).toHaveAttribute('href', '/calendar?start=2026-07-27&kind=all&scope=mine')
+
+		const exportLink = page.getByRole('link', {
+			name: 'Export this week (.ics)',
+		})
+		await expect(exportLink).toHaveAttribute(
+			'href',
+			'/resources/calendar.ics?start=2026-07-20&kind=all&scope=mine',
+		)
+		const downloadPromise = page.waitForEvent('download')
+		await exportLink.click()
+		const download = await downloadPromise
+		expect(download.suggestedFilename()).toBe('veud-releases-2026-07-20.ics')
+		const stream = await download.createReadStream()
+		let calendarBody = ''
+		for await (const chunk of stream) calendarBody += chunk.toString()
+		expect(calendarBody).toContain('BEGIN:VCALENDAR')
+		expect(calendarBody).toContain('Browser Calendar Episode')
+		expect(calendarBody).not.toContain('Browser Calendar Premiere')
 	} finally {
 		await prisma.media
 			.deleteMany({
