@@ -1,5 +1,9 @@
 import { type Prisma } from '@prisma/client'
 import {
+	catalogHydrationPriorities,
+	requestCatalogHydration,
+} from './catalog-sync.server.ts'
+import {
 	catalogDataFromSnapshot,
 	hasCatalogValue,
 	mediaCatalogFields,
@@ -99,6 +103,13 @@ export async function ensureMediaForIdentity(
 	}
 	if (catalogSnapshot) {
 		await hydrateMediaCatalog(tx, externalId.mediaId, catalogSnapshot)
+	}
+	if (identity.provider === 'tmdb') {
+		await requestCatalogHydration(tx, {
+			...identity,
+			priority: catalogHydrationPriorities.userDemand,
+			reason: 'user-demand',
+		})
 	}
 	return externalId.mediaId
 }
