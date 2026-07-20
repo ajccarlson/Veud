@@ -39,6 +39,52 @@ export async function searchTMDB(entry: string, type: string, numResults?: numbe
   }
 }
 
+export function formatTMDBCollectionRelations(data: any, currentEntryID: any) {
+  const parts: any[] = Array.isArray(data?.parts) ? data.parts : []
+  return parts
+    .filter(part => part?.id && String(part.id) !== String(currentEntryID))
+    .slice(0, 100)
+    .map(part => ({
+      relationType: 'franchise',
+      targetIdentity: {
+        provider: 'tmdb',
+        kind: 'movie',
+        externalId: String(part.id),
+      },
+      targetCatalog: {
+        title: part.title ?? part.original_title,
+        type: 'Movie',
+        releaseStart: part.release_date
+          ? new Date(part.release_date)
+          : undefined,
+        thumbnail: part.poster_path
+          ? `https://www.themoviedb.org/t/p/w600_and_h900_bestv2${part.poster_path}|https://www.themoviedb.org/movie/${part.id}`
+          : undefined,
+      },
+    }))
+}
+
+async function getTMDBCollectionRelations(collectionID: any, currentEntryID: any) {
+  const url = `https://api.themoviedb.org/3/collection/${collectionID}?language=en-US`
+  try {
+    const response = await fetch('/media/fetch-data/' + encodeURIComponent(new URLSearchParams({
+      fetchMethod: 'get',
+      url,
+      authorization: 'tmdb',
+      fetchBody: undefined,
+    } as any).toString()))
+    let data: any = await response.json()
+    data.map((entry: any) => data = entry ? {...data, ...entry} : data)
+    if (!response || !data || !Array.isArray(data.parts))
+      throw new Error('Error: no collection data found!')
+    return formatTMDBCollectionRelations(data, currentEntryID)
+  }
+  catch (e) {
+    console.error('Failed to fetch TMDB collection ' + collectionID + '!\n' + e)
+    return undefined
+  }
+}
+
 export async function formatTMDBResults(entry: any, type: string, entryID: any, dataPass: any, full = true) {
   try {
     let url, response, data = dataPass
@@ -316,7 +362,17 @@ export async function getTMDBInfo(entry: any, type: string/*, override = false*/
       return;
     }
 
-    return formatTMDBResults(entry, type, entryID, data, true)
+    let mediaRelations: any[] | undefined
+    if (type == 'movie') {
+      mediaRelations = data.belongs_to_collection?.id
+        ? await getTMDBCollectionRelations(data.belongs_to_collection.id, entryID)
+        : []
+    }
+
+    const info = await formatTMDBResults(entry, type, entryID, data, true)
+    return info && mediaRelations !== undefined
+      ? {...info, mediaRelations}
+      : info
   }
   catch (e) {
     console.error(e)

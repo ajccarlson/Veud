@@ -365,14 +365,16 @@ model Media {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalIds     MediaExternalId[]
-  entries         Entry[]
-  favorites       UserFavorite[]
-  trackingStates  TrackingState[]
-  activityEvents  ActivityEvent[]
-  reviews         Review[]
-  diaryEntries    DiaryEntry[]
-  collectionItems MediaCollectionItem[]
+  externalIds       MediaExternalId[]
+  outgoingRelations MediaRelation[]       @relation("MediaRelationSource")
+  incomingRelations MediaRelation[]       @relation("MediaRelationTarget")
+  entries           Entry[]
+  favorites         UserFavorite[]
+  trackingStates    TrackingState[]
+  activityEvents    ActivityEvent[]
+  reviews           Review[]
+  diaryEntries      DiaryEntry[]
+  collectionItems   MediaCollectionItem[]
 
   @@index([kind])
 }
@@ -391,6 +393,28 @@ model MediaExternalId {
 
   @@unique([provider, kind, externalId])
   @@index([mediaId])
+}
+
+/// A directed, provider-backed relationship between two canonical works.
+/// `relationType` describes the target from the source's perspective (for
+/// example, source -> sequel); title pages derive the inverse label when the
+/// current title is the target.
+model MediaRelation {
+  id           String   @id @default(cuid())
+  relationType String
+  provider     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sourceMedia   Media  @relation("MediaRelationSource", fields: [sourceMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceMediaId String
+  targetMedia   Media  @relation("MediaRelationTarget", fields: [targetMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetMediaId String
+
+  @@unique([sourceMediaId, targetMediaId, relationType])
+  @@index([sourceMediaId, relationType])
+  @@index([targetMediaId, relationType])
+  @@index([provider])
 }
 
 model Entry {
