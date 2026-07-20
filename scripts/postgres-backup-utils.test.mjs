@@ -82,10 +82,12 @@ test('finds and prunes only PostgreSQL custom-format archives', () => {
 	const newBackup = path.join(tempDir, 'postgres-new.dump')
 	fs.writeFileSync(oldBackup, 'old')
 	fs.writeFileSync(newBackup, 'new')
+	fs.writeFileSync(`${oldBackup}.restore-verified.json`, 'old receipt')
 	fs.writeFileSync(path.join(tempDir, 'data-ignore.db'), 'sqlite')
 	fs.utimesSync(oldBackup, new Date(0), new Date(0))
 
 	expect(findLatestPostgresBackup(tempDir)).toBe(newBackup)
 	expect(prunePostgresBackups(tempDir, 1)).toEqual(['postgres-old.dump'])
+	expect(fs.existsSync(`${oldBackup}.restore-verified.json`)).toBe(false)
 	expect(fs.existsSync(path.join(tempDir, 'data-ignore.db'))).toBe(true)
 })

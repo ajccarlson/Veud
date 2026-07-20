@@ -141,4 +141,6 @@ Before PostgreSQL cutover approval:
 4. Exercise interruption/resume, native backup/restore, locks, connection-pool
    saturation, disk headroom, monitoring, and one-process canary behavior.
 5. Rehearse the final maintenance-window and rollback decision points in the
-   [PostgreSQL operations runbook](postgresql-operations.md).
+   [PostgreSQL operations runbook](postgresql-operations.md), then bind the
+   artifacts with the
+   [PostgreSQL cutover evidence gate](postgresql-cutover-readiness.md).

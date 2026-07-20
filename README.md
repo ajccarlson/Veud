@@ -208,6 +208,11 @@ documents the guarded synthetic load generator, query-plan and concurrent-work
 measurements, CI smoke boundary, 100,000-item local rehearsal, and the remaining
 full-scale staging gates.
 
+The [PostgreSQL cutover evidence runbook](docs/postgresql-cutover-readiness.md)
+binds the completed transfer, representative load report, restore-tested backup,
+and read-only application canary to an owner-approved policy and private hashed
+gate report without changing deployment state.
+
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.
