@@ -2,21 +2,6 @@
 // cell: a move-row Form, and a dropdown with insert-above/below, delete, update-entry,
 // update-all, and add/remove-favorite. By far the most involved single column. Returned as a
 // one-element array (spread into columnDefs()) for uniformity with the other column groups.
-<<<<<<< HEAD
-import { Form } from '@remix-run/react'
-import { Input } from '#app/components/ui/input.tsx'
-import { Icon } from '#app/components/ui/icon.tsx'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuPortal,
-} from '#app/components/ui/dropdown-menu.tsx'
-import { gridAPI, columnParams } from './grid-state.ts'
-import { setterFunction, getAllRows, createNewRow, updatePositions, refreshGrid } from './grid-actions.ts'
-import { getSiteIdSafe, getThumbnailInfo, updateRowInfo } from '#app/utils/lists/column-functions.tsx'
-=======
 import { Form } from 'react-router'
 import { Input } from '#app/components/ui/input.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -40,7 +25,6 @@ import {
 	getThumbnailInfo,
 	updateRowInfo,
 } from '#app/utils/lists/column-functions.tsx'
->>>>>>> develop
 
 export function positionColumn() {
   return [

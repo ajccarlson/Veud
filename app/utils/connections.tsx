@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { Form } from '@remix-run/react'
-=======
 import { Form } from 'react-router'
->>>>>>> develop
 import { z } from 'zod'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'

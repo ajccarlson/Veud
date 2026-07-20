@@ -1,14 +1,21 @@
-<<<<<<< HEAD
-import { type ActionFunctionArgs } from '@remix-run/node'
-import { prisma } from '#app/utils/db.server.ts'
-import {
-  requireEntryOwner,
-} from '#app/utils/lists/authorization.server.ts'
-=======
+import { type Prisma } from '@prisma/client'
 import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireEntryOwner } from '#app/utils/lists/authorization.server.ts'
->>>>>>> develop
+import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
+
+async function updateEntryAndTrackingState(
+  tx: Prisma.TransactionClient,
+  entryId: string,
+  data: Record<string, unknown>,
+) {
+  await tx.entry.update({
+    where: { id: entryId },
+    data: data as any,
+  })
+  await syncTrackingStateForEntry(tx, entryId)
+  return tx.entry.findUniqueOrThrow({ where: { id: entryId } })
+}
 
 function castType(varIn: unknown, varType: string): unknown {
   const typeFormatted = varType.toLowerCase()
@@ -137,14 +144,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
           }
         }
 
-        return await prisma.entry.update({
-          where: {
-            id: rowIndex as string,
-          },
-          data: {
+        return await prisma.$transaction(tx =>
+          updateEntryAndTrackingState(tx, rowIndex as string, {
             history: JSON.stringify(parsedHistoryObject),
-          },
-        })
+          }),
+        )
       }
     } catch (e) {
       if (!parsedHistoryObject) {
@@ -169,14 +173,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
           newValue && newValue != 'null' ? new Date(newValue).toISOString() : null
       }
 
-      return await prisma.entry.update({
-        where: {
-          id: rowIndex as string,
-        },
-        data: {
+      return await prisma.$transaction(tx =>
+        updateEntryAndTrackingState(tx, rowIndex as string, {
           history: JSON.stringify(parsedHistoryObject),
-        },
-      })
+        }),
+      )
     } else {
       if (type && type != 'false') {
         valueFormatted = castType(newValue, type)
@@ -184,15 +185,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
         valueFormatted = castType(newValue, filter as string)
       }
 
-      return await prisma.entry.update({
-        where: {
-          id: rowIndex as string,
-        },
-        data: {
+      return await prisma.$transaction(tx =>
+        updateEntryAndTrackingState(tx, rowIndex as string, {
           [columnName as string]: valueFormatted,
           history: JSON.stringify(parsedHistoryObject),
-        } as any,
-      })
+        }),
+      )
     }
   } catch (e) {
     // Auth/ownership failures are already Responses (401/404) — let them through.

@@ -1,24 +1,14 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-<<<<<<< HEAD
-import {
-	json,
-=======
 import { useRef } from 'react'
 import {
 	data as json,
->>>>>>> develop
 	type LoaderFunctionArgs,
 	type ActionFunctionArgs,
 	type HeadersFunction,
 	type LinksFunction,
 	type MetaFunction,
-<<<<<<< HEAD
-} from '@remix-run/node'
-import {
-=======
->>>>>>> develop
 	Form,
 	Link,
 	Links,
@@ -31,21 +21,11 @@ import {
 	useLoaderData,
 	// useMatches,
 	useSubmit,
-<<<<<<< HEAD
-} from '@remix-run/react'
-import "#app/styles/root.scss"
-import { withSentry } from '@sentry/remix'
-import { useRef } from 'react'
-import { HoneypotProvider } from 'remix-utils/honeypot/react'
-import { z } from 'zod'
-import logo from '#app/components/ui/icons/logoV3.webp';
-=======
 } from 'react-router'
 import '#app/styles/root.scss'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp'
->>>>>>> develop
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
@@ -97,24 +77,14 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
-<<<<<<< HEAD
-export const meta: MetaFunction<typeof loader> = ({ data }) => {
-	return [
-		{ title: data ? 'Veud' : 'Error | Veud' },
-=======
 export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
 	return [
 		{ title: loaderData ? 'Veud' : 'Error | Veud' },
->>>>>>> develop
 		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
 	]
 }
 
-<<<<<<< HEAD
-export async function loader({ request }: LoaderFunctionArgs) {
-=======
 export async function loader({ request, url }: LoaderFunctionArgs) {
->>>>>>> develop
 	const timings = makeTimings('root loader')
 	const userId = await time(() => getUserId(request), {
 		timings,
@@ -151,28 +121,26 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		// them in the database. Maybe they were deleted? Let's log them out.
 		await logout({ request, redirectTo: '/' })
 	}
+	const unreadNotificationCount = userId
+		? await prisma.notification.count({
+				where: { recipientId: userId, readAt: null },
+			})
+		: 0
 
   const listTypes = await prisma.listType.findMany()
 
 	const { toast, headers: toastHeaders } = await getToast(request)
-<<<<<<< HEAD
-	const honeyProps = honeypot.getInputProps()
-=======
 	const honeyProps = await honeypot.getInputProps()
->>>>>>> develop
 
 	return json(
 		{
 			user,
+			unreadNotificationCount,
       listTypes,
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
-<<<<<<< HEAD
-				path: new URL(request.url).pathname,
-=======
 				path: url.pathname,
->>>>>>> develop
 				userPrefs: {
 					theme: getTheme(request),
 				},
@@ -190,13 +158,6 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	)
 }
 
-<<<<<<< HEAD
-export const headers: HeadersFunction = ({ loaderHeaders }) => {
-	const headers = {
-		'Server-Timing': loaderHeaders.get('Server-Timing') ?? '',
-	}
-	return headers
-=======
 export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
 	return combineHeaders(
 		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
@@ -207,7 +168,6 @@ export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
 			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
 			: null,
 	)
->>>>>>> develop
 }
 
 const ThemeFormSchema = z.object({
@@ -239,11 +199,7 @@ function Document({
 	children: React.ReactNode
 	nonce: string
 	theme?: Theme
-<<<<<<< HEAD
-	env?: Record<string, string>
-=======
 	env?: Record<string, string | undefined>
->>>>>>> develop
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
@@ -301,6 +257,20 @@ function App() {
               <div className="root-user-links">
                 <ListsDropdown/>
                 <div className="root-header-separator"/>
+                <Button asChild variant="secondary">
+                  <Link
+                    to="/notifications"
+                    className="relative"
+                    aria-label={`Notifications (${data.unreadNotificationCount} unread)`}
+                  >
+                    <Icon name="bell" />
+                    {data.unreadNotificationCount ? (
+                      <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-destructive px-1 text-center text-xs font-bold text-destructive-foreground">
+                        {Math.min(data.unreadNotificationCount, 99)}
+                      </span>
+                    ) : null}
+                  </Link>
+                </Button>
                 <UserDropdown/>
                 <Link
                   className="root-user-image"
@@ -354,11 +324,7 @@ function AppWithProviders() {
 	)
 }
 
-<<<<<<< HEAD
-export default withSentry(AppWithProviders)
-=======
 export default AppWithProviders
->>>>>>> develop
 
 function CommunityDropdown() {
   return (
@@ -375,6 +341,39 @@ function CommunityDropdown() {
       </DropdownMenuTrigger>
       <DropdownMenuPortal>
         <DropdownMenuContent sideOffset={8} align="start">
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
+              to="/discover"
+            >
+              <Icon className="text-body-md" name="magnifying-glass">
+                Discover
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
+              to="/collections"
+            >
+              <Icon className="text-body-md" name="list-bullet">
+                Collections
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
+              to="/reviews"
+            >
+              <Icon className="text-body-md" name="quote">
+                Reviews
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link
               className="root-community-link-item"
