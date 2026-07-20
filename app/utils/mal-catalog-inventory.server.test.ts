@@ -1,5 +1,10 @@
 import { expect, test, vi } from 'vitest'
-import { upsertCatalogIdentity } from './catalog-sync.server.ts'
+import {
+	catalogHydrationPriorities,
+	recordCatalogFetchSuccess,
+	requestCatalogHydration,
+	upsertCatalogIdentity,
+} from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	defaultMalInventoryDate,
@@ -443,6 +448,59 @@ test('MAL reconciliation is opt-in and guarded against suspicious coverage', asy
 	expect(
 		await prisma.mediaExternalId.findUniqueOrThrow({ where: { id: old.id } }),
 	).toEqual(expect.objectContaining({ fetchStatus: 'tombstoned' }))
+})
+
+test('a newer provider updated_at requeues an otherwise fresh identity', async () => {
+	await prisma.$transaction(async tx => {
+		await upsertCatalogIdentity(tx, {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '1',
+			sourceUpdatedAt: new Date('2026-07-01T00:00:00.000Z'),
+			seenAt: new Date('2026-07-01T00:00:00.000Z'),
+		})
+		await recordCatalogFetchSuccess(tx, {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '1',
+			fetchedAt: new Date('2026-07-10T00:00:00.000Z'),
+			refreshAfter: new Date('2027-01-10T00:00:00.000Z'),
+		})
+		await requestCatalogHydration(tx, {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '1',
+			priority: catalogHydrationPriorities.userDemand,
+			reason: 'user-demand',
+			requestedAt: new Date('2026-07-10T00:00:00.000Z'),
+		})
+	})
+
+	await importMalInventory({
+		...committedOptions,
+		leaseOwner: 'changed-source-worker',
+		fetchImpl: inventoryFetch([rankingResult(1)]) as unknown as typeof fetch,
+		now: () => new Date('2026-07-20T00:00:00.000Z'),
+	})
+	expect(
+		await prisma.mediaExternalId.findUniqueOrThrow({
+			where: {
+				provider_kind_externalId: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '1',
+				},
+			},
+		}),
+	).toEqual(
+		expect.objectContaining({
+			sourceUpdatedAt: new Date('2026-07-19T12:00:00.000Z'),
+			fetchStatus: 'pending',
+			refreshAfter: null,
+			hydrationPriority: catalogHydrationPriorities.userDemand,
+			hydrationReason: 'user-demand',
+		}),
+	)
 })
 
 test('malformed provider pages fail the run and release its lease', async () => {
