@@ -3,12 +3,15 @@ import { data as json, type LoaderFunctionArgs } from 'react-router'
 import { useLoaderData, useNavigate } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
+import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/watchlist-grid.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
 
 export async function loader(params: LoaderFunctionArgs) {
+	const viewerId = await getUserId(params.request)
 	const listOwner = await prisma.user.findUnique({
 		where: {
 			username: params['params']['username']!,
@@ -78,6 +81,40 @@ export async function loader(params: LoaderFunctionArgs) {
 		},
 		{},
 	)
+	const trackingStates =
+		viewerId === listOwner.id
+			? await prisma.trackingState.findMany({
+					where: { ownerId: viewerId },
+					select: {
+						mediaId: true,
+						statusWatchlistId: true,
+						statusWatchlist: { select: { header: true } },
+						media: {
+							select: {
+								externalIds: {
+									select: {
+										provider: true,
+										kind: true,
+										externalId: true,
+									},
+								},
+							},
+						},
+					},
+				})
+			: []
+	const trackingByIdentity = Object.fromEntries(
+		trackingStates.flatMap(tracking =>
+			tracking.media.externalIds.map(identity => [
+				mediaIdentityKey(identity as any),
+				{
+					mediaId: tracking.mediaId,
+					watchlistId: tracking.statusWatchlistId,
+					statusLabel: tracking.statusWatchlist?.header ?? null,
+				},
+			]),
+		),
+	)
 
 	return json({
 		watchList: params['params']['watchlist'],
@@ -92,6 +129,7 @@ export async function loader(params: LoaderFunctionArgs) {
 		watchListData,
 		watchlistId: watchListData.id,
 		typedFavorites,
+		trackingByIdentity,
 		listOwner,
 	})
 }
@@ -123,6 +161,7 @@ export default function WatchList() {
 				loaderData.watchlistId,
 				loaderData.typedWatchlists,
 				loaderData.typedFavorites,
+				loaderData.trackingByIdentity,
 				loaderData.listOwner,
 				currentUser,
 				currentUserId,

@@ -3,6 +3,7 @@ import {
 	mediaIdentityForMal,
 	mediaIdentityForTmdb,
 	mediaIdentityFromThumbnail,
+	mediaIdentityKey,
 	mediaIdentityMatchesListType,
 } from './media-identity.ts'
 
@@ -23,6 +24,13 @@ test('constructs normalized TMDB and MAL identities', () => {
 		externalId: '5114',
 	})
 	expect(mediaIdentityForTmdb(1, 'person')).toBeNull()
+	expect(
+		mediaIdentityKey({
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '5114',
+		}),
+	).toBe('mal:anime:5114')
 })
 
 test('extracts identities from legacy thumbnail links', () => {

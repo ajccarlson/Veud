@@ -325,13 +325,16 @@ export function getSiteIdSafe(url: string) {
 }
 
 export function titleCellRenderer(params: any, columnParams: any) {
-  if (!params.value || params.value.replace(/\W/g, '') === "" && (columnParams.currentUserId == columnParams.listOwner.id)) {
+  if (
+    (!params.value || params.value.replace(/\W/g, '') === "") &&
+    columnParams.currentUserId == columnParams.listOwner.id
+  ) {
     return (
-      <span className=''>
-        <div className="ml-auto hidden max-w-sm flex-1 sm:block">
+      <div className="w-full min-w-0">
+        <div className="ml-auto w-full max-w-sm">
           <MediaSearchBar params={params} columnParams={columnParams}/>
         </div>
-      </span>
+      </div>
     )
   }
   else {

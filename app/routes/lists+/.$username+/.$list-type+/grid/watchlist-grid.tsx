@@ -14,15 +14,15 @@ import {
 import '@ag-grid-community/styles/ag-grid.css'
 import '#app/styles/watchlist.scss'
 import {
+	MediaSearchBar,
+	MediaTypeDropdown,
+} from '#app/components/search-add-watchlist-entry.tsx'
+import {
 	getSiteIdSafe,
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
 import { setColumnParams } from './grid-state.ts'
-import {
-	createEmptyRow,
-	registerListDropZones,
-	rowDragText,
-} from './grid-actions.ts'
+import { registerListDropZones, rowDragText } from './grid-actions.ts'
 import { gridOptions } from './grid-options.ts'
 import { columnDefs } from './columns.tsx'
 
@@ -33,22 +33,6 @@ export function getWatchlistRowId(params: any) {
 	return row.id ?? `__new_entry__:${row.watchlistId}:${row.position}`
 }
 
-function withQuickAddRow(
-	entries: any[],
-	watchlistId: string,
-	listTypeData: any,
-	canEdit: boolean,
-) {
-	const rows = [...entries]
-	const lastEntry = rows.at(-1)
-	const lastEntryIsComplete =
-		lastEntry?.title?.replace(/\W/g, '') && lastEntry?.type?.replace(/\W/g, '')
-	if (canEdit && (!lastEntry || lastEntryIsComplete)) {
-		rows.push(createEmptyRow(watchlistId, rows.length + 1, listTypeData))
-	}
-	return rows
-}
-
 export function watchlistGrid(
 	listEntriesPass: any,
 	watchListData: any,
@@ -56,6 +40,7 @@ export function watchlistGrid(
 	watchlistId: any,
 	typedWatchlists: any,
 	typedFavorites: any,
+	trackingByIdentity: any,
 	listOwner: any,
 	currentUser: any,
 	currentUserId: any,
@@ -63,9 +48,7 @@ export function watchlistGrid(
 	navigate: (path: string) => void,
 ) {
 	const canEdit = currentUserId === listOwner.id
-	const [listEntries, setListEntries] = useState(() =>
-		withQuickAddRow(listEntriesPass, watchlistId, listTypeData, canEdit),
-	)
+	const [listEntries, setListEntries] = useState(() => [...listEntriesPass])
 	const [selectedSearchType, setSelectedSearchType] = useState('Type')
 	const [dragDestination, setDragDestination] = useState<string | null>(null)
 
@@ -85,27 +68,16 @@ export function watchlistGrid(
 		{},
 	)
 
-	const persistedEntryCount = listEntries.filter(
-		(entry: any) => entry.id,
-	).length
-	const emptyRow = createEmptyRow(
-		watchlistId,
-		persistedEntryCount + 1,
-		listTypeData,
-	)
-
 	useEffect(() => {
-		setListEntries(
-			withQuickAddRow(listEntriesPass, watchlistId, listTypeData, canEdit),
-		)
-	}, [listEntriesPass, watchlistId, listTypeData, canEdit])
+		setListEntries([...listEntriesPass])
+	}, [listEntriesPass])
 
 	useEffect(() => {
 		const frame = requestAnimationFrame(registerListDropZones)
 		return () => cancelAnimationFrame(frame)
 	}, [watchlistId, typedWatchlists])
 
-	setColumnParams({
+	const currentColumnParams = {
 		listEntries,
 		setListEntries,
 		selectedSearchType,
@@ -117,30 +89,44 @@ export function watchlistGrid(
 		watchlistId,
 		typedWatchlists,
 		typedFavorites,
+		trackingByIdentity,
 		listOwner,
 		currentUser,
 		currentUserId,
 		displayedColumns,
-		emptyRow,
 		VEUD_API_KEY,
 		navigate,
 		setDragDestination,
-	})
+	}
+	setColumnParams(currentColumnParams)
 
 	return (
-		<div className="ag-theme-custom-react">
-			{dragDestination ? (
-				<div className="ag-drag-destination-banner" role="status">
-					Now viewing {dragDestination}. Drop the entry where you want it.
-				</div>
+		<div className="watchlist-grid-shell">
+			{canEdit ? (
+				<section className="watchlist-quick-add" aria-label="Add a title">
+					<div className="watchlist-quick-add-label">
+						<span>Quick add</span>
+						{listTypeData.name === 'liveaction' ? (
+							<MediaTypeDropdown columnParams={currentColumnParams} />
+						) : null}
+					</div>
+					<MediaSearchBar params={{}} columnParams={currentColumnParams} />
+				</section>
 			) : null}
-			<AgGridReact
-				gridOptions={gridOptions as GridOptions}
-				columnDefs={columnDefs() as ColDef[]}
-				rowData={listEntries}
-				getRowId={getWatchlistRowId}
-				rowDragText={rowDragText}
-			></AgGridReact>
+			<div className="ag-theme-custom-react">
+				{dragDestination ? (
+					<div className="ag-drag-destination-banner" role="status">
+						Now viewing {dragDestination}. Drop the entry where you want it.
+					</div>
+				) : null}
+				<AgGridReact
+					gridOptions={gridOptions as GridOptions}
+					columnDefs={columnDefs() as ColDef[]}
+					rowData={listEntries}
+					getRowId={getWatchlistRowId}
+					rowDragText={rowDragText}
+				></AgGridReact>
+				</div>
 		</div>
 	)
 }
