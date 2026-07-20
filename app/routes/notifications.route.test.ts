@@ -142,3 +142,65 @@ test('mark all read affects only the signed-in recipient', async () => {
 		}),
 	).toBe(0)
 })
+
+test('collection discussion notifications open the source comment', async () => {
+	const [recipient, actor] = await Promise.all([
+		createUser('collection_recipient'),
+		createUser('collection_actor'),
+	])
+	const collection = await prisma.mediaCollection.create({
+		data: {
+			ownerId: recipient.id,
+			title: 'Notification Collection',
+			isPublic: true,
+		},
+	})
+	const comment = await prisma.collectionComment.create({
+		data: {
+			authorId: actor.id,
+			collectionId: collection.id,
+			body: 'A useful collection comment.',
+		},
+	})
+	const notification = await prisma.notification.create({
+		data: {
+			type: 'collection_comment',
+			recipientId: recipient.id,
+			actorId: actor.id,
+			collectionId: collection.id,
+			collectionCommentId: comment.id,
+		},
+	})
+	const cookie = await cookieFor(recipient.id)
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/notifications`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(result.data.notifications).toEqual([
+		expect.objectContaining({
+			id: notification.id,
+			type: 'collection_comment',
+			collectionCommentId: comment.id,
+			review: null,
+			collection: { id: collection.id, title: collection.title },
+		}),
+	])
+
+	const response = await action({
+		request: actionRequest(cookie, {
+			intent: 'read',
+			notificationId: notification.id,
+		}),
+		params: {},
+	} as any)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).headers.get('location')).toBe(
+		`/collections/${collection.id}#collection-comment-${comment.id}`,
+	)
+	expect(
+		await prisma.notification.findUnique({ where: { id: notification.id } }),
+	).toEqual(expect.objectContaining({ readAt: expect.any(Date) }))
+})

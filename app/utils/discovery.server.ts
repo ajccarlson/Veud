@@ -128,12 +128,12 @@ function communityScore(media: DiscoveryMedia) {
 	return scores.reduce((total, score) => total + score, 0) / scores.length
 }
 
-function popularityScore(media: DiscoveryMedia) {
-	return (
-		media._count.trackingStates * 4 +
-		media._count.reviews * 3 +
-		media._count.diaryEntries
-	)
+export function catalogPopularityScore(counts: {
+	trackingStates: number
+	reviews: number
+	diaryEntries: number
+}) {
+	return counts.trackingStates * 4 + counts.reviews * 3 + counts.diaryEntries
 }
 
 function compareTitle(left: DiscoveryMedia, right: DiscoveryMedia) {
@@ -220,21 +220,23 @@ type Preference = { label: string; weight: number }
 
 async function getGenrePreferences(viewerId: string | null) {
 	if (!viewerId) return []
-	const states = await prisma.trackingState.findMany({
-		where: { ownerId: viewerId },
-		select: {
-			status: true,
-			score: true,
-			media: { select: { genres: true } },
-		},
-	})
+	const [states, favorites] = await Promise.all([
+		prisma.trackingState.findMany({
+			where: { ownerId: viewerId },
+			select: {
+				status: true,
+				score: true,
+				media: { select: { genres: true } },
+			},
+		}),
+		prisma.userFavorite.findMany({
+			where: { ownerId: viewerId, mediaId: { not: null } },
+			select: { media: { select: { genres: true } } },
+		}),
+	])
 	const preferences = new Map<string, Preference>()
-	for (const state of states) {
-		const score = state.score === null ? 5 : Number(state.score)
-		const statusBoost =
-			state.status === 'completed' || state.status === 'watching' ? 2 : 0
-		const weight = Math.max(1, score + statusBoost)
-		for (const genre of splitGenres(state.media.genres)) {
+	function addGenres(genres: string | null | undefined, weight: number) {
+		for (const genre of splitGenres(genres)) {
 			const key = genre.toLocaleLowerCase()
 			const current = preferences.get(key)
 			preferences.set(key, {
@@ -243,6 +245,13 @@ async function getGenrePreferences(viewerId: string | null) {
 			})
 		}
 	}
+	for (const state of states) {
+		const score = state.score === null ? 5 : Number(state.score)
+		const statusBoost =
+			state.status === 'completed' || state.status === 'watching' ? 2 : 0
+		addGenres(state.media.genres, Math.max(1, score + statusBoost))
+	}
+	for (const favorite of favorites) addGenres(favorite.media?.genres, 8)
 	return [...preferences.values()]
 		.sort(
 			(left, right) =>
@@ -271,7 +280,10 @@ function discoveryWhere(
 				? [{ trackingStates: { some: { score: { not: null } } } }]
 				: []),
 			...(filters.sort === 'for-you' && viewerId
-				? [{ trackingStates: { none: { ownerId: viewerId } } }]
+				? [
+						{ trackingStates: { none: { ownerId: viewerId } } },
+						{ favorites: { none: { ownerId: viewerId } } },
+					]
 				: []),
 		],
 	}
@@ -325,7 +337,7 @@ export async function getDiscoveryResults(
 					: null,
 				communityScore: score,
 				ratingCount,
-				popularityScore: popularityScore(item),
+				popularityScore: catalogPopularityScore(item._count),
 				affinityScore: splitGenres(item.genres).reduce(
 					(total, genre) =>
 						total + (preferenceWeights.get(genre.toLocaleLowerCase()) ?? 0),

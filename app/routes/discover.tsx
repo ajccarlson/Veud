@@ -295,8 +295,8 @@ export default function DiscoverRoute() {
 						{data.filters.sort === 'for-you' ? (
 							<p className="mt-1 text-sm text-[#a2ffd5]">
 								{data.preferredGenres.length
-									? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked titles are hidden.`
-									: 'Track and rate a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
+									? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
+									: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
 							</p>
 						) : null}
 					</div>

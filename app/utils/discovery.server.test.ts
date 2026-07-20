@@ -200,3 +200,61 @@ test('for-you favors preferred genres and excludes already tracked titles', asyn
 	expect(result.preferredGenres).toEqual(['Action', 'Fantasy'])
 	expect(result.items.some(item => item.id === tracked.id)).toBe(false)
 })
+
+test('favorites teach for-you preferences and stay out of its results', async () => {
+	const viewer = await createUser('favorite_viewer')
+	const listType = await prisma.listType.upsert({
+		where: { name: 'anime' },
+		update: {},
+		create: {
+			name: 'anime',
+			header: 'Anime',
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+	const [favoriteSeed, affinityMatch, mismatch] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Favorite Mystery Seed',
+				genres: 'Mystery, Thriller',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Unseen Mystery Match',
+				genres: 'Mystery',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Unseen Comedy Mismatch',
+				genres: 'Comedy',
+			},
+		}),
+	])
+	await prisma.userFavorite.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: favoriteSeed.id,
+			typeId: listType.id,
+			position: 1,
+			title: favoriteSeed.title ?? 'Favorite Mystery Seed',
+		},
+	})
+
+	const result = await getDiscoveryResults(
+		filters({ kind: 'anime', sort: 'for-you' }),
+		viewer.id,
+	)
+	expect(result.preferredGenres).toEqual(['Mystery', 'Thriller'])
+	expect(result.items.map(item => item.id)).toEqual([
+		affinityMatch.id,
+		mismatch.id,
+	])
+	expect(result.items.some(item => item.id === favoriteSeed.id)).toBe(false)
+})
