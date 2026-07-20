@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+import { OAuth2Strategy, type OAuth2Profile } from 'remix-auth-oauth2'
+import { z } from 'zod'
+import { cache, cachified } from '../cache.server.ts'
+import { type Timings } from '../timing.server.ts'
+import { type AuthProvider, type ProviderUser } from './provider.ts'
+
+const TraktUserSchema = z.object({ login: z.string() })
+=======
 import { OAuth2Strategy } from 'remix-auth-oauth2'
 import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
@@ -22,6 +31,7 @@ const TraktSettingsSchema = z.object({
 })
 
 const TraktUserSchema = z.object({ username: z.string() })
+>>>>>>> develop
 const TraktUserParseResult = z
 	.object({
 		success: z.literal(true),
@@ -37,6 +47,28 @@ const TraktUserParseResult = z
 
 export class TraktProvider implements AuthProvider {
 	getAuthStrategy() {
+<<<<<<< HEAD
+		return new OAuth2Strategy<ProviderUser, OAuth2Profile>(
+			{
+        authorizationEndpoint: 'https://api.trakt.tv/oauth/authorize',
+        tokenEndpoint: 'https://api.trakt.tv/oauth/token',
+				clientId: process.env.TRAKT_API_KEY,
+				clientSecret: process.env.TRAKT_CLIENT_SECRET,
+				redirectURI: '/auth/trakt/callback',
+			},
+			async ({ profile }) => {
+				const email = profile.emails![0].value.trim().toLowerCase()
+				const username = profile.displayName
+				const imageUrl = profile.photos![0].value
+				return {
+					email,
+					id: profile.id!,
+					username,
+					name: profile.name!.givenName,
+					imageUrl,
+				}
+			},
+=======
 		return new OAuth2Strategy<ProviderUser>(
 			{
 				authorizationEndpoint: 'https://trakt.tv/oauth/authorize',
@@ -47,6 +79,7 @@ export class TraktProvider implements AuthProvider {
 				tokenEndpoint: 'https://api.trakt.tv/oauth/token',
 			},
 			async ({ tokens }) => getTraktProviderUser(tokens.accessToken()),
+>>>>>>> develop
 		)
 	}
 
@@ -63,12 +96,16 @@ export class TraktProvider implements AuthProvider {
 			async getFreshValue(context) {
 				const response = await fetch(
 					`https://api.trakt.tv/users/${providerId}`,
+<<<<<<< HEAD
+					{ headers: { Authorization: `token ${process.env.TRAKT_API_KEY}` } },
+=======
 					{
 						headers: {
 							'trakt-api-key': process.env.TRAKT_API_KEY,
 							'trakt-api-version': '2',
 						},
 					},
+>>>>>>> develop
 				)
 				const rawJson = await response.json()
 				const result = TraktUserSchema.safeParse(rawJson)
@@ -82,8 +119,13 @@ export class TraktProvider implements AuthProvider {
 			checkValue: TraktUserParseResult,
 		})
 		return {
+<<<<<<< HEAD
+			displayName: result.success ? result.data.login : 'Unknown',
+			link: result.success ? `https://trakt.tv/${result.data.login}` : null,
+=======
 			displayName: result.success ? result.data.username : 'Unknown',
 			link: result.success ? `https://trakt.tv/${result.data.username}` : null,
+>>>>>>> develop
 		} as const
 	}
 
@@ -105,6 +147,8 @@ export class TraktProvider implements AuthProvider {
 		// })
 	}
 }
+<<<<<<< HEAD
+=======
 
 export async function getTraktProviderUser(
 	accessToken: string,
@@ -140,3 +184,4 @@ export async function getTraktProviderUser(
 			: undefined,
 	}
 }
+>>>>>>> develop

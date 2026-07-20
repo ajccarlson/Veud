@@ -1,16 +1,10 @@
 import '#app/styles/home.scss'
-import {
-	data as json,
-	type LoaderFunctionArgs,
-	useLoaderData,
-} from 'react-router'
-import { FollowingFeed } from '#app/routes/_home+/_following.tsx'
+import { json, type LoaderFunctionArgs } from '@remix-run/node'
+import { useLoaderData } from '@remix-run/react'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
-import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
-import { getUserId } from '#app/utils/auth.server.ts'
-import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
 import {
 	dateKeyInTimeZone,
 	getReleaseCalendar,
