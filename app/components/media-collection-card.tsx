@@ -14,6 +14,7 @@ type CollectionCardData = {
 	items: Array<{
 		media: { id: string; title: string | null; thumbnail: string | null }
 	}>
+	recommendationReason?: string | null
 }
 
 export function MediaCollectionCard({
@@ -47,6 +48,11 @@ export function MediaCollectionCard({
 					})}
 				</div>
 				<div className="space-y-3 p-5">
+					{collection.recommendationReason ? (
+						<p className="rounded-lg border border-[#a2ffd5]/50 bg-[#2e2f2b] px-3 py-2 text-xs font-bold text-[#a2ffd5]">
+							Why this list: {collection.recommendationReason}
+						</p>
+					) : null}
 					<div>
 						<div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
 							<span>

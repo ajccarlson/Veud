@@ -657,3 +657,125 @@ test('only admins can feature public collections and private collections are rem
 	expect(privateFeature).toBeInstanceOf(Response)
 	expect((privateFeature as Response).status).toBe(404)
 })
+
+test('for-you collections use social and taste signals without leaking private or seen lists', async () => {
+	const [viewer, followedOwner, otherOwner] = await Promise.all([
+		createUser('recommendation_viewer'),
+		createUser('recommendation_followed'),
+		createUser('recommendation_other'),
+	])
+	const viewerCookie = await cookieFor(viewer.id)
+	const [trackedMedia, likedMedia] = await Promise.all([
+		prisma.media.create({
+			data: { kind: 'movie', title: 'A deeply enjoyed title' },
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: 'A liked collection seed' },
+		}),
+	])
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: viewer.id, followingId: followedOwner.id },
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: trackedMedia.id,
+				status: 'completed',
+				score: 9,
+			},
+		}),
+	])
+	const followedPick = await prisma.mediaCollection.create({
+		data: {
+			ownerId: followedOwner.id,
+			title: 'From a followed curator',
+			isPublic: true,
+		},
+	})
+	const titleMatch = await prisma.mediaCollection.create({
+		data: {
+			ownerId: otherOwner.id,
+			title: 'A familiar favorite',
+			isPublic: true,
+			items: { create: { mediaId: trackedMedia.id, position: 1 } },
+		},
+	})
+	const likedSeed = await prisma.mediaCollection.create({
+		data: {
+			ownerId: otherOwner.id,
+			title: 'Already liked seed',
+			isPublic: true,
+			items: { create: { mediaId: likedMedia.id, position: 1 } },
+			tags: {
+				create: {
+					tag: { create: { name: 'space opera', slug: 'space-opera' } },
+				},
+			},
+		},
+	})
+	const tagMatch = await prisma.mediaCollection.create({
+		data: {
+			ownerId: otherOwner.id,
+			title: 'A matching theme',
+			isPublic: true,
+			tags: {
+				create: { tag: { connect: { slug: 'space-opera' } } },
+			},
+		},
+	})
+	const [ownCollection, privateCollection] = await Promise.all([
+		prisma.mediaCollection.create({
+			data: { ownerId: viewer.id, title: 'My own list', isPublic: true },
+		}),
+		prisma.mediaCollection.create({
+			data: {
+				ownerId: followedOwner.id,
+				title: 'A private followed list',
+				isPublic: false,
+			},
+		}),
+	])
+	await prisma.collectionLike.create({
+		data: { userId: viewer.id, collectionId: likedSeed.id },
+	})
+
+	const result = await indexLoader({
+		request: new Request(`${BASE_URL}/collections?sort=for-you`, {
+			headers: { cookie: viewerCookie },
+		}),
+		params: {},
+	} as any)
+	expect(result.data.sort).toBe('for-you')
+	expect(result.data.personalization).toEqual({
+		followedPeople: 1,
+		tasteTitles: 2,
+		likedTags: 1,
+	})
+	expect(result.data.collections.map(collection => collection.id)).toEqual([
+		followedPick.id,
+		titleMatch.id,
+		tagMatch.id,
+	])
+	expect(
+		result.data.collections.map(collection => collection.recommendationReason),
+	).toEqual([
+		'From someone you follow',
+		'Includes a title you enjoyed',
+		'Matches #space opera from collections you liked',
+	])
+	expect(result.data.collections.map(collection => collection.id)).not.toEqual(
+		expect.arrayContaining([
+			likedSeed.id,
+			ownCollection.id,
+			privateCollection.id,
+		]),
+	)
+
+	const anonymous = await indexLoader({
+		request: new Request(`${BASE_URL}/collections?sort=for-you`),
+		params: {},
+	} as any)
+	expect(anonymous.data.sort).toBe('recent')
+	expect(anonymous.data.personalization).toBeNull()
+})
