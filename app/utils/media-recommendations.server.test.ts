@@ -86,6 +86,26 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 			},
 		],
 	})
+	const animeType = await prisma.listType.upsert({
+		where: { name: 'anime' },
+		update: {},
+		create: {
+			name: 'anime',
+			header: 'Anime',
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+	await prisma.userFavorite.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: broadMatch.id,
+			typeId: animeType.id,
+			position: 1,
+			title: broadMatch.title ?? 'Broad Match',
+		},
+	})
 
 	const anonymous = await getSimilarMediaRecommendations(source, null)
 	expect(anonymous.items.map(item => item.title)).toEqual([
@@ -104,7 +124,6 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 
 	const personalized = await getSimilarMediaRecommendations(source, viewer.id)
 	expect(personalized.items.map(item => item.title)).toEqual([
-		'Broad Match',
 		'Popular Weak Match',
 	])
 })

@@ -40,6 +40,7 @@ import {
 	splitLegacyThumbnail,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { toggleMediaFavorite } from '#app/utils/media-favorites.server.ts'
 import {
 	journalTerms,
 	parseDiaryDate,
@@ -162,6 +163,7 @@ const ActionSchema = z.discriminatedUnion('intent', [
 		intent: z.literal('collection-add'),
 		collectionId: z.string().min(1).max(100),
 	}),
+	z.object({ intent: z.literal('favorite-toggle') }),
 ])
 
 function catalogRichness(entry: CatalogEntry) {
@@ -244,7 +246,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		select: {
 			id: true,
 			kind: true,
-			_count: { select: { reviews: true, diaryEntries: true } },
+			_count: {
+				select: { reviews: true, diaryEntries: true, favorites: true },
+			},
 			...mediaCatalogSelect,
 			externalIds: {
 				select: { provider: true, kind: true, externalId: true },
@@ -269,6 +273,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerReview,
 		viewerDiaryEntries,
 		viewerCollections,
+		viewerFavorite,
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
 		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
@@ -413,6 +418,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					},
 				})
 			: [],
+		viewerId
+			? prisma.userFavorite.findFirst({
+					where: { ownerId: viewerId, mediaId: media.id },
+					select: { id: true },
+				})
+			: null,
 	])
 
 	const legacyTracking = viewerEntries
@@ -482,6 +493,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			...community,
 			reviews: media._count.reviews,
 			diaryEntries: media._count.diaryEntries,
+			favorites: media._count.favorites,
 		},
 		socialContext: followedTracking,
 		recommendations,
@@ -499,6 +511,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewer: viewerId
 			? {
 					id: viewerId,
+					isFavorite: Boolean(viewerFavorite),
 					tracking,
 					watchlists: viewerWatchlists,
 					progress,
@@ -877,6 +890,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			return json({ ok: true, collectionId: collection.id })
 		}
 
+		if (parsed.data.intent === 'favorite-toggle') {
+			const catalog = resolveMediaCatalog(
+				media,
+				representativeEntry(media.entries),
+			)
+			const favorite = await toggleMediaFavorite(tx, {
+				ownerId: userId,
+				mediaId,
+				kind: media.kind,
+				catalog,
+			})
+			return json({ ok: true, ...favorite })
+		}
+
 		if (parsed.data.intent === 'status') {
 			const tracking = await setMediaTrackingStatus(tx, {
 				ownerId: userId,
@@ -1063,14 +1090,37 @@ export default function MediaDetailRoute() {
 							{data.media.kind}
 							{data.media.type ? ` · ${data.media.type}` : ''}
 						</div>
-						<h1 className="text-4xl font-bold">{data.media.title}</h1>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<h1 className="text-4xl font-bold">{data.media.title}</h1>
+							{data.viewer ? (
+								<Form method="post">
+									<input type="hidden" name="intent" value="favorite-toggle" />
+									<Button
+										type="submit"
+										variant={data.viewer.isFavorite ? 'default' : 'outline'}
+										disabled={busy}
+										aria-pressed={data.viewer.isFavorite}
+									>
+										{data.viewer.isFavorite
+											? '★ Favorited'
+											: '☆ Add to favorites'}
+									</Button>
+								</Form>
+							) : (
+								<Button asChild variant="outline">
+									<Link to={`/login?redirectTo=/media/${data.media.id}`}>
+										☆ Add to favorites
+									</Link>
+								</Button>
+							)}
+						</div>
 						<div className="text-sm text-muted-foreground">
 							{displayDate(data.media.releaseStart)} –{' '}
 							{displayDate(data.media.releaseEnd)}
 						</div>
 					</header>
 
-					<section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+					<section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
 						<div className="rounded-xl border bg-card p-4">
 							<div className="text-2xl font-bold">
 								{data.community.trackers}
@@ -1100,6 +1150,15 @@ export default function MediaDetailRoute() {
 								{data.community.diaryEntries}
 							</div>
 							<div className="text-sm text-muted-foreground">Diary logs</div>
+						</div>
+						<div
+							className="rounded-xl border bg-card p-4"
+							aria-label={`${data.community.favorites} community ${data.community.favorites === 1 ? 'favorite' : 'favorites'}`}
+						>
+							<div className="text-2xl font-bold">
+								{data.community.favorites}
+							</div>
+							<div className="text-sm text-muted-foreground">Favorites</div>
 						</div>
 					</section>
 
@@ -1375,7 +1434,7 @@ export default function MediaDetailRoute() {
 								>
 									Log in
 								</Link>{' '}
-								to track, review, and log this title.
+								to track, favorite, review, and log this title.
 							</p>
 						</section>
 					)}

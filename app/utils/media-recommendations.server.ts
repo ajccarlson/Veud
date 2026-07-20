@@ -119,7 +119,10 @@ export async function getSimilarMediaRecommendations(
 				{ id: { not: source.id } },
 				{ kind: source.kind },
 				...(viewerId
-					? [{ trackingStates: { none: { ownerId: viewerId } } }]
+					? [
+							{ trackingStates: { none: { ownerId: viewerId } } },
+							{ favorites: { none: { ownerId: viewerId } } },
+						]
 					: []),
 				...(sourceGenres.length
 					? [

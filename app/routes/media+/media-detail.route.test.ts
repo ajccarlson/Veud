@@ -76,6 +76,7 @@ async function fixture() {
 			thumbnail:
 				'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
 			length: '12 eps',
+			startSeason: 'Fall 2009',
 			description: 'Two brothers search for the Philosopher’s Stone.',
 			externalIds: {
 				create: { provider: 'mal', kind: 'anime', externalId: '5114' },
@@ -159,6 +160,7 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 		meanScore: null,
 		reviews: 0,
 		diaryEntries: 0,
+		favorites: 0,
 	})
 	expect(result.data.community.statusBreakdown).toEqual([])
 	expect(
@@ -224,6 +226,65 @@ test('signed-in media loader shows tracking only from followed members', async (
 		params: { mediaId: media.id },
 	} as any)
 	expect(anonymous.data.socialContext).toBeNull()
+})
+
+test('media favorite toggle updates the title page and profile snapshot', async () => {
+	const { media, tracker, cookie } = await fixture()
+	await action({
+		request: actionRequest(media.id, cookie, { intent: 'favorite-toggle' }),
+		params: { mediaId: media.id },
+	} as any)
+
+	const favorite = await prisma.userFavorite.findFirstOrThrow({
+		where: { ownerId: tracker.id, mediaId: media.id },
+		include: { type: { select: { name: true } } },
+	})
+	expect(favorite).toMatchObject({
+		position: 1,
+		title: 'Fullmetal Alchemist: Brotherhood',
+		thumbnail:
+			'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
+		mediaType: 'TV',
+		startYear: 'Fall 2009',
+		type: { name: 'anime' },
+	})
+
+	const favorited = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(favorited.data.viewer?.isFavorite).toBe(true)
+	expect(favorited.data.community.favorites).toBe(1)
+	await prisma.userFavorite.create({
+		data: {
+			ownerId: tracker.id,
+			mediaId: media.id,
+			typeId: favorite.typeId,
+			position: 2,
+			title: 'Duplicate legacy favorite',
+		},
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, { intent: 'favorite-toggle' }),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.userFavorite.count({
+			where: { ownerId: tracker.id, mediaId: media.id },
+		}),
+	).toBe(0)
+
+	const removed = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(removed.data.viewer?.isFavorite).toBe(false)
+	expect(removed.data.community.favorites).toBe(0)
 })
 
 test('tracking controls create and dual-write status, score, and progress', async () => {

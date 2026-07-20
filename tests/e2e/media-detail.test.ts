@@ -129,6 +129,31 @@ test('member can open a canonical media page and change status', async ({
 		).toBeVisible()
 		await expect(page.getByText('Hidden Tracked Match')).toHaveCount(0)
 		await expect(page.getByText('Unrelated Browser Romance')).toHaveCount(0)
+		await page.getByRole('button', { name: '☆ Add to favorites' }).click()
+		await expect(
+			page.getByRole('button', { name: '★ Favorited' }),
+		).toBeVisible()
+		await expect(page.getByLabel('1 community favorite')).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.userFavorite.findFirst({
+					where: { ownerId: user.id, mediaId: media.id },
+					select: { title: true, position: true },
+				}),
+			)
+			.toEqual({ title: 'Canonical Media Browser Test', position: 1 })
+		await page.getByRole('button', { name: '★ Favorited' }).click()
+		await expect(
+			page.getByRole('button', { name: '☆ Add to favorites' }),
+		).toBeVisible()
+		await expect(page.getByLabel('0 community favorites')).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.userFavorite.count({
+					where: { ownerId: user.id, mediaId: media.id },
+				}),
+			)
+			.toBe(0)
 		await page.getByLabel('Status').selectOption(completed.id)
 		await page.getByRole('button', { name: 'Save status' }).click()
 		await expect
