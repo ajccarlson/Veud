@@ -209,6 +209,22 @@ test('reconciliation tombstones missing sources without deleting canonical media
 	expect(await prisma.media.count()).toBe(2)
 })
 
+test('policy approval audit references are bounded and never silently truncated', async () => {
+	await expect(
+		prisma.$transaction(tx =>
+			acquireCatalogSyncLease(tx, {
+				provider: 'mal',
+				kind: 'anime',
+				mode: 'inventory',
+				leaseOwner: 'audit-validation-worker',
+				leaseDurationMs: 60_000,
+				policyApprovalRef: 'x'.repeat(201),
+			}),
+		),
+	).rejects.toThrow('policyApprovalRef cannot exceed 200 characters')
+	expect(await prisma.catalogSyncRun.count()).toBe(0)
+})
+
 test('sync cursors checkpoint, complete, and release cooperative leases', async () => {
 	const startedAt = new Date('2026-01-01T00:00:00.000Z')
 	const first = await prisma.$transaction(tx =>
@@ -218,9 +234,11 @@ test('sync cursors checkpoint, complete, and release cooperative leases', async 
 			mode: 'inventory',
 			leaseOwner: 'worker-one',
 			leaseDurationMs: 60_000,
+			policyApprovalRef: ' approval-ticket-42 ',
 			now: startedAt,
 		}),
 	)
+	expect(first.run.policyApprovalRef).toBe('approval-ticket-42')
 
 	await expect(
 		prisma.$transaction(tx =>

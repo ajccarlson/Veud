@@ -118,10 +118,11 @@ Inventory title rows use `inventory-primary`, `inventory-english`,
 only those inventory title types, leaving richer detail-hydration title data
 intact.
 
-`CatalogSyncRun` records page-level progress, requests, rate-limit events,
-provider cooldown, errors, and completion. `CatalogSyncCursor` contains the
-logical scan date, next offset, cumulative committed count, stable scan start,
-cooldown, completion, reconciliation, and lease state.
+`CatalogSyncRun` records the policy approval reference, page-level progress,
+requests, rate-limit events, provider cooldown, errors, and completion.
+`CatalogSyncCursor` contains the logical scan date, next offset, cumulative
+committed count, stable scan start, cooldown, completion, reconciliation, and
+lease state.
 
 ## Failure and recovery
 
