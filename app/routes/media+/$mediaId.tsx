@@ -51,6 +51,13 @@ import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations
 import { getMediaRelations } from '#app/utils/media-relations.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
+	getNextCanonicalReminderRelease,
+	releaseReminderLeadMinutes,
+	removeReleaseReminder,
+	saveReleaseReminder,
+	type ReleaseReminderLeadMinutes,
+} from '#app/utils/release-reminders.server.ts'
+import {
 	createReviewComment,
 	toggleReviewLike,
 } from '#app/utils/review-engagement.server.ts'
@@ -95,6 +102,14 @@ const OptionalRatingSchema = z.preprocess(
 		value === '' || value === null || value === undefined ? null : value,
 	z.coerce.number().min(0.1).max(10).nullable(),
 )
+
+const ReminderLeadSchema = z.coerce
+	.number()
+	.int()
+	.refine(value =>
+		releaseReminderLeadMinutes.includes(value as ReleaseReminderLeadMinutes),
+	)
+	.transform(value => value as ReleaseReminderLeadMinutes)
 
 const DiaryDateSchema = z.string().transform((value, context) => {
 	const parsed = parseDiaryDate(value)
@@ -165,6 +180,11 @@ const ActionSchema = z.discriminatedUnion('intent', [
 		collectionId: z.string().min(1).max(100),
 	}),
 	z.object({ intent: z.literal('favorite-toggle') }),
+	z.object({
+		intent: z.literal('release-reminder-save'),
+		leadMinutes: ReminderLeadSchema,
+	}),
+	z.object({ intent: z.literal('release-reminder-delete') }),
 ])
 
 function catalogRichness(entry: CatalogEntry) {
@@ -276,6 +296,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerDiaryEntries,
 		viewerCollections,
 		viewerFavorite,
+		viewerReminder,
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
 		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
@@ -427,6 +448,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					select: { id: true },
 				})
 			: null,
+		viewerId
+			? prisma.releaseReminder.findUnique({
+					where: {
+						ownerId_mediaId: { ownerId: viewerId, mediaId: media.id },
+					},
+					select: { id: true, leadMinutes: true },
+				})
+			: null,
 	])
 
 	const legacyTracking = viewerEntries
@@ -473,6 +502,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		}
 	})
 	const thumbnail = splitLegacyThumbnail(catalog?.thumbnail)
+	const upcomingRelease = getNextCanonicalReminderRelease({
+		releaseStart: catalog?.releaseStart ?? null,
+		nextRelease: catalog?.nextRelease ?? null,
+	})
 
 	return json({
 		media: {
@@ -485,6 +518,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			releaseStart: catalog?.releaseStart,
 			releaseEnd: catalog?.releaseEnd,
 			imageUrl: thumbnail.imageUrl,
+			upcomingRelease,
 			externalLinks: media.externalIds
 				.map(identity => ({
 					...identity,
@@ -516,6 +550,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			? {
 					id: viewerId,
 					isFavorite: Boolean(viewerFavorite),
+					reminder: viewerReminder,
 					tracking,
 					watchlists: viewerWatchlists,
 					progress,
@@ -906,6 +941,20 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				catalog,
 			})
 			return json({ ok: true, ...favorite })
+		}
+
+		if (parsed.data.intent === 'release-reminder-save') {
+			const reminder = await saveReleaseReminder(tx, {
+				ownerId: userId,
+				mediaId,
+				leadMinutes: parsed.data.leadMinutes,
+			})
+			return json({ ok: true, reminderId: reminder.id })
+		}
+
+		if (parsed.data.intent === 'release-reminder-delete') {
+			await removeReleaseReminder(tx, { ownerId: userId, mediaId })
+			return json({ ok: true })
 		}
 
 		if (parsed.data.intent === 'status') {
@@ -1327,6 +1376,58 @@ export default function MediaDetailRoute() {
 					{data.viewer ? (
 						<section className="space-y-5 rounded-xl border bg-card p-5">
 							<h2 className="text-xl font-bold">Your tracking</h2>
+							<div className="space-y-3 rounded-lg border bg-background p-4">
+								<div>
+									<h3 className="font-bold">Release reminder</h3>
+									<p className="mt-1 text-sm text-muted-foreground">
+										{data.media.upcomingRelease
+											? `${data.media.upcomingRelease.label} · ${displayDateTime(data.media.upcomingRelease.releaseAt)}`
+											: 'We’ll notify you when Veud receives a future release date.'}
+									</p>
+								</div>
+								<div className="flex flex-wrap items-end gap-2">
+									<Form
+										method="post"
+										className="flex flex-wrap items-end gap-2"
+									>
+										<input
+											type="hidden"
+											name="intent"
+											value="release-reminder-save"
+										/>
+										<div className="space-y-2">
+											<Label htmlFor="release-reminder-lead">Notify me</Label>
+											<select
+												id="release-reminder-lead"
+												name="leadMinutes"
+												defaultValue={data.viewer.reminder?.leadMinutes ?? 60}
+												className="h-10 rounded-md border bg-background px-3 text-sm"
+											>
+												<option value="0">At release time</option>
+												<option value="60">1 hour before</option>
+												<option value="1440">1 day before</option>
+											</select>
+										</div>
+										<Button type="submit" variant="outline" disabled={busy}>
+											{data.viewer.reminder
+												? 'Update reminder'
+												: 'Set reminder'}
+										</Button>
+									</Form>
+									{data.viewer.reminder ? (
+										<Form method="post">
+											<input
+												type="hidden"
+												name="intent"
+												value="release-reminder-delete"
+											/>
+											<Button type="submit" variant="ghost" disabled={busy}>
+												Remove reminder
+											</Button>
+										</Form>
+									) : null}
+								</div>
+							</div>
 							{data.viewer.watchlists.length ? (
 								<Form method="post" className="flex flex-wrap items-end gap-3">
 									<input type="hidden" name="intent" value="status" />

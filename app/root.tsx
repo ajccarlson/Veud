@@ -48,6 +48,7 @@ import { getEnv } from './utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
 import { combineHeaders, getDomainUrl, getUserImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
+import { syncReleaseRemindersForUser } from './utils/release-reminders.server.ts'
 import { useRequestInfo } from './utils/request-info.ts'
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
@@ -122,9 +123,24 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		await logout({ request, redirectTo: '/' })
 	}
 	const unreadNotificationCount = userId
-		? await prisma.notification.count({
-				where: { recipientId: userId, readAt: null },
-			})
+		? await time(
+				async () => {
+					const now = new Date()
+					await syncReleaseRemindersForUser(prisma, userId, now)
+					return prisma.notification.count({
+						where: {
+							recipientId: userId,
+							readAt: null,
+							availableAt: { lte: now },
+						},
+					})
+				},
+				{
+					timings,
+					type: 'notifications',
+					desc: 'sync and count notifications',
+				},
+			)
 		: 0
 
   const listTypes = await prisma.listType.findMany()

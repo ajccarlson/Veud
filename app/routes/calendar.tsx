@@ -2,20 +2,49 @@ import {
 	data as json,
 	Form,
 	Link,
+	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
 	useLoaderData,
 } from 'react-router'
+import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Label } from '#app/components/ui/label.tsx'
-import { getUserId } from '#app/utils/auth.server.ts'
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
+import { prisma } from '#app/utils/db.server.ts'
 import {
 	getReleaseCalendar,
 	parseReleaseCalendarQuery,
 	type ReleaseCalendarQuery,
 } from '#app/utils/release-calendar.server.ts'
+import {
+	releaseReminderLeadMinutes,
+	removeReleaseReminder,
+	saveReleaseReminder,
+	type ReleaseReminderLeadMinutes,
+} from '#app/utils/release-reminders.server.ts'
+
+const ReminderLeadSchema = z.coerce
+	.number()
+	.int()
+	.refine(value =>
+		releaseReminderLeadMinutes.includes(value as ReleaseReminderLeadMinutes),
+	)
+	.transform(value => value as ReleaseReminderLeadMinutes)
+
+const ReminderActionSchema = z.discriminatedUnion('intent', [
+	z.object({
+		intent: z.literal('release-reminder-save'),
+		mediaId: z.string().min(1).max(100),
+		leadMinutes: ReminderLeadSchema,
+	}),
+	z.object({
+		intent: z.literal('release-reminder-delete'),
+		mediaId: z.string().min(1).max(100),
+	}),
+])
 
 const kindLabels: Record<ReleaseCalendarQuery['kind'], string> = {
 	all: 'All media',
@@ -98,6 +127,46 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		timeZone,
 	)
 	return json(await getReleaseCalendar(filters, viewerId, timeZone))
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const viewerId = await requireUserId(request)
+	const parsed = ReminderActionSchema.safeParse(
+		Object.fromEntries(await request.formData()),
+	)
+	if (!parsed.success) {
+		throw new Response('Invalid reminder action', { status: 400 })
+	}
+	const media = await prisma.media.findUnique({
+		where: { id: parsed.data.mediaId },
+		select: { id: true },
+	})
+	if (!media) throw new Response('Media not found', { status: 404 })
+
+	if (parsed.data.intent === 'release-reminder-save') {
+		const leadMinutes = parsed.data.leadMinutes
+		const reminder = await prisma.$transaction(transaction =>
+			saveReleaseReminder(transaction, {
+				ownerId: viewerId,
+				mediaId: media.id,
+				leadMinutes,
+			}),
+		)
+		return json({ ok: true, reminderId: reminder.id })
+	}
+
+	await removeReleaseReminder(prisma, {
+		ownerId: viewerId,
+		mediaId: media.id,
+	})
+	return json({ ok: true })
+}
+
+function reminderLeadLabel(leadMinutes: number) {
+	if (leadMinutes === 0) return 'At release'
+	if (leadMinutes === 60) return '1 hour before'
+	if (leadMinutes === 1440) return '1 day before'
+	return `${leadMinutes} minutes before`
 }
 
 export default function ReleaseCalendarRoute() {
@@ -287,6 +356,60 @@ export default function ReleaseCalendarRoute() {
 													tracking
 												</span>
 											</div>
+											{data.isSignedIn ? (
+												item.viewerReminder ? (
+													<Form method="post" className="mt-3">
+														<input
+															type="hidden"
+															name="intent"
+															value="release-reminder-delete"
+														/>
+														<input
+															type="hidden"
+															name="mediaId"
+															value={item.mediaId}
+														/>
+														<Button
+															type="submit"
+															variant="ghost"
+															size="sm"
+															aria-label={`Remove reminder for ${item.title}`}
+															className="text-[#a2ffd5]"
+														>
+															Reminder on ·{' '}
+															{reminderLeadLabel(
+																item.viewerReminder.leadMinutes,
+															)}
+														</Button>
+													</Form>
+												) : (
+													<Form method="post" className="mt-3">
+														<input
+															type="hidden"
+															name="intent"
+															value="release-reminder-save"
+														/>
+														<input
+															type="hidden"
+															name="mediaId"
+															value={item.mediaId}
+														/>
+														<input
+															type="hidden"
+															name="leadMinutes"
+															value="60"
+														/>
+														<Button
+															type="submit"
+															variant="outline"
+															size="sm"
+															aria-label={`Set reminder for ${item.title}`}
+														>
+															Remind me · 1 hour before
+														</Button>
+													</Form>
+												)
+											) : null}
 										</div>
 									</article>
 								))}
