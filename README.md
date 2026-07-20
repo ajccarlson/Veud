@@ -185,6 +185,11 @@ The [MyAnimeList catalog hydration runbook](docs/mal-catalog-hydration.md)
 documents sequential anime/manga detail normalization, provider-backed
 relations, change-driven refresh, bounded failure backoff, and coverage metrics.
 
+The [catalog production-readiness boundary](docs/catalog-production-readiness.md)
+records the public attribution and policy-audit controls that are complete, the
+remaining PostgreSQL and load-test gates, and the conditions that must be met
+before an unbounded provider backfill is enabled.
+
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.

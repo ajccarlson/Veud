@@ -265,6 +265,7 @@ model CatalogSyncRun {
   requestsMade       Int       @default(0)
   rateLimitEvents    Int       @default(0)
   providerRetryAfter DateTime?
+  policyApprovalRef  String?
   lastError          String?
   startedAt          DateTime  @default(now())
   heartbeatAt        DateTime  @default(now())
