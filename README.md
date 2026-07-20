@@ -161,6 +161,11 @@ backfill first; the tracking-state backfill then normalizes status, score, dates
 repeat evidence, and episode/chapter/volume progress without overwriting Entry
 or its history. Neither backfill calls an upstream provider.
 
+Before expanding this into provider-scale ingestion, review the
+[catalog coverage feasibility decision](docs/catalog-coverage-feasibility.md).
+It records the current TMDB/MAL inventory sizes, provider-policy gates, storage
+constraints, and the phased sync architecture.
+
 ## Testing
 
 ### Playwright
