@@ -2,11 +2,18 @@ import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
 
 // Only these watchlist fields may be changed via the settings form. Everything else
 // (id, position, typeId, ownerId, timestamps, relations) is off-limits, so a client can't
 // reassign ownership or move a list between types by injecting extra keys.
-const EDITABLE_SETTINGS = ['name', 'header', 'displayedColumns', 'description']
+const EDITABLE_SETTINGS = [
+  'name',
+  'header',
+  'displayedColumns',
+  'description',
+  'isPublic',
+]
 
 // `settings` arrives as a JSON array of [key, value] pairs.
 const SettingsSchema = z.array(z.tuple([z.string(), z.unknown()]))
@@ -46,6 +53,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const data: Record<string, unknown> = {}
   for (const [key, value] of parsedSettings.data) {
     if (EDITABLE_SETTINGS.includes(key)) {
+      if (key === 'isPublic' && typeof value !== 'boolean') {
+        throw new Response('Invalid visibility setting', { status: 400 })
+      }
       data[key] = value
     }
   }
@@ -57,6 +67,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
       Object.keys(data).length > 0
         ? await tx.watchlist.update({ where: { id: watchlist.id }, data: data as any })
         : watchlist
+
+    await syncWatchlistActivityVisibility(tx, result)
 
     const remaining = await tx.watchlist.findMany({
       where: { typeId, ownerId: userId },

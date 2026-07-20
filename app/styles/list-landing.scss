@@ -212,6 +212,25 @@
     padding-right: 1rem;
   }
 
+  .list-landing-nav-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .list-visibility-badge {
+    padding: 0.15rem 0.45rem;
+    color: #fff7e8;
+    background: #6b2f23;
+    border: 1px solid #ff9900;
+    border-radius: 999px;
+    font-family: arial;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
   .list-landing-nav-length {
     font-size: 1.3rem;
     line-height: 1.9rem;
@@ -425,6 +444,15 @@
   .list-landing-settings-input-row {
     display: grid;
     grid-template-columns: 33.33% 66.66%;
+
+    small {
+      grid-column: 2;
+      margin-top: 0.35rem;
+      color: #dffff0;
+      font-family: arial;
+      font-size: 0.75rem;
+      line-height: 1.35;
+    }
   }
 
   .list-landing-settings-input-item {

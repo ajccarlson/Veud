@@ -163,3 +163,102 @@ test('titles without genres fall back to same-kind community popularity', async 
 	])
 	expect(result.items.map(item => item.id)).toEqual([popular.id, quiet.id])
 })
+
+test('private-list tracking does not affect recommendation rank or statistics', async () => {
+	const [publicMember, privateMember] = await Promise.all([
+		createUser('public_recommendation_member'),
+		createUser('private_recommendation_member'),
+	])
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const listType = await prisma.listType.create({
+		data: {
+			name: `recommendation-privacy-${suffix}`,
+			header: 'Recommendation privacy',
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+	const [publicList, privateList, source, publicCandidate, privateCandidate] =
+		await Promise.all([
+			prisma.watchlist.create({
+				data: {
+					ownerId: publicMember.id,
+					typeId: listType.id,
+					name: 'public',
+					header: 'Public',
+					isPublic: true,
+				},
+			}),
+			prisma.watchlist.create({
+				data: {
+					ownerId: privateMember.id,
+					typeId: listType.id,
+					name: 'private',
+					header: 'Private',
+					isPublic: false,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: 'Recommendation Privacy Source',
+					genres: 'Mystery',
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: 'Recommendation Privacy Public',
+					genres: 'Mystery',
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: 'Recommendation Privacy Private',
+					genres: 'Mystery',
+				},
+			}),
+		])
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: publicMember.id,
+				mediaId: publicCandidate.id,
+				status: 'completed',
+				statusWatchlistId: publicList.id,
+				score: 8,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: privateMember.id,
+				mediaId: privateCandidate.id,
+				status: 'completed',
+				statusWatchlistId: privateList.id,
+				score: 10,
+			},
+		}),
+	])
+
+	const result = await getSimilarMediaRecommendations(source, null)
+	expect(result.items.slice(0, 2).map(item => item.id)).toEqual([
+		publicCandidate.id,
+		privateCandidate.id,
+	])
+	expect(result.items.find(item => item.id === publicCandidate.id)).toEqual(
+		expect.objectContaining({
+			communityScore: 8,
+			ratingCount: 1,
+			trackerCount: 1,
+		}),
+	)
+	expect(result.items.find(item => item.id === privateCandidate.id)).toEqual(
+		expect.objectContaining({
+			communityScore: null,
+			ratingCount: 0,
+			trackerCount: 0,
+		}),
+	)
+})

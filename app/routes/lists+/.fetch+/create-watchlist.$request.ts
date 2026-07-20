@@ -44,7 +44,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
   // The client must not choose the watchlist id, and ownership always comes from the
   // session — never from a client-supplied value.
-  const data = { ...stripProtectedFields(formattedList, ['id']), ownerId: userId }
+  const data = {
+    ...stripProtectedFields(formattedList, ['id', 'isPublic']),
+    ownerId: userId,
+    isPublic: true,
+  }
 
   return await prisma.watchlist.create({ data: data as any })
 }

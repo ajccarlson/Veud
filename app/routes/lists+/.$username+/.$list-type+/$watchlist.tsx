@@ -7,6 +7,7 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/watchlist-grid.tsx'
+import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
 
@@ -30,6 +31,7 @@ export async function loader(params: LoaderFunctionArgs) {
 	const watchLists = await prisma.watchlist.findMany({
 		where: {
 			ownerId: listOwner.id,
+			AND: [visibleWatchlistWhere(viewerId)],
 		},
 	})
 

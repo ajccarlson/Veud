@@ -19,6 +19,10 @@ import {
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
+import {
+	visibleActivityEventWhere,
+	visibleWatchlistWhere,
+} from '#app/utils/lists/visibility.server.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { buildProfileTrackingSummaries } from '#app/utils/profile-tracking.ts'
@@ -69,10 +73,16 @@ export async function loader(params: LoaderFunctionArgs) {
 
 	const [watchLists, activityRows, firstActivity, reviewRows, diaryRows] = await Promise.all([
 		prisma.watchlist.findMany({
-			where: { ownerId: user.id },
+			where: {
+				ownerId: user.id,
+				AND: [visibleWatchlistWhere(viewerId)],
+			},
 		}),
 		prisma.activityEvent.findMany({
-			where: { actorId: user.id },
+			where: {
+				actorId: user.id,
+				AND: [visibleActivityEventWhere(viewerId)],
+			},
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: 100,
 			select: {
@@ -95,7 +105,10 @@ export async function loader(params: LoaderFunctionArgs) {
 			},
 		}),
 		prisma.activityEvent.findFirst({
-			where: { actorId: user.id },
+			where: {
+				actorId: user.id,
+				AND: [visibleActivityEventWhere(viewerId)],
+			},
 			orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 			select: { createdAt: true },
 		}),

@@ -4,6 +4,8 @@ import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from 'react-router'
 import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
+import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import {
 	timeSince,
 	getStartYear,
@@ -55,9 +57,14 @@ function getWatchlistNav(entryData: any, listParams: any) {
   return(
     <div className="list-landing-nav-item-container">
       <div className="list-landing-nav-top">
-        <h1 className="list-landing-nav-header">
-          {entryData.watchlist.header}
-        </h1>
+        <div className="list-landing-nav-title">
+          <h1 className="list-landing-nav-header">
+            {entryData.watchlist.header}
+          </h1>
+          {!entryData.watchlist.isPublic ? (
+            <span className="list-visibility-badge">Private</span>
+          ) : null}
+        </div>
         <div className="list-landing-nav-length">
           {entryData.listEntries.length}
         </div> 
@@ -140,6 +147,7 @@ export function listNavigationDisplayer(listParams: any) {
 }
 
 export async function loader(params: LoaderFunctionArgs) {
+  const viewerId = await getUserId(params.request)
   const listOwner = await prisma.user.findUnique({
     where: {
       username: params['params']['username']!,
@@ -158,6 +166,7 @@ export async function loader(params: LoaderFunctionArgs) {
     where: {
       typeId: listTypeData.id,
       ownerId: listOwner.id,
+      AND: [visibleWatchlistWhere(viewerId)],
     },
   })
 

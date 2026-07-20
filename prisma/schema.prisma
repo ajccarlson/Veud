@@ -71,6 +71,7 @@ model Watchlist {
   typeId           String
   displayedColumns String?
   description      String?
+  isPublic         Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -80,11 +81,14 @@ model Watchlist {
 
   entries        Entry[]
   trackingStates TrackingState[]
+  activityEvents ActivityEvent[] @relation("ActivityEventStatusWatchlist")
+  previousActivityEvents ActivityEvent[] @relation("ActivityEventPreviousStatusWatchlist")
 
   // non-unique foreign key
   @@index([ownerId])
   // This helps our order by in the user search a LOT
   @@index([ownerId, updatedAt])
+  @@index([ownerId, isPublic])
   @@index([typeId])
 }
 
@@ -291,6 +295,7 @@ model ActivityEvent {
   progressCurrent     Int?
   progressPrevious    Int?
   progressTotal       Int?
+  isPublic            Boolean  @default(true)
   createdAt           DateTime @default(now())
 
   actor           User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -299,10 +304,17 @@ model ActivityEvent {
   mediaId         String
   trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   trackingStateId String?
+  statusWatchlist   Watchlist? @relation("ActivityEventStatusWatchlist", fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  statusWatchlistId String?
+  previousStatusWatchlist   Watchlist? @relation("ActivityEventPreviousStatusWatchlist", fields: [previousStatusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  previousStatusWatchlistId String?
 
   @@index([actorId, createdAt])
   @@index([mediaId, createdAt])
   @@index([trackingStateId])
+  @@index([statusWatchlistId])
+  @@index([previousStatusWatchlistId])
+  @@index([isPublic, createdAt])
   @@index([type, createdAt])
 }
 
