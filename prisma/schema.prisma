@@ -275,18 +275,21 @@ model User {
   roles                 Role[]
   sessions              Session[]
   connections           Connection[]
-  following             Follow[]         @relation("UserFollowing")
-  followers             Follow[]         @relation("UserFollowers")
-  commentsAuthored      ProfileComment[] @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[] @relation("ProfileCommentProfile")
+  following             Follow[]            @relation("UserFollowing")
+  followers             Follow[]            @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]    @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]    @relation("ProfileCommentProfile")
   trackingStates        TrackingState[]
   activityEvents        ActivityEvent[]
   reviews               Review[]
   diaryEntries          DiaryEntry[]
   reviewLikes           ReviewLike[]
   reviewComments        ReviewComment[]
-  notificationsReceived Notification[]   @relation("NotificationRecipient")
-  notificationsSent     Notification[]   @relation("NotificationActor")
+  notificationsReceived Notification[]      @relation("NotificationRecipient")
+  notificationsSent     Notification[]      @relation("NotificationActor")
+  mediaCollections      MediaCollection[]
+  collectionLikes       CollectionLike[]
+  collectionComments    CollectionComment[]
 }
 
 model ListType {
@@ -362,13 +365,14 @@ model Media {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalIds    MediaExternalId[]
-  entries        Entry[]
-  favorites      UserFavorite[]
-  trackingStates TrackingState[]
-  activityEvents ActivityEvent[]
-  reviews        Review[]
-  diaryEntries   DiaryEntry[]
+  externalIds     MediaExternalId[]
+  entries         Entry[]
+  favorites       UserFavorite[]
+  trackingStates  TrackingState[]
+  activityEvents  ActivityEvent[]
+  reviews         Review[]
+  diaryEntries    DiaryEntry[]
+  collectionItems MediaCollectionItem[]
 
   @@index([kind])
 }
@@ -591,19 +595,26 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  recipient       User           @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  recipientId     String
-  actor           User           @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  actorId         String
-  review          Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewId        String
-  reviewLike      ReviewLike?    @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewLikeId    String?        @unique
-  reviewComment   ReviewComment? @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  reviewCommentId String?        @unique
+  recipient           User               @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId         String
+  actor               User               @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId             String
+  review              Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId            String?
+  reviewLike          ReviewLike?        @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewLikeId        String?            @unique
+  reviewComment       ReviewComment?     @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewCommentId     String?            @unique
+  collection          MediaCollection?   @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId        String?
+  collectionLike      CollectionLike?    @relation(fields: [collectionLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionLikeId    String?            @unique
+  collectionComment   CollectionComment? @relation(fields: [collectionCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionCommentId String?            @unique
 
   @@index([recipientId, readAt, createdAt])
   @@index([reviewId])
+  @@index([collectionId])
 }
 
 /// A dated consumption log. Unlike TrackingState, diary rows are intentionally
@@ -623,6 +634,106 @@ model DiaryEntry {
 
   @@index([ownerId, loggedOn])
   @@index([mediaId, loggedOn])
+}
+
+/// A member-curated, shareable set of canonical works. These are intentionally
+/// distinct from status watchlists: a collection expresses a theme or opinion,
+/// while TrackingState represents consumption progress.
+model MediaCollection {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  isPublic    Boolean   @default(true)
+  featuredAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+  items         MediaCollectionItem[]
+  tags          MediaCollectionTag[]
+  likes         CollectionLike[]
+  comments      CollectionComment[]
+  notifications Notification[]
+
+  @@index([ownerId, updatedAt])
+  @@index([isPublic, updatedAt])
+  @@index([featuredAt])
+}
+
+/// One ordered title in a curated collection. Position is indexed rather than
+/// unique so multi-row reordering remains safe inside a transaction.
+model MediaCollectionItem {
+  id        String   @id @default(cuid())
+  position  Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  media        Media           @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId      String
+
+  @@unique([collectionId, mediaId])
+  @@index([collectionId, position])
+  @@index([mediaId])
+}
+
+/// A normalized discovery label shared across curated collections.
+model CollectionTag {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  collections MediaCollectionTag[]
+
+  @@index([name])
+}
+
+/// Explicit tag membership keeps collection cleanup predictable and makes
+/// filtering by a normalized tag efficient.
+model MediaCollectionTag {
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  tag          CollectionTag   @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tagId        String
+
+  @@id([collectionId, tagId])
+  @@index([tagId, collectionId])
+}
+
+/// Unique appreciation for a public or owner-visible curated collection.
+model CollectionLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@unique([userId, collectionId])
+  @@index([collectionId, createdAt])
+}
+
+/// Flat collection discussion. Owners can moderate comments on their lists;
+/// authors can always remove their own comments.
+model CollectionComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId     String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@index([collectionId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model UserFavorite {

@@ -76,6 +76,7 @@ async function fixture() {
 			thumbnail:
 				'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
 			length: '12 eps',
+			startSeason: 'Fall 2009',
 			description: 'Two brothers search for the Philosopher’s Stone.',
 			externalIds: {
 				create: { provider: 'mal', kind: 'anime', externalId: '5114' },
@@ -153,14 +154,137 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 			url: 'https://myanimelist.net/anime/5114',
 		}),
 	])
-	expect(result.data.community).toEqual({
+	expect(result.data.community).toMatchObject({
 		trackers: 0,
 		ratings: 0,
 		meanScore: null,
 		reviews: 0,
 		diaryEntries: 0,
+		favorites: 0,
 	})
+	expect(result.data.community.statusBreakdown).toEqual([])
+	expect(
+		result.data.community.scoreDistribution.every(bucket => bucket.count === 0),
+	).toBe(true)
+	expect(result.data.socialContext).toBeNull()
 	expect(result.data.viewer).toBeNull()
+})
+
+test('signed-in media loader shows tracking only from followed members', async () => {
+	const { media, tracker, otherUser, otherList, cookie } = await fixture()
+	const stranger = await user('media_stranger')
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: tracker.id, followingId: otherUser.id },
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: otherUser.id,
+				mediaId: media.id,
+				status: 'watching',
+				statusWatchlistId: otherList.id,
+				score: 7.5,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: stranger.id,
+				mediaId: media.id,
+				status: 'completed',
+				score: 10,
+			},
+		}),
+	])
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(result.data.socialContext).toMatchObject({
+		total: 1,
+		ratings: 1,
+		meanScore: 7.5,
+		items: [
+			expect.objectContaining({
+				status: 'watching',
+				statusLabel: 'Watching',
+				score: 7.5,
+				member: expect.objectContaining({ id: otherUser.id }),
+			}),
+		],
+	})
+	expect(
+		result.data.socialContext?.items.some(
+			item => item.member.id === stranger.id,
+		),
+	).toBe(false)
+
+	const anonymous = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`),
+		params: { mediaId: media.id },
+	} as any)
+	expect(anonymous.data.socialContext).toBeNull()
+})
+
+test('media favorite toggle updates the title page and profile snapshot', async () => {
+	const { media, tracker, cookie } = await fixture()
+	await action({
+		request: actionRequest(media.id, cookie, { intent: 'favorite-toggle' }),
+		params: { mediaId: media.id },
+	} as any)
+
+	const favorite = await prisma.userFavorite.findFirstOrThrow({
+		where: { ownerId: tracker.id, mediaId: media.id },
+		include: { type: { select: { name: true } } },
+	})
+	expect(favorite).toMatchObject({
+		position: 1,
+		title: 'Fullmetal Alchemist: Brotherhood',
+		thumbnail:
+			'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
+		mediaType: 'TV',
+		startYear: 'Fall 2009',
+		type: { name: 'anime' },
+	})
+
+	const favorited = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(favorited.data.viewer?.isFavorite).toBe(true)
+	expect(favorited.data.community.favorites).toBe(1)
+	await prisma.userFavorite.create({
+		data: {
+			ownerId: tracker.id,
+			mediaId: media.id,
+			typeId: favorite.typeId,
+			position: 2,
+			title: 'Duplicate legacy favorite',
+		},
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, { intent: 'favorite-toggle' }),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.userFavorite.count({
+			where: { ownerId: tracker.id, mediaId: media.id },
+		}),
+	).toBe(0)
+
+	const removed = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(removed.data.viewer?.isFavorite).toBe(false)
+	expect(removed.data.community.favorites).toBe(0)
 })
 
 test('tracking controls create and dual-write status, score, and progress', async () => {
@@ -268,13 +392,24 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 		}),
 		params: { mediaId: media.id },
 	} as any)
-	expect(loaded.data.community).toEqual({
+	expect(loaded.data.community).toMatchObject({
 		trackers: 1,
 		ratings: 1,
 		meanScore: 8.5,
 		reviews: 0,
 		diaryEntries: 0,
 	})
+	expect(loaded.data.community.statusBreakdown).toEqual([
+		{
+			status: 'completed',
+			label: 'Completed',
+			count: 1,
+			percentage: 100,
+		},
+	])
+	expect(
+		loaded.data.community.scoreDistribution.find(bucket => bucket.score === 9),
+	).toEqual({ score: 9, count: 1, percentage: 100 })
 	expect(loaded.data.viewer?.tracking).toEqual(
 		expect.objectContaining({
 			status: 'completed',
@@ -609,4 +744,56 @@ test('status action rejects a watchlist owned by someone else', async () => {
 			where: { mediaId: media.id, watchlist: { ownerId: tracker.id } },
 		}),
 	).toBe(0)
+})
+
+test('media pages add titles only to collections owned by the viewer', async () => {
+	const { media, tracker, otherUser, cookie } = await fixture()
+	const [owned, other] = await Promise.all([
+		prisma.mediaCollection.create({
+			data: { ownerId: tracker.id, title: 'Owned picks' },
+		}),
+		prisma.mediaCollection.create({
+			data: { ownerId: otherUser.id, title: 'Someone else’s picks' },
+		}),
+	])
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: owned.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: owned.id,
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.mediaCollectionItem.count({
+			where: { collectionId: owned.id, mediaId: media.id },
+		}),
+	).toBe(1)
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(loaded.data.viewer?.collections).toEqual([
+		expect.objectContaining({ id: owned.id, containsMedia: true }),
+	])
+
+	const denied = await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'collection-add',
+			collectionId: other.id,
+		}),
+		params: { mediaId: media.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(404)
 })

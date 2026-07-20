@@ -66,7 +66,16 @@ export default [
 			}),
 		],
 	}),
+	appRoute('routes/collections+/index.tsx', { path: 'collections' }),
+	appRoute('routes/collections+/new.tsx', { path: 'collections/new' }),
+	appRoute('routes/collections+/$collectionId.edit.tsx', {
+		path: 'collections/:collectionId/edit',
+	}),
+	appRoute('routes/collections+/$collectionId.tsx', {
+		path: 'collections/:collectionId',
+	}),
 	appRoute('routes/discover.tsx', { path: 'discover' }),
+	appRoute('routes/reviews.tsx', { path: 'reviews' }),
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
 		path: 'lists/:username/:list-type',
 		children: [
@@ -199,6 +208,9 @@ export default [
 		children: [
 			appRoute('routes/users+/$username.activity.tsx', {
 				path: 'activity',
+			}),
+			appRoute('routes/users+/$username.collections.tsx', {
+				path: 'collections',
 			}),
 			appRoute('routes/users+/$username.diary.tsx', {
 				path: 'diary',
