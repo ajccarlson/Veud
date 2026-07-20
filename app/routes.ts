@@ -80,10 +80,9 @@ export default [
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
 		path: 'lists/:username/:list-type',
 		children: [
-			appRoute(
-				'routes/lists+/.$username+/.$list-type+/$watchlist.tsx',
-				{ path: ':watchlist' },
-			),
+			appRoute('routes/lists+/.$username+/.$list-type+/$watchlist.tsx', {
+				path: ':watchlist',
+			}),
 			appRoute('routes/lists+/.$username+/.$list-type+/index.tsx', {
 				index: true,
 			}),
@@ -98,6 +97,9 @@ export default [
 	}),
 	appRoute('routes/lists+/.fetch+/add-row.$request.ts', {
 		path: 'lists/fetch/add-row/:request',
+	}),
+	appRoute('routes/lists+/.fetch+/advanced-edit.$request.ts', {
+		path: 'lists/fetch/advanced-edit',
 	}),
 	appRoute('routes/lists+/.fetch+/create-watchlist.$request.ts', {
 		path: 'lists/fetch/create-watchlist/:request',
