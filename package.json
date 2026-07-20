@@ -11,6 +11,7 @@
     "build:icons": "tsx ./other/build-icons.ts",
     "build:react-router": "react-router build --sourcemapClient",
     "build:server": "tsx ./other/build-server.ts",
+    "catalog:tmdb-inventory": "tsx scripts/import-tmdb-inventory.ts",
     "db:backup": "node scripts/backup-db.mjs",
     "db:verify-backup": "node scripts/verify-backup.mjs",
     "media:backfill": "tsx scripts/backfill-media-identities.ts",
