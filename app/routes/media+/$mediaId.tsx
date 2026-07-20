@@ -42,6 +42,7 @@ import {
 	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
+import { toggleReviewLike } from '#app/utils/review-engagement.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import {
 	trackingStateFromEntry,
@@ -760,39 +761,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		if (parsed.data.intent === 'review-like-toggle') {
-			const review = await tx.review.findFirst({
-				where: { id: parsed.data.reviewId, mediaId },
-				select: { id: true, authorId: true },
+			const result = await toggleReviewLike(tx, {
+				userId,
+				reviewId: parsed.data.reviewId,
+				mediaId,
 			})
-			if (!review) throw new Response('Review not found', { status: 404 })
-
-			const existing = await tx.reviewLike.findUnique({
-				where: {
-					userId_reviewId: { userId, reviewId: review.id },
-				},
-				select: { id: true },
-			})
-			if (existing) {
-				await tx.reviewLike.delete({ where: { id: existing.id } })
-				return json({ ok: true, liked: false })
-			}
-
-			const like = await tx.reviewLike.create({
-				data: { userId, reviewId: review.id },
-				select: { id: true },
-			})
-			if (review.authorId !== userId) {
-				await tx.notification.create({
-					data: {
-						type: 'review_like',
-						recipientId: review.authorId,
-						actorId: userId,
-						reviewId: review.id,
-						reviewLikeId: like.id,
-					},
-				})
-			}
-			return json({ ok: true, liked: true })
+			return json({ ok: true, ...result })
 		}
 
 		if (parsed.data.intent === 'review-comment-create') {

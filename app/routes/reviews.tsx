@@ -2,15 +2,20 @@ import {
 	data as json,
 	Form,
 	Link,
+	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
 	useLoaderData,
+	useLocation,
+	useNavigation,
 } from 'react-router'
+import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
-import { getUserId } from '#app/utils/auth.server.ts'
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
@@ -18,6 +23,12 @@ import {
 	parseReviewDiscoveryQuery,
 	type ReviewDiscoveryQuery,
 } from '#app/utils/review-discovery.server.ts'
+import { toggleReviewLike } from '#app/utils/review-engagement.server.ts'
+
+const ReviewHubActionSchema = z.object({
+	intent: z.literal('review-like-toggle'),
+	reviewId: z.string().min(1).max(100),
+})
 
 const kindLabels: Record<ReviewDiscoveryQuery['kind'], string> = {
 	all: 'All media',
@@ -43,6 +54,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	})
 }
 
+export async function action({ request }: ActionFunctionArgs) {
+	const userId = await requireUserId(request)
+	const parsed = ReviewHubActionSchema.safeParse(
+		Object.fromEntries(await request.formData()),
+	)
+	if (!parsed.success) {
+		throw new Response('Invalid review action', { status: 400 })
+	}
+
+	const result = await prisma.$transaction(tx =>
+		toggleReviewLike(tx, {
+			userId,
+			reviewId: parsed.data.reviewId,
+		}),
+	)
+	return json({ ok: true, ...result })
+}
+
 function reviewDiscoveryHref(filters: ReviewDiscoveryQuery, page: number) {
 	const searchParams = new URLSearchParams()
 	if (filters.q) searchParams.set('q', filters.q)
@@ -66,6 +95,12 @@ function displayDate(value: Date | string) {
 
 export default function ReviewsRoute() {
 	const data = useLoaderData<typeof loader>()
+	const location = useLocation()
+	const navigation = useNavigation()
+	const pendingReviewId = navigation.formData?.get('reviewId')
+	const loginHref = `/login?${new URLSearchParams({
+		redirectTo: `${location.pathname}${location.search}`,
+	})}`
 	const filterKey = [
 		data.filters.q,
 		data.filters.kind,
@@ -257,10 +292,46 @@ export default function ReviewsRoute() {
 										)}
 
 										<footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#54806c]/60 pt-3 text-sm text-[#a2ffd5]">
-											<span>
-												{review.likeCount} likes · {review.commentCount}{' '}
-												{review.commentCount === 1 ? 'comment' : 'comments'}
-											</span>
+											<div className="flex items-center gap-3">
+												{data.isSignedIn ? (
+													<Form method="post">
+														<input
+															type="hidden"
+															name="intent"
+															value="review-like-toggle"
+														/>
+														<input
+															type="hidden"
+															name="reviewId"
+															value={review.id}
+														/>
+														<Button
+															type="submit"
+															variant={
+																review.viewerLiked ? 'secondary' : 'outline'
+															}
+															size="sm"
+															disabled={
+																navigation.state !== 'idle' &&
+																pendingReviewId === review.id
+															}
+														>
+															{review.viewerLiked ? 'Unlike' : 'Like'} ·{' '}
+															{review.likeCount}
+														</Button>
+													</Form>
+												) : (
+													<Button asChild variant="outline" size="sm">
+														<Link to={loginHref}>
+															Like · {review.likeCount}
+														</Link>
+													</Button>
+												)}
+												<span>
+													{review.commentCount}{' '}
+													{review.commentCount === 1 ? 'comment' : 'comments'}
+												</span>
+											</div>
 											<Link
 												to={`/media/${review.media.id}#review-${review.id}`}
 												className="font-bold text-[#ffffb1] hover:underline"

@@ -130,6 +130,20 @@ test('member can discover spoiler-safe reviews from followed critics', async ({
 		await expect(
 			page.getByText(/Contains spoilers\. Open the title page/),
 		).toBeVisible()
+		const safeReview = page.getByRole('article').filter({
+			has: page.getByRole('heading', { name: 'Review Hub Browser Safe' }),
+		})
+		await safeReview.getByRole('button', { name: 'Like · 0' }).click()
+		await expect(
+			safeReview.getByRole('button', { name: 'Unlike · 1' }),
+		).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.reviewLike.count({
+					where: { userId: viewer.id, review: { mediaId: safeMedia.id } },
+				}),
+			)
+			.toBe(1)
 		await page.getByLabel('Spoiler-free reviews only').check()
 		await page.getByRole('button', { name: 'Browse' }).click()
 		await expect(page).toHaveURL(/spoilers=exclude/)
