@@ -865,3 +865,94 @@ test('media pages add titles only to collections owned by the viewer', async () 
 	expect(denied).toBeInstanceOf(Response)
 	expect((denied as Response).status).toBe(404)
 })
+
+test('members can create, update, and remove a release reminder', async () => {
+	const { media, tracker, cookie } = await fixture()
+	const releaseAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
+	await prisma.media.update({
+		where: { id: media.id },
+		data: {
+			nextRelease: JSON.stringify({
+				releaseDate: releaseAt.toISOString(),
+				episode: 2,
+			}),
+		},
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'release-reminder-save',
+			leadMinutes: '60',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	const reminder = await prisma.releaseReminder.findUniqueOrThrow({
+		where: { ownerId_mediaId: { ownerId: tracker.id, mediaId: media.id } },
+		include: { notifications: true },
+	})
+	expect(reminder.leadMinutes).toBe(60)
+	expect(reminder.notifications).toHaveLength(1)
+	expect(reminder.notifications[0]).toMatchObject({
+		releaseAt,
+		availableAt: new Date(releaseAt.getTime() - 60 * 60 * 1000),
+	})
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(loaded.data.viewer?.reminder).toEqual({
+		id: reminder.id,
+		leadMinutes: 60,
+	})
+	expect(loaded.data.media.upcomingRelease).toMatchObject({
+		label: 'Episode 2',
+		releaseAt,
+	})
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'release-reminder-save',
+			leadMinutes: '0',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.releaseReminder.findUniqueOrThrow({
+			where: { id: reminder.id },
+			include: { notifications: true },
+		}),
+	).toMatchObject({
+		leadMinutes: 0,
+		notifications: [expect.objectContaining({ availableAt: releaseAt })],
+	})
+
+	const invalid = await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'release-reminder-save',
+			leadMinutes: '30',
+		}),
+		params: { mediaId: media.id },
+	} as any).catch(error => error)
+	expect(invalid).toBeInstanceOf(Response)
+	expect((invalid as Response).status).toBe(400)
+
+	await action({
+		request: actionRequest(media.id, cookie, {
+			intent: 'release-reminder-delete',
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(
+		await prisma.releaseReminder.count({
+			where: { ownerId: tracker.id, mediaId: media.id },
+		}),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: { releaseReminderId: reminder.id },
+		}),
+	).toBe(0)
+})

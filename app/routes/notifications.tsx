@@ -10,17 +10,22 @@ import {
 import { Button } from '#app/components/ui/button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { syncReleaseRemindersForUser } from '#app/utils/release-reminders.server.ts'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
+	const now = new Date()
+	await syncReleaseRemindersForUser(prisma, userId, now)
 	const notifications = await prisma.notification.findMany({
-		where: { recipientId: userId },
-		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+		where: { recipientId: userId, availableAt: { lte: now } },
+		orderBy: [{ availableAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
 		take: 50,
 		select: {
 			id: true,
 			type: true,
 			readAt: true,
+			availableAt: true,
+			releaseAt: true,
 			createdAt: true,
 			reviewCommentId: true,
 			collectionCommentId: true,
@@ -32,6 +37,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				},
 			},
 			collection: { select: { id: true, title: true } },
+			releaseReminder: {
+				select: {
+					media: { select: { id: true, title: true, kind: true } },
+				},
+			},
 		},
 	})
 	return json({
@@ -47,9 +57,14 @@ export async function action({ request }: ActionFunctionArgs) {
 	const intent = formData.get('intent')
 
 	if (intent === 'read-all') {
+		const now = new Date()
 		await prisma.notification.updateMany({
-			where: { recipientId: userId, readAt: null },
-			data: { readAt: new Date() },
+			where: {
+				recipientId: userId,
+				readAt: null,
+				availableAt: { lte: now },
+			},
+			data: { readAt: now },
 		})
 		return json({ ok: true })
 	}
@@ -60,13 +75,18 @@ export async function action({ request }: ActionFunctionArgs) {
 			throw new Response('Missing notification', { status: 400 })
 		}
 		const notification = await prisma.notification.findFirst({
-			where: { id: notificationId, recipientId: userId },
+			where: {
+				id: notificationId,
+				recipientId: userId,
+				availableAt: { lte: new Date() },
+			},
 			select: {
 				id: true,
 				reviewCommentId: true,
 				collectionCommentId: true,
 				review: { select: { id: true, mediaId: true } },
 				collection: { select: { id: true } },
+				releaseReminder: { select: { mediaId: true } },
 			},
 		})
 		if (!notification) {
@@ -87,6 +107,9 @@ export async function action({ request }: ActionFunctionArgs) {
 				? `comment-${notification.reviewCommentId}`
 				: `review-${notification.review.id}`
 			return redirect(`/media/${notification.review.mediaId}#${anchor}`)
+		}
+		if (notification.releaseReminder) {
+			return redirect(`/media/${notification.releaseReminder.mediaId}`)
 		}
 		throw new Response('Notification target not found', { status: 404 })
 	}
@@ -120,7 +143,7 @@ export default function NotificationsRoute() {
 				<div>
 					<h1 className="text-3xl font-black">Notifications</h1>
 					<p className="text-sm text-muted-foreground">
-						Likes and discussion on your reviews and collections.
+						Release reminders, likes, and discussion on your activity.
 					</p>
 				</div>
 				{data.unreadCount ? (
@@ -138,30 +161,46 @@ export default function NotificationsRoute() {
 					{data.notifications.map(notification => {
 						const collection = notification.collection
 						const review = notification.review
-						if (!collection && !review) return null
+						const releaseMedia = notification.releaseReminder?.media
+						if (!collection && !review && !releaseMedia) return null
+						const releaseSubject = releaseMedia
+							? releaseMedia.title?.trim() || `Untitled ${releaseMedia.kind}`
+							: null
 						const subject = collection
 							? collection.title
-							: review!.media.title?.trim() || `Untitled ${review!.media.kind}`
-						const copy = (
+							: review?.media.title?.trim() ||
+								`Untitled ${review?.media.kind ?? 'media'}`
+						const copy = releaseMedia ? (
+							<>
+								<span className="font-semibold">{releaseSubject}</span> is
+								coming up
+								{notification.releaseAt
+									? ` · ${displayTime(notification.releaseAt)}`
+									: ''}
+								.
+							</>
+						) : (
 							<>
 								<span className="font-semibold">
-									{notification.actor.name ?? notification.actor.username}
+									{notification.actor?.name ?? notification.actor?.username}
 								</span>{' '}
 								{notificationAction(notification.type)}{' '}
 								<span className="font-semibold">{subject}</span>
 							</>
 						)
-						const href = collection
-							? `/collections/${collection.id}#${
-									notification.collectionCommentId
-										? `collection-comment-${notification.collectionCommentId}`
-										: 'discussion'
-								}`
-							: `/media/${review!.media.id}#${
-									notification.reviewCommentId
-										? `comment-${notification.reviewCommentId}`
-										: `review-${review!.id}`
-								}`
+						const href = releaseMedia
+							? `/media/${releaseMedia.id}`
+							: collection
+								? `/collections/${collection.id}#${
+										notification.collectionCommentId
+											? `collection-comment-${notification.collectionCommentId}`
+											: 'discussion'
+									}`
+								: `/media/${review!.media.id}#${
+										notification.reviewCommentId
+											? `comment-${notification.reviewCommentId}`
+											: `review-${review!.id}`
+									}`
 						return (
 							<li
 								key={notification.id}
@@ -188,7 +227,7 @@ export default function NotificationsRoute() {
 									</Form>
 								)}
 								<time className="mt-1 block text-xs text-muted-foreground">
-									{displayTime(notification.createdAt)}
+									{displayTime(notification.availableAt)}
 								</time>
 							</li>
 						)
