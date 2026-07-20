@@ -1,11 +1,11 @@
 .list-nav-buttons {
-	height: 100%;
+	min-height: 0;
 	width: 100%;
+	overflow: hidden;
 
 	@media (max-width: 65rem) {
 		.list-nav-buttons-main {
-			padding-top: 0.75rem;
-			padding-bottom: 0.75rem;
+			padding-block: 0.55rem;
 		}
 
 		.list-nav-buttons-container {
@@ -14,30 +14,31 @@
 			overflow-x: auto;
 			scroll-behavior: smooth;
 			gap: 1rem;
+			padding-inline: 0.65rem;
 		}
 	}
 
 	@media (min-width: 65rem) {
 		.list-nav-buttons-main {
-			padding-top: 0.75rem;
-			// padding-bottom: 0.25rem;
+			padding-block: 0.55rem;
 		}
 
 		.list-nav-buttons-container {
 			display: flex;
 			flex-direction: row;
 			align-items: center;
-			justify-content: center;
+			justify-content: flex-start;
 			overflow-x: auto;
 			scroll-behavior: smooth;
 			gap: 1rem;
+			padding-inline: 0.75rem;
 		}
 	}
 
 	.list-nav-buttons-main {
-		height: 100%;
 		display: grid;
-		grid-template-columns: minmax(auto, auto) minmax(auto, 9rem);
+		grid-template-columns: minmax(0, 1fr) auto;
+		min-height: 4.25rem;
 		font-family: arial;
 		background-color: #464646;
 		color: #ffefcc;
@@ -48,10 +49,11 @@
 
 	.list-nav-button {
 		display: flex;
+		flex: 0 0 auto;
 		align-items: center;
 		justify-content: center;
 		gap: 0.45rem;
-		height: 100%;
+		min-height: 2.8rem;
 		align-content: center;
 		background-color: #6f6f6f;
 		transition: all 0.1s ease-out;
@@ -60,8 +62,7 @@
 		font-weight: 700;
 		// padding-top: 1.25rem;
 		// padding-bottom: 1.25rem;
-		padding-left: 2rem;
-		padding-right: 2rem;
+		padding-inline: 1.15rem;
 		border-bottom-width: 4px;
 		border-color: #a2ffd5;
 		border-radius: 0.25rem;
@@ -116,6 +117,8 @@
 
 	.list-type-nav-container {
 		display: flex;
+		min-width: 0;
+		padding-right: 0.65rem;
 		justify-content: center;
 		font-weight: 700;
 		border-radius: 0.25rem;
@@ -130,8 +133,8 @@
 
 	.list-type-dropdown-trigger {
 		display: grid;
-		grid-template-columns: minmax(auto, auto) minmax(7.5rem, auto);
-		height: 100%;
+		grid-template-columns: auto minmax(5.5rem, auto);
+		min-height: 2.8rem;
 		align-items: center;
 		align-content: center;
 		padding-left: 0.5rem;
@@ -141,7 +144,7 @@
 		font-size: 1rem;
 		line-height: 1.5rem;
 		font-weight: 700;
-		border-radius: 0.5rem 0 0 0;
+		border-radius: 0.5rem;
 		border: 0;
 	}
 

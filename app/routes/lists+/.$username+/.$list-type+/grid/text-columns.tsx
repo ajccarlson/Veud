@@ -6,31 +6,33 @@ import { columnParams } from './grid-state.ts'
 import { setterFunction } from './grid-actions.ts'
 
 export function textColumns() {
-  return [
-    {
-      field: 'description',
-      headerName: 'Description',
-      valueSetter: (params: any) => {setterFunction(params)},
-      flex: 2,
-      minWidth: 90,
-      maxWidth: 500,
-      filter: 'agTextColumnFilter',
-      cellClass: "ag-description-cell",
-      hide: !columnParams.displayedColumns['description'],
-    },
+	return [
+		{
+			field: 'description',
+			headerName: 'Description',
+			valueSetter: (params: any) => {
+				setterFunction(params)
+			},
+			flex: 2,
+			minWidth: 90,
+			filter: 'agTextColumnFilter',
+			cellClass: 'ag-description-cell',
+			hide: !columnParams.displayedColumns['description'],
+		},
 
-    {
-      field: 'notes',
-      headerName: 'Notes',
-      valueSetter: (params: any) => {setterFunction(params)},
-      flex: 2,
-      minWidth: 90,
-      maxWidth: 500,
-      filter: 'agTextColumnFilter',
-      editable: true,
-      cellClass: "ag-description-cell",
-      cellEditorParams: { maxLength: 1000 },
-      hide: !columnParams.displayedColumns['notes'],
-    }
-  ]
+		{
+			field: 'notes',
+			headerName: 'Notes',
+			valueSetter: (params: any) => {
+				setterFunction(params)
+			},
+			flex: 2,
+			minWidth: 90,
+			filter: 'agTextColumnFilter',
+			editable: true,
+			cellClass: 'ag-description-cell',
+			cellEditorParams: { maxLength: 1000 },
+			hide: !columnParams.displayedColumns['notes'],
+		},
+	]
 }
