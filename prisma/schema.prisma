@@ -149,15 +149,19 @@ model MediaExternalId {
   kind       String
   externalId String
 
-  sourceUpdatedAt DateTime?
-  firstSeenAt     DateTime  @default(now())
-  lastSeenAt      DateTime  @default(now())
-  lastFetchedAt   DateTime?
-  refreshAfter    DateTime?
-  tombstonedAt    DateTime?
-  fetchStatus     String    @default("pending")
-  failureCount    Int       @default(0)
-  lastError       String?
+  sourceUpdatedAt  DateTime?
+  sourceTitle      String?
+  sourcePopularity Float?
+  sourceIsAdult    Boolean?
+  sourceIsVideo    Boolean?
+  firstSeenAt      DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  lastFetchedAt    DateTime?
+  refreshAfter     DateTime?
+  tombstonedAt     DateTime?
+  fetchStatus      String    @default("pending")
+  failureCount     Int       @default(0)
+  lastError        String?
 
   media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId String
@@ -165,6 +169,7 @@ model MediaExternalId {
   @@unique([provider, kind, externalId])
   @@index([mediaId])
   @@index([provider, kind, fetchStatus, refreshAfter])
+  @@index([provider, kind, sourcePopularity])
   @@index([provider, kind, lastSeenAt])
   @@index([tombstonedAt])
 }

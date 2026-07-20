@@ -93,6 +93,10 @@ export async function upsertCatalogIdentity(
 	tx: Prisma.TransactionClient,
 	input: CatalogIdentity & {
 		sourceUpdatedAt?: Date | null
+		sourceTitle?: string | null
+		sourcePopularity?: number | null
+		sourceIsAdult?: boolean | null
+		sourceIsVideo?: boolean | null
 		seenAt?: Date
 	},
 ) {
@@ -100,7 +104,11 @@ export async function upsertCatalogIdentity(
 	const kind = requireNonEmpty(input.kind, 'kind')
 	const externalId = requireNonEmpty(input.externalId, 'externalId')
 	const seenAt = input.seenAt ?? new Date()
-	return tx.mediaExternalId.upsert({
+	const sourceTitle =
+		input.sourceTitle === undefined
+			? undefined
+			: input.sourceTitle?.trim() || null
+	const source = await tx.mediaExternalId.upsert({
 		where: {
 			provider_kind_externalId: { provider, kind, externalId },
 		},
@@ -110,6 +118,16 @@ export async function upsertCatalogIdentity(
 			...(input.sourceUpdatedAt === undefined
 				? {}
 				: { sourceUpdatedAt: input.sourceUpdatedAt }),
+			...(sourceTitle === undefined ? {} : { sourceTitle }),
+			...(input.sourcePopularity === undefined
+				? {}
+				: { sourcePopularity: input.sourcePopularity }),
+			...(input.sourceIsAdult === undefined
+				? {}
+				: { sourceIsAdult: input.sourceIsAdult }),
+			...(input.sourceIsVideo === undefined
+				? {}
+				: { sourceIsVideo: input.sourceIsVideo }),
 		},
 		create: {
 			provider,
@@ -118,10 +136,22 @@ export async function upsertCatalogIdentity(
 			firstSeenAt: seenAt,
 			lastSeenAt: seenAt,
 			sourceUpdatedAt: input.sourceUpdatedAt,
-			media: { create: { kind } },
+			sourceTitle,
+			sourcePopularity: input.sourcePopularity,
+			sourceIsAdult: input.sourceIsAdult,
+			sourceIsVideo: input.sourceIsVideo,
+			media: { create: { kind, title: sourceTitle } },
 		},
 		include: { media: true },
 	})
+	if (sourceTitle && !source.media.title) {
+		await tx.media.update({
+			where: { id: source.mediaId },
+			data: { title: sourceTitle },
+		})
+		return { ...source, media: { ...source.media, title: sourceTitle } }
+	}
+	return source
 }
 
 export async function replaceCatalogTitles(
@@ -407,11 +437,14 @@ export async function failCatalogSyncRun(
 		runId: string
 		leaseOwner: string
 		error: unknown
+		progress?: CatalogSyncProgress
 		now?: Date
 	},
 ) {
 	const now = input.now ?? new Date()
 	const run = await requireActiveRun(tx, input)
+	const progress = input.progress ? requireProgress(input.progress) : undefined
+	if (progress) requireProgressNotRegressed(run, progress)
 	await tx.catalogSyncCursor.updateMany({
 		where: {
 			provider: run.provider,
@@ -424,6 +457,7 @@ export async function failCatalogSyncRun(
 	return tx.catalogSyncRun.update({
 		where: { id: run.id },
 		data: {
+			...progress,
 			status: 'failed',
 			lastError: boundedError(input.error),
 			heartbeatAt: now,
