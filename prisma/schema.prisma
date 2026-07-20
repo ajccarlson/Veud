@@ -79,9 +79,9 @@ model Watchlist {
   owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId String
 
-  entries        Entry[]
-  trackingStates TrackingState[]
-  activityEvents ActivityEvent[] @relation("ActivityEventStatusWatchlist")
+  entries                Entry[]
+  trackingStates         TrackingState[]
+  activityEvents         ActivityEvent[] @relation("ActivityEventStatusWatchlist")
   previousActivityEvents ActivityEvent[] @relation("ActivityEventPreviousStatusWatchlist")
 
   // non-unique foreign key
@@ -125,6 +125,7 @@ model Media {
   updatedAt DateTime @updatedAt
 
   externalIds       MediaExternalId[]
+  titles            MediaTitle[]
   outgoingRelations MediaRelation[]       @relation("MediaRelationSource")
   incomingRelations MediaRelation[]       @relation("MediaRelationTarget")
   entries           Entry[]
@@ -148,11 +149,45 @@ model MediaExternalId {
   kind       String
   externalId String
 
+  sourceUpdatedAt DateTime?
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  lastFetchedAt   DateTime?
+  refreshAfter    DateTime?
+  tombstonedAt    DateTime?
+  fetchStatus     String    @default("pending")
+  failureCount    Int       @default(0)
+  lastError       String?
+
   media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId String
 
   @@unique([provider, kind, externalId])
   @@index([mediaId])
+  @@index([provider, kind, fetchStatus, refreshAfter])
+  @@index([provider, kind, lastSeenAt])
+  @@index([tombstonedAt])
+}
+
+/// A provider-owned canonical or alternate title normalized for catalog search.
+/// An empty language value means the provider did not supply a locale.
+model MediaTitle {
+  id         String   @id @default(cuid())
+  provider   String
+  language   String   @default("")
+  titleType  String
+  value      String
+  normalized String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, provider, language, titleType, value])
+  @@index([mediaId, provider])
+  @@index([normalized])
 }
 
 /// A directed, provider-backed relationship between two canonical works.
@@ -175,6 +210,47 @@ model MediaRelation {
   @@index([sourceMediaId, relationType])
   @@index([targetMediaId, relationType])
   @@index([provider])
+}
+
+/// One observable execution of an inventory, hydration, refresh, reconciliation,
+/// or repair job. Counts are absolute checkpoints so retries remain idempotent.
+model CatalogSyncRun {
+  id             String    @id @default(cuid())
+  provider       String
+  kind           String
+  mode           String
+  status         String    @default("running")
+  leaseOwner     String
+  cursor         String?
+  recordsSeen    Int       @default(0)
+  recordsHandled Int       @default(0)
+  recordsFailed  Int       @default(0)
+  lastError      String?
+  startedAt      DateTime  @default(now())
+  heartbeatAt    DateTime  @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([provider, kind, mode, startedAt])
+  @@index([status, heartbeatAt])
+}
+
+/// Durable resume cursor and cooperative lease for one provider/kind/job mode.
+model CatalogSyncCursor {
+  id               String    @id @default(cuid())
+  provider         String
+  kind             String
+  mode             String
+  cursor           String?
+  leaseOwner       String?
+  leaseExpiresAt   DateTime?
+  lastSuccessfulAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([provider, kind, mode])
+  @@index([leaseExpiresAt])
 }
 
 model Entry {
@@ -298,15 +374,15 @@ model ActivityEvent {
   isPublic            Boolean  @default(true)
   createdAt           DateTime @default(now())
 
-  actor           User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  actorId         String
-  media           Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  mediaId         String
-  trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  trackingStateId String?
-  statusWatchlist   Watchlist? @relation("ActivityEventStatusWatchlist", fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  statusWatchlistId String?
-  previousStatusWatchlist   Watchlist? @relation("ActivityEventPreviousStatusWatchlist", fields: [previousStatusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actor                     User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId                   String
+  media                     Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId                   String
+  trackingState             TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId           String?
+  statusWatchlist           Watchlist?     @relation("ActivityEventStatusWatchlist", fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  statusWatchlistId         String?
+  previousStatusWatchlist   Watchlist?     @relation("ActivityEventPreviousStatusWatchlist", fields: [previousStatusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   previousStatusWatchlistId String?
 
   @@index([actorId, createdAt])
