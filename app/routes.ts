@@ -147,6 +147,9 @@ export default [
 	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
+	appRoute('routes/resources+/calendar[.]ics.ts', {
+		path: 'resources/calendar.ics',
+	}),
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
 	}),
