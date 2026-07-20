@@ -12,6 +12,7 @@ import { ErrorList } from '#app/components/forms.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
+import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
 import '#app/styles/users.scss'
 
 const UserSearchResultSchema = z.object({
@@ -29,21 +30,7 @@ export async function loader({ url }: LoaderFunctionArgs) {
 		return redirect('/users')
 	}
 
-	const like = `%${searchTerm ?? ''}%`
-	const rawUsers = await prisma.$queryRaw`
-		SELECT User.id, User.username, User.name, UserImage.id AS imageId
-		FROM User
-		LEFT JOIN UserImage ON User.id = UserImage.userId
-		WHERE User.username LIKE ${like}
-		ORDER BY (
-			SELECT Watchlist.updatedAt
-			FROM Watchlist
-			WHERE Watchlist.ownerId = User.id
-			ORDER BY Watchlist.updatedAt DESC
-			LIMIT 1
-		) DESC
-		LIMIT 50
-	`
+	const rawUsers = await searchUsersByUsername(prisma, searchTerm ?? '')
 
 	const result = UserSearchResultsSchema.safeParse(rawUsers)
 	if (!result.success) {
