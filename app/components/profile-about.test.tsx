@@ -43,7 +43,10 @@ test('does not create raw HTML elements from a bio', () => {
 	expect(container.querySelector('script')).not.toBeInTheDocument()
 })
 
-test('renders nothing for an empty bio', () => {
-	const { container } = render(<ProfileAbout bio={null} />)
-	expect(container).toBeEmptyDOMElement()
+test('renders a useful empty state for an empty bio', () => {
+	render(<ProfileAbout bio={null} />)
+	expect(
+		screen.getByRole('heading', { name: 'No introduction yet' }),
+	).toBeInTheDocument()
+	expect(screen.getByText(/has not added anything/i)).toBeInTheDocument()
 })

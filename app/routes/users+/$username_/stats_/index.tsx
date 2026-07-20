@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Spacer } from '#app/components/spacer.tsx'
+import { ProfileEmptyState } from '#app/components/profile-ui.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { renderBarChart } from '#app/routes/users+/$username_/stats_/bar.tsx'
 import { renderBoxPlotChart } from '#app/routes/users+/$username_/stats_/box_plot.tsx'
@@ -63,42 +63,51 @@ export function StatsData({
 				return renderRadialBar(loaderData, 'type')
 		}
 	}, [loaderData, selectedChart.key, selectedType])
+	const hasEntries = Object.values(loaderData.typedEntries ?? {}).some(
+		entries => entries.length > 0,
+	)
 
 	return (
 		<div className="user-landing-stats-container">
-			<h1 className="user-landing-body-header">Stats</h1>
-			{chart}
-			{loaderData.typedEntries &&
-			Object.entries(loaderData.typedEntries).length > 0 ? (
-				<div className="user-landing-selection-nav-items">
-					<TypeSwitcher
-						variant="primary"
-						options={PROFILE_CHARTS.map(({ key, header }) => ({
-							key,
-							label: header,
-						}))}
-						index={chartIndex}
-						onIndexChange={setChartIndex}
-					/>
-					{selectedChart.typed ? (
-						<div className="user-landing-selection-secondary-nav-container">
-							<Spacer size="4xs" />
-							<TypeSwitcher
-								variant="secondary"
-								options={loaderData.listTypes.map(listType => ({
-									key: listType.id,
-									label: listType.header,
-								}))}
-								index={typeIndex}
-								onIndexChange={setTypeIndex}
-							/>
-						</div>
-					) : null}
-				</div>
+			<header className="user-landing-section-heading">
+				<span>Deep dive</span>
+				<h2>{selectedChart.header}</h2>
+				<p>Use the controls to explore a different view of this library.</p>
+			</header>
+			{hasEntries ? (
+				<>
+					<div className="user-landing-selection-nav-items">
+						<TypeSwitcher
+							variant="primary"
+							options={PROFILE_CHARTS.map(({ key, header }) => ({
+								key,
+								label: header,
+							}))}
+							index={chartIndex}
+							onIndexChange={setChartIndex}
+						/>
+						{selectedChart.typed ? (
+							<div className="user-landing-selection-secondary-nav-container">
+								<TypeSwitcher
+									variant="secondary"
+									options={loaderData.listTypes.map(listType => ({
+										key: listType.id,
+										label: listType.header,
+									}))}
+									index={typeIndex}
+									onIndexChange={setTypeIndex}
+								/>
+							</div>
+						) : null}
+					</div>
+					<div className="user-landing-chart-stage">{chart}</div>
+				</>
 			) : (
-				<div className="user-landing-dropdown-trigger">
-					{selectedChart.header}
-				</div>
+				<ProfileEmptyState
+					icon="bar-chart"
+					title="Not enough data yet"
+					description="Stats will appear after titles are added and tracked in this library."
+				/>
 			)}
 		</div>
 	)

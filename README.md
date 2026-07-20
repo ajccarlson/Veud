@@ -188,6 +188,10 @@ The [profile performance design](docs/profile-performance.md) documents the
 stable shell, tab-specific loader boundaries, measurement results, server
 timings, and representative payload budgets.
 
+The [profile visual system](docs/profile-visual-system.md) defines the shared
+hero, tab rail, surfaces, responsive layouts, interaction states, and browser
+regression contract used across every profile section.
+
 ## Testing
 
 ### Playwright
