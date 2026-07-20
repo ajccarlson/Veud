@@ -108,6 +108,15 @@ test('member can open a canonical media page and change status', async ({
 				statusWatchlistId: completed.id,
 			},
 		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: user.id,
+				mediaId: relatedMedia.id,
+				status: 'completed',
+				statusWatchlistId: completed.id,
+				score: 9,
+			},
+		}),
 	])
 
 	try {
@@ -141,9 +150,15 @@ test('member can open a canonical media page and change status', async ({
 			page.getByRole('heading', { name: 'Related titles' }),
 		).toBeVisible()
 		await expect(page.getByText('Sequel', { exact: true })).toBeVisible()
-		await expect(
-			page.getByRole('link', { name: /Canonical Browser Sequel/ }),
-		).toHaveAttribute('href', `/media/${relatedMedia.id}`)
+		const relatedCard = page.getByRole('link', {
+			name: /Canonical Browser Sequel/,
+		})
+		await expect(relatedCard).toHaveAttribute(
+			'href',
+			`/media/${relatedMedia.id}`,
+		)
+		await expect(relatedCard).toContainText('Completed · 9/10')
+		await expect(relatedCard).toContainText('1 member tracking')
 		await expect(
 			page.getByRole('heading', { name: 'More like this' }),
 		).toBeVisible()

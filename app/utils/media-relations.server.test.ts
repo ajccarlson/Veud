@@ -71,6 +71,64 @@ test('syncs provider identities and returns inverse relation groups', async () =
 	])
 })
 
+test('orders relation groups chronologically and returns tracking context', async () => {
+	const viewer = await prisma.user.create({
+		data: {
+			email: 'relation-viewer@example.com',
+			username: 'relation_viewer',
+		},
+	})
+	const [source, later, earlier, undated] = await Promise.all([
+		prisma.media.create({ data: { kind: 'movie', title: 'Current film' } }),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Later film',
+				releaseStart: new Date('2021-05-01T00:00:00.000Z'),
+			},
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: 'Earlier film', startSeason: 'Fall 2018' },
+		}),
+		prisma.media.create({ data: { kind: 'movie', title: 'Undated film' } }),
+	])
+	await prisma.mediaRelation.createMany({
+		data: [later, earlier, undated].map(media => ({
+			sourceMediaId: source.id,
+			targetMediaId: media.id,
+			relationType: 'franchise',
+			provider: 'tmdb',
+		})),
+	})
+	await prisma.trackingState.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: earlier.id,
+			status: 'plan-to-watch',
+			score: 8.5,
+		},
+	})
+
+	const [group] = await getMediaRelations(source.id, viewer.id)
+	expect(group?.items.map(item => item.title)).toEqual([
+		'Earlier film',
+		'Later film',
+		'Undated film',
+	])
+	expect(group?.items[0]).toMatchObject({
+		trackerCount: 1,
+		viewerTracking: {
+			status: 'plan-to-watch',
+			statusLabel: 'Plan To Watch',
+			score: 8.5,
+		},
+	})
+	expect(group?.items[1]).toMatchObject({
+		trackerCount: 0,
+		viewerTracking: null,
+	})
+})
+
 test('replaces stale relations from the same provider snapshot', async () => {
 	const source = await prisma.media.create({ data: { kind: 'manga' } })
 	const sourceIdentity = {

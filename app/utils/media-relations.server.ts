@@ -20,6 +20,7 @@ const relatedMediaSelect = {
 	startSeason: true,
 	startYear: true,
 	airYear: true,
+	_count: { select: { trackingStates: true } },
 } satisfies Prisma.MediaSelect
 
 type RelatedMedia = Prisma.MediaGetPayload<{
@@ -32,6 +33,32 @@ function yearFor(media: RelatedMedia) {
 	return fallback?.match(/\b\d{4}\b/)?.[0] ?? null
 }
 
+function chronologyFor(media: RelatedMedia) {
+	if (media.releaseStart) return media.releaseStart.getTime()
+	const fallback = [media.startSeason, media.startYear, media.airYear]
+		.filter(Boolean)
+		.join(' ')
+	const year = fallback.match(/\b\d{4}\b/)?.[0]
+	if (!year) return null
+	const season = fallback.toLowerCase().match(/winter|spring|summer|fall/)?.[0]
+	const month =
+		season === 'spring'
+			? 3
+			: season === 'summer'
+				? 6
+				: season === 'fall'
+					? 9
+					: 0
+	return Date.UTC(Number(year), month)
+}
+
+function titleCase(value: string) {
+	return value
+		.replace(/([a-z])([A-Z])/g, '$1 $2')
+		.replace(/[-_]+/g, ' ')
+		.replace(/\b\w/g, character => character.toUpperCase())
+}
+
 function relationTypeForCurrentMedia(
 	relationType: string,
 	isSource: boolean,
@@ -41,7 +68,10 @@ function relationTypeForCurrentMedia(
 }
 
 /** Return deterministic, perspective-aware groups for a canonical title page. */
-export async function getMediaRelations(mediaId: string) {
+export async function getMediaRelations(
+	mediaId: string,
+	viewerId?: string | null,
+) {
 	const rows = await prisma.mediaRelation.findMany({
 		where: {
 			OR: [{ sourceMediaId: mediaId }, { targetMediaId: mediaId }],
@@ -54,6 +84,37 @@ export async function getMediaRelations(mediaId: string) {
 			targetMedia: { select: relatedMediaSelect },
 		},
 	})
+	const relatedMediaIds = [
+		...new Set(
+			rows.map(row =>
+				row.sourceMediaId === mediaId ? row.targetMedia.id : row.sourceMedia.id,
+			),
+		),
+	]
+	const viewerRows =
+		viewerId && relatedMediaIds.length
+			? await prisma.trackingState.findMany({
+					where: { ownerId: viewerId, mediaId: { in: relatedMediaIds } },
+					select: {
+						mediaId: true,
+						status: true,
+						score: true,
+						statusWatchlist: { select: { header: true } },
+					},
+				})
+			: []
+	const viewerTrackingByMedia = new Map(
+		viewerRows.map(row => [
+			row.mediaId,
+			{
+				status: row.status,
+				statusLabel:
+					row.statusWatchlist?.header.trim() ||
+					titleCase(row.status || 'tracked'),
+				score: row.score === null ? null : Number(row.score),
+			},
+		]),
+	)
 
 	const unique = new Map<
 		string,
@@ -68,6 +129,13 @@ export async function getMediaRelations(mediaId: string) {
 				imageUrl: string | null
 				type: string | null
 				year: string | null
+				trackerCount: number
+				viewerTracking: {
+					status: string
+					statusLabel: string
+					score: number | null
+				} | null
+				chronology: number | null
 			}
 		}
 	>()
@@ -89,6 +157,9 @@ export async function getMediaRelations(mediaId: string) {
 				imageUrl: splitLegacyThumbnail(media.thumbnail).imageUrl,
 				type: media.type,
 				year: yearFor(media),
+				trackerCount: media._count.trackingStates,
+				viewerTracking: viewerTrackingByMedia.get(media.id) ?? null,
+				chronology: chronologyFor(media),
 			},
 		})
 	}
@@ -96,6 +167,13 @@ export async function getMediaRelations(mediaId: string) {
 	const items = [...unique.values()].sort(
 		(left, right) =>
 			left.label.localeCompare(right.label) ||
+			(left.media.chronology === null
+				? right.media.chronology === null
+					? 0
+					: 1
+				: right.media.chronology === null
+					? -1
+					: left.media.chronology - right.media.chronology) ||
 			left.media.title.localeCompare(right.media.title) ||
 			left.media.id.localeCompare(right.media.id),
 	)
@@ -111,7 +189,10 @@ export async function getMediaRelations(mediaId: string) {
 		label:
 			groupItems[0]?.label ??
 			mediaRelationLabel(relationType as MediaRelationType),
-		items: groupItems.map(item => item.media),
+		items: groupItems.map(item => {
+			const { chronology: _, ...media } = item.media
+			return media
+		}),
 	}))
 }
 
