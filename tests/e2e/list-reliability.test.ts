@@ -306,3 +306,91 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	await page.setViewportSize({ width: 390, height: 844 })
 	await expectResponsiveGrid()
 })
+
+test('member can quick edit fields that are hidden from the grid', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'quick-edit-list',
+			header: 'Quick edit list',
+			position: 1,
+			displayedColumns: 'position, title',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	const entry = await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: 'Hidden edit entry',
+			type: 'TV Series',
+			priority: 'Low',
+			history: JSON.stringify({
+				added: Date.now(),
+				started: null,
+				finished: null,
+				progress: null,
+			}),
+		},
+	})
+
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+	await page
+		.getByRole('button', { name: 'Quick edit Hidden edit entry' })
+		.click()
+
+	const dialog = page.getByRole('dialog')
+	await expect(dialog).toBeVisible()
+	await expect(dialog.getByRole('heading')).toHaveText('Hidden edit entry')
+	await dialog.getByLabel('Story').fill('9')
+	await dialog.getByLabel('Personal').fill('8.5')
+	await dialog.getByLabel('Started').fill('2026-07-01')
+	await dialog.getByLabel('Finished').fill('2026-07-18')
+	await dialog.getByLabel('Priority').selectOption('High')
+	await dialog.getByLabel('Notes').fill('Watch the director commentary.')
+	await dialog.getByRole('button', { name: 'Save changes' }).click()
+	await expect(dialog).not.toBeVisible()
+
+	await expect
+		.poll(async () => {
+			const saved = await prisma.entry.findUniqueOrThrow({
+				where: { id: entry.id },
+			})
+			const history = JSON.parse(saved.history ?? '{}') as Record<
+				string,
+				unknown
+			>
+			return {
+				story: saved.story,
+				personal: Number(saved.personal),
+				priority: saved.priority,
+				notes: saved.notes,
+				started: history.started,
+				finished: history.finished,
+			}
+		})
+		.toEqual({
+			story: 9,
+			personal: 8.5,
+			priority: 'High',
+			notes: 'Watch the director commentary.',
+			started: '2026-07-01T00:00:00.000Z',
+			finished: '2026-07-18T00:00:00.000Z',
+		})
+
+	await page
+		.getByRole('button', { name: 'More actions for Hidden edit entry' })
+		.click()
+	await expect(page.getByText('Row actions', { exact: true })).toBeVisible()
+	await expect(
+		page.getByRole('menuitem', { name: 'Insert 1 row above' }),
+	).toBeVisible()
+	await expect(page.getByRole('menuitem', { name: 'Delete row' })).toBeVisible()
+})
