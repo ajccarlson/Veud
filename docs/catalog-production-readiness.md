@@ -56,7 +56,13 @@ indexes, drift checks, and application smoke checks are now complete; see the
 remains the fast isolated test datasource.
 
 Snapshot transfer and PostgreSQL-native backup/restore automation have passed a
-full local rehearsal. The remaining batch must repeat them with a
-production-like, representative catalog snapshot and record database/index size,
-import throughput, search latency, hydration throughput, lock contention, backup
-time, and restore time before changing this hold.
+full local rehearsal. A guarded synthetic load harness now records storage,
+throughput, query plans, indexed search timing, and concurrent reads/updates; its
+100,000-identity PostgreSQL 16 rehearsal passed the three-index plan gate. See
+the [PostgreSQL catalog load runbook](postgresql-load-readiness.md).
+
+The production hold remains. The next batch must run the current
+1,564,333-identity target on production-like staging, add representative related
+metadata and member traffic, and record database/index size, import and hydration
+throughput, search latency, lock and pool behavior, backup/restore timing,
+interruption recovery, and canary/rollback behavior.
