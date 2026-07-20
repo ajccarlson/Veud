@@ -41,6 +41,7 @@ type TmdbPrioritySignal = {
 	popularity: number | null
 	isAdult: boolean | null
 	isVideo: boolean | null
+	rank: number
 	priority: number
 	reason: TmdbHydrationFeed
 }
@@ -412,6 +413,7 @@ function prioritySignals(
 			popularity: optionalNumber(record.popularity),
 			isAdult: optionalBoolean(record.adult),
 			isVideo: optionalBoolean(record.video),
+			rank: index + 1,
 			priority: catalogHydrationPriorities[feed] + Math.max(0, 1_000 - index),
 			reason: feed,
 		}
@@ -564,10 +566,15 @@ async function applyPrioritySignals(
 	tx: Prisma.TransactionClient,
 	kind: TmdbCatalogKind,
 	signals: TmdbPrioritySignal[],
+	feedSnapshots: Array<{
+		feed: TmdbHydrationFeed
+		signals: TmdbPrioritySignal[]
+	}>,
 	now: Date,
 ) {
+	const mediaIds = new Map<string, string>()
 	for (const signal of signals) {
-		await upsertCatalogIdentity(tx, {
+		const source = await upsertCatalogIdentity(tx, {
 			provider: 'tmdb',
 			kind,
 			externalId: signal.externalId,
@@ -577,6 +584,7 @@ async function applyPrioritySignals(
 			sourceIsVideo: signal.isVideo,
 			seenAt: now,
 		})
+		mediaIds.set(signal.externalId, source.mediaId)
 		await requestCatalogHydration(tx, {
 			provider: 'tmdb',
 			kind,
@@ -585,6 +593,32 @@ async function applyPrioritySignals(
 			reason: signal.reason,
 			requestedAt: now,
 		})
+	}
+	for (const snapshot of feedSnapshots) {
+		await tx.catalogFeedItem.deleteMany({
+			where: { provider: 'tmdb', kind, feed: snapshot.feed },
+		})
+		const seenMediaIds = new Set<string>()
+		const feedItems = snapshot.signals.flatMap(signal => {
+			const mediaId = mediaIds.get(signal.externalId)
+			if (!mediaId || seenMediaIds.has(mediaId)) return []
+			seenMediaIds.add(mediaId)
+			return [
+				{
+					provider: 'tmdb',
+					kind,
+					feed: snapshot.feed,
+					rank: signal.rank,
+					observedAt: now,
+					mediaId,
+				},
+			]
+		})
+		if (feedItems.length) {
+			await tx.catalogFeedItem.createMany({
+				data: feedItems,
+			})
+		}
 	}
 }
 
@@ -813,13 +847,22 @@ export async function hydrateTmdbCatalog(
 				return currentSummary()
 			}
 			if (rejected.length) throw rejected[0].reason
+			const feedSnapshots = feeds.map((feed, index) => ({
+				feed,
+				signals:
+					settled[index]?.status === 'fulfilled' ? settled[index].value : [],
+			}))
 			const signals = mergePrioritySignals(
-				settled.flatMap(result =>
-					result.status === 'fulfilled' ? result.value : [],
-				),
+				feedSnapshots.flatMap(snapshot => snapshot.signals),
 			)
 			await options.prisma.$transaction(async tx => {
-				await applyPrioritySignals(tx, options.kind, signals, now)
+				await applyPrioritySignals(
+					tx,
+					options.kind,
+					signals,
+					feedSnapshots,
+					now,
+				)
 				seeded = signals.length
 				await checkpointCatalogSyncRun(tx, {
 					runId: lease.run.id,

@@ -1,19 +1,17 @@
-import { useEffect, useState } from 'react'
 import {
 	data as json,
 	Form,
 	Link,
 	type LoaderFunctionArgs,
 	type MetaFunction,
-	useFetcher,
 	useLoaderData,
 	useLocation,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
-import { type action as quickTrackAction } from '#app/routes/resources+/quick-track.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -22,12 +20,8 @@ import {
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
-	type DiscoveryResult,
 } from '#app/utils/discovery.server.ts'
-import {
-	listTypeNameForMediaKind,
-	splitLegacyThumbnail,
-} from '#app/utils/media-detail.ts'
+import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 
 const kindLabels: Record<DiscoveryQuery['kind'], string> = {
 	all: 'All media',
@@ -79,100 +73,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		watchlists,
 		isSignedIn: Boolean(viewerId),
 	})
-}
-
-type DiscoveryWatchlist = {
-	id: string
-	name: string
-	header: string
-	position: number
-	type: { name: string }
-}
-
-function QuickTrackControl({
-	item,
-	watchlists,
-	isSignedIn,
-	loginRedirectTo,
-}: {
-	item: DiscoveryResult
-	watchlists: DiscoveryWatchlist[]
-	isSignedIn: boolean
-	loginRedirectTo: string
-}) {
-	const fetcher = useFetcher<typeof quickTrackAction>()
-	const listTypeName = listTypeNameForMediaKind(item.kind)
-	const compatible = listTypeName
-		? watchlists.filter(watchlist => watchlist.type.name === listTypeName)
-		: []
-	const savedWatchlistId = compatible.some(
-		watchlist => watchlist.id === item.viewerTracking?.statusWatchlistId,
-	)
-		? item.viewerTracking?.statusWatchlistId
-		: compatible[0]?.id
-	const [selectedWatchlistId, setSelectedWatchlistId] = useState(
-		savedWatchlistId ?? '',
-	)
-
-	useEffect(() => {
-		setSelectedWatchlistId(savedWatchlistId ?? '')
-	}, [savedWatchlistId])
-
-	if (!isSignedIn) {
-		const loginParams = new URLSearchParams({ redirectTo: loginRedirectTo })
-		return (
-			<Button asChild size="sm" variant="outline" className="w-full">
-				<Link to={`/login?${loginParams}`}>Log in to track</Link>
-			</Button>
-		)
-	}
-	if (!compatible.length) {
-		return (
-			<p className="text-center text-xs text-[#8ca99d]">
-				Create a compatible watchlist to track this title.
-			</p>
-		)
-	}
-
-	const busy = fetcher.state !== 'idle'
-	const saved =
-		fetcher.data?.ok &&
-		fetcher.data.tracking.watchlistId === selectedWatchlistId &&
-		item.viewerTracking?.statusWatchlistId === selectedWatchlistId
-	const verb = item.viewerTracking ? 'Update' : 'Track'
-
-	return (
-		<fetcher.Form
-			method="post"
-			action="/resources/quick-track"
-			className="flex gap-2"
-		>
-			<input type="hidden" name="mediaId" value={item.id} />
-			<select
-				name="watchlistId"
-				value={selectedWatchlistId}
-				onChange={event => setSelectedWatchlistId(event.currentTarget.value)}
-				disabled={busy}
-				aria-label={`Tracking status for ${item.title}`}
-				className="h-9 min-w-0 flex-1 rounded-md border border-[#54806c] bg-[#2e2f2b] px-2 text-xs text-[#ffefcc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]"
-			>
-				{compatible.map(watchlist => (
-					<option key={watchlist.id} value={watchlist.id}>
-						{watchlist.header}
-					</option>
-				))}
-			</select>
-			<Button
-				type="submit"
-				size="sm"
-				variant="outline"
-				disabled={busy || !selectedWatchlistId}
-				aria-label={`${verb} ${item.title}`}
-			>
-				{busy ? 'Saving…' : saved ? 'Saved' : verb}
-			</Button>
-		</fetcher.Form>
-	)
 }
 
 function discoveryHref(filters: DiscoveryQuery, page: number) {

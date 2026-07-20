@@ -180,6 +180,10 @@ The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.
 
+The [homepage trending design](docs/homepage-trending.md) covers durable
+provider-feed snapshots, catalog-popularity fallbacks, accessible horizontal
+rails, and direct quick-track from canonical media cards.
+
 ## Testing
 
 ### Playwright
