@@ -51,6 +51,8 @@ export function TypeSwitcher({
 		<div className="user-landing-selection-nav-container">
 			<button
 				type="button"
+				className="user-landing-switcher-arrow"
+				aria-label="Previous option"
 				onClick={() =>
 					onIndexChange(index === 0 ? options.length - 1 : index - 1)
 				}
@@ -59,7 +61,13 @@ export function TypeSwitcher({
 			</button>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<div className={classes.trigger}>{current?.label}</div>
+					<button
+						type="button"
+						className={classes.trigger}
+						aria-label="Choose an option"
+					>
+						{current?.label}
+					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuPortal>
 					<DropdownMenuContent
@@ -83,6 +91,8 @@ export function TypeSwitcher({
 			</DropdownMenu>
 			<button
 				type="button"
+				className="user-landing-switcher-arrow"
+				aria-label="Next option"
 				onClick={() => onIndexChange((index + 1) % options.length)}
 			>
 				<Icon name="triangle-right" className={classes.right} />

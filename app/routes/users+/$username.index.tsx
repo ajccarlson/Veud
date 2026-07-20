@@ -15,6 +15,8 @@ import { profileHeaders } from '#app/utils/profile-headers.ts'
 import { type ProfileShellData } from '#app/utils/profile.ts'
 import { makeTimings } from '#app/utils/timing.server.ts'
 
+export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profile-ui.tsx'
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const timings = makeTimings('profile_overview', 'profile overview loader')
 	const analytics = await loadProfileAnalytics(
@@ -69,8 +71,12 @@ export default function ProfileOverview() {
 		<div className="user-landing-overview">
 			<ProfileAbout bio={loaderData.user.bio} />
 			<StatsOverview data={loaderData} />
-			<div className="user-landing-completion-history-container">
-				<h1 className="user-landing-body-header">Completion History</h1>
+			<section className="user-landing-completion-history-container">
+				<header className="user-landing-section-heading">
+					<span>Timeline</span>
+					<h2>Completion History</h2>
+					<p>Finished titles and progress logged during the selected month.</p>
+				</header>
 				<div className="user-landing-completion-history-chart">
 					{
 						completionHistory[completionYears[yearIndex]][
@@ -78,25 +84,27 @@ export default function ProfileOverview() {
 						]
 					}
 				</div>
-				<TypeSwitcher
-					variant="primary"
-					options={completionYears.map(year => ({ key: year, label: year }))}
-					index={yearIndex}
-					onIndexChange={setYearIndex}
-				/>
-				<div className="user-landing-selection-secondary-nav-container">
-					<Spacer size="4xs" />
+				<div className="user-landing-completion-history-controls">
 					<TypeSwitcher
-						variant="secondary"
-						options={completionMonths.map(month => ({
-							key: month,
-							label: getMonthName(month),
-						}))}
-						index={monthIndex}
-						onIndexChange={setMonthIndex}
+						variant="primary"
+						options={completionYears.map(year => ({ key: year, label: year }))}
+						index={yearIndex}
+						onIndexChange={setYearIndex}
 					/>
+					<div className="user-landing-selection-secondary-nav-container">
+						<Spacer size="4xs" />
+						<TypeSwitcher
+							variant="secondary"
+							options={completionMonths.map(month => ({
+								key: month,
+								label: getMonthName(month),
+							}))}
+							index={monthIndex}
+							onIndexChange={setMonthIndex}
+						/>
+					</div>
 				</div>
-			</div>
+			</section>
 		</div>
 	)
 }
