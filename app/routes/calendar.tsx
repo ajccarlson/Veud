@@ -271,34 +271,63 @@ export default function ReleaseCalendarRoute() {
 
 			<section
 				aria-label="Weekly release schedule"
-				className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3"
+				className="relative space-y-3 before:absolute before:bottom-6 before:left-[1.15rem] before:top-6 before:w-px before:bg-[#54806c]/50 sm:before:left-[1.4rem] lg:before:hidden"
 			>
 				{data.days.map(day => (
 					<section
 						key={day.date}
 						aria-labelledby={`calendar-day-${day.date}`}
-						className={`overflow-hidden rounded-2xl border bg-[#383040] ${day.date === data.today ? 'border-[#ffcc66]' : 'border-[#54806c]'}`}
+						className={`relative ml-10 grid overflow-hidden rounded-2xl border bg-[#383040] shadow-[0_18px_55px_rgba(10,12,10,0.16)] sm:ml-12 lg:ml-0 lg:grid-cols-[12rem_minmax(0,1fr)] ${day.date === data.today ? 'border-[#ffcc66] ring-1 ring-[#ffcc66]/25' : day.items.length ? 'border-[#54806c]' : 'border-[#54806c]/50 bg-[#383040]/65'}`}
 					>
-						<header className="flex items-center justify-between border-b border-[#54806c] px-4 py-3">
+						<span
+							aria-hidden="true"
+							className={`absolute -left-[2.05rem] top-5 h-3 w-3 rounded-full border-2 sm:-left-[2.35rem] lg:hidden ${day.date === data.today ? 'border-[#ffcc66] bg-[#ffcc66]' : day.items.length ? 'border-[#a2ffd5] bg-[#383040]' : 'border-[#54806c] bg-[#2e2f2b]'}`}
+						/>
+						<header className="flex items-center justify-between gap-3 border-b border-[#54806c]/70 px-4 py-3 lg:block lg:border-b-0 lg:border-r lg:px-5 lg:py-5">
 							<h2
 								id={`calendar-day-${day.date}`}
-								className="text-lg font-black text-[#ffffb1]"
+								className="text-lg font-black text-[#ffffb1] lg:text-xl"
 							>
 								{displayDay(day.date)}
 							</h2>
-							{day.date === data.today ? (
-								<span className="rounded-full bg-[#ffcc66]/15 px-2 py-1 text-xs font-bold text-[#ffcc66]">
-									Today
+							<div className="flex items-center gap-2 lg:mt-2">
+								{day.date === data.today ? (
+									<span className="rounded-full bg-[#ffcc66]/15 px-2 py-1 text-xs font-bold text-[#ffcc66]">
+										Today
+									</span>
+								) : null}
+								<span className="text-xs font-semibold text-[#8ca99d]">
+									{day.items.length}{' '}
+									{day.items.length === 1 ? 'release' : 'releases'}
 								</span>
-							) : null}
+							</div>
 						</header>
 						{day.items.length ? (
-							<div className="divide-y divide-[#54806c]/60">
+							<div className="divide-y divide-[#54806c]/50">
 								{day.items.map(item => (
-									<article key={item.id} className="flex gap-3 p-4">
+									<article
+										key={item.id}
+										className="grid gap-3 p-4 transition-colors hover:bg-[#2e2f2b]/35 sm:grid-cols-[6.75rem_4rem_minmax(0,1fr)]"
+									>
+										<div className="sm:pt-1">
+											<div className="font-black tabular-nums text-[#a2ffd5]">
+												{displayTime(
+													item.releaseAt,
+													item.allDay,
+													data.timeZone,
+												)}
+											</div>
+											<div className="mt-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[#8ca99d]">
+												{item.type ||
+													kindLabels[
+														item.kind as ReleaseCalendarQuery['kind']
+													] ||
+													item.kind}
+											</div>
+										</div>
 										<Link
 											to={`/media/${item.mediaId}`}
-											className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-[#2e2f2b]"
+											className="h-24 w-16 overflow-hidden rounded-lg bg-[#2e2f2b] shadow-md"
 										>
 											{item.imageUrl ? (
 												<img
@@ -314,33 +343,24 @@ export default function ReleaseCalendarRoute() {
 											)}
 										</Link>
 										<div className="min-w-0 flex-1">
-											<div className="text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
-												{displayTime(
-													item.releaseAt,
-													item.allDay,
-													data.timeZone,
-												)}{' '}
-												·{' '}
-												{item.type ||
-													kindLabels[
-														item.kind as ReleaseCalendarQuery['kind']
-													] ||
-													item.kind}
-											</div>
 											<Link
 												to={`/media/${item.mediaId}`}
-												className="mt-1 block font-black leading-5 text-[#ffffb1] hover:underline"
+												className="block text-base font-black leading-5 text-[#ffffb1] hover:underline"
 											>
 												{item.title}
 											</Link>
-											<div className="mt-1 text-sm font-semibold text-[#ffcc66]">
-												{item.eventLabel}
+											<div className="mt-1 flex flex-wrap items-center gap-2">
+												<span
+													className={`rounded-full px-2 py-0.5 text-xs font-bold ${item.eventType === 'premiere' ? 'bg-[#ff9900]/15 text-[#ffcc66]' : item.eventType === 'chapter' ? 'bg-[#b99cff]/15 text-[#d8c7ff]' : 'bg-[#a2ffd5]/10 text-[#a2ffd5]'}`}
+												>
+													{item.eventLabel}
+												</span>
+												{item.eventName ? (
+													<span className="line-clamp-1 text-xs text-[#c6ded2]">
+														{item.eventName}
+													</span>
+												) : null}
 											</div>
-											{item.eventName ? (
-												<div className="line-clamp-2 text-xs text-[#c6ded2]">
-													{item.eventName}
-												</div>
-											) : null}
 											<div className="mt-2 flex flex-wrap gap-1.5 text-[0.7rem] text-[#a2ffd5]">
 												{item.viewerTracking ? (
 													<span className="rounded-full bg-[#a2ffd5]/10 px-2 py-0.5 font-bold text-[#a2ffd5]">
@@ -415,8 +435,8 @@ export default function ReleaseCalendarRoute() {
 								))}
 							</div>
 						) : (
-							<p className="px-4 py-8 text-center text-sm text-[#8ca99d]">
-								No scheduled releases
+							<p className="flex items-center px-4 py-5 text-sm text-[#8ca99d]">
+								Nothing scheduled
 							</p>
 						)}
 					</section>

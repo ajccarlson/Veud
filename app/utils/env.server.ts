@@ -17,21 +17,24 @@ const schema = z.object({
 	GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
 	GITHUB_TOKEN: z.string(),
 
-  VEUD_API_KEY: z.string(),
+	VEUD_API_KEY: z.string(),
 
 	TMDB_API_KEY: z.string(),
 
 	TRAKT_API_KEY: z.string(),
-  TRAKT_CLIENT_SECRET: z.string(),
+	TRAKT_CLIENT_SECRET: z.string(),
 	TRAKT_ACCESS_TOKEN_MAIN: z.string(),
 	TRAKT_ACCESS_TOKEN_BACKUP: z.string(),
 
 	MAL_CLIENT_ID: z.string(),
-  MAL_CLIENT_SECRET: z.string(),
+	MAL_CLIENT_SECRET: z.string(),
 	MAL_USER: z.string(),
-  
-  ANILIST_CLIENT_ID: z.string(),
-  ANILIST_CLIENT_SECRET: z.string(),
+
+	ANILIST_CLIENT_ID: z.string(),
+	ANILIST_CLIENT_SECRET: z.string(),
+
+	OPENAI_API_KEY: z.string().optional(),
+	OPENAI_TIP_OF_TONGUE_MODEL: z.string().optional(),
 })
 
 declare global {
