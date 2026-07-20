@@ -60,6 +60,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	])
 
 	return await prisma.$transaction(async tx => {
+		const entryCount = await tx.entry.count({
+			where: { watchlistId: watchlist.id },
+		})
+		const requestedPosition =
+			typeof data.position === 'number' && Number.isFinite(data.position)
+				? Math.trunc(data.position)
+				: entryCount + 1
+		const position = Math.min(Math.max(requestedPosition, 1), entryCount + 1)
+		await tx.entry.updateMany({
+			where: { watchlistId: watchlist.id, position: { gte: position } },
+			data: { position: { increment: 1 } },
+		})
+
 		const mediaId = mediaIdentity
 			? await ensureMediaForIdentity(tx, mediaIdentity, data)
 			: undefined
@@ -84,8 +97,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 					})
 				: undefined
 
-		return tx.entry.create({
-			data: { ...data, mediaId, trackingStateId } as any,
+		const entry = await tx.entry.create({
+			data: { ...data, position, mediaId, trackingStateId } as any,
 		})
+		await tx.watchlist.update({
+			where: { id: watchlist.id },
+			data: { updatedAt: new Date() },
+		})
+		return entry
 	})
 }
