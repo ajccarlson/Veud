@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { searchMAL, getAnimeInfo, getMangaInfo } from '#app/routes/media+/mal.ts'
 import { searchTMDB, getTMDBInfo } from '#app/routes/media+/tmdb.ts'
+import {
+  mediaIdentityForMal,
+  mediaIdentityForTmdb,
+} from '#app/utils/media-identity.ts'
 import { type ListTypeMeta } from '#app/utils/profile.ts'
 
 /**
@@ -54,6 +58,10 @@ export function FavoriteSearch({
       if (listType.name === 'liveaction') {
         const info: any = await getTMDBInfo(result.id, result.media_type ?? 'movie')
         favorite = {
+          mediaIdentity: mediaIdentityForTmdb(
+            result.id,
+            result.media_type ?? 'movie',
+          ),
           position,
           thumbnail: info.thumbnail,
           title: info.title,
@@ -64,6 +72,7 @@ export function FavoriteSearch({
       } else if (listType.name === 'anime') {
         const info: any = await getAnimeInfo(result.id)
         favorite = {
+          mediaIdentity: mediaIdentityForMal(result.id, 'anime'),
           position,
           thumbnail: info.thumbnail,
           title: info.title,
@@ -74,6 +83,7 @@ export function FavoriteSearch({
       } else if (listType.name === 'manga') {
         const info: any = await getMangaInfo(result.id)
         favorite = {
+          mediaIdentity: mediaIdentityForMal(result.id, 'manga'),
           position,
           thumbnail: info.thumbnail,
           title: info.title,

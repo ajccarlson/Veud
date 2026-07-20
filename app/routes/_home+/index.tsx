@@ -4,8 +4,10 @@ import {
 	type LoaderFunctionArgs,
 	useLoaderData,
 } from 'react-router'
+import { FollowingFeed } from '#app/routes/_home+/_following.tsx'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
+import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
@@ -19,9 +21,31 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // them. Anonymous visitors (who just see client-fetched trending) need none of this. This
   // replaces a loader that fetched *every* user's watchlists and then ran one entry query per
   // watchlist — an N+1 over the whole table plus a large over-fetch.
-  const watchLists = userId
-    ? await prisma.watchlist.findMany({ where: { ownerId: userId } })
-    : []
+  const [watchLists, followingRows] = userId
+    ? await Promise.all([
+        prisma.watchlist.findMany({ where: { ownerId: userId } }),
+        prisma.follow.findMany({
+          where: { followerId: userId },
+          select: { followingId: true },
+        }),
+      ])
+    : [[], []]
+  const followedUserIds = followingRows.map(follow => follow.followingId)
+  const followingFeed = await getFollowingActivityFeed(followedUserIds, 60)
+  const suggestedMembers =
+    userId && (!followedUserIds.length || !followingFeed.length)
+      ? await prisma.user.findMany({
+          where: { id: { notIn: [userId, ...followedUserIds] } },
+          orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
+          take: 6,
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            image: { select: { id: true } },
+          },
+        })
+      : []
 
   const userWatchLists = watchLists.reduce<Record<string, typeof watchLists>>(
     (x, y) => {
@@ -59,7 +83,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }
   }
 
-  return json({ listTypes, watchLists, userWatchLists, typedWatchlists, typedEntries })
+  return json({
+    listTypes,
+    watchLists,
+    userWatchLists,
+    typedWatchlists,
+    typedEntries,
+    followingFeed,
+    followingCount: followedUserIds.length,
+    suggestedMembers,
+  })
 }
 
 export default function Index() {
@@ -105,12 +138,19 @@ export default function Index() {
     <div className="home">
       <main className="home-main">
         <div className="home-container">
-          <TrendingData currentUser={currentUser} />
+          {currentUser ? (
+            <FollowingFeed
+              items={loaderData.followingFeed}
+              followingCount={loaderData.followingCount}
+              suggestedMembers={loaderData.suggestedMembers}
+            />
+          ) : null}
           <UpcomingData
             user={currentUser}
             userTypedEntries={loaderData.userTypedEntries}
             listTypes={loaderData.listTypes}
           />
+          <TrendingData currentUser={currentUser} />
         </div>
       </main>
     </div>
