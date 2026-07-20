@@ -6,8 +6,6 @@
 
 Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.
 
-See the [product roadmap](./ROADMAP.md) for current priorities and planned work.
-
 ---
 
 <p align="center">
