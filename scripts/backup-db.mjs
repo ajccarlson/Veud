@@ -36,6 +36,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import {
+	assertSqlitePrimaryDatabase,
 	copyVerifiedBackup,
 	listRequiredMigrations,
 	parsePositiveInteger,
@@ -48,6 +49,10 @@ if (process.env.NODE_ENV === 'development') {
 	console.log('Skipping backup: NODE_ENV=development.')
 	process.exit(0)
 }
+
+// Fail closed after a provider switch. Silently backing up a leftover SQLite
+// file would look healthy while leaving the PostgreSQL primary unprotected.
+assertSqlitePrimaryDatabase(process.env.DATABASE_URL)
 
 const dbPath = process.env.BACKUP_DB_PATH
 	? path.resolve(process.env.BACKUP_DB_PATH)

@@ -190,6 +190,11 @@ records the public attribution and policy-audit controls that are complete, the
 remaining PostgreSQL and load-test gates, and the conditions that must be met
 before an unbounded provider backfill is enabled.
 
+The [PostgreSQL catalog schema handoff](docs/postgresql-catalog-readiness.md)
+documents the provider-specific Prisma generation workflow, PostgreSQL 16
+migration baseline, trigram search indexes, CI drift checks, and the remaining
+data-transfer and backup/restore hold before production cutover.
+
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.
