@@ -99,27 +99,30 @@ model Media {
   id   String @id @default(cuid())
   kind String
 
-  thumbnail     String?
-  title         String?
-  type          String?
-  releaseStart  DateTime?
-  releaseEnd    DateTime?
-  nextRelease   String?
-  genres        String?
-  description   String?
-  airYear       String?
-  startSeason   String?
-  startYear     String?
-  length        String?
-  chapters      String?
-  volumes       String?
-  rating        String?
-  language      String?
-  studios       String?
-  serialization String?
-  authors       String?
-  tmdbScore     Decimal?
-  malScore      Decimal?
+  thumbnail         String?
+  title             String?
+  type              String?
+  releaseStart      DateTime?
+  releaseEnd        DateTime?
+  nextRelease       String?
+  genres            String?
+  description       String?
+  airYear           String?
+  startSeason       String?
+  startYear         String?
+  length            String?
+  chapters          String?
+  volumes           String?
+  rating            String?
+  language          String?
+  studios           String?
+  serialization     String?
+  authors           String?
+  tmdbScore         Decimal?
+  malScore          Decimal?
+  catalogScore      Float?
+  catalogPopularity Float?
+  releaseStatus     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -138,6 +141,11 @@ model Media {
   releaseReminders  ReleaseReminder[]
 
   @@index([kind])
+  @@index([catalogPopularity])
+  @@index([catalogScore])
+  @@index([releaseStart])
+  @@index([releaseStatus])
+  @@index([title])
 }
 
 /// A stable identifier assigned by an upstream catalog. `kind` participates in

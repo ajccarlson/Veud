@@ -39,6 +39,9 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 		q: 'Anonymous',
 		kind: 'movie',
 		genre: '',
+		year: null,
+		status: '',
+		provider: 'all',
 		sort: 'popular',
 		page: 1,
 	})

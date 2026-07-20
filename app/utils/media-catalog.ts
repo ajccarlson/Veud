@@ -23,11 +23,14 @@ export const mediaCatalogSelect = {
 	authors: true,
 	tmdbScore: true,
 	malScore: true,
+	catalogScore: true,
+	catalogPopularity: true,
+	releaseStatus: true,
 } satisfies Prisma.MediaSelect
 
-export const mediaCatalogFields = Object.keys(
-	mediaCatalogSelect,
-) as Array<keyof typeof mediaCatalogSelect>
+export const mediaCatalogFields = Object.keys(mediaCatalogSelect) as Array<
+	keyof typeof mediaCatalogSelect
+>
 
 export type MediaCatalog = Prisma.MediaGetPayload<{
 	select: typeof mediaCatalogSelect

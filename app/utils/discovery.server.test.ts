@@ -4,6 +4,7 @@ import { prisma } from './db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
+	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 } from './discovery.server.ts'
 
@@ -24,6 +25,9 @@ function filters(
 		q: '',
 		kind: 'all' as const,
 		genre: '',
+		year: null,
+		status: '',
+		provider: 'all' as const,
 		sort: 'popular' as const,
 		page: 1,
 		...overrides,
@@ -36,6 +40,8 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 			q: `  ${'a'.repeat(120)}  `,
 			kind: 'podcast',
 			genre: '  Drama  ',
+			year: '1700',
+			provider: 'other',
 			sort: 'random',
 			page: '-4',
 		}),
@@ -45,9 +51,70 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 		q: 'a'.repeat(100),
 		kind: 'all',
 		genre: 'Drama',
+		year: null,
+		status: '',
+		provider: 'all',
 		sort: 'popular',
 		page: 1,
 	})
+})
+
+test('discovery searches alternate titles and filters year, status, and provider', async () => {
+	const tmdb = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'The Journey',
+			releaseStart: new Date('2026-03-01T00:00:00.000Z'),
+			releaseStatus: 'Released',
+			catalogPopularity: 100,
+			externalIds: {
+				create: { provider: 'tmdb', kind: 'movie', externalId: '800' },
+			},
+			titles: {
+				create: {
+					provider: 'tmdb',
+					language: 'fr',
+					titleType: 'alternate',
+					value: 'Le Voyage',
+					normalized: 'le voyage',
+				},
+			},
+		},
+	})
+	await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'The Journey Elsewhere',
+			releaseStart: new Date('2025-03-01T00:00:00.000Z'),
+			releaseStatus: 'Released',
+			externalIds: {
+				create: { provider: 'mal', kind: 'movie', externalId: '801' },
+			},
+		},
+	})
+
+	const result = await getDiscoveryResults(
+		filters({
+			q: 'voyagé',
+			kind: 'movie',
+			year: 2026,
+			status: 'Released',
+			provider: 'tmdb',
+		}),
+		null,
+	)
+
+	expect(result.items).toEqual([
+		expect.objectContaining({
+			id: tmdb.id,
+			title: 'The Journey',
+			matchedTitle: 'Le Voyage',
+			year: '2026',
+			releaseStatus: 'Released',
+			providers: ['tmdb'],
+		}),
+	])
+	expect(await getDiscoveryStatuses()).toEqual(['Released'])
 })
 
 test('discovery searches canonical metadata and exposes normalized genres', async () => {

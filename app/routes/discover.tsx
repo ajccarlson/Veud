@@ -19,6 +19,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
+	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
 	type DiscoveryResult,
@@ -44,12 +45,19 @@ const sortLabels: Record<DiscoveryQuery['sort'], string> = {
 	'for-you': 'For you',
 }
 
+const providerLabels: Record<DiscoveryQuery['provider'], string> = {
+	all: 'All providers',
+	tmdb: 'TMDB',
+	mal: 'MyAnimeList',
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const filters = parseDiscoveryQuery(new URL(request.url).searchParams)
-	const [discovery, genres, watchlists] = await Promise.all([
+	const [discovery, genres, statuses, watchlists] = await Promise.all([
 		getDiscoveryResults(filters, viewerId),
 		getDiscoveryGenres(),
+		getDiscoveryStatuses(),
 		viewerId
 			? prisma.watchlist.findMany({
 					where: { ownerId: viewerId },
@@ -67,6 +75,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({
 		...discovery,
 		genres,
+		statuses,
 		watchlists,
 		isSignedIn: Boolean(viewerId),
 	})
@@ -171,6 +180,9 @@ function discoveryHref(filters: DiscoveryQuery, page: number) {
 	if (filters.q) searchParams.set('q', filters.q)
 	if (filters.kind !== 'all') searchParams.set('kind', filters.kind)
 	if (filters.genre) searchParams.set('genre', filters.genre)
+	if (filters.year !== null) searchParams.set('year', String(filters.year))
+	if (filters.status) searchParams.set('status', filters.status)
+	if (filters.provider !== 'all') searchParams.set('provider', filters.provider)
 	if (filters.sort !== 'popular') searchParams.set('sort', filters.sort)
 	if (page > 1) searchParams.set('page', String(page))
 	const search = searchParams.toString()
@@ -191,6 +203,9 @@ export default function DiscoverRoute() {
 		data.filters.q,
 		data.filters.kind,
 		data.filters.genre,
+		data.filters.year,
+		data.filters.status,
+		data.filters.provider,
 		data.filters.sort,
 	].join(':')
 
@@ -210,7 +225,7 @@ export default function DiscoverRoute() {
 			<Form
 				key={filterKey}
 				method="get"
-				className="grid gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_repeat(3,minmax(9rem,1fr))_auto] lg:items-end"
+				className="grid gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5 md:grid-cols-2 xl:grid-cols-4 xl:items-end"
 			>
 				<div className="space-y-2">
 					<Label htmlFor="discover-query">Title or keyword</Label>
@@ -218,7 +233,7 @@ export default function DiscoverRoute() {
 						id="discover-query"
 						name="q"
 						defaultValue={data.filters.q}
-						placeholder="Search titles and descriptions"
+						placeholder="Canonical or alternate title"
 						maxLength={100}
 					/>
 				</div>
@@ -254,6 +269,49 @@ export default function DiscoverRoute() {
 					</select>
 				</div>
 				<div className="space-y-2">
+					<Label htmlFor="discover-year">Release year</Label>
+					<Input
+						id="discover-year"
+						name="year"
+						type="number"
+						min={1870}
+						max={2200}
+						defaultValue={data.filters.year ?? ''}
+						placeholder="Any year"
+					/>
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="discover-status">Release status</Label>
+					<select
+						id="discover-status"
+						name="status"
+						defaultValue={data.filters.status}
+						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						<option value="">Any status</option>
+						{data.statuses.map(status => (
+							<option key={status} value={status}>
+								{status}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="space-y-2">
+					<Label htmlFor="discover-provider">Provider</Label>
+					<select
+						id="discover-provider"
+						name="provider"
+						defaultValue={data.filters.provider}
+						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						{Object.entries(providerLabels).map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</select>
+				</div>
+				<div className="space-y-2">
 					<Label htmlFor="discover-sort">Rank by</Label>
 					<select
 						id="discover-sort"
@@ -270,7 +328,7 @@ export default function DiscoverRoute() {
 						)}
 					</select>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex gap-2 xl:col-span-4 xl:justify-end">
 					<Button type="submit" className="flex-1 lg:flex-none">
 						Discover
 					</Button>
@@ -338,10 +396,30 @@ export default function DiscoverRoute() {
 															item.kind}
 													</span>
 													{item.year ? <span>· {item.year}</span> : null}
+													{item.releaseStatus ? (
+														<span>· {item.releaseStatus}</span>
+													) : null}
 												</div>
 												<h3 className="mt-1 text-lg font-black leading-6 text-[#ffffb1] group-hover:underline">
 													{item.title}
 												</h3>
+												{item.matchedTitle ? (
+													<p className="mt-1 text-xs text-[#a2ffd5]">
+														Also known as {item.matchedTitle}
+													</p>
+												) : null}
+												{item.providers.length ? (
+													<div className="mt-2 flex flex-wrap gap-1.5">
+														{item.providers.map(provider => (
+															<span
+																key={provider}
+																className="rounded bg-[#2e2f2b] px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-[#ffcc66]"
+															>
+																{provider}
+															</span>
+														))}
+													</div>
+												) : null}
 											</div>
 											{item.genres.length ? (
 												<div className="flex flex-wrap gap-1.5">
@@ -367,7 +445,11 @@ export default function DiscoverRoute() {
 														{item.ratingCount})
 													</span>
 												) : (
-													<span>Not yet rated</span>
+													<span>
+														{item.providerScore !== null
+															? `Provider ★ ${item.providerScore.toFixed(1)}`
+															: 'Not yet rated'}
+													</span>
 												)}
 												<span className="mx-2">·</span>
 												<span>{item.trackerCount} tracking</span>

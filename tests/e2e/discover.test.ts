@@ -47,6 +47,21 @@ test('member can filter the catalog and discover an unseen personalized title', 
 				title: 'Browser Romance Film',
 				genres: 'Romance',
 				description: 'A catalog search fixture.',
+				releaseStart: new Date('2026-02-14T00:00:00.000Z'),
+				releaseStatus: 'Released',
+				catalogPopularity: 75,
+				externalIds: {
+					create: { provider: 'tmdb', kind: 'movie', externalId: '990123' },
+				},
+				titles: {
+					create: {
+						provider: 'tmdb',
+						language: 'fr',
+						titleType: 'alternate',
+						value: 'Browser Amour Cinema',
+						normalized: 'browser amour cinema',
+					},
+				},
 			},
 		}),
 	])
@@ -67,21 +82,26 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		).toBeVisible()
 		await expect(page.getByText('Browser Fantasy Match')).toBeVisible()
 
-		await page.getByLabel('Title or keyword').fill('Browser Romance')
+		await page.getByLabel('Title or keyword').fill('Browser Amour')
 		await page.getByLabel('Media type').selectOption('movie')
-		await page
-			.getByRole('button', { name: 'Discover', exact: true })
-			.click()
-		await expect(page).toHaveURL(/q=Browser\+Romance/)
+		await page.getByLabel('Release year').fill('2026')
+		await page.getByLabel('Release status').selectOption('Released')
+		await page.getByLabel('Provider').selectOption('tmdb')
+		await page.getByRole('button', { name: 'Discover', exact: true }).click()
+		await expect(page).toHaveURL(/q=Browser\+Amour/)
 		await expect(page.getByText('Browser Romance Film')).toBeVisible()
+		await expect(
+			page.getByText('Also known as Browser Amour Cinema'),
+		).toBeVisible()
 		await expect(page.getByText('Browser Fantasy Match')).not.toBeVisible()
 
 		await page.getByLabel('Title or keyword').fill('')
 		await page.getByLabel('Media type').selectOption('all')
+		await page.getByLabel('Release year').fill('')
+		await page.getByLabel('Release status').selectOption('')
+		await page.getByLabel('Provider').selectOption('all')
 		await page.getByLabel('Rank by').selectOption('for-you')
-		await page
-			.getByRole('button', { name: 'Discover', exact: true })
-			.click()
+		await page.getByRole('button', { name: 'Discover', exact: true }).click()
 		await expect(page).toHaveURL(/sort=for-you/)
 		await expect(page.getByText('Browser Fantasy Match')).toBeVisible()
 		await expect(page.getByText('Browser Discovery Seed')).not.toBeVisible()
