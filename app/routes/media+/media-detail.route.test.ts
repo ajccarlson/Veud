@@ -153,13 +153,17 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 			url: 'https://myanimelist.net/anime/5114',
 		}),
 	])
-	expect(result.data.community).toEqual({
+	expect(result.data.community).toMatchObject({
 		trackers: 0,
 		ratings: 0,
 		meanScore: null,
 		reviews: 0,
 		diaryEntries: 0,
 	})
+	expect(result.data.community.statusBreakdown).toEqual([])
+	expect(
+		result.data.community.scoreDistribution.every(bucket => bucket.count === 0),
+	).toBe(true)
 	expect(result.data.viewer).toBeNull()
 })
 
@@ -268,13 +272,24 @@ test('tracking controls create and dual-write status, score, and progress', asyn
 		}),
 		params: { mediaId: media.id },
 	} as any)
-	expect(loaded.data.community).toEqual({
+	expect(loaded.data.community).toMatchObject({
 		trackers: 1,
 		ratings: 1,
 		meanScore: 8.5,
 		reviews: 0,
 		diaryEntries: 0,
 	})
+	expect(loaded.data.community.statusBreakdown).toEqual([
+		{
+			status: 'completed',
+			label: 'Completed',
+			count: 1,
+			percentage: 100,
+		},
+	])
+	expect(
+		loaded.data.community.scoreDistribution.find(bucket => bucket.score === 9),
+	).toEqual({ score: 9, count: 1, percentage: 100 })
 	expect(loaded.data.viewer?.tracking).toEqual(
 		expect.objectContaining({
 			status: 'completed',

@@ -28,6 +28,7 @@ import {
 	resolveMediaCatalog,
 	type MediaCatalogSnapshot,
 } from '#app/utils/media-catalog.ts'
+import { getMediaCommunityStatistics } from '#app/utils/media-community.server.ts'
 import {
 	externalMediaUrl,
 	legacyProgressUpdate,
@@ -256,11 +257,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerDiaryEntries,
 		viewerCollections,
 	] = await Promise.all([
-		prisma.trackingState.aggregate({
-			where: { mediaId: media.id },
-			_count: { id: true, score: true },
-			_avg: { score: true },
-		}),
+		getMediaCommunityStatistics(media.id),
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -464,9 +461,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				.filter(link => link.url !== null),
 		},
 		community: {
-			trackers: community._count.id,
-			ratings: community._count.score,
-			meanScore: community._avg.score ? Number(community._avg.score) : null,
+			...community,
 			reviews: media._count.reviews,
 			diaryEntries: media._count.diaryEntries,
 		},
@@ -1004,6 +999,10 @@ export default function MediaDetailRoute() {
 	const busy = navigation.state !== 'idle'
 	const tracking = data.viewer?.tracking
 	const journal = journalTerms(data.media.kind)
+	const maxScoreCount = Math.max(
+		1,
+		...data.community.scoreDistribution.map(bucket => bucket.count),
+	)
 
 	return (
 		<main className="mx-auto w-full max-w-6xl px-4 py-8 text-foreground">
@@ -1083,6 +1082,96 @@ export default function MediaDetailRoute() {
 							<div className="text-sm text-muted-foreground">Diary logs</div>
 						</div>
 					</section>
+
+					{data.community.trackers ? (
+						<section
+							aria-labelledby="community-insights-heading"
+							className="space-y-4"
+						>
+							<div>
+								<h2
+									id="community-insights-heading"
+									className="text-2xl font-bold"
+								>
+									Community insights
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									See how members rate and track this title.
+								</p>
+							</div>
+							<div className="grid gap-4 lg:grid-cols-2">
+								<div className="rounded-xl border bg-card p-5">
+									<h3 className="font-bold">Score distribution</h3>
+									<p className="mt-1 text-xs text-muted-foreground">
+										Decimal ratings are rounded to the nearest whole score for
+										this chart.
+									</p>
+									{data.community.ratings ? (
+										<div className="mt-4 space-y-1.5">
+											{data.community.scoreDistribution
+												.slice()
+												.reverse()
+												.map(bucket => (
+													<div
+														key={bucket.score}
+														className="grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-2 text-xs"
+														aria-label={`Score ${bucket.score}: ${bucket.count} ${bucket.count === 1 ? 'rating' : 'ratings'}`}
+													>
+														<span className="font-semibold">
+															{bucket.score}
+														</span>
+														<span className="h-2 overflow-hidden rounded-full bg-muted">
+															<span
+																className="block h-full rounded-full bg-primary"
+																style={{
+																	width: `${(bucket.count / maxScoreCount) * 100}%`,
+																}}
+															/>
+														</span>
+														<span className="text-right text-muted-foreground">
+															{bucket.count}
+														</span>
+													</div>
+												))}
+										</div>
+									) : (
+										<p className="mt-4 text-sm text-muted-foreground">
+											No member ratings yet.
+										</p>
+									)}
+								</div>
+
+								<div className="rounded-xl border bg-card p-5">
+									<h3 className="font-bold">Tracking status</h3>
+									<p className="mt-1 text-xs text-muted-foreground">
+										Current library status across {data.community.trackers}{' '}
+										{data.community.trackers === 1 ? 'member' : 'members'}.
+									</p>
+									<div className="mt-4 space-y-3">
+										{data.community.statusBreakdown.map(status => (
+											<div
+												key={status.status}
+												aria-label={`${status.label}: ${status.count} ${status.count === 1 ? 'member' : 'members'}`}
+											>
+												<div className="flex items-center justify-between gap-3 text-sm">
+													<span className="font-semibold">{status.label}</span>
+													<span className="text-muted-foreground">
+														{status.count} · {Math.round(status.percentage)}%
+													</span>
+												</div>
+												<div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+													<div
+														className="h-full rounded-full bg-primary"
+														style={{ width: `${status.percentage}%` }}
+													/>
+												</div>
+											</div>
+										))}
+									</div>
+								</div>
+							</div>
+						</section>
+					) : null}
 
 					{data.viewer ? (
 						<section className="space-y-5 rounded-xl border bg-card p-5">
