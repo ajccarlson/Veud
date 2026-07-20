@@ -1,0 +1,852 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String  @id @default(cuid())
+  email    String  @unique
+  username String  @unique
+  name     String?
+  bio      String?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime?
+
+  image                 UserImage?
+  banner                UserBanner?
+  password              Password?
+  watchlists            Watchlist[]
+  userFavorites         UserFavorite[]
+  roles                 Role[]
+  sessions              Session[]
+  connections           Connection[]
+  following             Follow[]            @relation("UserFollowing")
+  followers             Follow[]            @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]    @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]    @relation("ProfileCommentProfile")
+  trackingStates        TrackingState[]
+  activityEvents        ActivityEvent[]
+  reviews               Review[]
+  diaryEntries          DiaryEntry[]
+  reviewLikes           ReviewLike[]
+  reviewComments        ReviewComment[]
+  notificationsReceived Notification[]      @relation("NotificationRecipient")
+  notificationsSent     Notification[]      @relation("NotificationActor")
+  mediaCollections      MediaCollection[]
+  collectionLikes       CollectionLike[]
+  collectionComments    CollectionComment[]
+  releaseReminders      ReleaseReminder[]
+}
+
+model ListType {
+  id String @id @default(cuid())
+
+  name    String @unique
+  header  String
+  columns String
+
+  mediaType      String
+  completionType String
+
+  watchlists    Watchlist[]
+  userFavorites UserFavorite[]
+}
+
+model Watchlist {
+  id String @id @default(cuid())
+
+  position         Int      @default(1)
+  name             String
+  header           String
+  type             ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId           String
+  displayedColumns String?
+  description      String?
+  isPublic         Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  entries                Entry[]
+  trackingStates         TrackingState[]
+  activityEvents         ActivityEvent[] @relation("ActivityEventStatusWatchlist")
+  previousActivityEvents ActivityEvent[] @relation("ActivityEventPreviousStatusWatchlist")
+
+  // non-unique foreign key
+  @@index([ownerId])
+  // This helps our order by in the user search a LOT
+  @@index([ownerId, updatedAt])
+  @@index([ownerId, isPublic])
+  @@index([typeId])
+}
+
+/// A provider-backed work shared by every user who tracks the same title.
+/// Entry retains a legacy snapshot during the transition, while these fields are
+/// the canonical catalog record used by title-centric pages and future discovery.
+model Media {
+  id   String @id @default(cuid())
+  kind String
+
+  thumbnail         String?
+  title             String?
+  type              String?
+  releaseStart      DateTime?
+  releaseEnd        DateTime?
+  nextRelease       String?
+  genres            String?
+  description       String?
+  airYear           String?
+  startSeason       String?
+  startYear         String?
+  length            String?
+  chapters          String?
+  volumes           String?
+  rating            String?
+  language          String?
+  studios           String?
+  serialization     String?
+  authors           String?
+  tmdbScore         Decimal?
+  malScore          Decimal?
+  catalogScore      Float?
+  catalogPopularity Float?
+  releaseStatus     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  externalIds       MediaExternalId[]
+  titles            MediaTitle[]
+  outgoingRelations MediaRelation[]       @relation("MediaRelationSource")
+  incomingRelations MediaRelation[]       @relation("MediaRelationTarget")
+  entries           Entry[]
+  favorites         UserFavorite[]
+  trackingStates    TrackingState[]
+  activityEvents    ActivityEvent[]
+  reviews           Review[]
+  diaryEntries      DiaryEntry[]
+  collectionItems   MediaCollectionItem[]
+  releaseReminders  ReleaseReminder[]
+  catalogFeedItems  CatalogFeedItem[]
+
+  @@index([kind])
+  @@index([catalogPopularity])
+  @@index([catalogScore])
+  @@index([releaseStart])
+  @@index([releaseStatus])
+  @@index([title])
+  // PostgreSQL provider-scale substring search indexes.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Media_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Media_description_trgm_idx")
+}
+
+/// A ranked provider feed snapshot tied to a canonical work. Replacing one
+/// provider/kind/feed snapshot never affects user-owned media history.
+model CatalogFeedItem {
+  id         String   @id @default(cuid())
+  provider   String
+  kind       String
+  feed       String
+  rank       Int
+  observedAt DateTime
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([provider, kind, feed, mediaId])
+  @@index([provider, kind, feed, rank])
+  @@index([mediaId])
+  @@index([observedAt])
+}
+
+/// A stable identifier assigned by an upstream catalog. `kind` participates in
+/// the unique key because TMDB movie and TV identifiers can overlap, as can MAL
+/// anime and manga identifiers.
+model MediaExternalId {
+  id         String @id @default(cuid())
+  provider   String
+  kind       String
+  externalId String
+
+  sourceUpdatedAt      DateTime?
+  sourceTitle          String?
+  sourcePopularity     Float?
+  sourceIsAdult        Boolean?
+  sourceIsVideo        Boolean?
+  hydrationPriority    Int       @default(0)
+  hydrationReason      String?
+  hydrationRequestedAt DateTime?
+  firstSeenAt          DateTime  @default(now())
+  lastSeenAt           DateTime  @default(now())
+  lastFetchedAt        DateTime?
+  refreshAfter         DateTime?
+  tombstonedAt         DateTime?
+  fetchStatus          String    @default("pending")
+  failureCount         Int       @default(0)
+  lastError            String?
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([provider, kind, externalId])
+  @@index([mediaId])
+  @@index([provider, kind, fetchStatus, refreshAfter])
+  @@index([provider, kind, hydrationPriority, sourcePopularity])
+  @@index([provider, kind, sourcePopularity])
+  @@index([provider, kind, lastSeenAt])
+  @@index([tombstonedAt])
+}
+
+/// A provider-owned canonical or alternate title normalized for catalog search.
+/// An empty language value means the provider did not supply a locale.
+model MediaTitle {
+  id         String   @id @default(cuid())
+  provider   String
+  language   String   @default("")
+  titleType  String
+  value      String
+  normalized String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, provider, language, titleType, value])
+  @@index([mediaId, provider])
+  @@index([normalized])
+  // Powers normalized canonical and alternate-title substring matching.
+  @@index([normalized(ops: raw("gin_trgm_ops"))], type: Gin, map: "MediaTitle_normalized_trgm_idx")
+}
+
+/// A directed, provider-backed relationship between two canonical works.
+/// `relationType` describes the target from the source's perspective (for
+/// example, source -> sequel); title pages derive the inverse label when the
+/// current title is the target.
+model MediaRelation {
+  id           String   @id @default(cuid())
+  relationType String
+  provider     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sourceMedia   Media  @relation("MediaRelationSource", fields: [sourceMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceMediaId String
+  targetMedia   Media  @relation("MediaRelationTarget", fields: [targetMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetMediaId String
+
+  @@unique([sourceMediaId, targetMediaId, relationType])
+  @@index([sourceMediaId, relationType])
+  @@index([targetMediaId, relationType])
+  @@index([provider])
+}
+
+/// One observable execution of an inventory, hydration, refresh, reconciliation,
+/// or repair job. Counts are absolute checkpoints so retries remain idempotent.
+model CatalogSyncRun {
+  id                 String    @id @default(cuid())
+  provider           String
+  kind               String
+  mode               String
+  status             String    @default("running")
+  leaseOwner         String
+  cursor             String?
+  recordsSeen        Int       @default(0)
+  recordsHandled     Int       @default(0)
+  recordsFailed      Int       @default(0)
+  requestsMade       Int       @default(0)
+  rateLimitEvents    Int       @default(0)
+  providerRetryAfter DateTime?
+  policyApprovalRef  String?
+  lastError          String?
+  startedAt          DateTime  @default(now())
+  heartbeatAt        DateTime  @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([provider, kind, mode, startedAt])
+  @@index([status, heartbeatAt])
+}
+
+/// Durable resume cursor and cooperative lease for one provider/kind/job mode.
+model CatalogSyncCursor {
+  id               String    @id @default(cuid())
+  provider         String
+  kind             String
+  mode             String
+  cursor           String?
+  leaseOwner       String?
+  leaseExpiresAt   DateTime?
+  lastSuccessfulAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([provider, kind, mode])
+  @@index([leaseExpiresAt])
+}
+
+model Entry {
+  id String @id @default(cuid())
+
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  watchlistId String
+
+  media   Media?  @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId String?
+
+  trackingState   TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId String?
+
+  // Shared core — present on every entry regardless of media type
+  position            Int
+  thumbnail           String?
+  title               String
+  type                String?
+  releaseStart        DateTime?
+  releaseEnd          DateTime?
+  nextRelease         String?
+  history             String?
+  genres              String?
+  story               Int?
+  character           Int?
+  presentation        Int?
+  enjoyment           Int?
+  averaged            Decimal?
+  personal            Decimal?
+  differencePersonal  Decimal?
+  differenceObjective Decimal?
+  description         String?
+  notes               String?
+
+  // Media-type-specific — nullable; populated per the watchlist's list type
+  airYear       String? // live action
+  startSeason   String? // anime
+  startYear     String? // manga
+  length        String? // live action, anime
+  chapters      String? // manga
+  volumes       String? // manga
+  rating        String? // live action, anime
+  language      String? // live action
+  studios       String? // anime
+  serialization String? // manga
+  authors       String? // manga
+  priority      String? // anime, manga
+  sound         Int? // live action, anime
+  performance   Int? // live action, anime
+  tmdbScore     Decimal? // live action
+  malScore      Decimal? // anime, manga
+
+  // non-unique foreign key
+  @@index([watchlistId])
+  @@index([mediaId])
+  @@index([trackingStateId])
+}
+
+/// The current tracking state for one user and one canonical work. Watchlists
+/// remain the editing UI during the transition; this row becomes the stable
+/// source for status, score, dates, repeat count, and progress-based features.
+model TrackingState {
+  id          String    @id @default(cuid())
+  status      String
+  score       Decimal?
+  startedAt   DateTime?
+  completedAt DateTime?
+  repeatCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner             User       @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId           String
+  media             Media      @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId           String
+  statusWatchlist   Watchlist? @relation(fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  statusWatchlistId String?
+
+  entries        Entry[]
+  progress       TrackingProgress[]
+  activityEvents ActivityEvent[]
+
+  @@unique([ownerId, mediaId])
+  @@index([mediaId])
+  @@index([statusWatchlistId])
+  @@index([ownerId, status])
+}
+
+/// A normalized progress counter. Separate rows support episodes, chapters,
+/// and volumes without encoding media-specific state in another JSON field.
+model TrackingProgress {
+  id        String   @id @default(cuid())
+  unit      String
+  current   Int      @default(0)
+  total     Int?
+  updatedAt DateTime @updatedAt
+
+  trackingState   TrackingState @relation(fields: [trackingStateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  trackingStateId String
+
+  @@unique([trackingStateId, unit])
+  @@index([trackingStateId])
+}
+
+/// An immutable, user-visible change to tracking state. Application code only
+/// inserts rows; corrections create another event rather than rewriting history.
+model ActivityEvent {
+  id                  String   @id @default(cuid())
+  type                String
+  status              String?
+  statusLabel         String?
+  previousStatus      String?
+  previousStatusLabel String?
+  score               Decimal?
+  previousScore       Decimal?
+  progressUnit        String?
+  progressCurrent     Int?
+  progressPrevious    Int?
+  progressTotal       Int?
+  isPublic            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  actor                     User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId                   String
+  media                     Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId                   String
+  trackingState             TrackingState? @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId           String?
+  statusWatchlist           Watchlist?     @relation("ActivityEventStatusWatchlist", fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  statusWatchlistId         String?
+  previousStatusWatchlist   Watchlist?     @relation("ActivityEventPreviousStatusWatchlist", fields: [previousStatusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  previousStatusWatchlistId String?
+
+  @@index([actorId, createdAt])
+  @@index([mediaId, createdAt])
+  @@index([trackingStateId])
+  @@index([statusWatchlistId])
+  @@index([previousStatusWatchlistId])
+  @@index([isPublic, createdAt])
+  @@index([type, createdAt])
+}
+
+/// A member's current long-form review of one canonical work. Keeping one row
+/// per member and work makes edits stable while preserving the original publish
+/// time separately from the latest edit time.
+model Review {
+  id               String   @id @default(cuid())
+  body             String
+  containsSpoilers Boolean  @default(false)
+  rating           Decimal?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId      String
+  media         Media           @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId       String
+  likes         ReviewLike[]
+  comments      ReviewComment[]
+  notifications Notification[]
+
+  @@unique([authorId, mediaId])
+  @@index([authorId, createdAt])
+  @@index([mediaId, createdAt])
+}
+
+/// A member can like a review once. The unique pair also makes toggling likes
+/// idempotent under repeated form submissions.
+model ReviewLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  review       Review        @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId     String
+  notification Notification?
+
+  @@unique([userId, reviewId])
+  @@index([reviewId, createdAt])
+}
+
+/// Review discussion supports replies while remaining bounded to one review.
+model ReviewComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId     String
+  review       Review          @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId     String
+  parent       ReviewComment?  @relation("ReviewCommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentId     String?
+  replies      ReviewComment[] @relation("ReviewCommentReplies")
+  notification Notification?
+
+  @@index([reviewId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([parentId])
+}
+
+/// A member's opt-in notification schedule for one canonical title.
+model ReleaseReminder {
+  id          String   @id @default(cuid())
+  leadMinutes Int      @default(60)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+  media         Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId       String
+  notifications Notification[]
+
+  @@unique([ownerId, mediaId])
+  @@index([ownerId, updatedAt])
+  @@index([mediaId])
+}
+
+/// A source-linked inbox item. Social source relations and release reminders
+/// cascade so removing the originating interaction or subscription cannot
+/// leave an orphaned notification behind.
+model Notification {
+  id          String    @id @default(cuid())
+  type        String
+  readAt      DateTime?
+  availableAt DateTime  @default(now())
+  releaseAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  recipient           User               @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId         String
+  actor               User?              @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId             String?
+  review              Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewId            String?
+  reviewLike          ReviewLike?        @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewLikeId        String?            @unique
+  reviewComment       ReviewComment?     @relation(fields: [reviewCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reviewCommentId     String?            @unique
+  collection          MediaCollection?   @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId        String?
+  collectionLike      CollectionLike?    @relation(fields: [collectionLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionLikeId    String?            @unique
+  collectionComment   CollectionComment? @relation(fields: [collectionCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionCommentId String?            @unique
+  releaseReminder     ReleaseReminder?   @relation(fields: [releaseReminderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  releaseReminderId   String?
+
+  @@unique([releaseReminderId, releaseAt])
+  @@index([recipientId, readAt, createdAt])
+  @@index([recipientId, availableAt, readAt])
+  @@index([reviewId])
+  @@index([collectionId])
+  @@index([releaseReminderId])
+}
+
+/// A dated consumption log. Unlike TrackingState, diary rows are intentionally
+/// repeatable so rewatches and rereads remain distinct historical records.
+model DiaryEntry {
+  id        String   @id @default(cuid())
+  loggedOn  DateTime
+  isRepeat  Boolean  @default(false)
+  rating    Decimal?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@index([ownerId, loggedOn])
+  @@index([mediaId, loggedOn])
+}
+
+/// A member-curated, shareable set of canonical works. These are intentionally
+/// distinct from status watchlists: a collection expresses a theme or opinion,
+/// while TrackingState represents consumption progress.
+model MediaCollection {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  isPublic    Boolean   @default(true)
+  featuredAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+  items         MediaCollectionItem[]
+  tags          MediaCollectionTag[]
+  likes         CollectionLike[]
+  comments      CollectionComment[]
+  notifications Notification[]
+
+  @@index([ownerId, updatedAt])
+  @@index([isPublic, updatedAt])
+  @@index([featuredAt])
+}
+
+/// One ordered title in a curated collection. Position is indexed rather than
+/// unique so multi-row reordering remains safe inside a transaction.
+model MediaCollectionItem {
+  id        String   @id @default(cuid())
+  position  Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  media        Media           @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId      String
+
+  @@unique([collectionId, mediaId])
+  @@index([collectionId, position])
+  @@index([mediaId])
+}
+
+/// A normalized discovery label shared across curated collections.
+model CollectionTag {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  collections MediaCollectionTag[]
+
+  @@index([name])
+}
+
+/// Explicit tag membership keeps collection cleanup predictable and makes
+/// filtering by a normalized tag efficient.
+model MediaCollectionTag {
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  tag          CollectionTag   @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tagId        String
+
+  @@id([collectionId, tagId])
+  @@index([tagId, collectionId])
+}
+
+/// Unique appreciation for a public or owner-visible curated collection.
+model CollectionLike {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@unique([userId, collectionId])
+  @@index([collectionId, createdAt])
+}
+
+/// Flat collection discussion. Owners can moderate comments on their lists;
+/// authors can always remove their own comments.
+model CollectionComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId     String
+  collection   MediaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collectionId String
+  notification Notification?
+
+  @@index([collectionId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model UserFavorite {
+  id String @id @default(cuid())
+
+  position  Int
+  thumbnail String?
+  title     String
+  type      ListType @relation(fields: [typeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  typeId    String
+  mediaType String?
+  startYear String?
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  media   Media?  @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId String?
+
+  // non-unique foreign key
+  @@index([typeId])
+  @@index([ownerId])
+  @@index([mediaId])
+}
+
+model UserImage {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
+}
+
+model UserBanner {
+  id          String  @id @default(cuid())
+  altText     String?
+  contentType String
+  blob        Bytes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
+}
+
+model Password {
+  hash String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  expirationDate DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  // non-unique foreign key
+  @@index([userId])
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  action      String // e.g. create, read, update, delete
+  entity      String // e.g. user, watchlist, etc.
+  access      String // e.g. own or any
+  description String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles Role[]
+
+  @@unique([action, entity, access])
+}
+
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  permissions Permission[]
+}
+
+model Verification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// The type of verification, e.g. "email" or "phone"
+  type String
+
+  /// The thing we're trying to verify, e.g. a user's email or phone number
+  target String
+
+  /// The secret key used to generate the otp
+  secret String
+
+  /// The algorithm used to generate the otp
+  algorithm String
+
+  /// The number of digits in the otp
+  digits Int
+
+  /// The number of seconds the otp is valid for
+  period Int
+
+  /// The valid characters for the otp
+  charSet String
+
+  /// When it's safe to delete this verification
+  expiresAt DateTime?
+
+  @@unique([target, type])
+}
+
+model Connection {
+  id           String @id @default(cuid())
+  providerName String
+  providerId   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  @@unique([providerName, providerId])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // The user doing the following.
+  follower   User   @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followerId String
+
+  // The user being followed.
+  following   User   @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  followingId String
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model ProfileComment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User   @relation("ProfileCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  authorId String
+
+  profile   User   @relation("ProfileCommentProfile", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  profileId String
+
+  @@index([authorId])
+  @@index([profileId, createdAt])
+}

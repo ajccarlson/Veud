@@ -4,6 +4,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import {
+	assertSqlitePrimaryDatabase,
 	copyVerifiedBackup,
 	parsePositiveInteger,
 	pruneBackups,
@@ -58,6 +59,17 @@ const verificationOptions = {
 }
 
 describe('backup verification', () => {
+	test('fails closed when the primary datasource is PostgreSQL', () => {
+		expect(() =>
+			assertSqlitePrimaryDatabase(
+				'postgresql://veud:secret@localhost:5432/veud',
+			),
+		).toThrow('cannot protect a PostgreSQL primary database')
+		expect(() =>
+			assertSqlitePrimaryDatabase('file:./prisma/data.db'),
+		).not.toThrow()
+	})
+
 	test('validates a throwaway restored copy and reports core row counts', () => {
 		const backupPath = createDatabase()
 
