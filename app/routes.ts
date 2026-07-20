@@ -75,6 +75,7 @@ export default [
 		path: 'collections/:collectionId',
 	}),
 	appRoute('routes/discover.tsx', { path: 'discover' }),
+	appRoute('routes/reviews.tsx', { path: 'reviews' }),
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
 		path: 'lists/:username/:list-type',
 		children: [
