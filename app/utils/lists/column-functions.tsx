@@ -178,20 +178,6 @@ export function timeSince(date: Date | number) {
     return flooredInterval + " seconds";
 }
 
-export function differenceFormatter(params: any) {
-  try {
-    if (params > 0) {
-      return ('+' + params.toFixed(2))
-    }
-    else {
-      return params.toFixed(2)
-    }
-  }
-  catch(e) {
-    return params
-  }
-}
-
 export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
   try {
     let typeData = listTypes.find((listType) => listType.id == passedType.id)

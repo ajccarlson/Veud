@@ -24,11 +24,16 @@
 // More kinds of customisation can be made with CSS rules
 .user-watchlist {
   height: 100%;
+  min-height: 0;
   width: 100%;
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
 
   @media (max-width: 65rem) {
-    grid-template-rows: minmax(auto, auto) minmax(auto, 8rem);
+    > .list-nav-buttons {
+      min-height: 8rem;
+    }
 
     .ag-cell-insert {
       visibility: visible;
@@ -40,7 +45,9 @@
   }
 
   @media (min-width: 65rem) {
-    grid-template-rows: minmax(auto, auto) minmax(auto, 5rem);
+    > .list-nav-buttons {
+      min-height: 5rem;
+    }
 
     .ag-cell-insert {
       visibility: hidden;
@@ -53,16 +60,16 @@
 
   .ag-theme-custom-react {
     height: 100%;
+    min-height: 0;
+    min-width: 0;
     width: 100%;
+    overflow: hidden;
   }
 
   .ag-header-cell {
     font-family: arial;
     font-size: 13px;
     font-weight: 600;
-    display: inline-grid;
-    justify-content: center;
-    align-items: center;
     color:#ff9900;
     box-shadow: 
       inset 0px 8px 8px -10px #3D4666,
@@ -71,9 +78,33 @@
     border-left: dashed #00000000 3px;
     -webkit-text-stroke-width: 0.12px;
     -webkit-text-stroke-color: black;
-    text-overflow: ellipsis;
-    overflow: hidden;
     transition: all .1s ease-out;
+  }
+
+  .ag-header-cell-comp-wrapper,
+  .ag-cell-label-container,
+  .ag-header-cell-label {
+    min-width: 0;
+  }
+
+  .ag-cell-label-container {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: 100%;
+  }
+
+  .ag-header-cell-label {
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .ag-header-cell-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
   }
 
   .ag-cell {
@@ -103,17 +134,26 @@
     filter: drop-shadow(5px 5px 6px rgba(0, 0, 0, 0.42));
   }
 
-  // .ag-header-cell-label {
-  //   position: absolute;
-  //   left: 50%;
-  //   top: 50%;
-  //   transform: translate(-50%,-50%);
-  // }
-
   .ag-header-cell-menu-button {
-    position: absolute;
-    left: 10%;
-    top: 50%;
+    position: static;
+    flex: 0 0 auto;
+    opacity: 0.8;
+  }
+
+  .ag-header-cell-menu-button:not(.ag-header-menu-always-show) {
+    opacity: 0.8;
+  }
+
+  .ag-header-cell-menu-button:hover,
+  .ag-header-cell-menu-button:focus-visible {
+    opacity: 1;
+  }
+
+  .veud-grid-filter-icon {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
   }
 
   .ag-score-cell {

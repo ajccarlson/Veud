@@ -3,18 +3,31 @@
 // grid-actions.
 import { gridReady, rowDragEnd } from './grid-actions.ts'
 
+const filterIcon = `
+  <svg class="veud-grid-filter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M4 5h16l-6.25 7.15v5.35l-3.5 1.75v-7.1L4 5Z" />
+  </svg>
+`
+
 export const gridOptions = {
   autoSizeStrategy: {
-    type: 'fitCellContents',
-    defaultMinWidth: 70
+    type: 'fitGridWidth',
+    defaultMinWidth: 80
+  },
+  headerHeight: 44,
+  suppressMenuHide: true,
+  icons: {
+    filter: filterIcon,
+    menu: filterIcon,
+    menuAlt: filterIcon,
   },
   defaultColDef: {
     editable: false,
-    resizable: false,
+    resizable: true,
     flex: 1,
     suppressMovable: true,
-    wrapHeaderText: true,
-    autoHeaderHeight: true,
+    wrapHeaderText: false,
+    autoHeaderHeight: false,
     cellStyle: {"wordBreak": "normal"},
     wrapText: true,
     autoHeight: true,

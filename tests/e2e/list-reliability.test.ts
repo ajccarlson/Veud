@@ -219,3 +219,90 @@ test('member can keep adding search results across lists in one session', async 
 		{ title: catalogTitles[103], position: 2 },
 	])
 })
+
+test('list grid fits the viewport and leaves missing scores blank', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'liveaction' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'responsive-list',
+			header: 'Responsive list',
+			position: 1,
+			displayedColumns:
+				'position, title, averaged, personal, differencePersonal, tmdbScore, differenceObjective',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: 'Unscored reliability entry',
+			type: 'Movie',
+			story: 0,
+			character: 0,
+			presentation: 0,
+			sound: 0,
+			performance: 0,
+			enjoyment: 0,
+			personal: 0,
+			tmdbScore: 0,
+		},
+	})
+
+	await page.setViewportSize({ width: 1280, height: 720 })
+	await page.goto(`/lists/${user.username}/liveaction/${watchlist.name}`)
+
+	const row = page
+		.locator('.ag-center-cols-container .ag-row')
+		.filter({ hasText: 'Unscored reliability entry' })
+	for (const column of [
+		'averaged',
+		'personal',
+		'differencePersonal',
+		'tmdbScore',
+		'differenceObjective',
+	]) {
+		await expect(row.locator(`[col-id="${column}"]`)).toHaveText('')
+	}
+	await expect(page.getByText('NaN', { exact: true })).toHaveCount(0)
+	await expect(page.locator('.veud-grid-filter-icon').first()).toBeVisible()
+
+	async function expectResponsiveGrid() {
+		const metrics = await page.evaluate(() => {
+			const main = document.querySelector('.user-watchlist')!
+			const grid = document.querySelector('.ag-theme-custom-react')!
+			const headerText = document.querySelector('.ag-header-cell-text')!
+			const mainRect = main.getBoundingClientRect()
+			const gridRect = grid.getBoundingClientRect()
+			const headerRect = headerText
+				.closest('.ag-header-cell')!
+				.getBoundingClientRect()
+			const headerStyle = window.getComputedStyle(headerText)
+			return {
+				viewportHeight: window.innerHeight,
+				mainBottom: mainRect.bottom,
+				gridHeight: gridRect.height,
+				headerHeight: headerRect.height,
+				headerWhiteSpace: headerStyle.whiteSpace,
+				headerWordBreak: headerStyle.wordBreak,
+			}
+		})
+
+		expect(metrics.mainBottom).toBeLessThanOrEqual(metrics.viewportHeight + 1)
+		expect(metrics.gridHeight).toBeGreaterThan(200)
+		expect(metrics.headerHeight).toBeLessThanOrEqual(44)
+		expect(metrics.headerWhiteSpace).toBe('nowrap')
+		expect(metrics.headerWordBreak).toBe('normal')
+	}
+
+	await expectResponsiveGrid()
+	await page.setViewportSize({ width: 390, height: 844 })
+	await expectResponsiveGrid()
+})
