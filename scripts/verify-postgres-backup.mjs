@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { verifyPostgresBackup } from './postgres-backup-operations.mjs'
+import { writePostgresBackupReceipt } from './postgres-backup-receipt.mjs'
 import { findLatestPostgresBackup } from './postgres-backup-utils.mjs'
 
 const backupDir = path.resolve(process.env.BACKUP_DIR || 'backups')
@@ -21,7 +22,16 @@ const summary = await verifyPostgresBackup({
 	verifyUrl,
 	expectedUsername: process.env.BACKUP_VERIFY_USERNAME?.trim() || undefined,
 })
+const receipt = await writePostgresBackupReceipt({
+	backupPath,
+	sourceUrl,
+	verifyUrl,
+	summary,
+	identityVerified: Boolean(process.env.BACKUP_VERIFY_USERNAME?.trim()),
+	receiptPath: process.env.POSTGRES_BACKUP_RECEIPT?.trim() || undefined,
+})
 console.log(`✅ PostgreSQL restore drill passed: ${backupPath}`)
 console.log(
 	`   users=${summary.users}, watchlists=${summary.watchlists}, entries=${summary.entries}, media=${summary.media}, migrations=${summary.migrations}`,
 )
+console.log(`   restore receipt=${receipt.path}`)

@@ -8,6 +8,10 @@ import {
 	inspectPostgresBackup,
 	verifyPostgresBackup,
 } from './postgres-backup-operations.mjs'
+import {
+	sha256File,
+	writePostgresBackupReceipt,
+} from './postgres-backup-receipt.mjs'
 import { prunePostgresBackups } from './postgres-backup-utils.mjs'
 
 const sourceUrl = process.env.DATABASE_URL
@@ -40,6 +44,13 @@ try {
 		expectedUsername,
 	})
 	fs.renameSync(partial, outputPath)
+	const receipt = await writePostgresBackupReceipt({
+		backupPath: outputPath,
+		sourceUrl,
+		verifyUrl,
+		summary,
+		identityVerified: Boolean(expectedUsername),
+	})
 	const mb = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)
 	console.log(
 		`✅ PostgreSQL backup written and restore-tested: ${outputPath} (${mb} MB)`,
@@ -47,6 +58,7 @@ try {
 	console.log(
 		`   users=${summary.users}, watchlists=${summary.watchlists}, entries=${summary.entries}, media=${summary.media}, migrations=${summary.migrations}`,
 	)
+	console.log(`   restore receipt=${receipt.path}`)
 	for (const backup of prunePostgresBackups(backupDir, keep)) {
 		console.log(`🗑  Pruned old PostgreSQL backup: ${backup}`)
 	}
@@ -73,6 +85,18 @@ try {
 			fs.renameSync(destinationPartial, destination)
 		} finally {
 			fs.rmSync(destinationPartial, { force: true })
+		}
+		if ((await sha256File(destination)) !== receipt.receipt.archive.sha256) {
+			throw new Error('PostgreSQL offsite copy SHA-256 does not match receipt')
+		}
+		const destinationReceipt = `${destination}.restore-verified.json`
+		const receiptPartial = `${destinationReceipt}.partial-${process.pid}`
+		try {
+			fs.copyFileSync(receipt.path, receiptPartial)
+			fs.chmodSync(receiptPartial, 0o600)
+			fs.renameSync(receiptPartial, destinationReceipt)
+		} finally {
+			fs.rmSync(receiptPartial, { force: true })
 		}
 		console.log(`✅ Verified PostgreSQL offsite copy: ${destination}`)
 		for (const backup of prunePostgresBackups(offsiteDir, offsiteKeep)) {
