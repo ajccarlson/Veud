@@ -9,7 +9,15 @@ test('home shows a unified activity feed from followed members', async ({
 	const viewer = await login()
 	const followed = await insertNewUser()
 	const media = await prisma.media.create({
-		data: { kind: 'anime', title: 'Following Feed Browser Test' },
+		data: {
+			kind: 'anime',
+			title: 'Following Feed Browser Test',
+			nextRelease: JSON.stringify({
+				releaseDate: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+				episode: 2,
+				name: 'The canonical home schedule',
+			}),
+		},
 	})
 	await Promise.all([
 		prisma.follow.create({
@@ -42,6 +50,14 @@ test('home shows a unified activity feed from followed members', async ({
 				rating: 8.5,
 			},
 		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: media.id,
+				status: 'watching',
+				score: 8,
+			},
+		}),
 	])
 
 	try {
@@ -55,6 +71,18 @@ test('home shows a unified activity feed from followed members', async ({
 		await expect(page.getByText('published a review')).toBeVisible()
 		await expect(page.getByText('logged a rewatch')).toBeVisible()
 		await expect(page.getByText('added to completed')).toBeVisible()
+		const upcoming = page.getByRole('region', { name: 'Upcoming releases' })
+		await expect(upcoming).toBeVisible()
+		await expect(
+			upcoming.getByText('Following Feed Browser Test'),
+		).toBeVisible()
+		await expect(upcoming.getByText('Episode 2')).toBeVisible()
+		await expect(
+			upcoming.getByText('Watching · 8/10 · 1 member tracking'),
+		).toBeVisible()
+		await expect(
+			upcoming.getByRole('link', { name: 'View full calendar' }),
+		).toHaveAttribute('href', /scope=mine/)
 		await page.getByText('Spoiler review — reveal').click()
 		await expect(
 			page.getByText('A followed browser-level review.'),
