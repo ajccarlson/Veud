@@ -92,21 +92,21 @@ The baseline migration is for a new empty PostgreSQL database. It does not copy
 the current SQLite users, member history, media, or catalog records. Do not run
 it as a substitute for a data migration.
 
-Production cutover remains blocked until a following operations batch provides
-and exercises all of these:
+The transfer and PostgreSQL-native backup/restore tooling are now implemented
+and have passed a full local rehearsal; see
+[PostgreSQL transfer, backup, and restore operations](postgresql-operations.md).
+Production cutover remains blocked until staging provides representative-scale
+evidence for all of these:
 
-1. a consistent SQLite snapshot-to-PostgreSQL transfer with per-table counts,
-   relationship/integrity checks, and an idempotent rehearsal;
-2. PostgreSQL-native automated backups plus an independent restore drill;
-3. representative catalog loading and concurrent search/hydration tests;
-4. measured database/index size, import throughput, query latency, lock
+1. representative catalog loading and concurrent search/hydration tests;
+2. measured database/index size, import throughput, query latency, lock
    contention, backup time, and restore time; and
-5. a rehearsed maintenance-window cutover and rollback procedure.
+3. a production-like maintenance-window cutover, canary, and rollback rehearsal.
 
 Until those gates pass, production remains on its current SQLite database and
 provider-scale backfills remain disabled.
 
-The existing `db:backup`/PM2 backup job now fails closed when `DATABASE_URL`
-uses PostgreSQL. This prevents a leftover SQLite file from producing reassuring
-but irrelevant backup-success messages; replace it with verified
-PostgreSQL-native backup automation before cutover.
+The provider-aware `db:backup`/PM2 job now dispatches to a PostgreSQL custom
+dump and requires a successful disposable-database restore before retaining it.
+The SQLite-only implementation still fails closed if invoked directly against a
+PostgreSQL URL.
