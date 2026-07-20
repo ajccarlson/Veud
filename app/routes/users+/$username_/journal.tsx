@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import {
+	ProfileEmptyState,
+	ProfilePageHeader,
+} from '#app/components/profile-ui.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
@@ -32,7 +36,7 @@ function MediaThumbnail({
 	return (
 		<Link
 			to={`/media/${media.id}`}
-			className="block aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--veud-surface-alt)]"
+			className="user-landing-journal-thumbnail"
 			aria-label={media.title}
 		>
 			{imageUrl ? (
@@ -86,21 +90,18 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
 
 	return (
-		<section className="mx-auto max-w-5xl space-y-4 text-[var(--veud-cream)]">
-			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-[var(--veud-highlight)]">
-						Reviews
-					</h1>
-					<p className="text-sm text-[var(--veud-mint-text)]">
+		<section className="user-landing-journal">
+			<ProfilePageHeader
+				eyebrow="Journal"
+				title="Reviews"
+				description={
+					<>
 						Long-form thoughts published by{' '}
 						{data.user.name ?? data.user.username}.
-					</p>
-				</div>
-				<span className="text-sm text-[var(--veud-mint-text)]">
-					{reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
-				</span>
-			</header>
+					</>
+				}
+				meta={`${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`}
+			/>
 
 			<ProfileFilter
 				data={data}
@@ -109,19 +110,16 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 			/>
 
 			{reviews.length ? (
-				<div className="space-y-3">
+				<div className="user-landing-journal-list">
 					{reviews.slice(0, visibleCount).map(review => {
 						const edited =
 							new Date(review.updatedAt).getTime() -
 								new Date(review.createdAt).getTime() >
 							1_000
 						return (
-							<article
-								key={review.id}
-								className="flex gap-4 rounded-xl border border-[var(--veud-control)] bg-[var(--veud-surface)] p-4"
-							>
+							<article key={review.id} className="user-landing-journal-card">
 								<MediaThumbnail media={review.media} />
-								<div className="min-w-0 flex-1 space-y-3">
+								<div className="user-landing-journal-card-body">
 									<header className="flex flex-wrap items-start justify-between gap-2">
 										<div>
 											<Link
@@ -142,7 +140,7 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 										</span>
 									</header>
 									{review.containsSpoilers ? (
-										<details className="rounded-lg border border-[var(--veud-control)] bg-[var(--veud-surface-alt)] p-3">
+										<details className="user-landing-spoiler">
 											<summary className="cursor-pointer font-semibold text-[var(--veud-highlight)]">
 												Contains spoilers — reveal review
 											</summary>
@@ -166,9 +164,11 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 					) : null}
 				</div>
 			) : (
-				<div className="rounded-xl bg-[var(--veud-surface)] p-6 text-center text-[var(--veud-mint-text)]">
-					No reviews for this media type yet.
-				</div>
+				<ProfileEmptyState
+					icon="reader"
+					title="Nothing published here yet"
+					description="Choose another media type, or check back after this member publishes a review."
+				/>
 			)}
 		</section>
 	)
@@ -194,21 +194,13 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
 
 	return (
-		<section className="mx-auto max-w-5xl space-y-4 text-[var(--veud-cream)]">
-			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<h1 className="text-2xl font-bold text-[var(--veud-highlight)]">
-						Diary
-					</h1>
-					<p className="text-sm text-[var(--veud-mint-text)]">
-						Dated watches and reads from {data.user.name ?? data.user.username}.
-					</p>
-				</div>
-				<span className="text-sm text-[var(--veud-mint-text)]">
-					{diaryEntries.length}{' '}
-					{diaryEntries.length === 1 ? 'entry' : 'entries'}
-				</span>
-			</header>
+		<section className="user-landing-journal">
+			<ProfilePageHeader
+				eyebrow="Journal"
+				title="Diary"
+				description={`Dated watches and reads from ${data.user.name ?? data.user.username}.`}
+				meta={`${diaryEntries.length} ${diaryEntries.length === 1 ? 'entry' : 'entries'}`}
+			/>
 
 			<ProfileFilter
 				data={data}
@@ -217,12 +209,12 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 			/>
 
 			{diaryEntries.length ? (
-				<div className="overflow-hidden rounded-xl border border-[var(--veud-control)] bg-[var(--veud-surface)]">
-					<ul className="divide-y divide-[var(--veud-control)]">
+				<div className="user-landing-diary-panel">
+					<ul className="user-landing-diary-list">
 						{diaryEntries.slice(0, visibleCount).map(entry => {
 							const terms = journalTerms(entry.media.kind)
 							return (
-								<li key={entry.id} className="flex items-center gap-4 p-4">
+								<li key={entry.id} className="user-landing-diary-row">
 									<MediaThumbnail media={entry.media} />
 									<div className="min-w-0 flex-1">
 										<Link
@@ -254,9 +246,11 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 					) : null}
 				</div>
 			) : (
-				<div className="rounded-xl bg-[var(--veud-surface)] p-6 text-center text-[var(--veud-mint-text)]">
-					No diary entries for this media type yet.
-				</div>
+				<ProfileEmptyState
+					icon="calendar"
+					title="Nothing logged here yet"
+					description="Choose another media type, or check back after this member logs a title."
+				/>
 			)}
 		</section>
 	)

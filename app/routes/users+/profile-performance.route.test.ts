@@ -92,11 +92,18 @@ test('profile shell and analytics stay within representative payload budgets', a
 	])
 	const shellPayload = JSON.stringify(shellResult.data)
 	const analyticsPayload = JSON.stringify(overviewResult.data)
+	const analyticsRoundTrip = JSON.parse(analyticsPayload) as {
+		typedEntries: Record<string, Array<{ personal: unknown }>>
+	}
+	const firstAnalyticsEntry = Object.values(analyticsRoundTrip.typedEntries)
+		.flat()
+		.at(0)
 
 	expect(Buffer.byteLength(shellPayload)).toBeLessThan(32 * 1024)
 	expect(Buffer.byteLength(analyticsPayload)).toBeLessThan(512 * 1024)
 	expect(shellPayload).not.toContain('typedEntries')
 	expect(analyticsPayload).not.toContain(omittedSentinel)
+	expect(typeof firstAnalyticsEntry?.personal).toBe('number')
 	expect(new Headers(shellResult.init?.headers).get('Server-Timing')).toContain(
 		'profile_shell',
 	)

@@ -237,12 +237,31 @@ export async function loadProfileAnalytics(
 
 	return time(
 		() => {
+			// Prisma Decimal instances render numerically on the server but do not
+			// hydrate as equivalent browser values. Normalize the analytics boundary
+			// so chart calculations are deterministic on both sides.
+			const normalizedEntries = entries.map(entry => ({
+				...entry,
+				averaged: entry.averaged === null ? null : Number(entry.averaged),
+				personal: entry.personal === null ? null : Number(entry.personal),
+				tmdbScore: entry.tmdbScore === null ? null : Number(entry.tmdbScore),
+				malScore: entry.malScore === null ? null : Number(entry.malScore),
+				trackingState: entry.trackingState
+					? {
+							...entry.trackingState,
+							score:
+								entry.trackingState.score === null
+									? null
+									: Number(entry.trackingState.score),
+						}
+					: null,
+			}))
 			const trackingSummaries = buildProfileTrackingSummaries({
 				listTypes,
 				watchlists: watchLists,
-				entries,
+				entries: normalizedEntries,
 			})
-			const historyEntries = entries.map(
+			const historyEntries = normalizedEntries.map(
 				({ media: _media, trackingState: _trackingState, ...entry }) => entry,
 			)
 			const { typedEntries } = buildProfileHistory({
