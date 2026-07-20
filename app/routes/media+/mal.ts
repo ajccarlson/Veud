@@ -108,6 +108,33 @@ export async function getAnilistSchedule(entryID: any) {
   }
 }
 
+function formatMalRelations(data: any) {
+  const relations = []
+  for (const [kind, field] of [['anime', 'related_anime'], ['manga', 'related_manga']] as const) {
+    const related: any[] = Array.isArray(data?.[field]) ? data[field] : []
+    for (const item of related) {
+      const node = item?.node
+      if (!node?.id || !item?.relation_type) continue
+      const picture = node.main_picture?.large ?? node.main_picture?.medium
+      relations.push({
+        relationType: item.relation_type,
+        targetIdentity: {
+          provider: 'mal',
+          kind,
+          externalId: String(node.id),
+        },
+        targetCatalog: {
+          title: node.title,
+          thumbnail: picture
+            ? `${picture}|https://myanimelist.net/${kind}/${node.id}`
+            : undefined,
+        },
+      })
+    }
+  }
+  return relations
+}
+
 async function formatAnimeInfo(data: any, full = true) {
   try {
     let nextRelease = null
@@ -198,7 +225,8 @@ async function formatAnimeInfo(data: any, full = true) {
       'genres': genres,
       'studios': studios,
       'malScore': data['mean'],
-      'description': data['synopsis']
+      'description': data['synopsis'],
+      'mediaRelations': formatMalRelations(data)
     }
 
     return malInfo
@@ -294,7 +322,8 @@ export async function formatMangaInfo(data: any, full = true) {
       'serialization': serialization,
       'authors': authors,
       'malScore': data['mean'],
-      'description': data['synopsis']
+      'description': data['synopsis'],
+      'mediaRelations': formatMalRelations(data)
     }
 
     return malInfo
