@@ -12,12 +12,24 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
-import { getTrendingCollectionIds } from '#app/utils/collection-discovery.server.ts'
+import {
+	getPersonalizedCollectionRanking,
+	getTrendingCollectionIds,
+} from '#app/utils/collection-discovery.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { normalizeCollectionTag } from '#app/utils/media-collections.ts'
 
 const PAGE_SIZE = 24
-type CollectionSort = 'recent' | 'popular' | 'trending'
+type CollectionSort = 'recent' | 'popular' | 'trending' | 'for-you'
+
+type CollectionRanking = {
+	items: Array<{ id: string; reason: string | null }>
+	personalization: {
+		followedPeople: number
+		tasteTitles: number
+		likedTags: number
+	} | null
+}
 
 const collectionCardSelect = {
 	id: true,
@@ -61,6 +73,27 @@ function collectionsHref(
 	return search ? `/collections?${search}` : '/collections'
 }
 
+function personalizationSummary(signals: {
+	followedPeople: number
+	tasteTitles: number
+	likedTags: number
+}) {
+	const sources = [
+		signals.followedPeople
+			? `${signals.followedPeople} followed ${signals.followedPeople === 1 ? 'member' : 'members'}`
+			: null,
+		signals.tasteTitles
+			? `${signals.tasteTitles} ${signals.tasteTitles === 1 ? 'title' : 'titles'} you enjoyed`
+			: null,
+		signals.likedTags
+			? `${signals.likedTags} ${signals.likedTags === 1 ? 'tag' : 'tags'} from liked collections`
+			: null,
+	].filter((source): source is string => Boolean(source))
+	return sources.length
+		? `Ranked using ${sources.join(', ')}.`
+		: 'Follow members, track favorites, or like collections to shape these recommendations. Community activity fills in the gaps.'
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const url = new URL(request.url)
@@ -72,9 +105,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const tagSlug = normalizedTag?.slug ?? ''
 	const requestedSort = url.searchParams.get('sort')
 	const sort: CollectionSort =
-		requestedSort === 'popular' || requestedSort === 'trending'
-			? requestedSort
-			: 'recent'
+		requestedSort === 'for-you'
+			? viewerId
+				? 'for-you'
+				: 'recent'
+			: requestedSort === 'popular' || requestedSort === 'trending'
+				? requestedSort
+				: 'recent'
 	const requestedPage = parsePage(url.searchParams.get('page'))
 	const visibility: Prisma.MediaCollectionWhereInput = viewerId
 		? { OR: [{ isPublic: true }, { ownerId: viewerId }] }
@@ -96,11 +133,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			...(tagSlug ? [{ tags: { some: { tag: { slug: tagSlug } } } }] : []),
 		],
 	}
+	const rankingRequest: Promise<CollectionRanking> | null =
+		sort === 'trending'
+			? getTrendingCollectionIds(where).then(ids => ({
+					items: ids.map(id => ({ id, reason: null })),
+					personalization: null,
+				}))
+			: sort === 'for-you' && viewerId
+				? getPersonalizedCollectionRanking(viewerId, where).then(result => ({
+						items: result.items.map(item => ({
+							id: item.id,
+							reason: item.reason,
+						})),
+						personalization: result.signals,
+					}))
+				: null
 	const [rankingOrTotal, availableTags, activeTag, featuredCollections] =
 		await Promise.all([
-			sort === 'trending'
-				? getTrendingCollectionIds(where)
-				: prisma.mediaCollection.count({ where }),
+			rankingRequest ?? prisma.mediaCollection.count({ where }),
 			prisma.collectionTag.findMany({
 				where: { collections: { some: { collection: visibility } } },
 				orderBy: [{ collections: { _count: 'desc' } }, { name: 'asc' }],
@@ -125,14 +175,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					})
 				: Promise.resolve([]),
 		])
-	const trendingIds = Array.isArray(rankingOrTotal) ? rankingOrTotal : null
-	const total = Array.isArray(rankingOrTotal)
-		? rankingOrTotal.length
-		: rankingOrTotal
+	const ranking = typeof rankingOrTotal === 'number' ? null : rankingOrTotal
+	const total =
+		typeof rankingOrTotal === 'number'
+			? rankingOrTotal
+			: rankingOrTotal.items.length
 	const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 	const page = Math.min(requestedPage, pageCount)
-	const pageIds = trendingIds?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-	let collections = await prisma.mediaCollection.findMany({
+	const pageRanking = ranking?.items.slice(
+		(page - 1) * PAGE_SIZE,
+		page * PAGE_SIZE,
+	)
+	const pageIds = pageRanking?.map(item => item.id)
+	let collectionRows = await prisma.mediaCollection.findMany({
 		where: pageIds ? { id: { in: pageIds } } : where,
 		orderBy: pageIds
 			? undefined
@@ -145,13 +200,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	})
 	if (pageIds) {
 		const position = new Map(pageIds.map((id, index) => [id, index]))
-		collections = collections.sort(
+		collectionRows = collectionRows.sort(
 			(a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0),
 		)
 	}
+	const recommendationReasons = new Map(
+		pageRanking?.map(item => [item.id, item.reason]) ?? [],
+	)
+	const collections = collectionRows.map(collection => ({
+		...collection,
+		recommendationReason: recommendationReasons.get(collection.id) ?? null,
+	}))
 	return json({
 		collections,
 		featuredCollections,
+		personalization: ranking?.personalization ?? null,
 		query,
 		sort,
 		activeTag,
@@ -237,6 +300,7 @@ export default function CollectionsIndex() {
 						defaultValue={data.sort}
 						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
 					>
+						{data.isSignedIn ? <option value="for-you">For you</option> : null}
 						<option value="trending">Trending now</option>
 						<option value="recent">Recently updated</option>
 						<option value="popular">Most liked</option>
@@ -279,6 +343,19 @@ export default function CollectionsIndex() {
 			) : null}
 
 			<section className="space-y-4">
+				{data.personalization ? (
+					<div className="rounded-2xl border border-[#a2ffd5]/60 bg-[#383040] px-5 py-4">
+						<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a2ffd5]">
+							Personalized discovery
+						</p>
+						<h2 className="mt-1 text-2xl font-black text-[#ffffb1]">
+							Picked for you
+						</h2>
+						<p className="mt-1 text-sm leading-6 text-[#c6ded2]">
+							{personalizationSummary(data.personalization)}
+						</p>
+					</div>
+				) : null}
 				<p className="text-sm font-semibold text-[#a2ffd5]">
 					{data.total} {data.total === 1 ? 'collection' : 'collections'}
 					{data.activeTag ? ` tagged #${data.activeTag.name}` : ''}

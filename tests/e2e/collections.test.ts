@@ -213,3 +213,49 @@ test('admin can feature a public collection as a staff pick', async ({
 	await expect(page.getByRole('heading', { name: 'Staff picks' })).toBeVisible()
 	await expect(page.getByText('Editorial Browser Pick').first()).toBeVisible()
 })
+
+test('member can browse collections personalized from followed curators', async ({
+	page,
+	login,
+}) => {
+	const viewer = await login()
+	const owner = await prisma.user.create({
+		data: {
+			email: `collection_recommender_${viewer.id}@example.com`,
+			username: `collection_recommender_${viewer.id}`,
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Personalized Collection Fixture' },
+	})
+	await prisma.mediaCollection.create({
+		data: {
+			ownerId: owner.id,
+			title: 'A Followed Curator Recommendation',
+			isPublic: true,
+			items: { create: { mediaId: media.id, position: 1 } },
+		},
+	})
+	await prisma.follow.create({
+		data: { followerId: viewer.id, followingId: owner.id },
+	})
+
+	try {
+		await page.goto('/collections?sort=for-you')
+		await expect(
+			page.getByRole('heading', { name: 'Picked for you' }),
+		).toBeVisible()
+		await expect(
+			page.getByRole('heading', {
+				name: 'A Followed Curator Recommendation',
+			}),
+		).toBeVisible()
+		await expect(
+			page.getByText('Why this list: From someone you follow'),
+		).toBeVisible()
+		await expect(page.getByLabel('Sort by')).toHaveValue('for-you')
+	} finally {
+		await prisma.user.delete({ where: { id: owner.id } }).catch(() => {})
+		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
+	}
+})
