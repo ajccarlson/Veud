@@ -164,7 +164,66 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 	expect(
 		result.data.community.scoreDistribution.every(bucket => bucket.count === 0),
 	).toBe(true)
+	expect(result.data.socialContext).toBeNull()
 	expect(result.data.viewer).toBeNull()
+})
+
+test('signed-in media loader shows tracking only from followed members', async () => {
+	const { media, tracker, otherUser, otherList, cookie } = await fixture()
+	const stranger = await user('media_stranger')
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: tracker.id, followingId: otherUser.id },
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: otherUser.id,
+				mediaId: media.id,
+				status: 'watching',
+				statusWatchlistId: otherList.id,
+				score: 7.5,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: stranger.id,
+				mediaId: media.id,
+				status: 'completed',
+				score: 10,
+			},
+		}),
+	])
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	expect(result.data.socialContext).toMatchObject({
+		total: 1,
+		ratings: 1,
+		meanScore: 7.5,
+		items: [
+			expect.objectContaining({
+				status: 'watching',
+				statusLabel: 'Watching',
+				score: 7.5,
+				member: expect.objectContaining({ id: otherUser.id }),
+			}),
+		],
+	})
+	expect(
+		result.data.socialContext?.items.some(
+			item => item.member.id === stranger.id,
+		),
+	).toBe(false)
+
+	const anonymous = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`),
+		params: { mediaId: media.id },
+	} as any)
+	expect(anonymous.data.socialContext).toBeNull()
 })
 
 test('tracking controls create and dual-write status, score, and progress', async () => {

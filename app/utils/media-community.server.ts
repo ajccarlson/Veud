@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 
 type ScoreGroup = {
@@ -81,5 +82,58 @@ export async function getMediaCommunityStatistics(mediaId: string) {
 		meanScore: summary._avg.score === null ? null : Number(summary._avg.score),
 		scoreDistribution: buildScoreDistribution(scoreGroups),
 		statusBreakdown: buildStatusBreakdown(statusGroups),
+	}
+}
+
+export async function getFollowedMediaTracking(
+	mediaId: string,
+	viewerId: string,
+) {
+	const where = {
+		mediaId,
+		owner: { followers: { some: { followerId: viewerId } } },
+	} satisfies Prisma.TrackingStateWhereInput
+	const [summary, rows] = await Promise.all([
+		prisma.trackingState.aggregate({
+			where,
+			_count: { id: true, score: true },
+			_avg: { score: true },
+		}),
+		prisma.trackingState.findMany({
+			where,
+			orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+			take: 12,
+			select: {
+				id: true,
+				status: true,
+				score: true,
+				updatedAt: true,
+				statusWatchlist: { select: { header: true } },
+				owner: {
+					select: {
+						id: true,
+						username: true,
+						name: true,
+						image: { select: { id: true } },
+					},
+				},
+			},
+		}),
+	])
+
+	return {
+		total: summary._count.id,
+		ratings: summary._count.score,
+		meanScore: summary._avg.score === null ? null : Number(summary._avg.score),
+		items: rows.map(row => ({
+			id: row.id,
+			status: row.status,
+			statusLabel:
+				row.statusWatchlist?.header.trim() ||
+				titleCase(row.status || 'tracked'),
+			score: row.score === null ? null : Number(row.score),
+			updatedAt: row.updatedAt,
+			member: row.owner,
+		})),
 	}
 }
