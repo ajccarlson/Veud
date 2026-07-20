@@ -14,11 +14,9 @@ import {
 } from '#app/components/ui/dropdown-menu.tsx'
 import { gridAPI, columnParams } from './grid-state.ts'
 import {
-	setterFunction,
-	getAllRows,
 	createNewRow,
-	updatePositions,
 	refreshGrid,
+	moveEntry,
 } from './grid-actions.ts'
 import {
 	getSiteIdSafe,
@@ -31,7 +29,6 @@ export function positionColumn() {
     {
       field: 'position',
       headerName: '#',
-      valueSetter: (params: any) => {setterFunction(params)},
       editable: false,
       resizable: false,
       minWidth: 60,
@@ -47,37 +44,29 @@ export function positionColumn() {
                   method="GET"
                   onSubmit={async (event: any) => {
                     event.preventDefault();
-
-                    let agRows = getAllRows()
-                    const agRow = agRows[params.node.id]
-                    const deleteResponse = gridAPI.applyTransaction({ remove: [agRow] })
-                    
-                    let addPosition = event.target.moveRowIndex.value
-                    if (addPosition > agRows.length - 1) {
-                      addPosition = (agRows.length - 1)
+                    const formData = new FormData(event.currentTarget)
+                    const position = Number(formData.get('moveRowIndex'))
+                    if (!params.data.id || !Number.isInteger(position) || position < 1) {
+                      await refreshGrid(columnParams)
+                      return
                     }
-                    else if (addPosition < 1) {
-                      addPosition = 1
+                    try {
+                      await moveEntry(params.data.id, params.data.watchlistId, position)
+                    } catch (error) {
+                      console.error('[watchlist] failed to move entry to position', error)
+                    } finally {
+                      await refreshGrid(columnParams)
                     }
-
-                    let addRow = params.node.data
-                    addRow.position = addPosition
-
-                    const addResponse = gridAPI.applyTransaction({
-                      add: [addRow],
-                      addIndex: addPosition - 1,
-                    })
-
-                    const rowNode = gridAPI.getRowNode(addPosition - 1)
-                    rowNode.setDataValue("position", Number(addPosition))
                   }}
                 >
                   <Input
                     name="moveRowIndex"
+                    type="number"
+                    min="1"
                     className="ag-row-index ag-move-row-input"
-                    id="moveRowIndex"
-                    autoComplete='false'
-                    placeholder={params.value}
+                    autoComplete='off'
+                    defaultValue={params.value}
+                    aria-label={`Move ${params.data.title || 'entry'} to position`}
                   />
                 </Form>
                 <DropdownMenu>
@@ -104,15 +93,12 @@ export function positionColumn() {
                           listTypeData: JSON.stringify(columnParams.listTypeData),
                           id: params.data.id,
                         } as any).toString()), { method: 'POST' })
-
-                        const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-                          authorization: columnParams.VEUD_API_KEY,
-                          watchlistId: params.data.watchlistId
-                        } as any).toString()), { method: 'POST' })
-
-                        const deleteTransaction = gridAPI.applyTransaction({ remove: [params.data] })
-
-                        updatePositions()
+                        if (!deleteResponse.ok) {
+                          await refreshGrid(columnParams)
+                          return
+                        }
+                        gridAPI.applyTransaction({ remove: [params.data] })
+                        await refreshGrid(columnParams)
                       }}>
                         Delete row
                       </DropdownMenuItem>

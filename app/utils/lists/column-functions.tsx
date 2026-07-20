@@ -214,14 +214,15 @@ export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
   }
 }
 
-export function getThumbnailInfo(thumbnail: string) {
-  const separatorIndex = thumbnail.indexOf("|")
-  if (separatorIndex < 0) return { content: thumbnail, url: "" }
+export function getThumbnailInfo(thumbnail: string | null | undefined) {
+	const value = thumbnail ?? ""
+	const separatorIndex = value.indexOf("|")
+	if (separatorIndex < 0) return { content: value, url: "" }
 
-  return {
-    content: thumbnail.slice(0, separatorIndex),
-    url: thumbnail.slice(separatorIndex + 1)
-  }
+	return {
+		content: value.slice(0, separatorIndex),
+		url: value.slice(separatorIndex + 1)
+	}
 }
 
 export function hyperlinkRenderer(

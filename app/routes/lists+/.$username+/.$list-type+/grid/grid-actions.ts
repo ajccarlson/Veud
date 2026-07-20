@@ -6,6 +6,26 @@
 import { gridAPI, columnParams, setGridAPI } from './grid-state.ts'
 import { mediaProgressParser } from '#app/utils/lists/column-functions.tsx'
 
+async function requireSuccessfulResponse(response: Response) {
+  if (response.ok) return response
+  const message = await response.text().catch(() => '')
+  throw new Error(message || `List request failed with ${response.status}`)
+}
+
+export async function moveEntry(
+  entryId: string,
+  destinationWatchlistId: string,
+  position?: number,
+) {
+  const moveResponse = await fetch('/lists/fetch/move-row/' + encodeURIComponent(new URLSearchParams({
+    entryId,
+    destinationWatchlistId,
+    ...(position === undefined ? {} : { position: String(position) }),
+  }).toString()), { method: 'POST' })
+  await requireSuccessfulResponse(moveResponse)
+  return moveResponse.json()
+}
+
 export function gridReady(e: any) {
   setGridAPI(e.api)
 
@@ -26,42 +46,19 @@ export function gridReady(e: any) {
       },
       onDragStop: async (e: any) => {
         navButtonContainer.style = ""
+        const destinationWatchlistId = navButtonContainer.getAttribute('id')
+        if (!e.node.data.id || !destinationWatchlistId) return
 
-        const listEntriesResponse = await fetch('/lists/fetch/get-list-entries/' + encodeURIComponent(new URLSearchParams({
-          authorization: columnParams.VEUD_API_KEY,
-          watchlistId: navButtonContainer.getAttribute('id'),
-          listTypeData: JSON.stringify(columnParams.listTypeData),
-        } as any).toString()))
-        const listEntriesData = await listEntriesResponse.json() as any[]
-
-        let addRow = structuredClone(e.node.data)
-        addRow.watchlistId = navButtonContainer.getAttribute('id')
-        addRow.position = listEntriesData.length + 1
-        delete addRow.id
-
-        const addResponse = await fetch('/lists/fetch/add-row/' + encodeURIComponent(new URLSearchParams({
-          authorization: columnParams.VEUD_API_KEY,
-          listTypeData: JSON.stringify(columnParams.listTypeData),
-          row: JSON.stringify(addRow)
-        } as any).toString()), { method: 'POST' })
-
-        const updateResponseAdd = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-          authorization: columnParams.VEUD_API_KEY,
-          watchlistId: addRow.watchlistId
-        } as any).toString()), { method: 'POST' })
-        
-        const deleteResponse = await fetch('/lists/fetch/delete-row/' + encodeURIComponent(new URLSearchParams({
-          authorization: columnParams.VEUD_API_KEY,
-          listTypeData: JSON.stringify(columnParams.listTypeData),
-          id: e.node.data.id,
-        } as any).toString()), { method: 'POST' })
-        
-        const updateResponseRemove = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-          authorization: columnParams.VEUD_API_KEY,
-          watchlistId: e.node.data.watchlistId
-        } as any).toString()), { method: 'POST' })
-
-        updatePositions()
+        try {
+          await moveEntry(e.node.data.id, destinationWatchlistId)
+          if (destinationWatchlistId !== columnParams.watchlistId) {
+            gridAPI.applyTransaction({ remove: [e.node.data] })
+          }
+        } catch (error) {
+          console.error('[watchlist] failed to move entry', error)
+        } finally {
+          await refreshGrid(columnParams)
+        }
       },
     }
     gridAPI.addRowDropZone(dropZone)
@@ -113,24 +110,26 @@ export async function refreshGrid(columnParams: any) {
     watchlistId: columnParams.watchlistId,
     listTypeData: JSON.stringify(columnParams.listTypeData),
   } as any).toString()))
-  const listEntriesData = await listEntriesResponse.json() as any[];
+  await requireSuccessfulResponse(listEntriesResponse)
+  const listEntriesData = (await listEntriesResponse.json() as any[])
+    .sort((a: any, b: any) => a.position - b.position)
 
-  columnParams.setListEntries(listEntriesData.sort(function(a: any, b: any) {
-		if (a.position < b.position) return -1;
-		if (a.position > b.position) return 1;
-		return 0;
-	}))
+  const nextRows = [...listEntriesData]
+  const emptyRow = createEmptyRow(
+    columnParams.watchlistId,
+    listEntriesData.length + 1,
+    columnParams.listTypeData,
+  )
 
-  let emptyRow = columnParams.emptyRow
-  if (!emptyRow && columnParams.watchlistId) {
-    emptyRow = createEmptyRow(columnParams.watchlistId, listEntriesData.length + 1, columnParams.listTypeData)
+  const lastEntry = listEntriesData.at(-1)
+  const canEdit = columnParams.currentUserId === columnParams.listOwner.id
+  if (canEdit && (!lastEntry ||
+  ((lastEntry.title && lastEntry.title.replace(/\W/g, '') !== "") && (lastEntry.type && lastEntry.type.replace(/\W/g, '') !== "")))) {
+    nextRows.push(emptyRow)
   }
-  
-  if (listEntriesData.slice(-1)[0] &&
-  ((listEntriesData.slice(-1)[0].title && listEntriesData.slice(-1)[0].title.replace(/\W/g, '') !== "") && (listEntriesData.slice(-1)[0].type && listEntriesData.slice(-1)[0].type.replace(/\W/g, '') !== ""))) {
-    listEntriesData.push(emptyRow)
-    columnParams.setListEntries(listEntriesData)
-  }
+
+  columnParams.setListEntries(nextRows)
+  gridAPI?.setGridOption('rowData', nextRows)
 }
 
 export async function reformatHistory(params: any, newValue: any) {
@@ -148,9 +147,12 @@ export async function reformatHistory(params: any, newValue: any) {
   return updateCellData
 }
 
-export function rowDragEnd(params: any) {
-  const rowNode = gridAPI.getRowNode(params.node.id)
-  rowNode.setDataValue("position", params.overIndex + 1)
+export async function rowDragEnd(params: any) {
+  if (!params.node.data.id) {
+    await refreshGrid(columnParams)
+    return
+  }
+  await updatePositions()
 }
 
 export const rowDragText = function (params: any) {
@@ -190,26 +192,20 @@ export async function createNewRow(location: any, params: any, position?: any) {
 }
 
 export async function updatePositions() {
-  gridAPI.forEachNode(async (rowNode: any, index: number) => {
-    rowNode.data.position = index + 1
-
-    const updateCellResponse = await fetch('/lists/fetch/update-cell/' + encodeURIComponent(new URLSearchParams({
-      authorization: columnParams.VEUD_API_KEY,
-      listTypeData: JSON.stringify(columnParams.listTypeData),
-      colId: "position",
-      type: "num",
-      filter: "num",
-      rowIndex: rowNode.data.id,
-      newValue: index + 1,
-    } as any).toString()), { method: 'POST' })
-  })
-
-  const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
-    authorization: columnParams.VEUD_API_KEY,
-    watchlistId: columnParams.watchlistId
-  } as any).toString()), { method: 'POST' })
-
-  refreshGrid(columnParams)
+  const entryIds = getAllRows()
+    .map(row => row.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  try {
+    const reorderResponse = await fetch('/lists/fetch/reorder-rows/' + encodeURIComponent(new URLSearchParams({
+      watchlistId: columnParams.watchlistId,
+      entryIds: JSON.stringify(entryIds),
+    }).toString()), { method: 'POST' })
+    await requireSuccessfulResponse(reorderResponse)
+  } catch (error) {
+    console.error('[watchlist] failed to reorder entries', error)
+  } finally {
+    await refreshGrid(columnParams)
+  }
 }
 
 export async function setterFunction(params: any) {
