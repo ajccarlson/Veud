@@ -1,7 +1,14 @@
 // ag-grid options for the watchlist grid, extracted from $watchlist_grid.jsx
 // (Phase 3.2, increment 2). References the gridReady / rowDragEnd handlers now in
 // grid-actions.
-import { gridReady, rowDragEnd } from './grid-actions.ts'
+import {
+	gridReady,
+	rowDragCancel,
+	rowDragEnd,
+	rowDragEnter,
+	rowDragLeave,
+	rowDragMove,
+} from './grid-actions.ts'
 
 const filterIcon = `
   <svg class="veud-grid-filter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -10,32 +17,36 @@ const filterIcon = `
 `
 
 export const gridOptions = {
-  autoSizeStrategy: {
-    type: 'fitGridWidth',
-    defaultMinWidth: 80
-  },
-  headerHeight: 44,
-  suppressMenuHide: true,
-  icons: {
-    filter: filterIcon,
-    menu: filterIcon,
-    menuAlt: filterIcon,
-  },
-  defaultColDef: {
-    editable: false,
-    resizable: true,
-    flex: 1,
-    suppressMovable: true,
-    wrapHeaderText: false,
-    autoHeaderHeight: false,
-    cellStyle: {"wordBreak": "normal"},
-    wrapText: true,
-    autoHeight: true,
-  },
-  rowDragManaged: true,
-  rowDragMultiRow: true,
-  resetRowDataOnUpdate: true,
-  onRowDragEnd: rowDragEnd,
-  rowSelection: 'multiple',
-  onGridReady: gridReady,
+	autoSizeStrategy: {
+		type: 'fitGridWidth',
+		defaultMinWidth: 80,
+	},
+	headerHeight: 44,
+	suppressMenuHide: true,
+	icons: {
+		filter: filterIcon,
+		menu: filterIcon,
+		menuAlt: filterIcon,
+	},
+	defaultColDef: {
+		editable: false,
+		resizable: true,
+		flex: 1,
+		suppressMovable: true,
+		wrapHeaderText: false,
+		autoHeaderHeight: false,
+		cellStyle: { wordBreak: 'normal' },
+		wrapText: true,
+		autoHeight: true,
+	},
+	rowDragManaged: true,
+	rowDragMultiRow: true,
+	resetRowDataOnUpdate: true,
+	onRowDragEnter: rowDragEnter,
+	onRowDragMove: rowDragMove,
+	onRowDragLeave: rowDragLeave,
+	onRowDragEnd: rowDragEnd,
+	onRowDragCancel: rowDragCancel,
+	rowSelection: 'multiple',
+	onGridReady: gridReady,
 }

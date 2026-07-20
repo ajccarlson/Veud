@@ -394,3 +394,156 @@ test('member can quick edit fields that are hidden from the grid', async ({
 	).toBeVisible()
 	await expect(page.getByRole('menuitem', { name: 'Delete row' })).toBeVisible()
 })
+
+test('hovering a list tab opens it so a dragged entry can be positioned', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const [source, destination] = await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				name: 'drag-source',
+				header: 'Drag source',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				name: 'drag-destination',
+				header: 'Drag destination',
+				position: 2,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+	])
+	await prisma.entry.create({
+		data: {
+			watchlistId: source.id,
+			position: 1,
+			title: 'Cross-list dragged entry',
+			type: 'TV Series',
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: destination.id,
+				position: 1,
+				title: 'Destination first',
+				type: 'TV Series',
+			},
+			{
+				watchlistId: destination.id,
+				position: 2,
+				title: 'Destination second',
+				type: 'TV Series',
+			},
+		],
+	})
+
+	await page.goto(`/lists/${user.username}/anime/${source.name}`)
+	const draggedRow = page
+		.locator('.ag-center-cols-container .ag-row')
+		.filter({ hasText: 'Cross-list dragged entry' })
+	const dragHandle = draggedRow.locator('.ag-row-drag')
+	const destinationTab = page.getByRole('link', {
+		name: 'Drag destination',
+	})
+	await expect(destinationTab).toHaveClass(/list-nav-drop-ready/)
+	await dragHandle.hover()
+	await page.mouse.down()
+	await draggedRow.hover({ position: { x: 80, y: 20 }, force: true })
+	await expect(page.locator('.ag-dnd-ghost')).toBeVisible()
+	await destinationTab.hover({ force: true })
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Drag destination' }),
+	).toBeVisible()
+	const firstDestinationRow = page
+		.locator('.ag-center-cols-container .ag-row')
+		.filter({ hasText: 'Destination first' })
+	await expect(firstDestinationRow).toBeVisible()
+	const firstDestinationBounds = await firstDestinationRow.boundingBox()
+	expect(firstDestinationBounds).not.toBeNull()
+	await page.mouse.move(
+		firstDestinationBounds!.x + firstDestinationBounds!.width / 2,
+		firstDestinationBounds!.y + 2,
+		{ steps: 12 },
+	)
+	await page.mouse.up()
+
+	await expect
+		.poll(() => titlesInOrder(destination.id))
+		.toEqual([
+			'1:Cross-list dragged entry',
+			'2:Destination first',
+			'3:Destination second',
+		])
+	await expect(page).toHaveURL(
+		new RegExp(`/lists/${user.username}/anime/${destination.name}$`),
+	)
+	await expect(page.getByRole('status')).toHaveCount(0)
+})
+
+test('dragging near a grid edge continuously scrolls the list', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'drag-scroll',
+			header: 'Drag scroll',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.createMany({
+		data: Array.from({ length: 40 }, (_, index) => ({
+			watchlistId: watchlist.id,
+			position: index + 1,
+			title: `Scroll entry ${String(index + 1).padStart(2, '0')}`,
+			type: 'TV Series',
+		})),
+	})
+
+	await page.setViewportSize({ width: 1000, height: 600 })
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+	const firstRow = page
+		.locator('.ag-center-cols-container .ag-row')
+		.filter({ hasText: 'Scroll entry 01' })
+	const dragHandle = firstRow.locator('.ag-row-drag')
+	const viewport = page.locator('.ag-body-viewport')
+	const handleBounds = await dragHandle.boundingBox()
+	const viewportBounds = await viewport.boundingBox()
+	expect(handleBounds).not.toBeNull()
+	expect(viewportBounds).not.toBeNull()
+
+	await page.mouse.move(
+		handleBounds!.x + handleBounds!.width / 2,
+		handleBounds!.y + handleBounds!.height / 2,
+	)
+	await page.mouse.down()
+	await page.mouse.move(
+		viewportBounds!.x + viewportBounds!.width / 2,
+		viewportBounds!.y + viewportBounds!.height - 50,
+		{ steps: 12 },
+	)
+	await expect
+		.poll(() => viewport.evaluate(element => element.scrollTop))
+		.toBeGreaterThan(100)
+	await page.mouse.up()
+})
