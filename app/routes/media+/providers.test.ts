@@ -12,7 +12,12 @@
  * NOTE: authored in a sandbox without vitest; run `npm run test` to confirm.
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { formatMangaInfo, getAnilistSchedule, searchMAL } from './mal.ts'
+import {
+	animeStatusHasUpcomingSchedule,
+	formatMangaInfo,
+	getAnilistSchedule,
+	searchMAL,
+} from './mal.ts'
 import { getTMDBInfo, searchTMDB } from './tmdb.ts'
 
 let fetchMock: any
@@ -230,6 +235,13 @@ test('MAL detail formatting preserves canonical related-work identities', async 
 })
 
 // ---- getAnilistSchedule ----
+
+test('only current and announced anime request an upcoming schedule', () => {
+	expect(animeStatusHasUpcomingSchedule('currently_airing')).toBe(true)
+	expect(animeStatusHasUpcomingSchedule('not_yet_aired')).toBe(true)
+	expect(animeStatusHasUpcomingSchedule('finished_airing')).toBe(false)
+	expect(animeStatusHasUpcomingSchedule(undefined)).toBe(false)
+})
 
 test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () => {
 	const media = {

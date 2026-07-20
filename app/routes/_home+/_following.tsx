@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { type FollowingActivityFeedItem } from '#app/utils/activity-feed.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
@@ -101,7 +100,7 @@ export function FollowingFeed({
 	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
 
 	return (
-		<section className="w-full max-w-4xl space-y-4 self-center px-4 pt-4 text-[#ffefcc]">
+		<section className="home-following min-w-0 space-y-4 text-[#ffefcc]">
 			<header className="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<h1 className="text-2xl font-black text-[#ff9900]">Following</h1>
@@ -116,12 +115,24 @@ export function FollowingFeed({
 
 			{items.length ? (
 				<>
-					<TypeSwitcher
-						variant="primary"
-						options={filters}
-						index={filterIndex}
-						onIndexChange={setFilterIndex}
-					/>
+					<div
+						className="home-media-tabs"
+						role="tablist"
+						aria-label="Following activity type"
+					>
+						{filters.map((filter, index) => (
+							<button
+								key={filter.key}
+								type="button"
+								role="tab"
+								aria-selected={index === filterIndex}
+								className="home-media-tab"
+								onClick={() => setFilterIndex(index)}
+							>
+								{filter.label}
+							</button>
+						))}
+					</div>
 					{filtered.length ? (
 						<div className="space-y-3">
 							{filtered.slice(0, visibleCount).map(item => {

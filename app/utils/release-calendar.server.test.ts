@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	dateKeyInTimeZone,
+	isPlausibleNextRelease,
 	normalizeTimeZone,
 	parseReleaseCalendarQuery,
 	parseStoredNextRelease,
@@ -66,4 +67,40 @@ test('parses stored episode and chapter schedule payloads safely', () => {
 	).toMatchObject({ allDay: true, volume: 3, chapter: 21 })
 	expect(parseStoredNextRelease('{not-json')).toBeNull()
 	expect(parseStoredNextRelease('null')).toBeNull()
+})
+
+test('rejects schedules that contradict completed or long-ended media', () => {
+	const next = parseStoredNextRelease(
+		JSON.stringify({
+			releaseDate: '2026-07-21T18:30:00.000Z',
+			episode: 2,
+		}),
+	)
+	expect(next).not.toBeNull()
+	if (!next) return
+
+	expect(
+		isPlausibleNextRelease(next, {
+			kind: 'anime',
+			releaseStart: new Date('2005-01-07T00:00:00.000Z'),
+			releaseEnd: new Date('2005-04-01T00:00:00.000Z'),
+			releaseStatus: null,
+		}),
+	).toBe(false)
+	expect(
+		isPlausibleNextRelease(next, {
+			kind: 'anime',
+			releaseStart: new Date('2026-04-01T00:00:00.000Z'),
+			releaseEnd: new Date('2026-07-14T00:00:00.000Z'),
+			releaseStatus: 'Currently Airing',
+		}),
+	).toBe(true)
+	expect(
+		isPlausibleNextRelease(next, {
+			kind: 'anime',
+			releaseStart: new Date('2026-04-01T00:00:00.000Z'),
+			releaseEnd: new Date('2026-07-14T00:00:00.000Z'),
+			releaseStatus: 'Finished Airing',
+		}),
+	).toBe(false)
 })
