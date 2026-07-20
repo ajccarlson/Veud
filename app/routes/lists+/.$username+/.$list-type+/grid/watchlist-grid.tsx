@@ -18,7 +18,11 @@ import {
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
 import { setColumnParams } from './grid-state.ts'
-import { createEmptyRow, rowDragText } from './grid-actions.ts'
+import {
+	createEmptyRow,
+	registerListDropZones,
+	rowDragText,
+} from './grid-actions.ts'
 import { gridOptions } from './grid-options.ts'
 import { columnDefs } from './columns.tsx'
 
@@ -56,12 +60,14 @@ export function watchlistGrid(
 	currentUser: any,
 	currentUserId: any,
 	VEUD_API_KEY: any,
+	navigate: (path: string) => void,
 ) {
 	const canEdit = currentUserId === listOwner.id
 	const [listEntries, setListEntries] = useState(() =>
 		withQuickAddRow(listEntriesPass, watchlistId, listTypeData, canEdit),
 	)
 	const [selectedSearchType, setSelectedSearchType] = useState('Type')
+	const [dragDestination, setDragDestination] = useState<string | null>(null)
 
 	if (!typedFavorites[listTypeData.id]) {
 		typedFavorites[listTypeData.id] = []
@@ -94,6 +100,11 @@ export function watchlistGrid(
 		)
 	}, [listEntriesPass, watchlistId, listTypeData, canEdit])
 
+	useEffect(() => {
+		const frame = requestAnimationFrame(registerListDropZones)
+		return () => cancelAnimationFrame(frame)
+	}, [watchlistId, typedWatchlists])
+
 	setColumnParams({
 		listEntries,
 		setListEntries,
@@ -112,10 +123,17 @@ export function watchlistGrid(
 		displayedColumns,
 		emptyRow,
 		VEUD_API_KEY,
+		navigate,
+		setDragDestination,
 	})
 
 	return (
 		<div className="ag-theme-custom-react">
+			{dragDestination ? (
+				<div className="ag-drag-destination-banner" role="status">
+					Now viewing {dragDestination}. Drop the entry where you want it.
+				</div>
+			) : null}
 			<AgGridReact
 				gridOptions={gridOptions as GridOptions}
 				columnDefs={columnDefs() as ColDef[]}
