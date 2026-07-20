@@ -16,6 +16,8 @@ import {
 	ensureMediaForIdentity,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
+import { parseMediaRelationCandidates } from '#app/utils/media-relations.ts'
+import { syncMediaRelations } from '#app/utils/media-relations.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -48,6 +50,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		listType.name,
 		typeof rowObj.thumbnail === 'string' ? rowObj.thumbnail : null,
 	)
+	const mediaRelations = mediaIdentity
+		? parseMediaRelationCandidates(rowObj.mediaRelations, mediaIdentity)
+		: null
 
 	// Identity and relations are server-managed. The client may describe a provider
 	// identity, but it cannot directly connect an entry to an arbitrary Media row.
@@ -56,6 +61,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		'media',
 		'mediaId',
 		'mediaIdentity',
+		'mediaRelations',
 		'trackingState',
 		'trackingStateId',
 		'watchlist',
@@ -65,6 +71,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const mediaId = mediaIdentity
 			? await ensureMediaForIdentity(tx, mediaIdentity, data)
 			: undefined
+		if (mediaId && mediaIdentity && mediaRelations) {
+			await syncMediaRelations(tx, {
+				sourceMediaId: mediaId,
+				sourceIdentity: mediaIdentity,
+				relations: mediaRelations,
+			})
+		}
 		const trackingStateId =
 			mediaId && mediaIdentity
 				? await ensureTrackingStateForEntry(tx, {
