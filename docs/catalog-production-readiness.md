@@ -55,7 +55,8 @@ indexes, drift checks, and application smoke checks are now complete; see the
 [PostgreSQL catalog schema handoff](postgresql-catalog-readiness.md). SQLite
 remains the fast isolated test datasource.
 
-The next engineering batch must transfer a consistent production-like snapshot,
-add PostgreSQL-native backup/restore automation, and record database size,
+Snapshot transfer and PostgreSQL-native backup/restore automation have passed a
+full local rehearsal. The remaining batch must repeat them with a
+production-like, representative catalog snapshot and record database/index size,
 import throughput, search latency, hydration throughput, lock contention, backup
 time, and restore time before changing this hold.
