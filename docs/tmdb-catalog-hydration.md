@@ -27,6 +27,12 @@ Priority-feed ranks are durable and idempotent. A successful detail write clears
 the priority request. A failed write keeps its priority but becomes ineligible
 until its retry deadline.
 
+Each successful priority-feed refresh also replaces its ranked
+`CatalogFeedItem` snapshot in the same transaction. The homepage uses fresh
+weekly-trending ranks directly and treats snapshots older than eight days as
+stale, falling back to canonical catalog popularity without making an
+interactive provider request.
+
 ## Safety model
 
 - The command is a read-only queue preview unless `--commit` is explicit.
