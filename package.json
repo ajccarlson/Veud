@@ -18,6 +18,8 @@
     "db:backup": "node scripts/backup-database.mjs",
     "db:backup:postgres": "node scripts/backup-postgres.mjs",
     "db:backup:sqlite": "node scripts/backup-db.mjs",
+    "db:canary:postgres": "node scripts/canary-postgres.mjs",
+    "db:cutover:postgres": "node scripts/check-postgres-cutover.mjs",
     "db:loadtest:postgres": "node scripts/load-test-postgres-catalog.mjs",
     "db:migrate:postgres": "npm run prisma:postgres:check && prisma migrate deploy --schema=prisma/postgresql/schema.prisma",
     "db:smoke:postgres": "tsx scripts/smoke-postgres.ts",
