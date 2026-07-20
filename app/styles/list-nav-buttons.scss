@@ -1,132 +1,155 @@
 .list-nav-buttons {
-  height: 100%;
-  width: 100%;
+	height: 100%;
+	width: 100%;
 
-  @media (max-width: 65rem) {
-    .list-nav-buttons-main {
-      padding-top: 0.75rem;
-      padding-bottom: 0.75rem;
-    }
+	@media (max-width: 65rem) {
+		.list-nav-buttons-main {
+			padding-top: 0.75rem;
+			padding-bottom: 0.75rem;
+		}
 
-    .list-nav-buttons-container {
-      display: flex;
-      flex-direction: row;
-      overflow-x: auto;
-      scroll-behavior: smooth;
-      gap: 1rem;
-    }
-  }
+		.list-nav-buttons-container {
+			display: flex;
+			flex-direction: row;
+			overflow-x: auto;
+			scroll-behavior: smooth;
+			gap: 1rem;
+		}
+	}
 
-  @media (min-width: 65rem) {
-    .list-nav-buttons-main {
-      padding-top: 0.75rem;
-      // padding-bottom: 0.25rem;
-    }
+	@media (min-width: 65rem) {
+		.list-nav-buttons-main {
+			padding-top: 0.75rem;
+			// padding-bottom: 0.25rem;
+		}
 
-    .list-nav-buttons-container {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: center;
-      overflow-x: auto;
-      scroll-behavior: smooth;
-      gap: 1rem;
-    }
-  }
+		.list-nav-buttons-container {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: center;
+			overflow-x: auto;
+			scroll-behavior: smooth;
+			gap: 1rem;
+		}
+	}
 
-  .list-nav-buttons-main {
-    height: 100%;
-    display: grid;
-    grid-template-columns: minmax(auto, auto) minmax(auto, 9rem);
-    font-family: arial;
-    background-color: #464646;
-    color: #FFEFCC;
-    border-top-width: 8px;
-    border-color: #54806C;
-    box-shadow: inset 0 -6px 8px rgba(0,0,0,0.6);
-  }
+	.list-nav-buttons-main {
+		height: 100%;
+		display: grid;
+		grid-template-columns: minmax(auto, auto) minmax(auto, 9rem);
+		font-family: arial;
+		background-color: #464646;
+		color: #ffefcc;
+		border-top-width: 8px;
+		border-color: #54806c;
+		box-shadow: inset 0 -6px 8px rgba(0, 0, 0, 0.6);
+	}
 
-  .list-nav-button {
-    height: 100%;
-    align-content: center;
-    background-color: #6F6F6F;
-    transition: all .1s ease-out; 
-    font-size: 1rem;
-    line-height: 1.5rem;
-    font-weight: 700;
-    // padding-top: 1.25rem;
-    // padding-bottom: 1.25rem;
-    padding-left: 2rem;
-    padding-right: 2rem;
-    border-bottom-width: 4px;
-    border-color: #A2FFD5;
-    border-radius: 0.25rem;
-  }
+	.list-nav-button {
+		height: 100%;
+		align-content: center;
+		background-color: #6f6f6f;
+		transition: all 0.1s ease-out;
+		font-size: 1rem;
+		line-height: 1.5rem;
+		font-weight: 700;
+		// padding-top: 1.25rem;
+		// padding-bottom: 1.25rem;
+		padding-left: 2rem;
+		padding-right: 2rem;
+		border-bottom-width: 4px;
+		border-color: #a2ffd5;
+		border-radius: 0.25rem;
+	}
 
-  .list-nav-button:hover {
-    background-color: #8CA99D;
-    border-color: #80FFC6;
-  }
+	.list-nav-button:hover {
+		background-color: #8ca99d;
+		border-color: #80ffc6;
+	}
 
-  .list-nav-current {
-    text-decoration: underline;
-    text-decoration-style: dashed;
-    text-decoration-color: #FF9900;
-    text-decoration-thickness: 0.25rem;
-  }
+	.list-nav-drag-hover,
+	.list-nav-drag-active {
+		color: #fff7e8;
+		background-color: #aa7d39;
+		border-color: #ff5100;
+		outline: 0.25rem solid #ff9900;
+		outline-offset: 0.15rem;
+	}
 
-  .list-type-nav-container {
-    display: flex;
-    justify-content: center;
-    font-weight: 700;
-    border-radius: 0.25rem;
-  }
+	.list-nav-drag-hover:not(.list-nav-drag-active) {
+		animation: list-drag-pulse 0.75s ease-in-out infinite alternate;
+	}
 
-  .list-type-dropdown-container {
-    align-content: center;
-    text-align: center;
-    justify-content: center;
-    border-radius: 0.25rem;
-  }
+	@keyframes list-drag-pulse {
+		from {
+			outline-color: rgba(255, 153, 0, 0.45);
+		}
+		to {
+			outline-color: #ff9900;
+		}
+	}
 
-  .list-type-dropdown-trigger {
-    display: grid;
-    grid-template-columns: minmax(auto, auto) minmax(7.5rem, auto);
-    height: 100%;
-    align-items: center;
-    align-content: center;
-    padding-left: 0.5rem;
-    color: #404280;
-    background-color: #A2FFD5;
-    cursor: pointer;
-    font-size: 1rem;
-    line-height: 1.5rem;
-    font-weight: 700;
-    border-radius: 0.5rem 0 0 0;
-  }
+	.list-nav-current {
+		text-decoration: underline;
+		text-decoration-style: dashed;
+		text-decoration-color: #ff9900;
+		text-decoration-thickness: 0.25rem;
+	}
 
-  .list-type-dropdown-trigger:hover {
-    background-color: #80FFC6;
-  }
+	.list-type-nav-container {
+		display: flex;
+		justify-content: center;
+		font-weight: 700;
+		border-radius: 0.25rem;
+	}
 
-  .list-type-dropdown-icon {
-    color: black;
-  }
+	.list-type-dropdown-container {
+		align-content: center;
+		text-align: center;
+		justify-content: center;
+		border-radius: 0.25rem;
+	}
 
-  .list-type-dropdown-button {
-    background-color: #6F6F6F;
-    transition: all .1s ease-out; 
-    font-size: 1rem;
-    line-height: 1.5rem;
-    font-weight: 700;
-    // padding-top: 0.1rem;
-    // padding-bottom: 0.1rem;
-    // padding-left: 0.5rem;
-    // padding-right: 0.5rem;
-    border-radius: 0.25rem;
-  }
+	.list-type-dropdown-trigger {
+		display: grid;
+		grid-template-columns: minmax(auto, auto) minmax(7.5rem, auto);
+		height: 100%;
+		align-items: center;
+		align-content: center;
+		padding-left: 0.5rem;
+		color: #404280;
+		background-color: #a2ffd5;
+		cursor: pointer;
+		font-size: 1rem;
+		line-height: 1.5rem;
+		font-weight: 700;
+		border-radius: 0.5rem 0 0 0;
+		border: 0;
+	}
 
-  .list-type-dropdown-button:hover {
-    background-color: #8CA99D;
-  }
+	.list-type-dropdown-trigger:hover {
+		background-color: #80ffc6;
+	}
+
+	.list-type-dropdown-icon {
+		color: black;
+	}
+
+	.list-type-dropdown-button {
+		background-color: #6f6f6f;
+		transition: all 0.1s ease-out;
+		font-size: 1rem;
+		line-height: 1.5rem;
+		font-weight: 700;
+		// padding-top: 0.1rem;
+		// padding-bottom: 0.1rem;
+		// padding-left: 0.5rem;
+		// padding-right: 0.5rem;
+		border-radius: 0.25rem;
+	}
+
+	.list-type-dropdown-button:hover {
+		background-color: #8ca99d;
+	}
 }
