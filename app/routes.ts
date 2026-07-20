@@ -80,10 +80,9 @@ export default [
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
 		path: 'lists/:username/:list-type',
 		children: [
-			appRoute(
-				'routes/lists+/.$username+/.$list-type+/$watchlist.tsx',
-				{ path: ':watchlist' },
-			),
+			appRoute('routes/lists+/.$username+/.$list-type+/$watchlist.tsx', {
+				path: ':watchlist',
+			}),
 			appRoute('routes/lists+/.$username+/.$list-type+/index.tsx', {
 				index: true,
 			}),
@@ -98,6 +97,9 @@ export default [
 	}),
 	appRoute('routes/lists+/.fetch+/add-row.$request.ts', {
 		path: 'lists/fetch/add-row/:request',
+	}),
+	appRoute('routes/lists+/.fetch+/advanced-edit.$request.ts', {
+		path: 'lists/fetch/advanced-edit',
 	}),
 	appRoute('routes/lists+/.fetch+/create-watchlist.$request.ts', {
 		path: 'lists/fetch/create-watchlist/:request',
@@ -117,6 +119,9 @@ export default [
 	appRoute('routes/lists+/.fetch+/get-list-entries.$request.ts', {
 		path: 'lists/fetch/get-list-entries/:request',
 	}),
+	appRoute('routes/lists+/.fetch+/move-row.$request.ts', {
+		path: 'lists/fetch/move-row/:request',
+	}),
 	appRoute('routes/lists+/.fetch+/now-updated.$request.ts', {
 		path: 'lists/fetch/now-updated/:request',
 	}),
@@ -125,6 +130,9 @@ export default [
 	}),
 	appRoute('routes/lists+/.fetch+/reorder-favorite.$request.ts', {
 		path: 'lists/fetch/reorder-favorite/:request',
+	}),
+	appRoute('routes/lists+/.fetch+/reorder-rows.$request.ts', {
+		path: 'lists/fetch/reorder-rows/:request',
 	}),
 	appRoute('routes/lists+/.fetch+/update-cell.$request.ts', {
 		path: 'lists/fetch/update-cell/:request',

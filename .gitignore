@@ -20,6 +20,9 @@ node_modules
 /tests/fixtures/email/
 /coverage
 
+# Local product planning notes
+/ROADMAP.md
+
 /other/cache.db
 
 # Easy way to create temporary files/folders that won't accidentally be added to git

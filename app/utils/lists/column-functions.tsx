@@ -178,20 +178,6 @@ export function timeSince(date: Date | number) {
     return flooredInterval + " seconds";
 }
 
-export function differenceFormatter(params: any) {
-  try {
-    if (params > 0) {
-      return ('+' + params.toFixed(2))
-    }
-    else {
-      return params.toFixed(2)
-    }
-  }
-  catch(e) {
-    return params
-  }
-}
-
 export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
   try {
     let typeData = listTypes.find((listType) => listType.id == passedType.id)
@@ -214,14 +200,15 @@ export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
   }
 }
 
-export function getThumbnailInfo(thumbnail: string) {
-  const separatorIndex = thumbnail.indexOf("|")
-  if (separatorIndex < 0) return { content: thumbnail, url: "" }
+export function getThumbnailInfo(thumbnail: string | null | undefined) {
+	const value = thumbnail ?? ""
+	const separatorIndex = value.indexOf("|")
+	if (separatorIndex < 0) return { content: value, url: "" }
 
-  return {
-    content: thumbnail.slice(0, separatorIndex),
-    url: thumbnail.slice(separatorIndex + 1)
-  }
+	return {
+		content: value.slice(0, separatorIndex),
+		url: value.slice(separatorIndex + 1)
+	}
 }
 
 export function hyperlinkRenderer(
