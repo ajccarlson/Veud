@@ -1,11 +1,21 @@
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
+test.use({ timezoneId: 'America/Los_Angeles' })
+
 test('member can browse a release week and focus on tracked titles', async ({
 	page,
 	login,
 }) => {
 	const viewer = await login()
+	await page.context().addCookies([
+		{
+			name: 'CH-time-zone',
+			value: 'America%2FLos_Angeles',
+			domain: 'localhost',
+			path: '/',
+		},
+	])
 	const listType = await prisma.listType.findUniqueOrThrow({
 		where: { name: 'anime' },
 	})
@@ -64,7 +74,10 @@ test('member can browse a release week and focus on tracked titles', async ({
 		await expect(page.getByText('July 20 – July 26, 2026')).toBeVisible()
 		await expect(page.getByText('Browser Calendar Episode')).toBeVisible()
 		await expect(page.getByText('Season 2 · Episode 4')).toBeVisible()
-		await expect(page.getByText('6:30 PM UTC')).toBeVisible()
+		await expect(page.getByText('11:30 AM PDT')).toBeVisible()
+		await expect(
+			page.getByText(/Pacific Time \(America\/Los_Angeles\)/),
+		).toBeVisible()
 		await expect(page.getByText('Browser Calendar Premiere')).toBeVisible()
 		await expect(page.getByText('Browser Outside Calendar')).not.toBeVisible()
 
@@ -94,6 +107,7 @@ test('member can browse a release week and focus on tracked titles', async ({
 		let calendarBody = ''
 		for await (const chunk of stream) calendarBody += chunk.toString()
 		expect(calendarBody).toContain('BEGIN:VCALENDAR')
+		expect(calendarBody).toContain('X-WR-TIMEZONE:America/Los_Angeles')
 		expect(calendarBody).toContain('Browser Calendar Episode')
 		expect(calendarBody).not.toContain('Browser Calendar Premiere')
 	} finally {

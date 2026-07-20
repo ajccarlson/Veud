@@ -3,6 +3,7 @@ import { type ReleaseCalendarItem } from './release-calendar.server.ts'
 type ICalendarInput = {
 	start: string
 	end: string
+	timeZone: string
 	filters: {
 		kind: string
 		scope: string
@@ -98,6 +99,7 @@ export function serializeReleaseCalendar(
 		'METHOD:PUBLISH',
 		`X-WR-CALNAME:${escapeText(calendarName(calendar))}`,
 		`X-WR-CALDESC:${escapeText(`Veud releases from ${calendar.start} through ${calendar.end}`)}`,
+		`X-WR-TIMEZONE:${escapeText(calendar.timeZone)}`,
 		'X-PUBLISHED-TTL:PT6H',
 	]
 

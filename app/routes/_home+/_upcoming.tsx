@@ -21,6 +21,7 @@ type UpcomingItem = {
 
 type UpcomingCalendar = {
 	start: string
+	timeZone: string
 	total: number
 	days: Array<{ date: string; items: UpcomingItem[] }>
 }
@@ -34,12 +35,12 @@ function displayDay(value: string) {
 	})
 }
 
-function displayTime(value: Date | string, allDay: boolean) {
+function displayTime(value: Date | string, allDay: boolean, timeZone: string) {
 	if (allDay) return 'All day'
 	return new Date(value).toLocaleTimeString('en-US', {
 		hour: 'numeric',
 		minute: '2-digit',
-		timeZone: 'UTC',
+		timeZone,
 		timeZoneName: 'short',
 	})
 }
@@ -74,7 +75,8 @@ export function UpcomingData({
 						Upcoming releases
 					</h2>
 					<p className="text-sm text-[#a2ffd5]">
-						Your tracked premieres and episodes for the next seven days · UTC
+						Your tracked premieres and episodes for the next seven days ·{' '}
+						{calendar.timeZone}
 					</p>
 				</div>
 				<Button asChild variant="outline" size="sm">
@@ -120,8 +122,12 @@ export function UpcomingData({
 											</Link>
 											<div className="min-w-0 flex-1">
 												<div className="text-[0.7rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
-													{displayTime(item.releaseAt, item.allDay)} ·{' '}
-													{item.type || item.kind}
+													{displayTime(
+														item.releaseAt,
+														item.allDay,
+														calendar.timeZone,
+													)}{' '}
+													· {item.type || item.kind}
 												</div>
 												<Link
 													to={`/media/${item.mediaId}`}

@@ -43,6 +43,7 @@ test('calendar export returns the selected public week as an iCalendar download'
 		'attachment; filename="veud-releases-2026-07-20.ics"',
 	)
 	expect(body).toContain('SUMMARY:Portable\\, Public Premiere — Premiere')
+	expect(body).toContain('X-WR-TIMEZONE:UTC')
 	expect(body).toContain('URL:https://www.epicstack.dev/media/')
 })
 

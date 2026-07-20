@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import {
+	dateKeyInTimeZone,
+	normalizeTimeZone,
 	parseReleaseCalendarQuery,
 	parseStoredNextRelease,
 } from './release-calendar.server.ts'
@@ -17,6 +19,23 @@ test('normalizes calendar filters and defaults to the current UTC week', () => {
 			new Date('2026-07-22T18:00:00.000Z'),
 		),
 	).toEqual({ start: '2026-07-20', kind: 'all', scope: 'all' })
+})
+
+test('uses local calendar dates for default weeks and rejects invalid timezones', () => {
+	expect(
+		parseReleaseCalendarQuery(
+			new URLSearchParams(),
+			new Date('2026-07-20T01:00:00.000Z'),
+			'America/Los_Angeles',
+		),
+	).toEqual({ start: '2026-07-13', kind: 'all', scope: 'all' })
+	expect(
+		dateKeyInTimeZone(
+			new Date('2026-07-20T01:00:00.000Z'),
+			'America/Los_Angeles',
+		),
+	).toBe('2026-07-19')
+	expect(normalizeTimeZone('not/a-timezone')).toBe('UTC')
 })
 
 test('parses stored episode and chapter schedule payloads safely', () => {

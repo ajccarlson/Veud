@@ -10,6 +10,7 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
 import {
 	getReleaseCalendar,
 	parseReleaseCalendarQuery,
@@ -68,20 +69,35 @@ function displayRange(start: string, end: string) {
 	})}`
 }
 
-function displayTime(value: Date | string, allDay: boolean) {
+function displayTime(value: Date | string, allDay: boolean, timeZone: string) {
 	if (allDay) return 'All day'
 	return new Date(value).toLocaleTimeString('en-US', {
 		hour: 'numeric',
 		minute: '2-digit',
-		timeZone: 'UTC',
+		timeZone,
 		timeZoneName: 'short',
 	})
 }
 
+function displayTimeZone(timeZone: string) {
+	const name = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		timeZoneName: 'longGeneric',
+	})
+		.formatToParts(new Date())
+		.find(part => part.type === 'timeZoneName')?.value
+	return timeZone === 'UTC' ? 'UTC' : `${name ?? timeZone} (${timeZone})`
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
-	const filters = parseReleaseCalendarQuery(new URL(request.url).searchParams)
-	return json(await getReleaseCalendar(filters, viewerId))
+	const timeZone = getHints(request).timeZone
+	const filters = parseReleaseCalendarQuery(
+		new URL(request.url).searchParams,
+		new Date(),
+		timeZone,
+	)
+	return json(await getReleaseCalendar(filters, viewerId, timeZone))
 }
 
 export default function ReleaseCalendarRoute() {
@@ -100,7 +116,7 @@ export default function ReleaseCalendarRoute() {
 					</h1>
 					<p className="text-base leading-7 text-[#c6ded2]">
 						Premieres and upcoming episodes from Veud’s canonical catalog. Times
-						and date boundaries are shown in UTC.
+						use your browser time zone: {displayTimeZone(data.timeZone)}.
 					</p>
 				</div>
 				<div className="space-y-3 text-right">
@@ -230,7 +246,12 @@ export default function ReleaseCalendarRoute() {
 										</Link>
 										<div className="min-w-0 flex-1">
 											<div className="text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
-												{displayTime(item.releaseAt, item.allDay)} ·{' '}
+												{displayTime(
+													item.releaseAt,
+													item.allDay,
+													data.timeZone,
+												)}{' '}
+												·{' '}
 												{item.type ||
 													kindLabels[
 														item.kind as ReleaseCalendarQuery['kind']

@@ -9,16 +9,17 @@ import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { getReleaseCalendar } from '#app/utils/release-calendar.server.ts'
+import {
+	dateKeyInTimeZone,
+	getReleaseCalendar,
+} from '#app/utils/release-calendar.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
-
-function todayUtc() {
-	return new Date().toISOString().slice(0, 10)
-}
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
+	const timeZone = getHints(request).timeZone
 	const [followingRows, upcomingCalendar] = userId
 		? await Promise.all([
 				prisma.follow.findMany({
@@ -26,8 +27,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					select: { followingId: true },
 				}),
 				getReleaseCalendar(
-					{ start: todayUtc(), kind: 'all', scope: 'mine' },
+					{
+						start: dateKeyInTimeZone(new Date(), timeZone),
+						kind: 'all',
+						scope: 'mine',
+					},
 					userId,
+					timeZone,
 				),
 			])
 		: [[], null]
