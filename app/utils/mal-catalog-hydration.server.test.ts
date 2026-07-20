@@ -344,6 +344,15 @@ test('hydrates user-demand first and persists canonical details, titles, relatio
 			rateLimitEvents: 0,
 		}),
 	)
+	expect(
+		await prisma.catalogSyncRun.findUniqueOrThrow({
+			where: { id: result.runId as string },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			policyApprovalRef: 'test-policy-approval',
+		}),
+	)
 	const hydratedSource = await prisma.mediaExternalId.findUniqueOrThrow({
 		where: {
 			provider_kind_externalId: {

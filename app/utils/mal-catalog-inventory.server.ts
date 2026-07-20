@@ -635,6 +635,7 @@ export async function importMalInventory(
 			mode: 'inventory',
 			leaseOwner,
 			leaseDurationMs,
+			policyApprovalRef: options.policyApprovalReference,
 			now: acquiredAt,
 		}),
 	)

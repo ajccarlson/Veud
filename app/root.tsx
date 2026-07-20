@@ -372,6 +372,17 @@ function CommunityDropdown() {
             <Link
               className="root-community-link-item"
               prefetch="intent"
+              to="/credits"
+            >
+              <Icon className="text-body-md" name="info-circled">
+                Data sources &amp; credits
+              </Icon>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
+              className="root-community-link-item"
+              prefetch="intent"
               to="/collections"
             >
               <Icon className="text-body-md" name="list-bullet">
