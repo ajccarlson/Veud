@@ -80,6 +80,33 @@ test('member can browse a release week and focus on tracked titles', async ({
 		).toBeVisible()
 		await expect(page.getByText('Browser Calendar Premiere')).toBeVisible()
 		await expect(page.getByText('Browser Outside Calendar')).not.toBeVisible()
+		await page
+			.getByRole('button', {
+				name: 'Set reminder for Browser Calendar Episode',
+			})
+			.click()
+		await expect(
+			page.getByRole('button', {
+				name: 'Remove reminder for Browser Calendar Episode',
+			}),
+		).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.releaseReminder.count({
+					where: { ownerId: viewer.id, mediaId: trackedEpisode.id },
+				}),
+			)
+			.toBe(1)
+		await page
+			.getByRole('button', {
+				name: 'Remove reminder for Browser Calendar Episode',
+			})
+			.click()
+		await expect(
+			page.getByRole('button', {
+				name: 'Set reminder for Browser Calendar Episode',
+			}),
+		).toBeVisible()
 
 		await page.getByLabel('Release scope').selectOption('mine')
 		await page.getByRole('button', { name: 'Show schedule' }).click()
