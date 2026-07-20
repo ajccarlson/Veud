@@ -30,6 +30,7 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import { PrismaClient } from '@prisma/client'
+import { createEntryWithMediaIdentity } from './media-identity.mjs'
 
 // ---------- config ----------
 const LIST_TYPE = 'anime' // the Veud ListType.name whose lists these entries go into
@@ -216,7 +217,7 @@ async function main() {
 
 		// per-list next position, seeded from the current max
 		const nextPos = {}
-		for (const [name, id] of listByName) {
+		for (const id of listByName.values()) {
 			const agg = await prisma.entry.aggregate({ where: { watchlistId: id }, _max: { position: true } })
 			nextPos[id] = (agg._max.position ?? 0) + 1
 		}
@@ -299,7 +300,11 @@ async function main() {
 
 			if (COMMIT) {
 				try {
-					await prisma.entry.create({ data: row })
+					await createEntryWithMediaIdentity(prisma, row, {
+						provider: 'mal',
+						kind: 'anime',
+						externalId: String(e.malId),
+					})
 				} catch (err) {
 					stats.failed++; failures.push(`${e.malId} (create failed: ${err.message})`)
 					console.warn(`  ! create failed for "${info.title}" (MAL ${e.malId}): ${err.message}`)

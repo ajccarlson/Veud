@@ -34,6 +34,7 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import { PrismaClient } from '@prisma/client'
+import { createEntryWithMediaIdentity } from './media-identity.mjs'
 
 // ---------- config ----------
 const LIST_TYPE = 'manga' // the Veud ListType.name whose lists these entries go into
@@ -297,7 +298,11 @@ async function main() {
 
 			if (COMMIT) {
 				try {
-					await prisma.entry.create({ data: row })
+					await createEntryWithMediaIdentity(prisma, row, {
+						provider: 'mal',
+						kind: 'manga',
+						externalId: String(e.malId),
+					})
 				} catch (err) {
 					stats.failed++; failures.push(`${e.malId} (create failed: ${err.message})`)
 					console.warn(`  ! create failed for "${info.title}" (MAL ${e.malId}): ${err.message}`)
