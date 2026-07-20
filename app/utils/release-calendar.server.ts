@@ -242,7 +242,12 @@ export async function getReleaseCalendar(
 			thumbnail: true,
 			releaseStart: true,
 			nextRelease: true,
-			_count: { select: { trackingStates: true } },
+			trackingStates: {
+				select: {
+					statusWatchlistId: true,
+					statusWatchlist: { select: { isPublic: true } },
+				},
+			},
 		},
 		orderBy: [{ title: 'asc' }, { id: 'asc' }],
 	})
@@ -297,7 +302,11 @@ export async function getReleaseCalendar(
 			kind: item.kind,
 			type: item.type,
 			imageUrl: splitLegacyThumbnail(item.thumbnail).imageUrl,
-			trackerCount: item._count.trackingStates,
+			trackerCount: item.trackingStates.filter(
+				state =>
+					state.statusWatchlistId === null ||
+					state.statusWatchlist?.isPublic,
+			).length,
 			viewerTracking: viewerTracking.get(item.id) ?? null,
 			viewerReminder: viewerReminders.get(item.id) ?? null,
 		}

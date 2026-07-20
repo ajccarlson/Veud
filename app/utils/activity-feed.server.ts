@@ -74,7 +74,7 @@ export async function getFollowingActivityFeed(
 	const [trackingRows, reviewRows, diaryRows, collectionRows] =
 		await Promise.all([
 			prisma.activityEvent.findMany({
-				where: { actorId: { in: uniqueActorIds } },
+				where: { actorId: { in: uniqueActorIds }, isPublic: true },
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take,
 				select: {

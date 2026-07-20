@@ -23,6 +23,7 @@ import {
 import { activityEventLabel } from '#app/utils/activity.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { visibleActivityEventWhere } from '#app/utils/lists/visibility.server.ts'
 import {
 	mediaCatalogSelect,
 	resolveMediaCatalog,
@@ -339,7 +340,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				})
 			: [],
 		prisma.activityEvent.findMany({
-			where: { mediaId: media.id },
+			where: {
+				mediaId: media.id,
+				AND: [visibleActivityEventWhere(viewerId)],
+			},
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: 20,
 			select: {
