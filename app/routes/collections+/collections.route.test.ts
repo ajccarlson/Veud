@@ -28,6 +28,14 @@ async function cookieFor(userId: string) {
 	return getSessionCookieHeader(session)
 }
 
+async function makeAdmin(userId: string) {
+	await prisma.role.upsert({
+		where: { name: 'admin' },
+		create: { name: 'admin', users: { connect: { id: userId } } },
+		update: { users: { connect: { id: userId } } },
+	})
+}
+
 function postRequest(
 	path: string,
 	values: Record<string, string>,
@@ -539,6 +547,15 @@ test('community collections can be sorted by like count', async () => {
 		lessPopular.id,
 	])
 	expect(result.data.collections[0]?._count.likes).toBe(2)
+	const trending = await indexLoader({
+		request: new Request(`${BASE_URL}/collections?sort=trending`),
+		params: {},
+	} as any)
+	expect(trending.data.sort).toBe('trending')
+	expect(trending.data.collections.map(collection => collection.id)).toEqual([
+		morePopular.id,
+		lessPopular.id,
+	])
 
 	const tagged = await indexLoader({
 		request: new Request(`${BASE_URL}/collections?tag=Mind%20Bending`),
@@ -555,4 +572,88 @@ test('community collections can be sorted by like count', async () => {
 		name: 'mind bending',
 		slug: 'mind-bending',
 	})
+})
+
+test('only admins can feature public collections and private collections are removed from staff picks', async () => {
+	const [owner, admin, member] = await Promise.all([
+		createUser('featured_owner'),
+		createUser('featured_admin'),
+		createUser('featured_member'),
+	])
+	await makeAdmin(admin.id)
+	const [ownerCookie, adminCookie, memberCookie] = await Promise.all([
+		cookieFor(owner.id),
+		cookieFor(admin.id),
+		cookieFor(member.id),
+	])
+	const collection = await prisma.mediaCollection.create({
+		data: { ownerId: owner.id, title: 'Editorial favorite', isPublic: true },
+	})
+
+	const denied = await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'feature-toggle' },
+			memberCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(403)
+
+	await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'feature-toggle' },
+			adminCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.mediaCollection.findUnique({ where: { id: collection.id } }),
+	).toEqual(expect.objectContaining({ featuredAt: expect.any(Date) }))
+
+	const adminView = await detailLoader({
+		request: new Request(`${BASE_URL}/collections/${collection.id}`, {
+			headers: { cookie: adminCookie },
+		}),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(adminView.data.isAdmin).toBe(true)
+	expect(adminView.data.collection.featuredAt).toEqual(expect.any(Date))
+	const browse = await indexLoader({
+		request: new Request(`${BASE_URL}/collections`),
+		params: {},
+	} as any)
+	expect(browse.data.featuredCollections.map(item => item.id)).toEqual([
+		collection.id,
+	])
+
+	await editAction({
+		request: postRequest(
+			`/collections/${collection.id}/edit`,
+			{
+				intent: 'save',
+				title: collection.title,
+				description: '',
+				tags: '',
+			},
+			ownerCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(
+		await prisma.mediaCollection.findUnique({ where: { id: collection.id } }),
+	).toEqual(expect.objectContaining({ isPublic: false, featuredAt: null }))
+
+	const privateFeature = await detailAction({
+		request: postRequest(
+			`/collections/${collection.id}`,
+			{ intent: 'feature-toggle' },
+			adminCookie,
+		),
+		params: { collectionId: collection.id },
+	} as any).catch(error => error)
+	expect(privateFeature).toBeInstanceOf(Response)
+	expect((privateFeature as Response).status).toBe(404)
 })

@@ -32,6 +32,7 @@ import {
 	COLLECTION_TITLE_MAX_LENGTH,
 } from '#app/utils/media-collections.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import { requireUserWithRole } from '#app/utils/permissions.server.ts'
 
 const CollectionItemActionSchema = z.discriminatedUnion('intent', [
 	z.object({
@@ -48,6 +49,7 @@ const CollectionItemActionSchema = z.discriminatedUnion('intent', [
 		direction: z.enum(['up', 'down']),
 	}),
 	z.object({ intent: z.literal('like-toggle') }),
+	z.object({ intent: z.literal('feature-toggle') }),
 	z.object({
 		intent: z.literal('note-item'),
 		itemId: z.string().min(1).max(100),
@@ -79,6 +81,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			title: true,
 			description: true,
 			isPublic: true,
+			featuredAt: true,
 			createdAt: true,
 			updatedAt: true,
 			ownerId: true,
@@ -150,10 +153,19 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 			})
 		: []
+	const isAdmin = viewerId
+		? Boolean(
+				await prisma.user.findFirst({
+					where: { id: viewerId, roles: { some: { name: 'admin' } } },
+					select: { id: true },
+				}),
+			)
+		: false
 	const { likes, ...collectionData } = collection
 	return json({
 		collection: collectionData,
 		isOwner,
+		isAdmin,
 		viewerId,
 		viewerLiked: likes.length > 0,
 		query,
@@ -177,6 +189,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			id: true,
 			title: true,
 			description: true,
+			isPublic: true,
+			featuredAt: true,
 			ownerId: true,
 			tags: {
 				select: { tag: { select: { name: true, slug: true } } },
@@ -241,6 +255,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
 					},
 				})
 			}
+		})
+	} else if (parsed.data.intent === 'feature-toggle') {
+		await requireUserWithRole(request, 'admin')
+		invariantResponse(collection.isPublic, 'Collection not found', {
+			status: 404,
+		})
+		await prisma.mediaCollection.update({
+			where: { id: collection.id },
+			data: { featuredAt: collection.featuredAt ? null : new Date() },
 		})
 	} else if (parsed.data.intent === 'note-item') {
 		invariantResponse(collection.ownerId === userId, 'Collection not found', {
@@ -348,6 +371,11 @@ export default function CollectionDetail() {
 									Private
 								</span>
 							) : null}
+							{data.collection.featuredAt ? (
+								<span className="rounded-full border border-[#ff9900] px-2 py-0.5 text-[#ffffb1]">
+									Staff pick
+								</span>
+							) : null}
 						</div>
 						<h1 className="text-4xl font-black text-[#ff9900]">
 							{data.collection.title}
@@ -401,6 +429,21 @@ export default function CollectionDetail() {
 							<Button asChild variant="outline">
 								<Link to="edit">Edit collection</Link>
 							</Button>
+						) : null}
+						{data.isAdmin && data.collection.isPublic ? (
+							<Form method="post">
+								<Button
+									type="submit"
+									name="intent"
+									value="feature-toggle"
+									variant="outline"
+									disabled={busy}
+								>
+									{data.collection.featuredAt
+										? 'Remove staff pick'
+										: 'Feature as staff pick'}
+								</Button>
+							</Form>
 						) : null}
 					</div>
 				</div>

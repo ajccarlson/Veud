@@ -70,7 +70,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	await prisma.$transaction(async transaction => {
 		await transaction.mediaCollection.update({
 			where: { id: owned.id },
-			data: details,
+			data: {
+				...details,
+				featuredAt: details.isPublic ? undefined : null,
+			},
 		})
 		await transaction.mediaCollectionTag.deleteMany({
 			where: { collectionId: owned.id },

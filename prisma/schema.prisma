@@ -394,12 +394,13 @@ model DiaryEntry {
 /// distinct from status watchlists: a collection expresses a theme or opinion,
 /// while TrackingState represents consumption progress.
 model MediaCollection {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-  isPublic    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isPublic    Boolean   @default(true)
+  featuredAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId       String
@@ -411,6 +412,7 @@ model MediaCollection {
 
   @@index([ownerId, updatedAt])
   @@index([isPublic, updatedAt])
+  @@index([featuredAt])
 }
 
 /// One ordered title in a curated collection. Position is indexed rather than

@@ -26,6 +26,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			title: true,
 			description: true,
 			isPublic: true,
+			featuredAt: true,
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
 			_count: { select: { items: true, likes: true, comments: true } },

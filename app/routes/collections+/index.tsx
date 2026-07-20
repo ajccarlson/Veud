@@ -12,11 +12,34 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
+import { getTrendingCollectionIds } from '#app/utils/collection-discovery.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { normalizeCollectionTag } from '#app/utils/media-collections.ts'
 
 const PAGE_SIZE = 24
-type CollectionSort = 'recent' | 'popular'
+type CollectionSort = 'recent' | 'popular' | 'trending'
+
+const collectionCardSelect = {
+	id: true,
+	title: true,
+	description: true,
+	isPublic: true,
+	featuredAt: true,
+	updatedAt: true,
+	owner: { select: { username: true, name: true } },
+	_count: { select: { items: true, likes: true, comments: true } },
+	tags: {
+		orderBy: { tag: { name: 'asc' as const } },
+		select: { tag: { select: { name: true, slug: true } } },
+	},
+	items: {
+		orderBy: [{ position: 'asc' as const }, { id: 'asc' as const }],
+		take: 4,
+		select: {
+			media: { select: { id: true, title: true, thumbnail: true } },
+		},
+	},
+} satisfies Prisma.MediaCollectionSelect
 
 function parsePage(value: string | null) {
 	const page = Number(value)
@@ -47,8 +70,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		? normalizeCollectionTag(requestedTag)
 		: null
 	const tagSlug = normalizedTag?.slug ?? ''
+	const requestedSort = url.searchParams.get('sort')
 	const sort: CollectionSort =
-		url.searchParams.get('sort') === 'popular' ? 'popular' : 'recent'
+		requestedSort === 'popular' || requestedSort === 'trending'
+			? requestedSort
+			: 'recent'
 	const requestedPage = parsePage(url.searchParams.get('page'))
 	const visibility: Prisma.MediaCollectionWhereInput = viewerId
 		? { OR: [{ isPublic: true }, { ownerId: viewerId }] }
@@ -70,57 +96,62 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			...(tagSlug ? [{ tags: { some: { tag: { slug: tagSlug } } } }] : []),
 		],
 	}
-	const [total, availableTags, activeTag] = await Promise.all([
-		prisma.mediaCollection.count({ where }),
-		prisma.collectionTag.findMany({
-			where: { collections: { some: { collection: visibility } } },
-			orderBy: [{ collections: { _count: 'desc' } }, { name: 'asc' }],
-			take: 30,
-			select: { name: true, slug: true },
-		}),
-		tagSlug
-			? prisma.collectionTag.findFirst({
-					where: {
-						slug: tagSlug,
-						collections: { some: { collection: visibility } },
-					},
-					select: { name: true, slug: true },
-				})
-			: null,
-	])
+	const [rankingOrTotal, availableTags, activeTag, featuredCollections] =
+		await Promise.all([
+			sort === 'trending'
+				? getTrendingCollectionIds(where)
+				: prisma.mediaCollection.count({ where }),
+			prisma.collectionTag.findMany({
+				where: { collections: { some: { collection: visibility } } },
+				orderBy: [{ collections: { _count: 'desc' } }, { name: 'asc' }],
+				take: 30,
+				select: { name: true, slug: true },
+			}),
+			tagSlug
+				? prisma.collectionTag.findFirst({
+						where: {
+							slug: tagSlug,
+							collections: { some: { collection: visibility } },
+						},
+						select: { name: true, slug: true },
+					})
+				: null,
+			requestedPage === 1 && !query && !tagSlug
+				? prisma.mediaCollection.findMany({
+						where: { isPublic: true, featuredAt: { not: null } },
+						orderBy: [{ featuredAt: 'desc' }, { id: 'desc' }],
+						take: 3,
+						select: collectionCardSelect,
+					})
+				: Promise.resolve([]),
+		])
+	const trendingIds = Array.isArray(rankingOrTotal) ? rankingOrTotal : null
+	const total = Array.isArray(rankingOrTotal)
+		? rankingOrTotal.length
+		: rankingOrTotal
 	const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
 	const page = Math.min(requestedPage, pageCount)
-	const collections = await prisma.mediaCollection.findMany({
-		where,
-		orderBy:
-			sort === 'popular'
+	const pageIds = trendingIds?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+	let collections = await prisma.mediaCollection.findMany({
+		where: pageIds ? { id: { in: pageIds } } : where,
+		orderBy: pageIds
+			? undefined
+			: sort === 'popular'
 				? [{ likes: { _count: 'desc' } }, { updatedAt: 'desc' }, { id: 'desc' }]
 				: [{ updatedAt: 'desc' }, { id: 'desc' }],
-		skip: (page - 1) * PAGE_SIZE,
-		take: PAGE_SIZE,
-		select: {
-			id: true,
-			title: true,
-			description: true,
-			isPublic: true,
-			updatedAt: true,
-			owner: { select: { username: true, name: true } },
-			_count: { select: { items: true, likes: true, comments: true } },
-			tags: {
-				orderBy: { tag: { name: 'asc' } },
-				select: { tag: { select: { name: true, slug: true } } },
-			},
-			items: {
-				orderBy: [{ position: 'asc' }, { id: 'asc' }],
-				take: 4,
-				select: {
-					media: { select: { id: true, title: true, thumbnail: true } },
-				},
-			},
-		},
+		skip: pageIds ? undefined : (page - 1) * PAGE_SIZE,
+		take: pageIds ? undefined : PAGE_SIZE,
+		select: collectionCardSelect,
 	})
+	if (pageIds) {
+		const position = new Map(pageIds.map((id, index) => [id, index]))
+		collections = collections.sort(
+			(a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0),
+		)
+	}
 	return json({
 		collections,
+		featuredCollections,
 		query,
 		sort,
 		activeTag,
@@ -160,6 +191,27 @@ export default function CollectionsIndex() {
 				</Button>
 			</header>
 
+			{data.featuredCollections.length ? (
+				<section className="space-y-4 rounded-2xl border border-[#ff9900]/60 bg-[#383040] p-5">
+					<div>
+						<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9900]">
+							Editorial
+						</p>
+						<h2 className="mt-1 text-2xl font-black text-[#ffffb1]">
+							Staff picks
+						</h2>
+					</div>
+					<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+						{data.featuredCollections.map(collection => (
+							<MediaCollectionCard
+								key={collection.id}
+								collection={collection}
+							/>
+						))}
+					</div>
+				</section>
+			) : null}
+
 			<Form
 				method="get"
 				className="grid max-w-3xl gap-3 rounded-2xl border border-[#54806c] bg-[#383040] p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end"
@@ -185,6 +237,7 @@ export default function CollectionsIndex() {
 						defaultValue={data.sort}
 						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
 					>
+						<option value="trending">Trending now</option>
 						<option value="recent">Recently updated</option>
 						<option value="popular">Most liked</option>
 					</select>

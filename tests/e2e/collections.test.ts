@@ -174,3 +174,42 @@ test('member can like, comment on, and clone a public collection', async ({
 		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
 	}
 })
+
+test('admin can feature a public collection as a staff pick', async ({
+	page,
+	login,
+}) => {
+	const admin = await login()
+	await prisma.role.upsert({
+		where: { name: 'admin' },
+		create: { name: 'admin', users: { connect: { id: admin.id } } },
+		update: { users: { connect: { id: admin.id } } },
+	})
+	const collection = await prisma.mediaCollection.create({
+		data: {
+			ownerId: admin.id,
+			title: 'Editorial Browser Pick',
+			isPublic: true,
+		},
+	})
+
+	await page.goto(`/collections/${collection.id}`)
+	await page.getByRole('button', { name: 'Feature as staff pick' }).click()
+	await expect(
+		page.getByRole('button', { name: 'Remove staff pick' }),
+	).toBeVisible()
+	await expect
+		.poll(() =>
+			prisma.mediaCollection
+				.findUnique({
+					where: { id: collection.id },
+					select: { featuredAt: true },
+				})
+				.then(result => result?.featuredAt ?? null),
+		)
+		.not.toBeNull()
+
+	await page.goto('/collections')
+	await expect(page.getByRole('heading', { name: 'Staff picks' })).toBeVisible()
+	await expect(page.getByText('Editorial Browser Pick').first()).toBeVisible()
+})

@@ -6,6 +6,7 @@ type CollectionCardData = {
 	title: string
 	description: string | null
 	isPublic: boolean
+	featuredAt: Date | string | null
 	updatedAt: Date | string
 	owner: { username: string; name: string | null }
 	_count: { items: number; likes: number; comments: number }
@@ -57,6 +58,11 @@ export function MediaCollectionCard({
 							{!collection.isPublic ? (
 								<span className="rounded-full border border-[#ffcc66] px-2 py-0.5 text-[#ffcc66]">
 									Private
+								</span>
+							) : null}
+							{collection.featuredAt ? (
+								<span className="rounded-full border border-[#ff9900] px-2 py-0.5 text-[#ffffb1]">
+									Staff pick
 								</span>
 							) : null}
 						</div>
