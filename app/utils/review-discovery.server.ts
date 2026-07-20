@@ -56,6 +56,16 @@ export type ReviewDiscoveryResult = {
 	likeCount: number
 	commentCount: number
 	viewerLiked: boolean
+	recentComments: Array<{
+		id: string
+		body: string
+		createdAt: Date | string
+		author: {
+			id: string
+			username: string
+			name: string | null
+		}
+	}>
 }
 
 export type ReviewDiscoveryResults = {
@@ -102,6 +112,19 @@ const reviewDiscoverySelect = {
 		},
 	},
 	_count: { select: { likes: true, comments: true } },
+	comments: {
+		where: { parentId: null },
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+		take: 3,
+		select: {
+			id: true,
+			body: true,
+			createdAt: true,
+			author: {
+				select: { id: true, username: true, name: true },
+			},
+		},
+	},
 } satisfies Prisma.ReviewSelect
 
 type ReviewDiscoveryRow = Prisma.ReviewGetPayload<{
@@ -282,6 +305,7 @@ function resultFromReview(
 		likeCount: review._count.likes,
 		commentCount: review._count.comments,
 		viewerLiked,
+		recentComments: review.comments,
 	}
 }
 

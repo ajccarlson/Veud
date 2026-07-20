@@ -171,7 +171,7 @@ test('following view is signed-in only and popular reviews rank by engagement', 
 	expect(anonymousFollowing.data.filters.sort).toBe('trending')
 })
 
-test('review hub likes and source-linked notifications stay synchronized', async () => {
+test('review hub engagement and source-linked notifications stay synchronized', async () => {
 	const [viewer, author] = await Promise.all([
 		createUser('hub_liker'),
 		createUser('hub_review_author'),
@@ -209,6 +209,32 @@ test('review hub likes and source-linked notifications stay synchronized', async
 		actorId: viewer.id,
 		reviewId: review.id,
 	})
+	const commented = await action({
+		request: postRequest(
+			{
+				intent: 'review-comment-create',
+				reviewId: review.id,
+				body: '  A quick comment from review discovery.  ',
+			},
+			cookie,
+		),
+		params: {},
+	} as any)
+	expect(commented.data).toMatchObject({ ok: true })
+	const comment = await prisma.reviewComment.findFirstOrThrow({
+		where: { reviewId: review.id, authorId: viewer.id },
+	})
+	expect(comment.body).toBe('A quick comment from review discovery.')
+	expect(
+		await prisma.notification.findUnique({
+			where: { reviewCommentId: comment.id },
+		}),
+	).toMatchObject({
+		type: 'review_comment',
+		recipientId: author.id,
+		actorId: viewer.id,
+		reviewId: review.id,
+	})
 
 	const loaded = await loader({
 		request: new Request(`${BASE_URL}/reviews?sort=recent`, {
@@ -221,6 +247,14 @@ test('review hub likes and source-linked notifications stay synchronized', async
 			id: review.id,
 			likeCount: 1,
 			viewerLiked: true,
+			commentCount: 1,
+			recentComments: [
+				expect.objectContaining({
+					id: comment.id,
+					body: 'A quick comment from review discovery.',
+					author: expect.objectContaining({ id: viewer.id }),
+				}),
+			],
 		}),
 	])
 
@@ -236,8 +270,29 @@ test('review hub likes and source-linked notifications stay synchronized', async
 		await prisma.reviewLike.count({ where: { reviewId: review.id } }),
 	).toBe(0)
 	expect(
+		await prisma.notification.count({
+			where: { reviewId: review.id, type: 'review_like' },
+		}),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: { reviewId: review.id, type: 'review_comment' },
+		}),
+	).toBe(1)
+	await prisma.reviewComment.delete({ where: { id: comment.id } })
+	expect(
 		await prisma.notification.count({ where: { reviewId: review.id } }),
 	).toBe(0)
+
+	const invalidComment = await action({
+		request: postRequest(
+			{ intent: 'review-comment-create', reviewId: review.id, body: '   ' },
+			cookie,
+		),
+		params: {},
+	} as any).catch(error => error)
+	expect(invalidComment).toBeInstanceOf(Response)
+	expect((invalidComment as Response).status).toBe(400)
 
 	const missing = await action({
 		request: postRequest(

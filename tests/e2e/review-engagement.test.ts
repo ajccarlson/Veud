@@ -144,6 +144,37 @@ test('member can discover spoiler-safe reviews from followed critics', async ({
 				}),
 			)
 			.toBe(1)
+		await safeReview.getByText('Quick discussion · 0').click()
+		await safeReview
+			.getByLabel('Comment on Review Hub Browser Safe')
+			.fill('A quick browser comment from review discovery.')
+		await safeReview.getByRole('button', { name: 'Post comment' }).click()
+		await expect(safeReview.getByText('Quick discussion · 1')).toBeVisible()
+		const browserComment = safeReview.getByText(
+			'A quick browser comment from review discovery.',
+		)
+		if (!(await browserComment.isVisible())) {
+			await safeReview.getByText('Quick discussion · 1').click()
+		}
+		await expect(browserComment).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.reviewComment.count({
+					where: { authorId: viewer.id, review: { mediaId: safeMedia.id } },
+				}),
+			)
+			.toBe(1)
+		await expect
+			.poll(() =>
+				prisma.notification.count({
+					where: {
+						recipientId: author.id,
+						actorId: viewer.id,
+						review: { mediaId: safeMedia.id },
+					},
+				}),
+			)
+			.toBe(2)
 		await page.getByLabel('Spoiler-free reviews only').check()
 		await page.getByRole('button', { name: 'Browse' }).click()
 		await expect(page).toHaveURL(/spoilers=exclude/)

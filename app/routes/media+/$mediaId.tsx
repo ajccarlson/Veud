@@ -42,7 +42,10 @@ import {
 	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
-import { toggleReviewLike } from '#app/utils/review-engagement.server.ts'
+import {
+	createReviewComment,
+	toggleReviewLike,
+} from '#app/utils/review-engagement.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import {
 	trackingStateFromEntry,
@@ -770,44 +773,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		if (parsed.data.intent === 'review-comment-create') {
-			const review = await tx.review.findFirst({
-				where: { id: parsed.data.reviewId, mediaId },
-				select: { id: true, authorId: true },
+			const result = await createReviewComment(tx, {
+				userId,
+				reviewId: parsed.data.reviewId,
+				parentId: parsed.data.parentId,
+				body: parsed.data.body,
+				mediaId,
 			})
-			if (!review) throw new Response('Review not found', { status: 404 })
-
-			const parent = parsed.data.parentId
-				? await tx.reviewComment.findFirst({
-						where: { id: parsed.data.parentId, reviewId: review.id },
-						select: { id: true, authorId: true },
-					})
-				: null
-			if (parsed.data.parentId && !parent) {
-				throw new Response('Parent comment not found', { status: 400 })
-			}
-
-			const comment = await tx.reviewComment.create({
-				data: {
-					authorId: userId,
-					reviewId: review.id,
-					parentId: parent?.id,
-					body: parsed.data.body,
-				},
-				select: { id: true },
-			})
-			const recipientId = parent?.authorId ?? review.authorId
-			if (recipientId !== userId) {
-				await tx.notification.create({
-					data: {
-						type: parent ? 'review_reply' : 'review_comment',
-						recipientId,
-						actorId: userId,
-						reviewId: review.id,
-						reviewCommentId: comment.id,
-					},
-				})
-			}
-			return json({ ok: true, commentId: comment.id })
+			return json({ ok: true, ...result })
 		}
 
 		if (parsed.data.intent === 'review-comment-delete') {
