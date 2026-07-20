@@ -102,7 +102,9 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 	expect(first.mediaId).not.toBe(unrelatedMedia.id)
 	expect(second.mediaId).toBe(first.mediaId)
 	expect(
-		await prisma.media.findUniqueOrThrow({ where: { id: first.mediaId as string } }),
+		await prisma.media.findUniqueOrThrow({
+			where: { id: first.mediaId as string },
+		}),
 	).toEqual(
 		expect.objectContaining({
 			title: 'The Shawshank Redemption',
@@ -151,6 +153,127 @@ test('provider identity must agree with the destination list type', async () => 
 				kind: 'anime',
 				externalId: '5114',
 			},
+		}),
+	} as any).catch(error => error)
+
+	expect(result).toBeInstanceOf(Response)
+	expect((result as Response).status).toBe(400)
+	expect(await prisma.entry.count()).toBe(0)
+	expect(await prisma.media.count()).toBe(0)
+})
+
+test('new MAL rows ingest validated canonical related titles', async () => {
+	const owner = await createOwner('anime')
+	const entry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'First season',
+			mediaIdentity: {
+				provider: 'mal',
+				kind: 'anime',
+				externalId: '100',
+			},
+			mediaRelations: [
+				{
+					relationType: 'Sequel',
+					targetIdentity: {
+						provider: 'mal',
+						kind: 'anime',
+						externalId: '101',
+					},
+					targetCatalog: {
+						title: 'Second season',
+						thumbnail:
+							'https://example.com/second.jpg|https://myanimelist.net/anime/101',
+					},
+				},
+			],
+		}),
+	} as any)
+
+	const relation = await prisma.mediaRelation.findFirstOrThrow({
+		include: { targetMedia: { include: { externalIds: true } } },
+	})
+	expect(relation).toMatchObject({
+		sourceMediaId: entry.mediaId,
+		relationType: 'sequel',
+		provider: 'mal',
+		targetMedia: {
+			title: 'Second season',
+			externalIds: [
+				expect.objectContaining({
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '101',
+				}),
+			],
+		},
+	})
+})
+
+test('new TMDB rows ingest canonical franchise titles', async () => {
+	const owner = await createOwner('liveaction')
+	const entry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'First franchise movie',
+			mediaIdentity: {
+				provider: 'tmdb',
+				kind: 'movie',
+				externalId: '300',
+			},
+			mediaRelations: [
+				{
+					relationType: 'franchise',
+					targetIdentity: {
+						provider: 'tmdb',
+						kind: 'movie',
+						externalId: '301',
+					},
+					targetCatalog: { title: 'Second franchise movie' },
+				},
+			],
+		}),
+	} as any)
+
+	const relation = await prisma.mediaRelation.findFirstOrThrow({
+		include: { targetMedia: true },
+	})
+	expect(relation).toMatchObject({
+		sourceMediaId: entry.mediaId,
+		relationType: 'franchise',
+		provider: 'tmdb',
+		targetMedia: { kind: 'movie', title: 'Second franchise movie' },
+	})
+})
+
+test('relation metadata cannot cross providers', async () => {
+	const owner = await createOwner('anime')
+	const result = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'Invalid relation source',
+			mediaIdentity: {
+				provider: 'mal',
+				kind: 'anime',
+				externalId: '100',
+			},
+			mediaRelations: [
+				{
+					relationType: 'sequel',
+					targetIdentity: {
+						provider: 'tmdb',
+						kind: 'tv',
+						externalId: '101',
+					},
+				},
+			],
 		}),
 	} as any).catch(error => error)
 
