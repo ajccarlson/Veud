@@ -48,6 +48,7 @@ import {
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
 import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
+import { getMediaRelations } from '#app/utils/media-relations.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	createReviewComment,
@@ -265,6 +266,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		community,
 		followedTracking,
 		recommendations,
+		relations,
 		viewerState,
 		viewerEntries,
 		viewerWatchlists,
@@ -281,6 +283,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			{ id: media.id, kind: media.kind, genres: catalog?.genres },
 			viewerId,
 		),
+		getMediaRelations(media.id, viewerId),
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -497,6 +500,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		},
 		socialContext: followedTracking,
 		recommendations,
+		relations,
 		reviews: reviewRows.map(({ likes, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
@@ -1653,6 +1657,79 @@ export default function MediaDetailRoute() {
 							</p>
 						) : null}
 					</section>
+
+					{data.relations.length ? (
+						<section
+							className="space-y-4"
+							aria-labelledby="related-titles-heading"
+						>
+							<header>
+								<h2 id="related-titles-heading" className="text-2xl font-bold">
+									Related titles
+								</h2>
+								<p className="text-sm text-muted-foreground">
+									Canonical franchise and story connections.
+								</p>
+							</header>
+							<div className="space-y-5">
+								{data.relations.map(group => (
+									<div key={group.relationType} className="space-y-2">
+										<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+											{group.label}
+										</h3>
+										<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+											{group.items.map(item => (
+												<Link
+													key={item.id}
+													to={`/media/${item.id}`}
+													className="group flex min-w-0 gap-3 rounded-xl border bg-card p-3 transition hover:border-primary/60 hover:bg-muted/50"
+												>
+													<div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+														{item.imageUrl ? (
+															<img
+																src={item.imageUrl}
+																alt=""
+																loading="lazy"
+																className="h-full w-full object-cover"
+															/>
+														) : (
+															<div className="flex h-full items-center justify-center px-2 text-center text-[0.65rem] text-muted-foreground">
+																No poster
+															</div>
+														)}
+													</div>
+													<div className="min-w-0 flex-1 py-0.5">
+														<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+															{item.type || item.kind}
+															{item.year ? ` · ${item.year}` : ''}
+														</div>
+														<h4 className="mt-1 line-clamp-3 font-bold leading-5 group-hover:underline">
+															{item.title}
+														</h4>
+														<div className="mt-2 space-y-1 text-xs">
+															{item.viewerTracking ? (
+																<span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+																	{item.viewerTracking.statusLabel}
+																	{item.viewerTracking.score !== null
+																		? ` · ${item.viewerTracking.score.toLocaleString('en-US', { maximumFractionDigits: 1 })}/10`
+																		: ''}
+																</span>
+															) : null}
+															<div className="text-muted-foreground">
+																{item.trackerCount}{' '}
+																{item.trackerCount === 1 ? 'member' : 'members'}{' '}
+																tracking
+															</div>
+														</div>
+													</div>
+												</Link>
+											))}
+										</div>
+									</div>
+								))}
+							</div>
+						</section>
+					) : null}
 
 					{data.recommendations.items.length ? (
 						<section

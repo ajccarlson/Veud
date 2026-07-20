@@ -118,6 +118,8 @@ export async function getSimilarMediaRecommendations(
 			AND: [
 				{ id: { not: source.id } },
 				{ kind: source.kind },
+				{ incomingRelations: { none: { sourceMediaId: source.id } } },
+				{ outgoingRelations: { none: { targetMediaId: source.id } } },
 				...(viewerId
 					? [
 							{ trackingStates: { none: { ownerId: viewerId } } },
