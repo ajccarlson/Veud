@@ -213,6 +213,44 @@ test('new MAL rows ingest validated canonical related titles', async () => {
 	})
 })
 
+test('new TMDB rows ingest canonical franchise titles', async () => {
+	const owner = await createOwner('liveaction')
+	const entry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'First franchise movie',
+			mediaIdentity: {
+				provider: 'tmdb',
+				kind: 'movie',
+				externalId: '300',
+			},
+			mediaRelations: [
+				{
+					relationType: 'franchise',
+					targetIdentity: {
+						provider: 'tmdb',
+						kind: 'movie',
+						externalId: '301',
+					},
+					targetCatalog: { title: 'Second franchise movie' },
+				},
+			],
+		}),
+	} as any)
+
+	const relation = await prisma.mediaRelation.findFirstOrThrow({
+		include: { targetMedia: true },
+	})
+	expect(relation).toMatchObject({
+		sourceMediaId: entry.mediaId,
+		relationType: 'franchise',
+		provider: 'tmdb',
+		targetMedia: { kind: 'movie', title: 'Second franchise movie' },
+	})
+})
+
 test('relation metadata cannot cross providers', async () => {
 	const owner = await createOwner('anime')
 	const result = await addRow({
