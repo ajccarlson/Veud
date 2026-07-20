@@ -1,14 +1,38 @@
-import { useOutletContext } from 'react-router'
+import {
+	data as json,
+	type LoaderFunctionArgs,
+	useLoaderData,
+	useOutletContext,
+} from 'react-router'
 import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.tsx'
-import { type ProfileData } from '#app/utils/profile.ts'
+import { loadProfileAnalytics } from '#app/utils/profile-data.server.ts'
+import { profileHeaders } from '#app/utils/profile-headers.ts'
+import { type ProfileShellData } from '#app/utils/profile.ts'
+import { makeTimings } from '#app/utils/timing.server.ts'
+
+export async function loader({ request, params }: LoaderFunctionArgs) {
+	const timings = makeTimings('profile_stats', 'profile stats loader')
+	const analytics = await loadProfileAnalytics(
+		request,
+		params['username'],
+		timings,
+	)
+	return json(analytics, {
+		headers: { 'Server-Timing': timings.toString() },
+	})
+}
+
+export const headers = profileHeaders
 
 export default function ProfileStats() {
-  const data = useOutletContext<ProfileData>()
-  return (
-    <>
-      <StatsOverview data={data} />
-      <StatsData data={data} />
-    </>
-  )
+	const shellData = useOutletContext<ProfileShellData>()
+	const analyticsData = useLoaderData<typeof loader>()
+	const data = { ...shellData, ...analyticsData }
+	return (
+		<>
+			<StatsOverview data={data} />
+			<StatsData data={data} />
+		</>
+	)
 }

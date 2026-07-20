@@ -7,12 +7,18 @@ import {
 	timeSince,
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
-import { type ProfileData, type FavoriteItem } from '#app/utils/profile.ts'
+import {
+	type FavoriteItem,
+	type ProfileActivityData,
+	type ProfileFavoritesData,
+} from '#app/utils/profile.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
-const LEGACY_ACTIVITY_GRACE_MS = 60_000
-
-export function RecentActivityData({ data: loaderData }: { data: ProfileData }) {
+export function RecentActivityData({
+	data: loaderData,
+}: {
+	data: ProfileActivityData
+}) {
   const PAGE_SIZE = 15
   const [filterIndex, setFilterIndex] = useState(0);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -27,7 +33,7 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
     setVisibleCount(PAGE_SIZE)
   }, [filterIndex]);
 
-  const normalizedActivity = loaderData.activityEvents.map(event => ({
+  const allActivity = loaderData.activityEvents.map(event => ({
     key: event.id,
     typeId: event.typeId,
     time: event.time,
@@ -36,27 +42,6 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
     title: event.media.title,
     thumbnail: event.media.thumbnail,
   }))
-  const normalizedCutoff = loaderData.activityStartedAt
-    ? new Date(loaderData.activityStartedAt).getTime()
-    : null
-  // Keep legacy history from before the first normalized event. Newer legacy
-  // writes mirror the same actions and would otherwise appear twice.
-  const legacyActivity = Object.entries(loaderData.typedHistory)
-    .flatMap(([typeId, items]) => items.map((item, legacyIndex) => {
-      const entry = loaderData.typedEntries[typeId]?.[item.index]
-      return {
-        key: `legacy-${typeId}-${item.index}-${legacyIndex}`,
-        typeId,
-        time: item.time,
-        action: item.type,
-        mediaId: entry?.mediaId ?? null,
-        title: entry?.title ?? null,
-        thumbnail: entry?.thumbnail ?? null,
-      }
-    }))
-    .filter(item => normalizedCutoff === null || new Date(item.time).getTime() < normalizedCutoff - LEGACY_ACTIVITY_GRACE_MS)
-  const allActivity = [...normalizedActivity, ...legacyActivity]
-    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
   const filtered = selectedFilter.key === 'all'
     ? allActivity
@@ -128,7 +113,11 @@ export function RecentActivityData({ data: loaderData }: { data: ProfileData }) 
   )
 }
 
-export function FavoritesData({ data: loaderData }: { data: ProfileData }) {
+export function FavoritesData({
+	data: loaderData,
+}: {
+	data: ProfileFavoritesData
+}) {
   const [typeIndex, setTypeIndex] = useState(0);
   const revalidator = useRevalidator()
   const isOwner = useOptionalUser()?.id === loaderData.user.id

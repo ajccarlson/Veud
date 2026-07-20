@@ -1,6 +1,10 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { loader } from '#app/routes/users+/$username.tsx'
+import { loader as activityLoader } from '#app/routes/users+/$username.activity.tsx'
+import { loader as diaryLoader } from '#app/routes/users+/$username.diary.tsx'
+import { loader as overviewLoader } from '#app/routes/users+/$username.index.tsx'
+import { loader as reviewsLoader } from '#app/routes/users+/$username.reviews.tsx'
+import { loader as profileLoader } from '#app/routes/users+/$username.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -85,7 +89,7 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			},
 		],
 	})
-	const activity = await prisma.activityEvent.create({
+	await prisma.activityEvent.create({
 		data: {
 			type: 'score',
 			actorId: user.id,
@@ -115,12 +119,22 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 		}),
 	])
 
-	const result = await loader({
+	const loaderArgs = {
 		request: new Request(`${BASE_URL}/users/${user.username}`),
 		params: { username: user.username },
-	} as any)
+	} as any
+	const [result, overviewResult, activityResult, reviewsResult, diaryResult] =
+		await Promise.all([
+			profileLoader(loaderArgs),
+			overviewLoader(loaderArgs),
+			activityLoader(loaderArgs),
+			reviewsLoader(loaderArgs),
+			diaryLoader(loaderArgs),
+		])
 
-	expect(result.data.trackingSummaries[listType.id]).toEqual({
+	expect(result.data).not.toHaveProperty('typedEntries')
+	expect(result.data).not.toHaveProperty('activityEvents')
+	expect(overviewResult.data.trackingSummaries[listType.id]).toEqual({
 		totalTitles: 1,
 		meanScore: 8.5,
 		repeatCount: 0,
@@ -130,8 +144,8 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			{ key: completed.id, label: 'Completed', count: 1 },
 		],
 	})
-	expect(result.data.activityEvents).toHaveLength(3)
-	expect(result.data.activityEvents).toEqual(
+	expect(activityResult.data.activityEvents).toHaveLength(3)
+	expect(activityResult.data.activityEvents).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
 				action: 'Rated 8.5/10',
@@ -153,8 +167,7 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			}),
 		]),
 	)
-	expect(result.data.activityStartedAt).toEqual(activity.createdAt)
-	expect(result.data.reviews).toEqual([
+	expect(reviewsResult.data.reviews).toEqual([
 		expect.objectContaining({
 			id: review.id,
 			body: 'A profile-visible review.',
@@ -164,7 +177,7 @@ test('profile loader returns canonical tracking summaries without duplicate rows
 			media: expect.objectContaining({ id: media.id }),
 		}),
 	])
-	expect(result.data.diaryEntries).toEqual([
+	expect(diaryResult.data.diaryEntries).toEqual([
 		expect.objectContaining({
 			id: diaryEntry.id,
 			loggedOn: new Date('2026-07-19T00:00:00.000Z'),
@@ -286,32 +299,48 @@ test('profile loader hides private lists and their tracking activity from visito
 		}),
 	])
 
-	const visitorResult = await loader({
+	const visitorArgs = {
 		request: new Request(`${BASE_URL}/users/${user.username}`),
 		params: { username: user.username },
-	} as any)
+	} as any
+	const [visitorResult, visitorActivityResult, visitorOverviewResult] =
+		await Promise.all([
+			profileLoader(visitorArgs),
+			activityLoader(visitorArgs),
+			overviewLoader(visitorArgs),
+		])
 	expect(visitorResult.data.watchLists.map(list => list.id)).toEqual([
 		publicList.id,
 	])
 	expect(
-		visitorResult.data.activityEvents.map(event => event.media.title),
+		visitorActivityResult.data.activityEvents.map(event => event.media.title),
 	).toEqual(['Public profile title'])
-	expect(visitorResult.data.trackingSummaries[listType.id].totalTitles).toBe(1)
+	expect(
+		visitorOverviewResult.data.trackingSummaries[listType.id].totalTitles,
+	).toBe(1)
 
 	const session = await prisma.session.create({
 		data: { userId: user.id, expirationDate: getSessionExpirationDate() },
 		select: { id: true },
 	})
 	const cookie = await getSessionCookieHeader(session)
-	const ownerResult = await loader({
+	const ownerArgs = {
 		request: new Request(`${BASE_URL}/users/${user.username}`, {
 			headers: { cookie },
 		}),
 		params: { username: user.username },
-	} as any)
+	} as any
+	const [ownerResult, ownerActivityResult, ownerOverviewResult] =
+		await Promise.all([
+			profileLoader(ownerArgs),
+			activityLoader(ownerArgs),
+			overviewLoader(ownerArgs),
+		])
 	expect(ownerResult.data.watchLists.map(list => list.id).sort()).toEqual(
 		[publicList.id, privateList.id].sort(),
 	)
-	expect(ownerResult.data.activityEvents).toHaveLength(2)
-	expect(ownerResult.data.trackingSummaries[listType.id].totalTitles).toBe(2)
+	expect(ownerActivityResult.data.activityEvents).toHaveLength(2)
+	expect(
+		ownerOverviewResult.data.trackingSummaries[listType.id].totalTitles,
+	).toBe(2)
 })
