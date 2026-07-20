@@ -1,8 +1,16 @@
+<<<<<<< HEAD
+import { Link } from '@remix-run/react'
+import { useState, useEffect } from 'react'
+import { getSeasonalAnime } from "#app/routes/media+/mal.ts"
+import { getTMDBTrending } from "#app/routes/media+/tmdb.ts"
+import { getThumbnailInfo } from "#app/utils/lists/column-functions.tsx"
+=======
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { getSeasonalAnime } from '#app/routes/media+/mal.ts'
 import { getTMDBTrending } from '#app/routes/media+/tmdb.ts'
 import { getThumbnailInfo } from '#app/utils/lists/column-functions.tsx'
+>>>>>>> develop
 
 async function getTrending(site: string, trendingParams: any) {
   if (site == "tmdb") {
