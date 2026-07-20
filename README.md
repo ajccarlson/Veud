@@ -181,6 +181,10 @@ Prioritized detail fetching is documented in the
 user-demand, upcoming, trending, and popular works before the long tail while
 persisting freshness, retry, request-count, and rate-limit state.
 
+The [MyAnimeList catalog hydration runbook](docs/mal-catalog-hydration.md)
+documents sequential anime/manga detail normalization, provider-backed
+relations, change-driven refresh, bounded failure backoff, and coverage metrics.
+
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.

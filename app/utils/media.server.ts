@@ -82,6 +82,7 @@ export async function ensureMediaForIdentity(
 	tx: Prisma.TransactionClient,
 	identity: MediaIdentity,
 	catalogSnapshot?: Record<string, unknown>,
+	options: { requestHydration?: boolean } = {},
 ) {
 	const externalId = await tx.mediaExternalId.upsert({
 		where: {
@@ -104,7 +105,10 @@ export async function ensureMediaForIdentity(
 	if (catalogSnapshot) {
 		await hydrateMediaCatalog(tx, externalId.mediaId, catalogSnapshot)
 	}
-	if (identity.provider === 'tmdb') {
+	if (
+		options.requestHydration !== false &&
+		(identity.provider === 'tmdb' || identity.provider === 'mal')
+	) {
 		await requestCatalogHydration(tx, {
 			...identity,
 			priority: catalogHydrationPriorities.userDemand,
