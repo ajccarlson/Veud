@@ -1,4 +1,7 @@
-import { type ProfileData } from '#app/utils/profile.ts'
+import {
+	type ProfileAnalyticsData,
+	type ProfileShellData,
+} from '#app/utils/profile.ts'
 
 function progressLabel(unit: string) {
   const plural = `${unit.charAt(0).toUpperCase()}${unit.slice(1)}s`
@@ -7,7 +10,11 @@ function progressLabel(unit: string) {
   return `${plural} Tracked`
 }
 
-export function StatsOverview({ data }: { data: ProfileData }) {
+export function StatsOverview({
+	data,
+}: {
+	data: Pick<ProfileShellData, 'listTypes'> & ProfileAnalyticsData
+}) {
   const { listTypes, trackingSummaries } = data
 
   return (
