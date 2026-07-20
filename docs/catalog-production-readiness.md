@@ -66,3 +66,10 @@ The production hold remains. The next batch must run the current
 metadata and member traffic, and record database/index size, import and hydration
 throughput, search latency, lock and pool behavior, backup/restore timing,
 interruption recovery, and canary/rollback behavior.
+
+Cutover evidence automation is available in the
+[PostgreSQL cutover runbook](postgresql-cutover-readiness.md): verified backups
+now emit archive-bound restore receipts, the read-only canary records public
+application and database-health latency, and the final gate hashes and evaluates
+all artifacts against an owner-approved policy. The automation enforces the
+hold; it does not satisfy the still-unrun production-like staging gates.
