@@ -83,7 +83,8 @@ pm2 save             # persist the process list
 pm2 startup          # print a boot command so PM2 resurrects the app on reboot
 ```
 
-`npm run start:prod` also starts an hourly SQLite backup process (see **Backups**).
+`npm run start:prod` also starts an hourly provider-aware backup process (see
+**Backups**).
 
 #### Serving via Cloudflare Tunnel
 
@@ -102,11 +103,13 @@ redirect loop.
 
 #### Backups
 
-`start:prod` runs `scripts/backup-db.mjs` on start and hourly (a PM2 `cron_restart`), taking
-consistent, timestamped SQLite backups via the online-backup API — safe to run while the app is
-live — and pruning old ones by retention. Each snapshot is copied to a throwaway restore path and
-checked for SQLite integrity, foreign-key violations, required tables, and all repository
-migrations before it is retained.
+`start:prod` runs `scripts/backup-database.mjs` on start and hourly (a PM2
+`cron_restart`). The current SQLite deployment uses the online-backup API and
+checks a throwaway restored copy for integrity, foreign-key violations, required
+tables, and repository migrations before retention. A PostgreSQL deployment
+uses a custom-format dump and retains it only after rebuilding a dedicated
+disposable verification database; see the
+[PostgreSQL operations runbook](docs/postgresql-operations.md).
 
 Run a one-off backup or repeat the restore drill against the newest snapshot with:
 
@@ -123,7 +126,7 @@ network-mounted or independently synced directory to atomically copy every verif
 `BACKUP_OFFSITE_KEEP` controls its retention and defaults to `BACKUP_KEEP`. A second directory on
 the same disk is not an off-machine backup.
 
-To restore the live database after a successful drill:
+To restore the current SQLite live database after a successful drill:
 
 ```
 npm run stop:prod
@@ -192,8 +195,13 @@ before an unbounded provider backfill is enabled.
 
 The [PostgreSQL catalog schema handoff](docs/postgresql-catalog-readiness.md)
 documents the provider-specific Prisma generation workflow, PostgreSQL 16
-migration baseline, trigram search indexes, CI drift checks, and the remaining
-data-transfer and backup/restore hold before production cutover.
+migration baseline, trigram search indexes, CI drift checks, and the production
+cutover boundary.
+
+The [PostgreSQL operations runbook](docs/postgresql-operations.md) covers the
+checkpointed SQLite-snapshot transfer, provider-aware native backups, mandatory
+disposable-database restore verification, measured rehearsal, and the remaining
+provider-scale cutover/rollback gate.
 
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
