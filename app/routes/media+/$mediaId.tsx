@@ -46,6 +46,7 @@ import {
 	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
+import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	createReviewComment,
@@ -228,6 +229,12 @@ function todayDateInput() {
 	return new Date().toISOString().slice(0, 10)
 }
 
+function recommendationDiscoveryHref(kind: string, genre: string | undefined) {
+	const search = new URLSearchParams({ kind })
+	if (genre) search.set('genre', genre)
+	return `/discover?${search.toString()}`
+}
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -253,6 +260,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const [
 		community,
 		followedTracking,
+		recommendations,
 		viewerState,
 		viewerEntries,
 		viewerWatchlists,
@@ -264,6 +272,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
 		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
+		getSimilarMediaRecommendations(
+			{ id: media.id, kind: media.kind, genres: catalog?.genres },
+			viewerId,
+		),
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -472,6 +484,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			diaryEntries: media._count.diaryEntries,
 		},
 		socialContext: followedTracking,
+		recommendations,
 		reviews: reviewRows.map(({ likes, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
@@ -1581,6 +1594,90 @@ export default function MediaDetailRoute() {
 							</p>
 						) : null}
 					</section>
+
+					{data.recommendations.items.length ? (
+						<section
+							aria-labelledby="similar-media-heading"
+							className="space-y-4"
+						>
+							<header className="flex flex-wrap items-end justify-between gap-3">
+								<div>
+									<h2 id="similar-media-heading" className="text-2xl font-bold">
+										More like this
+									</h2>
+									<p className="mt-1 text-sm text-muted-foreground">
+										{data.recommendations.sourceGenres.length
+											? 'Ranked by shared genres, then community activity.'
+											: `Popular ${data.media.kind} titles from the community.`}
+									</p>
+								</div>
+								<Button asChild variant="outline" size="sm">
+									<Link
+										to={recommendationDiscoveryHref(
+											data.media.kind,
+											data.recommendations.sourceGenres[0],
+										)}
+									>
+										Explore more
+									</Link>
+								</Button>
+							</header>
+							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+								{data.recommendations.items.map(item => {
+									const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
+									return (
+										<Link
+											key={item.id}
+											to={`/media/${item.id}`}
+											className="group flex min-w-0 gap-3 rounded-xl border bg-card p-3 transition hover:border-primary/60 hover:bg-muted/50"
+										>
+											<div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+												{poster ? (
+													<img
+														src={poster}
+														alt=""
+														loading="lazy"
+														className="h-full w-full object-cover"
+													/>
+												) : (
+													<div className="flex h-full items-center justify-center px-2 text-center text-[0.65rem] text-muted-foreground">
+														No poster
+													</div>
+												)}
+											</div>
+											<div className="min-w-0 flex-1 py-0.5">
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													{item.type || item.kind}
+													{item.year ? ` · ${item.year}` : ''}
+												</div>
+												<h3 className="mt-1 line-clamp-2 font-bold leading-5 group-hover:underline">
+													{item.title}
+												</h3>
+												{item.matchedGenres.length ? (
+													<div className="mt-2 flex flex-wrap gap-1">
+														{item.matchedGenres.slice(0, 2).map(genre => (
+															<span
+																key={genre}
+																className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-semibold text-primary"
+															>
+																{genre}
+															</span>
+														))}
+													</div>
+												) : null}
+												<div className="mt-2 text-xs text-muted-foreground">
+													{item.communityScore !== null
+														? `★ ${item.communityScore.toFixed(1)} (${item.ratingCount}) · `
+														: 'Not yet rated · '}
+													{item.trackerCount} tracking
+												</div>
+											</div>
+										</Link>
+									)
+								})}
+							</div>
+						</section>
+					) : null}
 
 					<section className="space-y-3">
 						<div className="flex items-end justify-between gap-3">
