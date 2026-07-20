@@ -10,7 +10,7 @@ import { scoreColumns } from './score-columns.tsx'
 import { textColumns } from './text-columns.tsx'
 
 export function columnDefs() {
-  return [
+  const columns = [
       ...positionColumn(),
 
 
@@ -34,4 +34,9 @@ export function columnDefs() {
 
       ...textColumns()
   ]
+
+  return columns.map(column => ({
+    ...column,
+    headerTooltip: column.headerName,
+  }))
 }
