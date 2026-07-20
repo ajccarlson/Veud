@@ -204,3 +204,94 @@ test('collection discussion notifications open the source comment', async () => 
 		await prisma.notification.findUnique({ where: { id: notification.id } }),
 	).toEqual(expect.objectContaining({ readAt: expect.any(Date) }))
 })
+
+test('release reminders stay hidden until due and open their canonical title', async () => {
+	const recipient = await createUser('release_recipient')
+	const releaseAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
+	const media = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Release Notification Fixture',
+			nextRelease: JSON.stringify({
+				releaseDate: releaseAt.toISOString(),
+				episode: 4,
+			}),
+		},
+	})
+	const reminder = await prisma.releaseReminder.create({
+		data: { ownerId: recipient.id, mediaId: media.id, leadMinutes: 60 },
+	})
+	const notification = await prisma.notification.create({
+		data: {
+			type: 'release_reminder',
+			recipientId: recipient.id,
+			releaseReminderId: reminder.id,
+			releaseAt,
+			availableAt: new Date(Date.now() + 60 * 60 * 1000),
+		},
+	})
+	const cookie = await cookieFor(recipient.id)
+
+	const pending = await loader({
+		request: new Request(`${BASE_URL}/notifications`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(pending.data.notifications).toEqual([])
+	expect(pending.data.unreadCount).toBe(0)
+
+	const earlyRead = await action({
+		request: actionRequest(cookie, {
+			intent: 'read',
+			notificationId: notification.id,
+		}),
+		params: {},
+	} as any).catch(error => error)
+	expect(earlyRead).toBeInstanceOf(Response)
+	expect((earlyRead as Response).status).toBe(404)
+
+	await action({
+		request: actionRequest(cookie, { intent: 'read-all' }),
+		params: {},
+	} as any)
+	expect(
+		await prisma.notification.findUniqueOrThrow({
+			where: { id: notification.id },
+		}),
+	).toMatchObject({ readAt: null })
+
+	await prisma.notification.update({
+		where: { id: notification.id },
+		data: { availableAt: new Date(Date.now() - 60 * 1000) },
+	})
+	const due = await loader({
+		request: new Request(`${BASE_URL}/notifications`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(due.data.notifications).toEqual([
+		expect.objectContaining({
+			id: notification.id,
+			type: 'release_reminder',
+			actor: null,
+			releaseReminder: {
+				media: expect.objectContaining({ id: media.id, title: media.title }),
+			},
+		}),
+	])
+	expect(due.data.unreadCount).toBe(1)
+
+	const response = await action({
+		request: actionRequest(cookie, {
+			intent: 'read',
+			notificationId: notification.id,
+		}),
+		params: {},
+	} as any)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).headers.get('location')).toBe(
+		`/media/${media.id}`,
+	)
+})
