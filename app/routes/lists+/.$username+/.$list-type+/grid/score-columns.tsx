@@ -13,7 +13,24 @@
 import { columnParams } from './grid-state.ts'
 import { setterFunction } from './grid-actions.ts'
 import { scoreColor, scoreRange } from '#app/utils/lists/score-colorer.tsx'
-import { differenceFormatter } from '#app/utils/lists/column-functions.tsx'
+import {
+  averageScores,
+  formatDifference,
+  formatScore,
+  providedScore,
+  scoreDifference,
+} from '#app/utils/lists/score-formatters.ts'
+
+function categoryScores(data: any) {
+  return [
+    data.story,
+    data.character,
+    data.presentation,
+    data.sound,
+    data.performance,
+    data.enjoyment,
+  ]
+}
 
 // Factory for the six 1-10 rating columns. `borderLeft` adds the single left border that only
 // the first rating column (story) carries; `hideKey` is the displayedColumns key (normally the
@@ -24,11 +41,7 @@ function scoreColumn(field: string, headerName: string, hideKey: string, borderL
     field,
     headerName,
     valueSetter: (params: any) => {setterFunction(params)},
-    valueFormatter: (params: any) => {
-      if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-        return ""
-      }
-    },
+    valueFormatter: (params: any) => formatScore(params.value),
     editable: columnParams.currentUserId == columnParams.listOwner.id,
     minWidth: 52,
     maxWidth: 80,
@@ -75,29 +88,10 @@ export function scoreColumns() {
       field: 'averaged',
       headerName: 'Averaged',
       valueSetter: (params: any) => {setterFunction(params)},
-      valueFormatter: (params: any) => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-          return ""
-        } else {
-          return Number(params.value).toFixed(1)
-        }
-      },
-      valueGetter: (params: any) => {
-        let scoreCategories = [params.data.story, params.data.character, params.data.presentation, params.data.sound, params.data.performance, params.data.enjoyment];
-        let foundScores = 0;
-        let sum = 0;
-
-        for (let category of scoreCategories) {
-          if (category) {
-            foundScores ++;
-            sum += category;
-          }
-        }
-
-        return (sum / foundScores)
-      },
-      minWidth: 62,
-      maxWidth: 90,
+      valueFormatter: (params: any) => formatScore(params.value, 1),
+      valueGetter: (params: any) => averageScores(categoryScores(params.data)),
+      minWidth: 96,
+      maxWidth: 120,
       filter: 'agNumberColumnFilter',
       editable: false,
       cellClass: (params: any) => {
@@ -121,16 +115,10 @@ export function scoreColumns() {
       field: 'personal',
       headerName: 'Personal',
       valueSetter: (params: any) => {setterFunction(params)},
-      valueFormatter: (params: any) => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-          return ""
-        } else {
-          return Number(params.value).toFixed(1)
-        }
-      },
+      valueFormatter: (params: any) => formatScore(params.value, 1),
       editable: columnParams.currentUserId == columnParams.listOwner.id,
-      minWidth: 55,
-      maxWidth: 80,
+      minWidth: 90,
+      maxWidth: 120,
       cellDataType: 'number',
       filter: 'agNumberColumnFilter',
       cellEditor: 'agNumberCellEditor',
@@ -163,19 +151,14 @@ export function scoreColumns() {
       headerName: 'Difference: Personal',
       valueSetter: (params: any) => {setterFunction(params)},
       valueGetter: (params: any) => {
-        if (params.data.personal && params.data.personal != 0) {
-          return (params.data.personal - ((params.data.story + params.data.character + params.data.presentation + params.data.sound + params.data.performance + params.data.enjoyment) / 6))
-        } else {return ""}
+        return scoreDifference(
+          params.data.personal,
+          averageScores(categoryScores(params.data)),
+        )
       },
-      valueFormatter: (params: any) => {
-        if ((!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) && (!params.data.personal || params.data.personal == "null" || params.data.personal == "NULL" || params.data.personal == 0)) {
-          return ""
-        } else {
-          return differenceFormatter(params.value)
-        }
-      },
-      minWidth: 70,
-      maxWidth: 90,
+      valueFormatter: (params: any) => formatDifference(params.value),
+      minWidth: 130,
+      maxWidth: 170,
       filter: 'agNumberColumnFilter',
       editable: false,
       cellClass: (params: any) => {
@@ -199,15 +182,9 @@ export function scoreColumns() {
       field: 'tmdbScore',
       headerName: 'TMDB Score',
       valueSetter: (params: any) => {setterFunction(params)},
-      valueFormatter: (params: any) => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-          return ""
-        } else {
-          return Number(params.value).toFixed(1)
-        }
-      },
-      minWidth: 55,
-      maxWidth: 80,
+      valueFormatter: (params: any) => formatScore(params.value, 1),
+      minWidth: 104,
+      maxWidth: 130,
       filter: 'agNumberColumnFilter',
       editable: false,
       cellClass: (params: any) => {
@@ -231,15 +208,9 @@ export function scoreColumns() {
       field: 'malScore',
       headerName: 'MAL Score',
       valueSetter: (params: any) => {setterFunction(params)},
-      valueFormatter: (params: any) => {
-        if (!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) {
-          return ""
-        } else {
-          return Number(params.value).toFixed(1)
-        }
-      },
-      minWidth: 55,
-      maxWidth: 80,
+      valueFormatter: (params: any) => formatScore(params.value, 1),
+      minWidth: 90,
+      maxWidth: 120,
       filter: 'agNumberColumnFilter',
       editable: false,
       cellClass: (params: any) => {
@@ -264,22 +235,14 @@ export function scoreColumns() {
       headerName: 'Difference: Objective',
       valueSetter: (params: any) => {setterFunction(params)},
       valueGetter: (params: any) => {
-        if ((params.data.personal && params.data.personal != 0) && (params.data.tmdbScore && params.data.tmdbScore != 0)) {
-          return (params.data.personal - params.data.tmdbScore)
-        } 
-        else if ((params.data.personal && params.data.personal != 0) && (params.data.malScore && params.data.malScore != 0)) {
-          return (params.data.personal - params.data.malScore)
-        } else {return ""}
+        const objectiveScore =
+          providedScore(params.data.tmdbScore) ??
+          providedScore(params.data.malScore)
+        return scoreDifference(params.data.personal, objectiveScore)
       },
-      valueFormatter: (params: any) => {
-        if ((!params.value || params.value == "null" || params.value == "NULL" || params.value == 0) && (!params.data.tmdbScore || params.data.tmdbScore == "null" || params.data.tmdbScore == "NULL" || params.data.tmdbScore == 0)) {
-          return ""
-        } else {
-          return differenceFormatter(params.value)
-        }
-      },
-      minWidth: 70,
-      maxWidth: 90,
+      valueFormatter: (params: any) => formatDifference(params.value),
+      minWidth: 138,
+      maxWidth: 180,
       filter: 'agNumberColumnFilter',
       editable: false,
       cellClass: (params: any) => {
