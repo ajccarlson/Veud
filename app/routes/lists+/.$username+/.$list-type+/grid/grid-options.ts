@@ -21,6 +21,7 @@ export const gridOptions = {
   },
   rowDragManaged: true,
   rowDragMultiRow: true,
+  resetRowDataOnUpdate: true,
   onRowDragEnd: rowDragEnd,
   rowSelection: 'multiple',
   onGridReady: gridReady,

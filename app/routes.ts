@@ -117,6 +117,9 @@ export default [
 	appRoute('routes/lists+/.fetch+/get-list-entries.$request.ts', {
 		path: 'lists/fetch/get-list-entries/:request',
 	}),
+	appRoute('routes/lists+/.fetch+/move-row.$request.ts', {
+		path: 'lists/fetch/move-row/:request',
+	}),
 	appRoute('routes/lists+/.fetch+/now-updated.$request.ts', {
 		path: 'lists/fetch/now-updated/:request',
 	}),
@@ -125,6 +128,9 @@ export default [
 	}),
 	appRoute('routes/lists+/.fetch+/reorder-favorite.$request.ts', {
 		path: 'lists/fetch/reorder-favorite/:request',
+	}),
+	appRoute('routes/lists+/.fetch+/reorder-rows.$request.ts', {
+		path: 'lists/fetch/reorder-rows/:request',
 	}),
 	appRoute('routes/lists+/.fetch+/update-cell.$request.ts', {
 		path: 'lists/fetch/update-cell/:request',
