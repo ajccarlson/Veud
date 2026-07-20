@@ -8,6 +8,7 @@ const FOR_YOU_CANDIDATE_LIMIT = 500
 
 export const discoveryKinds = ['all', 'movie', 'tv', 'anime', 'manga'] as const
 export const discoveryProviders = ['all', 'tmdb', 'mal'] as const
+export const discoveryModes = ['standard', 'memory'] as const
 export const discoverySorts = [
 	'popular',
 	'top-rated',
@@ -17,8 +18,9 @@ export const discoverySorts = [
 ] as const
 
 const DiscoveryQuerySchema = z.object({
-	q: z.string().trim().max(100).catch(''),
+	q: z.string().trim().max(500).catch(''),
 	kind: z.enum(discoveryKinds).catch('all'),
+	mode: z.enum(discoveryModes).catch('standard'),
 	genre: z.string().trim().max(80).catch(''),
 	year: z.preprocess(
 		value =>
@@ -55,6 +57,10 @@ export type DiscoveryResult = {
 		status: string
 		statusWatchlistId: string | null
 	} | null
+	memoryMatch?: {
+		summary: string
+		matchedClues: string[]
+	}
 }
 
 export type DiscoveryResults = {
@@ -135,9 +141,11 @@ function boundedSearchValue(value: string | null, maximum: number) {
 }
 
 export function parseDiscoveryQuery(searchParams: URLSearchParams) {
+	const mode = searchParams.get('mode') === 'memory' ? 'memory' : 'standard'
 	return DiscoveryQuerySchema.parse({
-		q: boundedSearchValue(searchParams.get('q'), 100),
+		q: boundedSearchValue(searchParams.get('q'), mode === 'memory' ? 500 : 100),
 		kind: searchParams.get('kind') ?? 'all',
+		mode,
 		genre: boundedSearchValue(searchParams.get('genre'), 80),
 		year: searchParams.get('year'),
 		status: boundedSearchValue(searchParams.get('status'), 60),
@@ -145,6 +153,53 @@ export function parseDiscoveryQuery(searchParams: URLSearchParams) {
 		sort: searchParams.get('sort') ?? 'popular',
 		page: searchParams.get('page') ?? '1',
 	})
+}
+
+export async function getDiscoveryResultsForMediaIds(
+	input: DiscoveryQuery,
+	viewerId: string | null,
+	mediaIds: string[],
+): Promise<DiscoveryResults> {
+	const orderedIds = [...new Set(mediaIds)].slice(0, 5)
+	if (!orderedIds.length) {
+		return {
+			filters: { ...input, page: 1 },
+			items: [],
+			total: 0,
+			pageCount: 1,
+			preferredGenres: [],
+		}
+	}
+	const filters = {
+		...input,
+		q: '',
+		mode: 'standard' as const,
+		page: 1,
+		sort: 'popular' as const,
+	}
+	const [media, preferences] = await Promise.all([
+		prisma.media.findMany({
+			where: {
+				AND: [discoveryWhere(filters, viewerId), { id: { in: orderedIds } }],
+			},
+			select: discoveryMediaSelect,
+		}),
+		getGenrePreferences(viewerId),
+	])
+	const byId = new Map(
+		rankableMedia(media, preferences, viewerId).map(item => [item.id, item]),
+	)
+	const items = orderedIds.flatMap(id => {
+		const item = byId.get(id)
+		return item ? [resultFromMedia(item, '')] : []
+	})
+	return {
+		filters: { ...input, page: 1 },
+		items,
+		total: items.length,
+		pageCount: 1,
+		preferredGenres: preferences.map(preference => preference.label),
+	}
 }
 
 export function splitGenres(value: string | null | undefined) {

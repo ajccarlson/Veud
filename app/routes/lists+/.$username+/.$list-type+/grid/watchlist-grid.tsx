@@ -110,7 +110,11 @@ export function watchlistGrid(
 							<MediaTypeDropdown columnParams={currentColumnParams} />
 						) : null}
 					</div>
-					<MediaSearchBar params={{}} columnParams={currentColumnParams} />
+					<MediaSearchBar
+						params={{}}
+						columnParams={currentColumnParams}
+						compactTrigger
+					/>
 				</section>
 			) : null}
 			<div className="ag-theme-custom-react">
@@ -126,7 +130,7 @@ export function watchlistGrid(
 					getRowId={getWatchlistRowId}
 					rowDragText={rowDragText}
 				></AgGridReact>
-				</div>
+			</div>
 		</div>
 	)
 }

@@ -63,7 +63,7 @@ export function UpcomingData({
 
 	return (
 		<section
-			className="w-full max-w-4xl space-y-4 self-center px-4 text-[#ffefcc]"
+			className="home-upcoming min-w-0 space-y-4 text-[#ffefcc]"
 			aria-labelledby="home-upcoming-heading"
 		>
 			<header className="flex flex-wrap items-end justify-between gap-3">
@@ -85,7 +85,7 @@ export function UpcomingData({
 			</header>
 
 			{visibleDays.length ? (
-				<div className="grid items-start gap-4 md:grid-cols-2">
+				<div className="home-upcoming-grid grid items-start gap-4">
 					{visibleDays.map(day => {
 						const visibleItems = day.items.slice(0, 3)
 						return (

@@ -205,11 +205,14 @@ test('member can keep adding search results across lists in one session', async 
 		watchlistId: string,
 		destinationLabel?: string,
 	) {
-		const search = page.getByRole('searchbox', { name: 'Search' })
-		await search.fill(query)
-		await search.press('Enter')
+		await page.getByRole('button', { name: 'Add title' }).click()
 		const dialog = page.getByRole('dialog', { name: 'Choose a title' })
 		await expect(dialog).toBeVisible()
+		const search = dialog.getByRole('searchbox', {
+			name: 'Search the catalog',
+		})
+		await search.fill(query)
+		await search.press('Enter')
 		if (destinationLabel) {
 			await dialog.getByLabel('Add to list').selectOption({
 				label: destinationLabel,
@@ -220,18 +223,20 @@ test('member can keep adding search results across lists in one session', async 
 			.poll(() => prisma.entry.count({ where: { watchlistId, title } }))
 			.toBe(1)
 		await expect(dialog).not.toBeVisible()
-		await expect(page.getByRole('searchbox', { name: 'Search' })).toHaveValue(
-			'',
-		)
+		await expect(page.getByRole('button', { name: 'Add title' })).toBeVisible()
 	}
 
 	await page.goto(`/lists/${user.username}/anime/${watching.name}`)
 	await addCatalogResult('First query', catalogTitles[101], watching.id)
 	await page.setViewportSize({ width: 390, height: 844 })
-	await expect(page.getByRole('searchbox', { name: 'Search' })).toBeVisible()
-	await page.getByRole('searchbox', { name: 'Search' }).fill('First query')
-	await page.getByRole('searchbox', { name: 'Search' }).press('Enter')
+	await page.getByRole('button', { name: 'Add title' }).click()
 	const trackedDialog = page.getByRole('dialog', { name: 'Choose a title' })
+	await trackedDialog
+		.getByRole('searchbox', { name: 'Search the catalog' })
+		.fill('First query')
+	await trackedDialog
+		.getByRole('searchbox', { name: 'Search the catalog' })
+		.press('Enter')
 	const dialogBounds = await trackedDialog.evaluate(dialog => {
 		const bounds = dialog.getBoundingClientRect()
 		return {

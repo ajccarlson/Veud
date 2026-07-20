@@ -28,6 +28,7 @@ import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
+import { SiteSearch } from './components/site-search.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
@@ -81,7 +82,10 @@ export const links: LinksFunction = () => {
 export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
 	return [
 		{ title: loaderData ? 'Veud' : 'Error | Veud' },
-		{ name: 'description', content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.` },
+		{
+			name: 'description',
+			content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.`,
+		},
 	]
 }
 
@@ -143,7 +147,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			)
 		: 0
 
-  const listTypes = await prisma.listType.findMany()
+	const listTypes = await prisma.listType.findMany()
 
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = await honeypot.getInputProps()
@@ -152,7 +156,8 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		{
 			user,
 			unreadNotificationCount,
-      listTypes,
+			listTypes,
+			aiSearchAvailable: Boolean(process.env.OPENAI_API_KEY?.trim()),
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
@@ -253,58 +258,68 @@ function App() {
 
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
-      {/* root-main */}
+			{/* root-main */}
 			<div className="root flex h-screen flex-col justify-between">
 				<header className="container py-6">
 					<nav className="root-header">
-            <div className="root-logo-container">
-              <div className='root-logo'>
-                <Logo/>
-              </div>
-              <div className="root-logo-separator"/>
-            </div>
+						<div className="root-logo-container">
+							<div className="root-logo">
+								<Logo />
+							</div>
+							<div className="root-logo-separator" />
+						</div>
 						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
 						</div> */}
-            <div className="root-community-links">
-              <CommunityDropdown/>
-            </div>
-            {user ? (
-              <div className="root-user-links">
-                <ListsDropdown/>
-                <div className="root-header-separator"/>
-                <Button asChild variant="secondary">
-                  <Link
-                    to="/notifications"
-                    className="relative"
-                    aria-label={`Notifications (${data.unreadNotificationCount} unread)`}
-                  >
-                    <Icon name="bell" />
-                    {data.unreadNotificationCount ? (
-                      <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-destructive px-1 text-center text-xs font-bold text-destructive-foreground">
-                        {Math.min(data.unreadNotificationCount, 99)}
-                      </span>
-                    ) : null}
-                  </Link>
-                </Button>
-                <UserDropdown/>
-                <Link
-                  className="root-user-image"
-                  to={`/users/${user.username}`}
-                >
-                  <img
-                    alt={user.username}
-                    src={getUserImgSrc(user.image?.id)}
-                  />
-                </Link>
-              </div>
-            ) : (
-              <div className="root-user-links">
-                <Button asChild variant="default" size="lg">
-                  <Link to="/login">Log In</Link>
-                </Button>
-              </div>
-            )}
+						<div className="root-community-links">
+							<CommunityDropdown />
+							<Link
+								className="root-credits-link"
+								prefetch="intent"
+								to="/credits"
+								aria-label="Data sources and credits"
+								title="Data sources and credits"
+							>
+								<Icon name="info-circled" aria-hidden="true" />
+							</Link>
+						</div>
+						<SiteSearch aiAvailable={data.aiSearchAvailable} />
+						{user ? (
+							<div className="root-user-links">
+								<ListsDropdown />
+								<div className="root-header-separator" />
+								<Button asChild variant="secondary">
+									<Link
+										to="/notifications"
+										className="relative"
+										aria-label={`Notifications (${data.unreadNotificationCount} unread)`}
+									>
+										<Icon name="bell" />
+										{data.unreadNotificationCount ? (
+											<span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-destructive px-1 text-center text-xs font-bold text-destructive-foreground">
+												{Math.min(data.unreadNotificationCount, 99)}
+											</span>
+										) : null}
+									</Link>
+								</Button>
+								<UserDropdown />
+								<Link
+									className="root-user-image"
+									to={`/users/${user.username}`}
+								>
+									<img
+										alt={user.username}
+										src={getUserImgSrc(user.image?.id)}
+									/>
+								</Link>
+							</div>
+						) : (
+							<div className="root-user-links">
+								<Button asChild variant="default" size="lg">
+									<Link to="/login">Log In</Link>
+								</Button>
+							</div>
+						)}
 						{/* <div className="block w-full sm:hidden">{searchBar}</div> */}
 					</nav>
 				</header>
@@ -326,7 +341,7 @@ function App() {
 function Logo() {
 	return (
 		<Link to="/" className="group grid leading-snug">
-			<img src={ logo } alt="Logo" width="100rem"/>
+			<img src={logo} alt="Logo" width="100rem" />
 		</Link>
 	)
 }
@@ -343,120 +358,111 @@ function AppWithProviders() {
 export default AppWithProviders
 
 function CommunityDropdown() {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button asChild variant="secondary">
-          <div className="root-header-community-links-dropdown">
-            <span className="text-body-sm font-bold">
-              Community
-            </span>
-            <Icon name="triangle-down"/>
-          </div>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuPortal>
-        <DropdownMenuContent sideOffset={8} align="start">
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to="/discover"
-            >
-              <Icon className="text-body-md" name="magnifying-glass">
-                Discover
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to="/credits"
-            >
-              <Icon className="text-body-md" name="info-circled">
-                Data sources &amp; credits
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to="/collections"
-            >
-              <Icon className="text-body-md" name="list-bullet">
-                Collections
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to="/calendar"
-            >
-              <Icon className="text-body-md" name="calendar">
-                Calendar
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to="/reviews"
-            >
-              <Icon className="text-body-md" name="quote">
-                Reviews
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              className="root-community-link-item"
-              prefetch="intent"
-              to={`/users`}
-            >
-              <Icon className="text-body-md" name="person">
-                Users
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenuPortal>
-    </DropdownMenu>
-  )
-}
-
-function ListsDropdown() {
-  const user = useUser()
-  const data = useLoaderData<typeof loader>()
-
 	return (
-    <DropdownMenu>
+		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-        <Button asChild variant="secondary">
-          <Link
-            className="root-user-lists"
-            prefetch="intent"
-            to={`/lists/${user.username}`}
-          >
-            <Icon name="list-bullet"></Icon>
-          </Link>
-        </Button>
+				<Button asChild variant="secondary">
+					<div className="root-header-community-links-dropdown">
+						<span className="text-body-sm font-bold">Community</span>
+						<Icon name="triangle-down" />
+					</div>
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
 				<DropdownMenuContent sideOffset={8} align="start">
-          {data.listTypes.map(listType => {
-            return (
-              <DropdownMenuItem asChild key={listType.id}>
-                <Link prefetch="intent" to={`/lists/${user.username}/${listType.name}`} reloadDocument>
-                  {listType.header}
-                </Link>
-              </DropdownMenuItem>
-            )
-          })}
+					<DropdownMenuItem asChild>
+						<Link
+							className="root-community-link-item"
+							prefetch="intent"
+							to="/discover"
+						>
+							<Icon className="text-body-md" name="magnifying-glass">
+								Discover
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link
+							className="root-community-link-item"
+							prefetch="intent"
+							to="/collections"
+						>
+							<Icon className="text-body-md" name="list-bullet">
+								Collections
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link
+							className="root-community-link-item"
+							prefetch="intent"
+							to="/calendar"
+						>
+							<Icon className="text-body-md" name="calendar">
+								Calendar
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link
+							className="root-community-link-item"
+							prefetch="intent"
+							to="/reviews"
+						>
+							<Icon className="text-body-md" name="quote">
+								Reviews
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link
+							className="root-community-link-item"
+							prefetch="intent"
+							to={`/users`}
+						>
+							<Icon className="text-body-md" name="person">
+								Users
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenuPortal>
+		</DropdownMenu>
+	)
+}
+
+function ListsDropdown() {
+	const user = useUser()
+	const data = useLoaderData<typeof loader>()
+
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button asChild variant="secondary">
+					<Link
+						className="root-user-lists"
+						prefetch="intent"
+						to={`/lists/${user.username}`}
+					>
+						<Icon name="list-bullet"></Icon>
+					</Link>
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuPortal>
+				<DropdownMenuContent sideOffset={8} align="start">
+					{data.listTypes.map(listType => {
+						return (
+							<DropdownMenuItem asChild key={listType.id}>
+								<Link
+									prefetch="intent"
+									to={`/lists/${user.username}/${listType.name}`}
+									reloadDocument
+								>
+									{listType.header}
+								</Link>
+							</DropdownMenuItem>
+						)
+					})}
 				</DropdownMenuContent>
 			</DropdownMenuPortal>
 		</DropdownMenu>
@@ -478,10 +484,8 @@ function UserDropdown() {
 						onClick={e => e.preventDefault()}
 						className="root-user-links-dropdown"
 					>
-						<span className="text-body-sm font-bold">
-							{user.username}
-						</span>
-            <Icon name="triangle-down"/>
+						<span className="text-body-sm font-bold">{user.username}</span>
+						<Icon name="triangle-down" />
 					</Link>
 				</Button>
 			</DropdownMenuTrigger>
@@ -495,19 +499,19 @@ function UserDropdown() {
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
-					<Link prefetch="intent" to={`/lists/${user.username}`}>
+						<Link prefetch="intent" to={`/lists/${user.username}`}>
 							<Icon className="text-body-md" name="list-bullet">
 								Lists
 							</Icon>
-					</Link>
+						</Link>
 					</DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/settings/profile" prefetch="intent">
-              <Icon className="text-body-md" name="gear">
-                Account settings
-              </Icon>
-            </Link>
-          </DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link to="/settings/profile" prefetch="intent">
+							<Icon className="text-body-md" name="gear">
+								Account settings
+							</Icon>
+						</Link>
+					</DropdownMenuItem>
 					<DropdownMenuItem
 						asChild
 						// this prevents the menu from closing before the form submission is completed
