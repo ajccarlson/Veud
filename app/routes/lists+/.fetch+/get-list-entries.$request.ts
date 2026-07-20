@@ -1,17 +1,12 @@
 import { type LoaderFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
+import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
 
-// Watchlists are public (profile pages render them without a login), so reading a
-// list's entries needs no authentication — it returns only already-public data.
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function loader({ request, params }: LoaderFunctionArgs) {
   const searchParams = new URLSearchParams(params.request)
 
   const watchlistId = searchParams.get('watchlistId')?.toLowerCase()
-  const watchlist = watchlistId
-    ? await prisma.watchlist.findUnique({ where: { id: watchlistId } })
-    : null
-
-  if (!watchlist) return []
+  const { watchlist } = await requireVisibleWatchlist(request, watchlistId)
 
   return await prisma.entry.findMany({
     where: {

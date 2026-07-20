@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { publicTrackingStateWhere } from './lists/visibility.server.ts'
 
 type ScoreGroup = {
 	score: unknown
@@ -60,18 +61,22 @@ export function buildStatusBreakdown(groups: StatusGroup[]) {
 export async function getMediaCommunityStatistics(mediaId: string) {
 	const [summary, scoreGroups, statusGroups] = await Promise.all([
 		prisma.trackingState.aggregate({
-			where: { mediaId },
+			where: { mediaId, AND: [publicTrackingStateWhere] },
 			_count: { id: true, score: true },
 			_avg: { score: true },
 		}),
 		prisma.trackingState.groupBy({
 			by: ['score'],
-			where: { mediaId, score: { not: null } },
+			where: {
+				mediaId,
+				score: { not: null },
+				AND: [publicTrackingStateWhere],
+			},
 			_count: { _all: true },
 		}),
 		prisma.trackingState.groupBy({
 			by: ['status'],
-			where: { mediaId },
+			where: { mediaId, AND: [publicTrackingStateWhere] },
 			_count: { _all: true },
 		}),
 	])
@@ -92,6 +97,7 @@ export async function getFollowedMediaTracking(
 	const where = {
 		mediaId,
 		owner: { followers: { some: { followerId: viewerId } } },
+		AND: [publicTrackingStateWhere],
 	} satisfies Prisma.TrackingStateWhereInput
 	const [summary, rows] = await Promise.all([
 		prisma.trackingState.aggregate({

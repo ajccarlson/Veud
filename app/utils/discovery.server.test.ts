@@ -146,6 +146,95 @@ test('top-rated ranking tempers sparse scores and title pagination is stable', a
 	expect(secondPage.items.map(item => item.title)).toEqual(['Paged 25'])
 })
 
+test('private-list tracking stays personal and does not affect discovery aggregates', async () => {
+	const [publicMember, privateMember] = await Promise.all([
+		createUser('public_discovery_member'),
+		createUser('private_discovery_member'),
+	])
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const listType = await prisma.listType.create({
+		data: {
+			name: `discovery-privacy-${suffix}`,
+			header: 'Discovery privacy',
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+	const [publicList, privateList, publicTitle, privateTitle] =
+		await Promise.all([
+			prisma.watchlist.create({
+				data: {
+					ownerId: publicMember.id,
+					typeId: listType.id,
+					name: 'public',
+					header: 'Public',
+					isPublic: true,
+				},
+			}),
+			prisma.watchlist.create({
+				data: {
+					ownerId: privateMember.id,
+					typeId: listType.id,
+					name: 'private',
+					header: 'Private',
+					isPublic: false,
+				},
+			}),
+			prisma.media.create({
+				data: { kind: 'movie', title: 'Discovery Privacy Public Eight' },
+			}),
+			prisma.media.create({
+				data: { kind: 'movie', title: 'Discovery Privacy Private Ten' },
+			}),
+		])
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: publicMember.id,
+				mediaId: publicTitle.id,
+				status: 'completed',
+				statusWatchlistId: publicList.id,
+				score: 8,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: privateMember.id,
+				mediaId: privateTitle.id,
+				status: 'completed',
+				statusWatchlistId: privateList.id,
+				score: 10,
+			},
+		}),
+	])
+
+	const topRated = await getDiscoveryResults(
+		filters({ q: 'Discovery Privacy', sort: 'top-rated' }),
+		null,
+	)
+	expect(topRated.items.map(item => item.id)).toEqual([publicTitle.id])
+
+	const ownerView = await getDiscoveryResults(
+		filters({ q: 'Discovery Privacy', sort: 'title' }),
+		privateMember.id,
+	)
+	const privateResult = ownerView.items.find(
+		item => item.id === privateTitle.id,
+	)
+	expect(privateResult).toEqual(
+		expect.objectContaining({
+			communityScore: null,
+			ratingCount: 0,
+			trackerCount: 0,
+			viewerTracking: expect.objectContaining({
+				status: 'completed',
+				statusWatchlistId: privateList.id,
+			}),
+		}),
+	)
+})
+
 test('for-you favors preferred genres and excludes already tracked titles', async () => {
 	const [viewer, communityOne, communityTwo] = await Promise.all([
 		createUser('viewer'),

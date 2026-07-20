@@ -153,6 +153,46 @@ export async function syncTrackingStateForEntry(
 	return trackingStateId
 }
 
+/**
+ * If a deletion removes the entry that currently supplies a title's status,
+ * move the canonical tracking state to a surviving entry first. In addition to
+ * keeping status/progress coherent, this prevents deleting a status watchlist
+ * from temporarily turning a remaining private entry into legacy public
+ * tracking via a null statusWatchlistId.
+ */
+export async function reconcileTrackingStateBeforeEntryDeletion(
+	tx: Prisma.TransactionClient,
+	trackingStateId: string | null | undefined,
+	deletingEntriesWhere: Prisma.EntryWhereInput,
+) {
+	if (!trackingStateId) return null
+	const state = await tx.trackingState.findUnique({
+		where: { id: trackingStateId },
+		select: { statusWatchlistId: true },
+	})
+	if (!state?.statusWatchlistId) return null
+
+	const removesCurrentStatus = await tx.entry.findFirst({
+		where: {
+			trackingStateId,
+			watchlistId: state.statusWatchlistId,
+			AND: [deletingEntriesWhere],
+		},
+		select: { id: true },
+	})
+	if (!removesCurrentStatus) return null
+
+	const replacement = await tx.entry.findFirst({
+		where: {
+			trackingStateId,
+			NOT: deletingEntriesWhere,
+		},
+		orderBy: [{ position: 'asc' }, { id: 'asc' }],
+		select: { id: true },
+	})
+	return replacement ? syncTrackingStateForEntry(tx, replacement.id) : null
+}
+
 export async function deleteTrackingStateIfOrphan(
 	tx: Prisma.TransactionClient,
 	trackingStateId: string | null | undefined,

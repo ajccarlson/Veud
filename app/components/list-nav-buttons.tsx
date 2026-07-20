@@ -33,7 +33,10 @@ export function listNavButtons(
 							data-watchlist-header={list.header}
 							aria-current={watchListData.id === list.id ? 'page' : undefined}
 						>
-							{list.header}
+							<span>{list.header}</span>
+							{!list.isPublic ? (
+								<span className="list-nav-private-badge">Private</span>
+							) : null}
 						</Link>
 					))}
 				</div>
