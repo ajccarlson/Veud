@@ -244,11 +244,39 @@ test('sync cursors checkpoint, complete, and release cooperative leases', async 
 			runId: first.run.id,
 			leaseOwner: 'worker-one',
 			progress,
+			telemetry: {
+				requestsMade: 25,
+				rateLimitEvents: 1,
+				providerRetryAfter: new Date('2026-01-01T00:05:00.000Z'),
+			},
 			leaseDurationMs: 60_000,
 			now: new Date('2026-01-01T00:00:20.000Z'),
 		}),
 	)
-	expect(checkpointed).toEqual(expect.objectContaining(progress))
+	expect(checkpointed).toEqual(
+		expect.objectContaining({
+			...progress,
+			requestsMade: 25,
+			rateLimitEvents: 1,
+			providerRetryAfter: new Date('2026-01-01T00:05:00.000Z'),
+		}),
+	)
+	await expect(
+		prisma.$transaction(tx =>
+			checkpointCatalogSyncRun(tx, {
+				runId: first.run.id,
+				leaseOwner: 'worker-one',
+				progress,
+				telemetry: {
+					requestsMade: 24,
+					rateLimitEvents: 1,
+					providerRetryAfter: null,
+				},
+				leaseDurationMs: 60_000,
+				now: new Date('2026-01-01T00:00:22.000Z'),
+			}),
+		),
+	).rejects.toThrow('requestsMade cannot move backward')
 	await expect(
 		prisma.$transaction(tx =>
 			checkpointCatalogSyncRun(tx, {
