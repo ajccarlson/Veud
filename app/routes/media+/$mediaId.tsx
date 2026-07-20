@@ -283,7 +283,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			{ id: media.id, kind: media.kind, genres: catalog?.genres },
 			viewerId,
 		),
-		getMediaRelations(media.id),
+		getMediaRelations(media.id, viewerId),
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -1706,6 +1706,21 @@ export default function MediaDetailRoute() {
 														<h4 className="mt-1 line-clamp-3 font-bold leading-5 group-hover:underline">
 															{item.title}
 														</h4>
+														<div className="mt-2 space-y-1 text-xs">
+															{item.viewerTracking ? (
+																<span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 font-semibold text-primary">
+																	{item.viewerTracking.statusLabel}
+																	{item.viewerTracking.score !== null
+																		? ` · ${item.viewerTracking.score.toLocaleString('en-US', { maximumFractionDigits: 1 })}/10`
+																		: ''}
+																</span>
+															) : null}
+															<div className="text-muted-foreground">
+																{item.trackerCount}{' '}
+																{item.trackerCount === 1 ? 'member' : 'members'}{' '}
+																tracking
+															</div>
+														</div>
 													</div>
 												</Link>
 											))}
