@@ -113,5 +113,18 @@ export function parseMediaRelationCandidates(
 			status: 400,
 		})
 	}
+	if (
+		sourceIdentity.provider === 'tmdb' &&
+		result.data.some(
+			relation =>
+				relation.relationType !== 'franchise' ||
+				sourceIdentity.kind !== 'movie' ||
+				relation.targetIdentity.kind !== 'movie',
+		)
+	) {
+		throw new Response('TMDB relations must describe a movie franchise', {
+			status: 400,
+		})
+	}
 	return result.data
 }

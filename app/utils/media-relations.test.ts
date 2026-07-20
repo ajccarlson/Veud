@@ -77,3 +77,41 @@ test('rejects cross-provider and unknown relation metadata', () => {
 		),
 	).toThrow(Response)
 })
+
+test('limits TMDB relation snapshots to collection franchises', () => {
+	const tmdbSource = {
+		provider: 'tmdb' as const,
+		kind: 'movie' as const,
+		externalId: '10',
+	}
+	expect(
+		parseMediaRelationCandidates(
+			[
+				{
+					relationType: 'franchise',
+					targetIdentity: {
+						provider: 'tmdb',
+						kind: 'movie',
+						externalId: '11',
+					},
+				},
+			],
+			tmdbSource,
+		),
+	).toEqual([expect.objectContaining({ relationType: 'franchise' })])
+	expect(() =>
+		parseMediaRelationCandidates(
+			[
+				{
+					relationType: 'sequel',
+					targetIdentity: {
+						provider: 'tmdb',
+						kind: 'movie',
+						externalId: '11',
+					},
+				},
+			],
+			tmdbSource,
+		),
+	).toThrow(Response)
+})

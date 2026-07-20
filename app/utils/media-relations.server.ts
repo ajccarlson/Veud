@@ -167,6 +167,9 @@ export async function syncMediaRelations(
 		where: {
 			sourceMediaId: input.sourceMediaId,
 			provider: input.sourceIdentity.provider,
+			...(input.sourceIdentity.provider === 'tmdb'
+				? { relationType: 'franchise' }
+				: {}),
 			...(retainedIds.length ? { id: { notIn: retainedIds } } : {}),
 		},
 	})

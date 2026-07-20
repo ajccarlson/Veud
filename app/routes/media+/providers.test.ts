@@ -13,7 +13,7 @@
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { formatMangaInfo, getAnilistSchedule, searchMAL } from './mal.ts'
-import { searchTMDB } from './tmdb.ts'
+import { getTMDBInfo, searchTMDB } from './tmdb.ts'
 
 let fetchMock: any
 
@@ -93,6 +93,65 @@ test('searchTMDB returns undefined when the fetch fails', async () => {
 
 	expect(results).toBeUndefined()
 	consoleError.mockRestore()
+})
+
+test('TMDB movie details hydrate other titles in the same collection', async () => {
+	fetchMock
+		.mockResolvedValueOnce(
+			proxyJson({
+				id: 10,
+				title: 'First Franchise Movie',
+				poster_path: '/first.jpg',
+				overview: 'The first entry.',
+				release_date: '2020-01-01',
+				runtime: 120,
+				vote_average: 8,
+				original_language: 'en',
+				genres: [],
+				belongs_to_collection: { id: 55, name: 'Franchise Collection' },
+			}),
+		)
+		.mockResolvedValueOnce(
+			proxyJson({
+				id: 55,
+				parts: [
+					{ id: 10, title: 'First Franchise Movie' },
+					{
+						id: 11,
+						title: 'Second Franchise Movie',
+						poster_path: '/second.jpg',
+						release_date: '2023-06-01',
+					},
+				],
+			}),
+		)
+		.mockResolvedValueOnce(proxyJson({ results: [] }))
+
+	const result = (await getTMDBInfo(10, 'movie')) as any
+
+	expect(fetchMock).toHaveBeenCalledTimes(3)
+	expect(upstreamUrl(fetchMock.mock.calls[0]).pathname).toBe('/3/movie/10')
+	expect(upstreamUrl(fetchMock.mock.calls[1]).pathname).toBe('/3/collection/55')
+	expect(upstreamUrl(fetchMock.mock.calls[2]).pathname).toBe(
+		'/3/movie/10/release_dates',
+	)
+	expect(result.mediaRelations).toEqual([
+		{
+			relationType: 'franchise',
+			targetIdentity: {
+				provider: 'tmdb',
+				kind: 'movie',
+				externalId: '11',
+			},
+			targetCatalog: {
+				title: 'Second Franchise Movie',
+				type: 'Movie',
+				releaseStart: new Date('2023-06-01'),
+				thumbnail:
+					'https://www.themoviedb.org/t/p/w600_and_h900_bestv2/second.jpg|https://www.themoviedb.org/movie/11',
+			},
+		},
+	])
 })
 
 // ---- searchMAL ----
