@@ -135,6 +135,11 @@ type NextRelease = {
 	name: string | null
 }
 
+const MAX_UNCONFIRMED_RELEASE_GAP_MS = 366 * DAY_MS
+const activeReleaseStatus =
+	/airing|returning|releasing|ongoing|in production|planned|upcoming/i
+const finishedReleaseStatus = /ended|finished|cancel|released/i
+
 function finitePositiveNumber(value: unknown) {
 	const number = Number(value)
 	return Number.isFinite(number) && number > 0 ? number : null
@@ -173,6 +178,35 @@ export function parseStoredNextRelease(
 	} catch {
 		return null
 	}
+}
+
+export function isPlausibleNextRelease(
+	release: NextRelease,
+	media: {
+		kind: string
+		releaseStart: Date | null
+		releaseEnd: Date | null
+		releaseStatus: string | null
+	},
+) {
+	const kind = media.kind.toLowerCase()
+	if (kind === 'movie' && (release.episode || release.chapter)) return false
+	if (kind === 'manga' && release.episode) return false
+	if ((kind === 'anime' || kind === 'tv') && release.chapter) return false
+	if (media.releaseStart && release.releaseAt < media.releaseStart) return false
+
+	const status = media.releaseStatus?.trim() || null
+	if (status && finishedReleaseStatus.test(status)) return false
+	if (
+		media.releaseEnd &&
+		release.releaseAt.getTime() - media.releaseEnd.getTime() >
+			MAX_UNCONFIRMED_RELEASE_GAP_MS &&
+		(!status || !activeReleaseStatus.test(status))
+	) {
+		return false
+	}
+
+	return true
 }
 
 function nextReleaseLabel(release: NextRelease) {
@@ -241,6 +275,8 @@ export async function getReleaseCalendar(
 			type: true,
 			thumbnail: true,
 			releaseStart: true,
+			releaseEnd: true,
+			releaseStatus: true,
 			nextRelease: true,
 			trackingStates: {
 				select: {
@@ -304,13 +340,14 @@ export async function getReleaseCalendar(
 			imageUrl: splitLegacyThumbnail(item.thumbnail).imageUrl,
 			trackerCount: item.trackingStates.filter(
 				state =>
-					state.statusWatchlistId === null ||
-					state.statusWatchlist?.isPublic,
+					state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
 			).length,
 			viewerTracking: viewerTracking.get(item.id) ?? null,
 			viewerReminder: viewerReminders.get(item.id) ?? null,
 		}
-		const next = parseStoredNextRelease(item.nextRelease)
+		const parsedNext = parseStoredNextRelease(item.nextRelease)
+		const next =
+			parsedNext && isPlausibleNextRelease(parsedNext, item) ? parsedNext : null
 		const nextDate = next
 			? eventDateKey(next.releaseAt, next.allDay, timeZone)
 			: null

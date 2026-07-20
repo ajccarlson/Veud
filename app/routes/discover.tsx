@@ -17,11 +17,13 @@ import { prisma } from '#app/utils/db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
+	getDiscoveryResultsForMediaIds,
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 
 const kindLabels: Record<DiscoveryQuery['kind'], string> = {
 	all: 'All media',
@@ -48,8 +50,21 @@ const providerLabels: Record<DiscoveryQuery['provider'], string> = {
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const filters = parseDiscoveryQuery(new URL(request.url).searchParams)
+	const memorySearch =
+		filters.mode === 'memory' && filters.q.length >= 3
+			? await getTipOfTongueMatches({
+					memory: filters.q,
+					kind: filters.kind,
+				})
+			: null
 	const [discovery, genres, statuses, watchlists] = await Promise.all([
-		getDiscoveryResults(filters, viewerId),
+		memorySearch
+			? getDiscoveryResultsForMediaIds(
+					filters,
+					viewerId,
+					memorySearch.matches.map(match => match.mediaId),
+				)
+			: getDiscoveryResults(filters, viewerId),
 		getDiscoveryGenres(),
 		getDiscoveryStatuses(),
 		viewerId
@@ -66,8 +81,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				})
 			: [],
 	])
+	if (memorySearch) {
+		const matchByMediaId = new Map(
+			memorySearch.matches.map(match => [match.mediaId, match]),
+		)
+		for (const item of discovery.items) {
+			const match = matchByMediaId.get(item.id)
+			if (match) {
+				item.memoryMatch = {
+					summary: match.summary,
+					matchedClues: match.matchedClues,
+				}
+			}
+		}
+	}
 	return json({
 		...discovery,
+		memorySearchSource: memorySearch?.source ?? null,
+		aiSearchAvailable: Boolean(process.env.OPENAI_API_KEY?.trim()),
 		genres,
 		statuses,
 		watchlists,
@@ -79,6 +110,7 @@ function discoveryHref(filters: DiscoveryQuery, page: number) {
 	const searchParams = new URLSearchParams()
 	if (filters.q) searchParams.set('q', filters.q)
 	if (filters.kind !== 'all') searchParams.set('kind', filters.kind)
+	if (filters.mode !== 'standard') searchParams.set('mode', filters.mode)
 	if (filters.genre) searchParams.set('genre', filters.genre)
 	if (filters.year !== null) searchParams.set('year', String(filters.year))
 	if (filters.status) searchParams.set('status', filters.status)
@@ -102,6 +134,7 @@ export default function DiscoverRoute() {
 	const filterKey = [
 		data.filters.q,
 		data.filters.kind,
+		data.filters.mode,
 		data.filters.genre,
 		data.filters.year,
 		data.filters.status,
@@ -133,8 +166,12 @@ export default function DiscoverRoute() {
 						id="discover-query"
 						name="q"
 						defaultValue={data.filters.q}
-						placeholder="Canonical or alternate title"
-						maxLength={100}
+						placeholder={
+							data.filters.mode === 'memory'
+								? 'Describe scenes, characters, era, tone, or plot details'
+								: 'Canonical or alternate title'
+						}
+						maxLength={data.filters.mode === 'memory' ? 500 : 100}
 					/>
 				</div>
 				<div className="space-y-2">
@@ -228,6 +265,31 @@ export default function DiscoverRoute() {
 						)}
 					</select>
 				</div>
+				<label
+					htmlFor="discover-memory-mode"
+					className="flex gap-3 rounded-xl border border-[#54806c]/70 bg-[#2e2f2b] p-3 md:col-span-2 xl:col-span-4"
+				>
+					<span className="sr-only">Enable Tip of My Tongue search</span>
+					<input
+						id="discover-memory-mode"
+						type="checkbox"
+						name="mode"
+						value="memory"
+						defaultChecked={data.filters.mode === 'memory'}
+						disabled={!data.aiSearchAvailable}
+						className="mt-1 h-4 w-4 shrink-0 accent-[#a2ffd5]"
+					/>
+					<span>
+						<strong className="block text-sm text-[#ffffb1]">
+							Tip of My Tongue AI search
+						</strong>
+						<span className="mt-1 block text-xs leading-5 text-[#a2ffd5]">
+							{data.aiSearchAvailable
+								? 'Describe whatever you remember. Veud will return up to five catalog-backed matches and explain the clues.'
+								: 'AI search is not configured on this server. Standard catalog search remains available.'}
+						</span>
+					</span>
+				</label>
 				<div className="flex gap-2 xl:col-span-4 xl:justify-end">
 					<Button type="submit" className="flex-1 lg:flex-none">
 						Discover
@@ -248,7 +310,9 @@ export default function DiscoverRoute() {
 							id="discovery-results-heading"
 							className="text-2xl font-black text-[#ffffb1]"
 						>
-							{sortLabels[data.filters.sort]}
+							{data.filters.mode === 'memory'
+								? 'Closest matches'
+								: sortLabels[data.filters.sort]}
 						</h2>
 						{data.filters.sort === 'for-you' ? (
 							<p className="mt-1 text-sm text-[#a2ffd5]">
@@ -259,7 +323,9 @@ export default function DiscoverRoute() {
 						) : null}
 					</div>
 					<p className="text-sm text-[#a2ffd5]">
-						{resultSummary(data.total, data.filters)}
+						{data.filters.mode === 'memory'
+							? `${data.total} of 5 possible matches · ${data.memorySearchSource === 'ai' ? 'AI ranked' : 'catalog matched'}`
+							: resultSummary(data.total, data.filters)}
 					</p>
 				</header>
 
@@ -331,6 +397,23 @@ export default function DiscoverRoute() {
 															{genre}
 														</span>
 													))}
+												</div>
+											) : null}
+											{item.memoryMatch ? (
+												<div className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]">
+													<p>{item.memoryMatch.summary}</p>
+													{item.memoryMatch.matchedClues.length ? (
+														<div className="mt-2 flex flex-wrap gap-1.5">
+															{item.memoryMatch.matchedClues.map(clue => (
+																<mark
+																	key={clue}
+																	className="rounded-full bg-[#a2ffd5] px-2 py-0.5 text-xs font-bold text-[#222]"
+																>
+																	{clue}
+																</mark>
+															))}
+														</div>
+													) : null}
 												</div>
 											) : null}
 											{item.description ? (

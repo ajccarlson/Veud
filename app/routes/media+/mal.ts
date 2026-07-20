@@ -168,7 +168,7 @@ function formatMalRelations(data: any) {
 async function formatAnimeInfo(data: any, full = true) {
 	try {
 		let nextRelease = null
-		if (full) {
+		if (full && animeStatusHasUpcomingSchedule(data['status'])) {
 			nextRelease = await getAnilistSchedule(data['id'])
 		}
 
@@ -263,6 +263,10 @@ async function formatAnimeInfo(data: any, full = true) {
 	} catch (e) {
 		console.error(e)
 	}
+}
+
+export function animeStatusHasUpcomingSchedule(status: unknown) {
+	return status === 'currently_airing' || status === 'not_yet_aired'
 }
 
 export async function getAnimeInfo(entryID: any) {

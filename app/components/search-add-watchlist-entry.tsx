@@ -255,6 +255,7 @@ export function MediaSearchBar(params: any) {
 		Record<string, TrackingSummary>
 	>(params.columnParams.trackingByIdentity ?? {})
 	const [isSearching, setIsSearching] = useState(false)
+	const [hasSearched, setHasSearched] = useState(false)
 	const [addingIdentity, setAddingIdentity] = useState<string | null>(null)
 	const [errorMessage, setErrorMessage] = useState<string | null>(null)
 	const [announcement, setAnnouncement] = useState<string | null>(null)
@@ -285,6 +286,7 @@ export function MediaSearchBar(params: any) {
 		}
 
 		setIsSearching(true)
+		setHasSearched(true)
 		setErrorMessage(null)
 		setAnnouncement(null)
 		try {
@@ -367,6 +369,7 @@ export function MediaSearchBar(params: any) {
 			)
 			setSearchQuery('')
 			setMediaResults([])
+			setHasSearched(false)
 			dialogRef.current?.close()
 			await refreshGrid(params.columnParams)
 		} catch (error) {
@@ -379,28 +382,44 @@ export function MediaSearchBar(params: any) {
 
 	return (
 		<div className="watchlist-search">
-			<form onSubmit={search} className="watchlist-search-inline">
-				<label className="sr-only" htmlFor={inputId}>
-					Search
-				</label>
-				<input
-					type="search"
-					id={inputId}
-					value={searchQuery}
-					placeholder="Search"
-					autoComplete="off"
-					className="watchlist-search-bar"
-					onChange={event => setSearchQuery(event.currentTarget.value)}
-				/>
-				<StatusButton
-					type="submit"
-					status={isSearching ? 'pending' : 'idle'}
-					disabled={isSearching}
-					aria-label="Search catalog"
+			{params.compactTrigger ? (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="watchlist-open-quick-add"
+					onClick={() => {
+						setErrorMessage(null)
+						dialogRef.current?.showModal()
+					}}
 				>
-					<Icon name="magnifying-glass" size="md" />
-				</StatusButton>
-			</form>
+					<Icon name="plus" aria-hidden="true" />
+					Add title
+				</Button>
+			) : (
+				<form onSubmit={search} className="watchlist-search-inline">
+					<label className="sr-only" htmlFor={inputId}>
+						Search
+					</label>
+					<input
+						type="search"
+						id={inputId}
+						value={searchQuery}
+						placeholder="Search"
+						autoComplete="off"
+						className="watchlist-search-bar"
+						onChange={event => setSearchQuery(event.currentTarget.value)}
+					/>
+					<StatusButton
+						type="submit"
+						status={isSearching ? 'pending' : 'idle'}
+						disabled={isSearching}
+						aria-label="Search catalog"
+					>
+						<Icon name="magnifying-glass" size="md" />
+					</StatusButton>
+				</form>
+			)}
 			{errorMessage && !dialogRef.current?.open ? (
 				<p role="alert" className="watchlist-search-error-message">
 					{errorMessage}
@@ -540,10 +559,18 @@ export function MediaSearchBar(params: any) {
 									</article>
 								)
 							})
-						) : (
+						) : hasSearched ? (
 							<div className="watchlist-search-empty">
 								<h3>No titles found</h3>
 								<p>Try another title, spelling, or media type.</p>
+							</div>
+						) : (
+							<div className="watchlist-search-empty">
+								<h3>Search the catalog</h3>
+								<p>
+									Results include posters and can be sent to any compatible
+									list.
+								</p>
 							</div>
 						)}
 					</div>

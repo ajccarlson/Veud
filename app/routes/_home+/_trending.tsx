@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
 	QuickTrackControl,
@@ -88,7 +88,7 @@ function TrendingRail({
 				tabIndex={0}
 				role="region"
 				aria-label={`${rail.title} titles`}
-				className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 [scrollbar-color:#54806c_#2e2f2b] [scrollbar-width:thin]"
+				className="home-trending-rail flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth py-2"
 			>
 				{rail.items.map(item => {
 					const { imageUrl } = splitLegacyThumbnail(item.thumbnail)
@@ -159,6 +159,19 @@ export function TrendingData({
 	watchlists: QuickTrackWatchlist[]
 	isSignedIn: boolean
 }) {
+	const [selectedIndex, setSelectedIndex] = useState(0)
+	useEffect(() => {
+		if (selectedIndex >= rails.length) setSelectedIndex(0)
+	}, [rails.length, selectedIndex])
+	const selectedRail = rails[selectedIndex] ?? rails[0]
+	const mediaTypeOptions = rails.map(rail => ({
+		key: rail.kind,
+		label:
+			rail.kind === 'tv'
+				? 'TV'
+				: rail.kind.charAt(0).toUpperCase() + rail.kind.slice(1),
+	}))
+
 	return (
 		<section
 			aria-labelledby="home-trending-heading"
@@ -185,16 +198,32 @@ export function TrendingData({
 				</Button>
 			</header>
 
-			{rails.length ? (
-				<div className="min-w-0 space-y-8">
-					{rails.map(rail => (
-						<TrendingRail
-							key={rail.kind}
-							rail={rail}
-							watchlists={watchlists}
-							isSignedIn={isSignedIn}
-						/>
-					))}
+			{selectedRail ? (
+				<div className="min-w-0 space-y-5">
+					<div
+						className="home-media-tabs"
+						role="tablist"
+						aria-label="Trending media type"
+					>
+						{mediaTypeOptions.map((option, index) => (
+							<button
+								key={option.key}
+								type="button"
+								role="tab"
+								aria-selected={index === selectedIndex}
+								className="home-media-tab"
+								onClick={() => setSelectedIndex(index)}
+							>
+								{option.label}
+							</button>
+						))}
+					</div>
+					<TrendingRail
+						key={selectedRail.kind}
+						rail={selectedRail}
+						watchlists={watchlists}
+						isSignedIn={isSignedIn}
+					/>
 				</div>
 			) : (
 				<div className="rounded-xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-12 text-center">

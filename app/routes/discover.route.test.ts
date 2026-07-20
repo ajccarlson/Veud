@@ -37,6 +37,7 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 	expect(result.data.isSignedIn).toBe(false)
 	expect(result.data.filters).toEqual({
 		q: 'Anonymous',
+		mode: 'standard',
 		kind: 'movie',
 		genre: '',
 		year: null,

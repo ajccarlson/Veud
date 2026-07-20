@@ -98,13 +98,15 @@ export default function Index() {
 						isSignedIn={data.isSignedIn}
 					/>
 					{currentUser ? (
-						<FollowingFeed
-							items={data.followingFeed}
-							followingCount={data.followingCount}
-							suggestedMembers={data.suggestedMembers}
-						/>
+						<div className="home-dashboard">
+							<FollowingFeed
+								items={data.followingFeed}
+								followingCount={data.followingCount}
+								suggestedMembers={data.suggestedMembers}
+							/>
+							<UpcomingData calendar={data.upcomingCalendar} />
+						</div>
 					) : null}
-					<UpcomingData calendar={data.upcomingCalendar} />
 				</div>
 			</main>
 		</div>
