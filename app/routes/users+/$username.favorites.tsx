@@ -10,6 +10,8 @@ import { profileHeaders } from '#app/utils/profile-headers.ts'
 import { type ProfileShellData } from '#app/utils/profile.ts'
 import { makeTimings } from '#app/utils/timing.server.ts'
 
+export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profile-ui.tsx'
+
 export async function loader({ params }: LoaderFunctionArgs) {
 	const timings = makeTimings('profile_favorites', 'profile favorites loader')
 	const favorites = await loadProfileFavorites(params['username'], timings)

@@ -7,10 +7,12 @@ import {
 	NavLink,
 	Outlet,
 	useLoaderData,
+	useNavigation,
 	useRevalidator,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { loadProfileShell } from '#app/utils/profile-data.server.ts'
@@ -54,15 +56,15 @@ export function shouldRevalidate({
 }
 
 const PROFILE_TABS = [
-	{ to: '.', end: true, label: 'Overview' },
-	{ to: 'reviews', end: false, label: 'Reviews' },
-	{ to: 'diary', end: false, label: 'Diary' },
-	{ to: 'collections', end: false, label: 'Collections' },
-	{ to: 'stats', end: false, label: 'Stats' },
-	{ to: 'favorites', end: false, label: 'Favorites' },
-	{ to: 'activity', end: false, label: 'Activity' },
-	{ to: 'social', end: false, label: 'Social' },
-]
+	{ to: '.', end: true, label: 'Overview', icon: 'dashboard' },
+	{ to: 'reviews', end: false, label: 'Reviews', icon: 'reader' },
+	{ to: 'diary', end: false, label: 'Diary', icon: 'calendar' },
+	{ to: 'collections', end: false, label: 'Collections', icon: 'archive' },
+	{ to: 'stats', end: false, label: 'Stats', icon: 'bar-chart' },
+	{ to: 'favorites', end: false, label: 'Favorites', icon: 'star' },
+	{ to: 'activity', end: false, label: 'Activity', icon: 'activity-log' },
+	{ to: 'social', end: false, label: 'Social', icon: 'chat-bubble' },
+] as const
 
 export default function ProfileRoute() {
 	const loaderData = useLoaderData<typeof loader>()
@@ -71,6 +73,10 @@ export default function ProfileRoute() {
 	const isLoggedInUser = user.id === loggedInUser?.id
 	const bannerSrc = getUserBannerSrc(user.banner?.id)
 	const revalidator = useRevalidator()
+	const navigation = useNavigation()
+	const isTabLoading =
+		navigation.state === 'loading' &&
+		Boolean(navigation.location?.pathname.startsWith(`/users/${user.username}`))
 
 	async function toggleFollow() {
 		await fetch(
@@ -87,14 +93,7 @@ export default function ProfileRoute() {
 	}
 
 	return (
-		<main
-			className={cn('user-landing')}
-			style={{
-				width: '100%',
-				minHeight: '100%',
-				backgroundColor: 'var(--veud-bg)',
-			}}
-		>
+		<main className={cn('user-landing')}>
 			{/* Hero — banner + avatar + identity, with an edit action on your own profile. */}
 			<div className="user-landing-hero">
 				<div
@@ -103,11 +102,17 @@ export default function ProfileRoute() {
 						bannerSrc ? { backgroundImage: `url("${bannerSrc}")` } : undefined
 					}
 				>
+					<div className="user-landing-hero-shade" aria-hidden="true" />
 					{isLoggedInUser ? (
 						<div className="user-landing-hero-actions">
-							<Button asChild variant="outline">
+							<Button
+								asChild
+								variant="outline"
+								className="user-landing-hero-edit"
+							>
 								<Link to="/settings/profile" prefetch="intent">
-									Edit profile
+									<Icon name="pencil-1" aria-hidden="true" />
+									<span>Edit profile</span>
 								</Link>
 							</Button>
 						</div>
@@ -124,12 +129,14 @@ export default function ProfileRoute() {
 							{user.name ?? user.username}
 						</h1>
 						<span className="user-landing-hero-username">@{user.username}</span>
-						<span className="user-landing-hero-joined">
-							Joined {loaderData.userJoinedDisplay}
-						</span>
-						<span className="user-landing-hero-last-active">
-							{loaderData.lastActiveDisplay ?? 'Last active unavailable'}
-						</span>
+						<div className="user-landing-hero-meta">
+							<span className="user-landing-hero-joined">
+								Joined {loaderData.userJoinedDisplay}
+							</span>
+							<span className="user-landing-hero-last-active">
+								{loaderData.lastActiveDisplay ?? 'Last active unavailable'}
+							</span>
+						</div>
 						<div className="user-landing-hero-stats">
 							<span>
 								<strong>{loaderData.followerCount}</strong>{' '}
@@ -146,11 +153,16 @@ export default function ProfileRoute() {
 								variant={loaderData.isFollowing ? 'outline' : 'default'}
 								onClick={toggleFollow}
 							>
+								<Icon
+									name={loaderData.isFollowing ? 'check' : 'plus'}
+									aria-hidden="true"
+								/>
 								{loaderData.isFollowing ? 'Unfollow' : 'Follow'}
 							</Button>
 						) : null}
-						<Button asChild>
+						<Button asChild className="user-landing-watchlists-action">
 							<Link to={`../../lists/${user.username}`} prefetch="intent">
+								<Icon name="list-bullet" aria-hidden="true" />
 								Watchlists
 							</Link>
 						</Button>
@@ -158,30 +170,36 @@ export default function ProfileRoute() {
 				</div>
 			</div>
 
-			<nav
-				className="mx-auto mt-6 flex flex-wrap justify-center gap-2 px-4"
-				style={{ borderBottom: '1px solid var(--veud-surface)' }}
-			>
-				{PROFILE_TABS.map(tab => (
-					<NavLink
-						key={tab.label}
-						to={tab.to}
-						end={tab.end}
-						prefetch="intent"
-						className="px-4 py-2 font-semibold transition-colors"
-						style={({ isActive }) => ({
-							borderBottom: isActive
-								? '4px solid var(--veud-teal)'
-								: '4px solid transparent',
-							color: isActive ? 'var(--veud-highlight)' : 'var(--veud-cream)',
-						})}
-					>
-						{tab.label}
-					</NavLink>
-				))}
-			</nav>
+			<div className="user-landing-tabs-shell">
+				<nav className="user-landing-tabs" aria-label="Profile sections">
+					{PROFILE_TABS.map(tab => (
+						<NavLink
+							key={tab.label}
+							to={tab.to}
+							end={tab.end}
+							prefetch="intent"
+							className={({ isActive }) =>
+								cn('user-landing-tab', isActive && 'user-landing-tab-active')
+							}
+						>
+							<Icon name={tab.icon} aria-hidden="true" />
+							<span>{tab.label}</span>
+						</NavLink>
+					))}
+				</nav>
+			</div>
 
-			<div style={{ padding: '1rem' }}>
+			<div
+				className="user-landing-content"
+				data-pending={isTabLoading || undefined}
+				aria-busy={isTabLoading}
+			>
+				<div className="user-landing-loading-bar" aria-hidden="true">
+					<span />
+				</div>
+				<span className="sr-only" role="status" aria-live="polite">
+					{isTabLoading ? 'Loading profile section' : ''}
+				</span>
 				<Outlet context={loaderData} />
 			</div>
 		</main>
