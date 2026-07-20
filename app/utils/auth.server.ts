@@ -1,4 +1,12 @@
 import { type Connection, type Password, type User } from '@prisma/client'
+<<<<<<< HEAD
+import { redirect } from '@remix-run/node'
+import bcrypt from 'bcryptjs'
+import { Authenticator } from 'remix-auth'
+import { safeRedirect } from 'remix-utils/safe-redirect'
+import { connectionSessionStorage, providers } from './connections.server.ts'
+import { prisma } from './db.server.ts'
+=======
 import bcrypt from 'bcryptjs'
 import { redirect } from 'react-router'
 import { Authenticator } from 'remix-auth'
@@ -9,6 +17,7 @@ import {
 	LAST_ACTIVE_TOUCH_INTERVAL_MS,
 	shouldTouchLastActiveAt,
 } from './last-active.ts'
+>>>>>>> develop
 import { combineHeaders, downloadFile } from './misc.tsx'
 import { type ProviderUser } from './providers/provider.ts'
 import { authSessionStorage } from './session.server.ts'
@@ -19,7 +28,13 @@ export const getSessionExpirationDate = () =>
 
 export const sessionKey = 'sessionId'
 
+<<<<<<< HEAD
+export const authenticator = new Authenticator<ProviderUser>(
+	connectionSessionStorage,
+)
+=======
 export const authenticator = new Authenticator<ProviderUser>()
+>>>>>>> develop
 
 for (const [providerName, provider] of Object.entries(providers)) {
 	authenticator.use(provider.getAuthStrategy(), providerName)
@@ -32,7 +47,11 @@ export async function getUserId(request: Request) {
 	const sessionId = authSession.get(sessionKey)
 	if (!sessionId) return null
 	const session = await prisma.session.findUnique({
+<<<<<<< HEAD
+		select: { user: { select: { id: true } } },
+=======
 		select: { user: { select: { id: true, lastActiveAt: true } } },
+>>>>>>> develop
 		where: { id: sessionId, expirationDate: { gt: new Date() } },
 	})
 	if (!session?.user) {
@@ -42,6 +61,8 @@ export async function getUserId(request: Request) {
 			},
 		})
 	}
+<<<<<<< HEAD
+=======
 
 	const now = new Date()
 	if (shouldTouchLastActiveAt(session.user.lastActiveAt, now)) {
@@ -58,11 +79,19 @@ export async function getUserId(request: Request) {
 		})
 	}
 
+>>>>>>> develop
 	return session.user.id
 }
 
 export async function requireUserId(
 	request: Request,
+<<<<<<< HEAD
+	{ redirectTo }: { redirectTo?: string | null } = {},
+) {
+	const userId = await getUserId(request)
+	if (!userId) {
+		const requestUrl = new URL(request.url)
+=======
 	{
 		redirectTo,
 		url,
@@ -71,6 +100,7 @@ export async function requireUserId(
 	const userId = await getUserId(request)
 	if (!userId) {
 		const requestUrl = url ?? new URL(request.url)
+>>>>>>> develop
 		redirectTo =
 			redirectTo === null
 				? null
@@ -286,3 +316,7 @@ export async function verifyUserPassword(
 
 // 	return { id: userWithPassword.id }
 // }
+<<<<<<< HEAD
+
+=======
+>>>>>>> develop

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+import { type ActionFunctionArgs } from '@remix-run/node'
+=======
 import { type ActionFunctionArgs } from 'react-router'
+>>>>>>> develop
 import { prisma } from '#app/utils/db.server.ts'
 import { requireFavoriteOwner } from '#app/utils/lists/authorization.server.ts'
 

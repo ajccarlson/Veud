@@ -1,6 +1,8 @@
-import { type ActionFunctionArgs } from 'react-router'
+import { type ActionFunctionArgs } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import {
+  requireWatchlistOwner,
+} from '#app/utils/lists/authorization.server.ts'
 import { deleteTrackingStateIfOrphan } from '#app/utils/tracking-state.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
