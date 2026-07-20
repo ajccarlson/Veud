@@ -3,7 +3,7 @@ import { prisma } from './db.server.ts'
 
 export type FollowingActivityFeedItem = {
 	id: string
-	kind: 'tracking' | 'review' | 'diary'
+	kind: 'tracking' | 'review' | 'diary' | 'collection'
 	action: string
 	time: Date | string
 	actor: {
@@ -17,7 +17,16 @@ export type FollowingActivityFeedItem = {
 		kind: string
 		title: string
 		thumbnail: string | null
-	}
+	} | null
+	collection: {
+		id: string
+		title: string
+		description: string | null
+		itemCount: number
+		items: Array<{
+			media: { id: string; title: string | null; thumbnail: string | null }
+		}>
+	} | null
 	review: {
 		body: string
 		containsSpoilers: boolean
@@ -62,58 +71,79 @@ export async function getFollowingActivityFeed(
 		thumbnail: true,
 	} as const
 
-	const [trackingRows, reviewRows, diaryRows] = await Promise.all([
-		prisma.activityEvent.findMany({
-			where: { actorId: { in: uniqueActorIds } },
-			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-			take,
-			select: {
-				id: true,
-				type: true,
-				status: true,
-				statusLabel: true,
-				previousStatus: true,
-				previousStatusLabel: true,
-				score: true,
-				previousScore: true,
-				progressUnit: true,
-				progressCurrent: true,
-				progressPrevious: true,
-				progressTotal: true,
-				createdAt: true,
-				actor: { select: actorSelect },
-				media: { select: mediaSelect },
-			},
-		}),
-		prisma.review.findMany({
-			where: { authorId: { in: uniqueActorIds } },
-			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-			take,
-			select: {
-				id: true,
-				body: true,
-				containsSpoilers: true,
-				rating: true,
-				createdAt: true,
-				author: { select: actorSelect },
-				media: { select: mediaSelect },
-			},
-		}),
-		prisma.diaryEntry.findMany({
-			where: { ownerId: { in: uniqueActorIds } },
-			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-			take,
-			select: {
-				id: true,
-				loggedOn: true,
-				isRepeat: true,
-				rating: true,
-				createdAt: true,
-				owner: { select: actorSelect },
-				media: { select: mediaSelect },
-			},
-		}),
-	])
+	const [trackingRows, reviewRows, diaryRows, collectionRows] =
+		await Promise.all([
+			prisma.activityEvent.findMany({
+				where: { actorId: { in: uniqueActorIds } },
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take,
+				select: {
+					id: true,
+					type: true,
+					status: true,
+					statusLabel: true,
+					previousStatus: true,
+					previousStatusLabel: true,
+					score: true,
+					previousScore: true,
+					progressUnit: true,
+					progressCurrent: true,
+					progressPrevious: true,
+					progressTotal: true,
+					createdAt: true,
+					actor: { select: actorSelect },
+					media: { select: mediaSelect },
+				},
+			}),
+			prisma.review.findMany({
+				where: { authorId: { in: uniqueActorIds } },
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take,
+				select: {
+					id: true,
+					body: true,
+					containsSpoilers: true,
+					rating: true,
+					createdAt: true,
+					author: { select: actorSelect },
+					media: { select: mediaSelect },
+				},
+			}),
+			prisma.diaryEntry.findMany({
+				where: { ownerId: { in: uniqueActorIds } },
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take,
+				select: {
+					id: true,
+					loggedOn: true,
+					isRepeat: true,
+					rating: true,
+					createdAt: true,
+					owner: { select: actorSelect },
+					media: { select: mediaSelect },
+				},
+			}),
+			prisma.mediaCollection.findMany({
+				where: { ownerId: { in: uniqueActorIds }, isPublic: true },
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take,
+				select: {
+					id: true,
+					title: true,
+					description: true,
+					createdAt: true,
+					owner: { select: actorSelect },
+					_count: { select: { items: true } },
+					items: {
+						orderBy: [{ position: 'asc' }, { id: 'asc' }],
+						take: 4,
+						select: {
+							media: { select: { id: true, title: true, thumbnail: true } },
+						},
+					},
+				},
+			}),
+		])
 
 	return [
 		...trackingRows.map(row => ({
@@ -123,6 +153,7 @@ export async function getFollowingActivityFeed(
 			time: row.createdAt,
 			actor: row.actor,
 			media: mediaItem(row.media),
+			collection: null,
 			review: null,
 			diary: null,
 		})),
@@ -133,6 +164,7 @@ export async function getFollowingActivityFeed(
 			time: row.createdAt,
 			actor: row.author,
 			media: mediaItem(row.media),
+			collection: null,
 			review: {
 				body: row.body,
 				containsSpoilers: row.containsSpoilers,
@@ -147,12 +179,30 @@ export async function getFollowingActivityFeed(
 			time: row.createdAt,
 			actor: row.owner,
 			media: mediaItem(row.media),
+			collection: null,
 			review: null,
 			diary: {
 				loggedOn: row.loggedOn,
 				isRepeat: row.isRepeat,
 				rating: row.rating === null ? null : Number(row.rating),
 			},
+		})),
+		...collectionRows.map(row => ({
+			id: `collection:${row.id}`,
+			kind: 'collection' as const,
+			action: 'Published a collection',
+			time: row.createdAt,
+			actor: row.owner,
+			media: null,
+			collection: {
+				id: row.id,
+				title: row.title,
+				description: row.description,
+				itemCount: row._count.items,
+				items: row.items,
+			},
+			review: null,
+			diary: null,
 		})),
 	]
 		.sort(
