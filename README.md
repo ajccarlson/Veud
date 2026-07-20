@@ -203,6 +203,11 @@ checkpointed SQLite-snapshot transfer, provider-aware native backups, mandatory
 disposable-database restore verification, measured rehearsal, and the remaining
 provider-scale cutover/rollback gate.
 
+The [PostgreSQL catalog load runbook](docs/postgresql-load-readiness.md)
+documents the guarded synthetic load generator, query-plan and concurrent-work
+measurements, CI smoke boundary, 100,000-item local rehearsal, and the remaining
+full-scale staging gates.
+
 The [global catalog search design](docs/global-catalog-search.md) documents how
 `/discover` searches canonical and alternate titles, filters provider metadata,
 preserves private-list boundaries, and paginates the catalog in the database.
