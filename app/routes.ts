@@ -74,6 +74,7 @@ export default [
 	appRoute('routes/collections+/$collectionId.tsx', {
 		path: 'collections/:collectionId',
 	}),
+	appRoute('routes/calendar.tsx', { path: 'calendar' }),
 	appRoute('routes/discover.tsx', { path: 'discover' }),
 	appRoute('routes/reviews.tsx', { path: 'reviews' }),
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
@@ -146,6 +147,9 @@ export default [
 	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
+	appRoute('routes/resources+/calendar[.]ics.ts', {
+		path: 'resources/calendar.ics',
+	}),
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
 	}),

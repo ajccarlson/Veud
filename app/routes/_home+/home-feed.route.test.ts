@@ -23,7 +23,11 @@ test('signed-in home feed contains activity only from followed members', async (
 		createUser('unrelated'),
 	])
 	const media = await prisma.media.create({
-		data: { kind: 'movie', title: 'Personalized Home Fixture' },
+		data: {
+			kind: 'movie',
+			title: 'Personalized Home Fixture',
+			releaseStart: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+		},
 	})
 	await Promise.all([
 		prisma.follow.create({
@@ -41,6 +45,13 @@ test('signed-in home feed contains activity only from followed members', async (
 				authorId: unrelated.id,
 				mediaId: media.id,
 				body: 'Hidden unrelated review.',
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: media.id,
+				status: 'plan-to-watch',
 			},
 		}),
 	])
@@ -66,6 +77,24 @@ test('signed-in home feed contains activity only from followed members', async (
 		}),
 	])
 	expect(result.data.suggestedMembers).toEqual([])
+	expect(result.data.upcomingCalendar).toMatchObject({
+		timeZone: 'UTC',
+		total: 1,
+		days: expect.arrayContaining([
+			expect.objectContaining({
+				items: [
+					expect.objectContaining({
+						mediaId: media.id,
+						title: 'Personalized Home Fixture',
+						eventLabel: 'Premiere',
+						viewerTracking: expect.objectContaining({
+							statusLabel: 'Plan To Watch',
+						}),
+					}),
+				],
+			}),
+		]),
+	})
 })
 
 test('anonymous home loader does not expose a personalized feed', async () => {
@@ -77,6 +106,7 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	expect(result.data.followingCount).toBe(0)
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([])
+	expect(result.data.upcomingCalendar).toBeNull()
 })
 
 test('new members receive discovery suggestions that exclude themselves', async () => {
@@ -105,4 +135,5 @@ test('new members receive discovery suggestions that exclude themselves', async 
 	expect(
 		result.data.suggestedMembers.some(member => member.id === viewer.id),
 	).toBe(false)
+	expect(result.data.upcomingCalendar).toMatchObject({ total: 0 })
 })
