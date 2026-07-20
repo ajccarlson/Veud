@@ -46,16 +46,58 @@
     }
 
     .ag-drag-handle {
-      visibility: hidden;
+      visibility: visible;
     }
   }
 
   .ag-theme-custom-react {
+    position: relative;
     height: 100%;
     min-height: 0;
     min-width: 0;
     width: 100%;
     overflow: hidden;
+  }
+
+  .ag-drag-destination-banner {
+    position: absolute;
+    z-index: 20;
+    top: 0.45rem;
+    left: 50%;
+    max-width: calc(100% - 2rem);
+    padding: 0.45rem 0.8rem;
+    color: #fff7e8;
+    background: rgba(84, 56, 19, 0.94);
+    border: 1px solid #ff9900;
+    border-radius: 999px;
+    box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.45);
+    font-family: Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .ag-theme-custom-react.ag-drag-scroll-up::before,
+  .ag-theme-custom-react.ag-drag-scroll-down::after {
+    position: absolute;
+    z-index: 15;
+    right: 0;
+    left: 0;
+    height: 4.5rem;
+    content: '';
+    pointer-events: none;
+  }
+
+  .ag-theme-custom-react.ag-drag-scroll-up::before {
+    top: 2.75rem;
+    background: linear-gradient(to bottom, rgba(255, 153, 0, 0.28), transparent);
+  }
+
+  .ag-theme-custom-react.ag-drag-scroll-down::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(255, 153, 0, 0.28), transparent);
   }
 
   .ag-header-cell {
@@ -167,7 +209,13 @@
 
   .ag-drag-handle {
     margin: 0;
+    opacity: 0.72;
     transition: all .1s ease-out;
+  }
+
+  .ag-drag-handle:hover {
+    color: #ff9900;
+    opacity: 1;
   }
 
   .ag-row-index {
