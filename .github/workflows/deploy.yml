@@ -81,6 +81,53 @@ jobs:
       - name: ⚡ Run vitest
         run: npm run test -- --coverage
 
+  postgres-schema:
+    name: 🐘 PostgreSQL schema
+    runs-on: ubuntu-22.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: veud
+          POSTGRES_PASSWORD: veud
+          POSTGRES_USER: veud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U veud -d veud"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v7
+
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📥 Download deps
+        uses: bahmutov/npm-install@v1
+
+      - name: 🐘 Generate PostgreSQL client
+        run: npm run prisma:generate:postgres
+
+      - name: 🧱 Apply PostgreSQL migrations
+        run: npm run db:migrate:postgres
+        env:
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud
+
+      - name: 🔎 Verify migration and datamodel parity
+        run: npm run db:verify:postgres
+        env:
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud
+
+      - name: 🧪 Smoke-test PostgreSQL application queries
+        run: npm run db:smoke:postgres
+        env:
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud
+
   audit:
     name: 🛡 Audit (non-blocking)
     runs-on: ubuntu-22.04
