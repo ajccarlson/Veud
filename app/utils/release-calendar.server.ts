@@ -3,6 +3,7 @@ import { prisma } from './db.server.ts'
 import { splitLegacyThumbnail } from './media-detail.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
+const timeZoneDateFormatters = new Map<string, Intl.DateTimeFormat>()
 
 export const releaseCalendarKinds = [
 	'all',
@@ -49,10 +50,37 @@ function parseDateKey(value: string | null) {
 	return Number.isNaN(date.getTime()) || dateKey(date) !== value ? null : date
 }
 
-function startOfUtcWeek(now: Date) {
-	const date = new Date(
-		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-	)
+export function normalizeTimeZone(value: string | null | undefined) {
+	if (!value) return 'UTC'
+	try {
+		new Intl.DateTimeFormat('en-US', { timeZone: value }).format()
+		return value
+	} catch {
+		return 'UTC'
+	}
+}
+
+export function dateKeyInTimeZone(date: Date, timeZone: string) {
+	const normalized = timeZoneDateFormatters.has(timeZone)
+		? timeZone
+		: normalizeTimeZone(timeZone)
+	let formatter = timeZoneDateFormatters.get(normalized)
+	if (!formatter) {
+		formatter = new Intl.DateTimeFormat('en-US', {
+			timeZone: normalized,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		})
+		timeZoneDateFormatters.set(normalized, formatter)
+	}
+	const parts = formatter.formatToParts(date)
+	const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+	return `${values.year}-${values.month}-${values.day}`
+}
+
+function startOfWeek(now: Date, timeZone: string) {
+	const date = parseDateKey(dateKeyInTimeZone(now, timeZone)) ?? new Date()
 	const daysSinceMonday = (date.getUTCDay() + 6) % 7
 	date.setUTCDate(date.getUTCDate() - daysSinceMonday)
 	return date
@@ -61,12 +89,13 @@ function startOfUtcWeek(now: Date) {
 export function parseReleaseCalendarQuery(
 	searchParams: URLSearchParams,
 	now = new Date(),
+	timeZone = 'UTC',
 ): ReleaseCalendarQuery {
 	const requestedKind = searchParams.get('kind')
 	const requestedScope = searchParams.get('scope')
 	return {
 		start: dateKey(
-			parseDateKey(searchParams.get('start')) ?? startOfUtcWeek(now),
+			parseDateKey(searchParams.get('start')) ?? startOfWeek(now, timeZone),
 		),
 		kind: releaseCalendarKinds.includes(
 			requestedKind as ReleaseCalendarQuery['kind'],
@@ -156,17 +185,25 @@ function nextReleaseLabel(release: NextRelease) {
 	return 'Scheduled release'
 }
 
-function inRange(date: Date, start: Date, end: Date) {
-	return date.getTime() >= start.getTime() && date.getTime() < end.getTime()
+function eventDateKey(date: Date, allDay: boolean, timeZone: string) {
+	return allDay ? dateKey(date) : dateKeyInTimeZone(date, timeZone)
+}
+
+function dateIsInRange(value: string, start: string, end: string) {
+	return value >= start && value < end
 }
 
 /** Build a deterministic seven-day release schedule from the canonical catalog. */
 export async function getReleaseCalendar(
 	input: ReleaseCalendarQuery,
 	viewerId: string | null,
+	requestedTimeZone = 'UTC',
 ) {
-	const start = parseDateKey(input.start) ?? startOfUtcWeek(new Date())
+	const timeZone = normalizeTimeZone(requestedTimeZone)
+	const start = parseDateKey(input.start) ?? startOfWeek(new Date(), timeZone)
 	const end = addDays(start, 7)
+	const startKey = dateKey(start)
+	const endKey = dateKey(end)
 	const filters = {
 		...input,
 		start: dateKey(start),
@@ -180,7 +217,12 @@ export async function getReleaseCalendar(
 				: []),
 			{
 				OR: [
-					{ releaseStart: { gte: start, lt: end } },
+					{
+						releaseStart: {
+							gte: addDays(start, -1),
+							lt: addDays(end, 1),
+						},
+					},
 					{ nextRelease: { not: null } },
 				],
 			},
@@ -240,7 +282,10 @@ export async function getReleaseCalendar(
 			viewerTracking: viewerTracking.get(item.id) ?? null,
 		}
 		const next = parseStoredNextRelease(item.nextRelease)
-		if (next && inRange(next.releaseAt, start, end)) {
+		const nextDate = next
+			? eventDateKey(next.releaseAt, next.allDay, timeZone)
+			: null
+		if (next && nextDate && dateIsInRange(nextDate, startKey, endKey)) {
 			const eventType =
 				next.chapter !== null
 					? 'chapter'
@@ -257,18 +302,26 @@ export async function getReleaseCalendar(
 				eventName: next.name,
 			})
 		}
+		const premiereAllDay = Boolean(
+			item.releaseStart &&
+			item.releaseStart.getUTCHours() === 0 &&
+			item.releaseStart.getUTCMinutes() === 0 &&
+			item.releaseStart.getUTCSeconds() === 0,
+		)
+		const premiereDate = item.releaseStart
+			? eventDateKey(item.releaseStart, premiereAllDay, timeZone)
+			: null
 		if (
 			item.releaseStart &&
-			inRange(item.releaseStart, start, end) &&
-			(!next || dateKey(next.releaseAt) !== dateKey(item.releaseStart))
+			premiereDate &&
+			dateIsInRange(premiereDate, startKey, endKey) &&
+			(!nextDate || nextDate !== premiereDate)
 		) {
 			items.push({
 				...common,
 				id: `${item.id}:premiere:${item.releaseStart.toISOString()}`,
 				releaseAt: item.releaseStart,
-				allDay:
-					item.releaseStart.getUTCHours() === 0 &&
-					item.releaseStart.getUTCMinutes() === 0,
+				allDay: premiereAllDay,
 				eventType: 'premiere',
 				eventLabel: 'Premiere',
 				eventName: null,
@@ -285,19 +338,22 @@ export async function getReleaseCalendar(
 
 	return {
 		filters,
+		timeZone,
 		start: dateKey(start),
 		end: dateKey(addDays(start, 6)),
 		previousStart: dateKey(addDays(start, -7)),
 		nextStart: dateKey(end),
-		todayStart: dateKey(startOfUtcWeek(new Date())),
-		today: dateKey(new Date()),
+		todayStart: dateKey(startOfWeek(new Date(), timeZone)),
+		today: dateKeyInTimeZone(new Date(), timeZone),
 		isSignedIn: Boolean(viewerId),
 		total: items.length,
 		days: Array.from({ length: 7 }, (_, index) => {
 			const date = dateKey(addDays(start, index))
 			return {
 				date,
-				items: items.filter(item => dateKey(item.releaseAt) === date),
+				items: items.filter(
+					item => eventDateKey(item.releaseAt, item.allDay, timeZone) === date,
+				),
 			}
 		}),
 	}

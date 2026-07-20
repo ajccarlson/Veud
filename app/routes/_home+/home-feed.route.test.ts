@@ -78,6 +78,7 @@ test('signed-in home feed contains activity only from followed members', async (
 	])
 	expect(result.data.suggestedMembers).toEqual([])
 	expect(result.data.upcomingCalendar).toMatchObject({
+		timeZone: 'UTC',
 		total: 1,
 		days: expect.arrayContaining([
 			expect.objectContaining({

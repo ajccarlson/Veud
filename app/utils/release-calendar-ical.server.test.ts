@@ -50,6 +50,7 @@ test('serializes timed and all-day releases as portable iCalendar events', () =>
 		{
 			start: '2026-07-20',
 			end: '2026-07-26',
+			timeZone: 'America/Los_Angeles',
 			filters: { kind: 'all', scope: 'mine' },
 			days: [
 				{ date: '2026-07-21', items: [timed] },
@@ -64,6 +65,7 @@ test('serializes timed and all-day releases as portable iCalendar events', () =>
 
 	expect(body).toContain('BEGIN:VCALENDAR\r\nVERSION:2.0\r\n')
 	expect(body).toContain('X-WR-CALNAME:Veud · My releases')
+	expect(body).toContain('X-WR-TIMEZONE:America/Los_Angeles')
 	expect(body).toContain('DTSTAMP:20260719T123456Z')
 	expect(body).toContain('DTSTART:20260721T183000Z')
 	expect(body).toContain('DTSTART;VALUE=DATE:20260722')

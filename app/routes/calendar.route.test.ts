@@ -88,6 +88,7 @@ test('calendar loader groups canonical premieres and scheduled episodes', async 
 		params: {},
 	} as any)
 	expect(anonymous.data.filters.scope).toBe('all')
+	expect(anonymous.data.timeZone).toBe('UTC')
 	expect(anonymous.data.total).toBe(2)
 	expect(
 		anonymous.data.days.flatMap(day => day.items).map(item => item.title),
@@ -126,5 +127,67 @@ test('calendar loader groups canonical premieres and scheduled episodes', async 
 		mine.data.days
 			.flatMap(day => day.items)
 			.some(item => item.mediaId === outside.id),
+	).toBe(false)
+})
+
+test('calendar groups timed releases by local date while preserving all-day dates', async () => {
+	const [localPreviousDay, localLastDay, allDayPremiere] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Local Previous Day',
+				nextRelease: JSON.stringify({
+					releaseDate: '2026-07-20T01:30:00.000Z',
+					episode: 1,
+				}),
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Local Last Day',
+				nextRelease: JSON.stringify({
+					releaseDate: '2026-07-27T01:30:00.000Z',
+					episode: 2,
+				}),
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Stable All Day Premiere',
+				releaseStart: new Date('2026-07-20T00:00:00.000Z'),
+			},
+		}),
+	])
+	const result = await loader({
+		request: new Request(`${BASE_URL}/calendar?start=2026-07-20`, {
+			headers: { cookie: 'CH-time-zone=America%2FLos_Angeles' },
+		}),
+		params: {},
+	} as any)
+
+	expect(result.data.timeZone).toBe('America/Los_Angeles')
+	expect(result.data.total).toBe(2)
+	expect(
+		result.data.days.find(day => day.date === '2026-07-20')?.items,
+	).toEqual([
+		expect.objectContaining({
+			mediaId: allDayPremiere.id,
+			allDay: true,
+		}),
+	])
+	expect(
+		result.data.days.find(day => day.date === '2026-07-26')?.items,
+	).toEqual([
+		expect.objectContaining({
+			mediaId: localLastDay.id,
+			allDay: false,
+		}),
+	])
+	expect(
+		result.data.days
+			.flatMap(day => day.items)
+			.some(item => item.mediaId === localPreviousDay.id),
 	).toBe(false)
 })
