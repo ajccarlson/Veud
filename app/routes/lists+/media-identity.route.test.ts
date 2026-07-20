@@ -139,6 +139,45 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 	])
 })
 
+test('new rows insert atomically without duplicate positions', async () => {
+	const owner = await createOwner('anime')
+	const oldUpdatedAt = new Date('2020-01-01T00:00:00.000Z')
+	await prisma.watchlist.update({
+		where: { id: owner.watchlistId },
+		data: { updatedAt: oldUpdatedAt },
+	})
+
+	for (const title of ['First row', 'Inserted row']) {
+		await addRow({
+			request: owner.request,
+			params: routeParams('row', {
+				watchlistId: owner.watchlistId,
+				position: 1,
+				title,
+				type: 'TV Series',
+			}),
+		} as any)
+	}
+
+	expect(
+		await prisma.entry.findMany({
+			where: { watchlistId: owner.watchlistId },
+			orderBy: { position: 'asc' },
+			select: { title: true, position: true },
+		}),
+	).toEqual([
+		{ title: 'Inserted row', position: 1 },
+		{ title: 'First row', position: 2 },
+	])
+	expect(
+		(
+			await prisma.watchlist.findUniqueOrThrow({
+				where: { id: owner.watchlistId },
+			})
+		).updatedAt.getTime(),
+	).toBeGreaterThan(oldUpdatedAt.getTime())
+})
+
 test('provider identity must agree with the destination list type', async () => {
 	const owner = await createOwner('liveaction')
 
