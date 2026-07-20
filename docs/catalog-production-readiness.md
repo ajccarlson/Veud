@@ -48,9 +48,14 @@ approved rollout with a backup and a small `--limit`, inspect the persisted run
 and coverage metrics, then increase the batch only after the previous batch is
 healthy.
 
-## Next engineering batch
+## PostgreSQL handoff status
 
-Create a PostgreSQL deployment schema and migration handoff while retaining
-SQLite as the fast isolated test datasource. Then load a representative catalog
-snapshot and record database size, import throughput, search latency, hydration
-throughput, lock contention, and restore time before changing this hold.
+The provider-specific PostgreSQL schema, migration baseline, trigram search
+indexes, drift checks, and application smoke checks are now complete; see the
+[PostgreSQL catalog schema handoff](postgresql-catalog-readiness.md). SQLite
+remains the fast isolated test datasource.
+
+The next engineering batch must transfer a consistent production-like snapshot,
+add PostgreSQL-native backup/restore automation, and record database size,
+import throughput, search latency, hydration throughput, lock contention, backup
+time, and restore time before changing this hold.

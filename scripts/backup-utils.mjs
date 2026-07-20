@@ -6,6 +6,15 @@ import Database from 'better-sqlite3'
 const BACKUP_FILE_PATTERN = /^data-.*\.db$/
 const REQUIRED_TABLES = ['_prisma_migrations', 'User', 'Watchlist', 'Entry']
 
+export function assertSqlitePrimaryDatabase(databaseUrl) {
+	const normalized = databaseUrl?.trim()
+	if (normalized && !normalized.startsWith('file:')) {
+		throw new Error(
+			'The SQLite backup command cannot protect a PostgreSQL primary database. Configure and verify PostgreSQL-native backups before cutover.',
+		)
+	}
+}
+
 export function parsePositiveInteger(value, fallback, name) {
 	const parsed = value === undefined || value === '' ? fallback : Number(value)
 	if (!Number.isSafeInteger(parsed) || parsed < 1) {
