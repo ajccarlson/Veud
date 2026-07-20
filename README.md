@@ -184,6 +184,10 @@ The [homepage trending design](docs/homepage-trending.md) covers durable
 provider-feed snapshots, catalog-popularity fallbacks, accessible horizontal
 rails, and direct quick-track from canonical media cards.
 
+The [profile performance design](docs/profile-performance.md) documents the
+stable shell, tab-specific loader boundaries, measurement results, server
+timings, and representative payload budgets.
+
 ## Testing
 
 ### Playwright
