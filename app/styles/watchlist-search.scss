@@ -1,33 +1,311 @@
 .watchlist-search {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-items: center;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	font-family: Arial, sans-serif;
 
-  .watchlist-search-bar {
-    text-align: center;
-    border-radius: 0.25rem;
-    min-width: 3rem;
-    max-width: 6rem;
-  }
+	.watchlist-search-inline {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.35rem;
+		width: 100%;
+	}
 
-  .watchlist-search-item {
-    background-color: #6F6F6F;
-  }
+	.watchlist-search-bar {
+		width: min(100%, 8rem);
+		min-width: 4.5rem;
+		height: 2rem;
+		padding: 0 0.5rem;
+		color: #fff7e8;
+		text-align: center;
+		background: #262626;
+		border: 1px solid #66563d;
+		border-radius: 0.35rem;
+	}
 
-  .watchlist-search-item:hover {
-    cursor: pointer;
-    background-color: #464646;
-  }
+	.watchlist-search-inline button {
+		width: 2rem;
+		height: 2rem;
+		padding: 0;
+	}
 
-  .watchlist-search-error-message {
-    color: #FF5100;
-    position: absolute;
-    right: -16rem;
-    z-index: 10;
-    background-color: white;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-    border-radius: 0.25rem;
-  }
+	.watchlist-search-error-message,
+	.watchlist-search-announcement {
+		position: absolute;
+		z-index: 10;
+		top: calc(100% + 0.35rem);
+		left: 50%;
+		width: max-content;
+		max-width: min(22rem, 90vw);
+		padding: 0.4rem 0.6rem;
+		color: #fff7e8;
+		background: #51291d;
+		border: 1px solid #ff5100;
+		border-radius: 0.35rem;
+		box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 45%);
+		font-size: 0.78rem;
+		transform: translateX(-50%);
+	}
+
+	.watchlist-search-announcement {
+		color: #dffff0;
+		background: #234638;
+		border-color: #8ca99d;
+	}
+}
+
+.watchlist-search-dialog {
+	width: min(68rem, calc(100vw - 2rem));
+	max-width: none;
+	height: min(46rem, calc(100dvh - 2rem));
+	max-height: none;
+	padding: 0;
+	color: #fff7e8;
+	background: #222;
+	border: 1px solid #ff9900;
+	border-radius: 1rem;
+	box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 70%);
+	font-family: Arial, sans-serif;
+
+	&::backdrop {
+		background: rgb(0 0 0 / 72%);
+		backdrop-filter: blur(3px);
+	}
+
+	.watchlist-search-dialog-shell {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+	}
+
+	.watchlist-search-dialog-header {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		background: #383040;
+		border-bottom: 1px solid #66563d;
+
+		h2 {
+			margin: 0.15rem 0 0;
+			color: #ffffb1;
+			font-size: clamp(1.35rem, 3vw, 2rem);
+			font-weight: 900;
+		}
+
+		button {
+			flex: 0 0 auto;
+			color: #fff7e8;
+			font-size: 1.75rem;
+		}
+	}
+
+	.watchlist-search-eyebrow {
+		margin: 0;
+		color: #a2ffd5;
+		font-size: 0.7rem;
+		font-weight: 800;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+	}
+
+	.watchlist-search-controls {
+		display: grid;
+		grid-template-columns: minmax(14rem, 1fr) minmax(10rem, 15rem);
+		flex: 0 0 auto;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		background: #2e2f2b;
+		border-bottom: 1px solid #66563d;
+	}
+
+	.watchlist-search-refine,
+	.watchlist-search-destination {
+		display: grid;
+		gap: 0.4rem;
+
+		label,
+		> span {
+			color: #a2ffd5;
+			font-size: 0.75rem;
+			font-weight: 800;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+		}
+	}
+
+	.watchlist-search-refine > div {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	input,
+	select {
+		min-width: 0;
+		height: 2.5rem;
+		padding: 0 0.75rem;
+		color: #fff7e8;
+		background: #1c1c1c;
+		border: 1px solid #54806c;
+		border-radius: 0.4rem;
+
+		&:focus-visible {
+			outline: 2px solid #a2ffd5;
+			outline-offset: 2px;
+		}
+	}
+
+	.watchlist-search-refine input {
+		flex: 1 1 auto;
+	}
+
+	.watchlist-search-dialog-error {
+		flex: 0 0 auto;
+		margin: 0;
+		padding: 0.7rem 1.25rem;
+		color: #fff;
+		background: #6b2f23;
+		border-bottom: 1px solid #ff5100;
+	}
+
+	.watchlist-search-results {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+		gap: 1rem;
+		min-height: 0;
+		padding: 1.25rem;
+		overflow: auto;
+		overscroll-behavior: contain;
+	}
+
+	.watchlist-search-result {
+		display: grid;
+		grid-template-columns: 6.5rem minmax(0, 1fr);
+		min-height: 10rem;
+		overflow: hidden;
+		background: #383040;
+		border: 1px solid #54806c;
+		border-radius: 0.75rem;
+		transition:
+			border-color 120ms ease,
+			transform 120ms ease;
+
+		&:hover {
+			border-color: #a2ffd5;
+			transform: translateY(-2px);
+		}
+	}
+
+	.watchlist-search-poster {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 10rem;
+		color: #8ca99d;
+		background: #181818;
+		font-size: 0.75rem;
+		text-align: center;
+
+		img {
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		}
+	}
+
+	.watchlist-search-result-body {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		min-width: 0;
+		padding: 0.85rem;
+
+		h3 {
+			display: -webkit-box;
+			margin: 0.45rem 0 0;
+			overflow: hidden;
+			color: #ffffb1;
+			font-size: 1rem;
+			font-weight: 900;
+			line-height: 1.3;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 3;
+		}
+
+		button {
+			width: 100%;
+			margin-top: auto;
+		}
+	}
+
+	.watchlist-search-result-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+
+		span {
+			padding: 0.15rem 0.35rem;
+			color: #dffff0;
+			background: #234638;
+			border-radius: 999px;
+			font-size: 0.62rem;
+			font-weight: 800;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+		}
+	}
+
+	.watchlist-search-tracked-state,
+	.watchlist-search-untracked-state {
+		margin: 0.55rem 0 0.8rem;
+		color: #ffcc66;
+		font-size: 0.75rem;
+		font-weight: 700;
+	}
+
+	.watchlist-search-untracked-state {
+		color: #a2ffd5;
+	}
+
+	.watchlist-search-empty {
+		grid-column: 1 / -1;
+		align-self: center;
+		padding: 4rem 1rem;
+		color: #a2ffd5;
+		text-align: center;
+
+		h3 {
+			margin: 0;
+			color: #ffffb1;
+			font-size: 1.35rem;
+		}
+
+		p {
+			margin: 0.5rem 0 0;
+		}
+	}
+}
+
+@media (max-width: 42rem) {
+	.watchlist-search-dialog {
+		width: 100vw;
+		height: 100dvh;
+		border: 0;
+		border-radius: 0;
+
+		.watchlist-search-controls {
+			grid-template-columns: 1fr;
+		}
+
+		.watchlist-search-results {
+			grid-template-columns: 1fr;
+			padding: 0.85rem;
+		}
+	}
 }

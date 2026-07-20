@@ -10,6 +10,10 @@ export const MediaIdentitySchema = z
 
 export type MediaIdentity = z.infer<typeof MediaIdentitySchema>
 
+export function mediaIdentityKey(identity: MediaIdentity) {
+	return `${identity.provider}:${identity.kind}:${identity.externalId}`
+}
+
 export function mediaIdentityForTmdb(
 	externalId: string | number,
 	type: string,
