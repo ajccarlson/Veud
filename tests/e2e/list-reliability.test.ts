@@ -70,7 +70,25 @@ async function mockMalCatalog(page: Page) {
 			query.startsWith('Second') ? 102 : query.startsWith('Third') ? 103 : 101
 		) as keyof typeof catalogTitles
 		await route.fulfill({
-			json: [{}, { data: [{ node: { id, title: catalogTitles[id] } }] }],
+			json: [
+				{},
+				{
+					data: [
+						{
+							node: {
+								id,
+								title: catalogTitles[id],
+								main_picture: {
+									large: `https://example.com/${id}.jpg`,
+								},
+								start_date: '2024-01-01',
+								media_type: 'tv',
+								start_season: { year: 2024, season: 'winter' },
+							},
+						},
+					],
+				},
+			],
 		})
 	})
 }
@@ -185,14 +203,23 @@ test('member can keep adding search results across lists in one session', async 
 		query: string,
 		title: string,
 		watchlistId: string,
+		destinationLabel?: string,
 	) {
 		const search = page.getByRole('searchbox', { name: 'Search' })
 		await search.fill(query)
 		await search.press('Enter')
-		await page.getByRole('button', { name: title }).click()
+		const dialog = page.getByRole('dialog', { name: 'Choose a title' })
+		await expect(dialog).toBeVisible()
+		if (destinationLabel) {
+			await dialog.getByLabel('Add to list').selectOption({
+				label: destinationLabel,
+			})
+		}
+		await dialog.getByRole('button', { name: title }).click()
 		await expect
 			.poll(() => prisma.entry.count({ where: { watchlistId, title } }))
 			.toBe(1)
+		await expect(dialog).not.toBeVisible()
 		await expect(page.getByRole('searchbox', { name: 'Search' })).toHaveValue(
 			'',
 		)
@@ -200,12 +227,70 @@ test('member can keep adding search results across lists in one session', async 
 
 	await page.goto(`/lists/${user.username}/anime/${watching.name}`)
 	await addCatalogResult('First query', catalogTitles[101], watching.id)
+	await page.setViewportSize({ width: 390, height: 844 })
+	await expect(page.getByRole('searchbox', { name: 'Search' })).toBeVisible()
+	await page.getByRole('searchbox', { name: 'Search' }).fill('First query')
+	await page.getByRole('searchbox', { name: 'Search' }).press('Enter')
+	const trackedDialog = page.getByRole('dialog', { name: 'Choose a title' })
+	const dialogBounds = await trackedDialog.evaluate(dialog => {
+		const bounds = dialog.getBoundingClientRect()
+		return {
+			left: bounds.left,
+			top: bounds.top,
+			right: bounds.right,
+			bottom: bounds.bottom,
+		}
+	})
+	expect(dialogBounds.left).toBeGreaterThanOrEqual(-1)
+	expect(dialogBounds.top).toBeGreaterThanOrEqual(-1)
+	expect(dialogBounds.right).toBeLessThanOrEqual(391)
+	expect(dialogBounds.bottom).toBeLessThanOrEqual(845)
+	await expect(trackedDialog.locator('img')).toHaveAttribute(
+		'src',
+		'https://example.com/101.jpg',
+	)
+	await expect(trackedDialog.getByText('MAL', { exact: true })).toBeVisible()
+	await expect(
+		trackedDialog.getByText('TV Series', { exact: true }),
+	).toBeVisible()
+	await expect(trackedDialog.getByText('2024', { exact: true })).toBeVisible()
+	await expect(trackedDialog.getByText('Currently in Watching')).toBeVisible()
+	await expect(
+		trackedDialog.getByRole('button', {
+			name: `In Watching ${catalogTitles[101]}`,
+		}),
+	).toBeDisabled()
+	await page.setViewportSize({ width: 1280, height: 720 })
+	await trackedDialog
+		.getByLabel('Add to list')
+		.selectOption({ label: 'Completed' })
+	await trackedDialog
+		.getByRole('button', {
+			name: `Move to Completed ${catalogTitles[101]}`,
+		})
+		.click()
+	await expect
+		.poll(() => prisma.entry.count({ where: { watchlistId: watching.id } }))
+		.toBe(0)
+	await expect
+		.poll(() =>
+			prisma.entry.count({
+				where: { watchlistId: completed.id, title: catalogTitles[101] },
+			}),
+		)
+		.toBe(1)
+
+	await addCatalogResult(
+		'Second query',
+		catalogTitles[102],
+		completed.id,
+		'Completed',
+	)
 
 	await page.getByRole('link', { name: 'Completed' }).click()
 	await expect(page).toHaveURL(
 		new RegExp(`/lists/${user.username}/anime/${completed.name}$`),
 	)
-	await addCatalogResult('Second query', catalogTitles[102], completed.id)
 	await addCatalogResult('Third query', catalogTitles[103], completed.id)
 
 	expect(
@@ -215,8 +300,9 @@ test('member can keep adding search results across lists in one session', async 
 			select: { title: true, position: true },
 		}),
 	).toEqual([
-		{ title: catalogTitles[102], position: 1 },
-		{ title: catalogTitles[103], position: 2 },
+		{ title: catalogTitles[101], position: 1 },
+		{ title: catalogTitles[102], position: 2 },
+		{ title: catalogTitles[103], position: 3 },
 	])
 })
 

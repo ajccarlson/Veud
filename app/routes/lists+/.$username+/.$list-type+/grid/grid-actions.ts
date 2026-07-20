@@ -360,28 +360,8 @@ export async function refreshGrid(columnParams: any) {
 		(a: any, b: any) => a.position - b.position,
 	)
 
-	const nextRows = [...listEntriesData]
-	const emptyRow = createEmptyRow(
-		columnParams.watchlistId,
-		listEntriesData.length + 1,
-		columnParams.listTypeData,
-	)
-
-	const lastEntry = listEntriesData.at(-1)
-	const canEdit = columnParams.currentUserId === columnParams.listOwner.id
-	if (
-		canEdit &&
-		(!lastEntry ||
-			(lastEntry.title &&
-				lastEntry.title.replace(/\W/g, '') !== '' &&
-				lastEntry.type &&
-				lastEntry.type.replace(/\W/g, '') !== ''))
-	) {
-		nextRows.push(emptyRow)
-	}
-
-	columnParams.setListEntries(nextRows)
-	gridAPI?.setGridOption('rowData', nextRows)
+	columnParams.setListEntries(listEntriesData)
+	gridAPI?.setGridOption('rowData', listEntriesData)
 }
 
 export async function reformatHistory(params: any, newValue: any) {
