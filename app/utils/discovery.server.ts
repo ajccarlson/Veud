@@ -128,12 +128,12 @@ function communityScore(media: DiscoveryMedia) {
 	return scores.reduce((total, score) => total + score, 0) / scores.length
 }
 
-function popularityScore(media: DiscoveryMedia) {
-	return (
-		media._count.trackingStates * 4 +
-		media._count.reviews * 3 +
-		media._count.diaryEntries
-	)
+export function catalogPopularityScore(counts: {
+	trackingStates: number
+	reviews: number
+	diaryEntries: number
+}) {
+	return counts.trackingStates * 4 + counts.reviews * 3 + counts.diaryEntries
 }
 
 function compareTitle(left: DiscoveryMedia, right: DiscoveryMedia) {
@@ -325,7 +325,7 @@ export async function getDiscoveryResults(
 					: null,
 				communityScore: score,
 				ratingCount,
-				popularityScore: popularityScore(item),
+				popularityScore: catalogPopularityScore(item._count),
 				affinityScore: splitGenres(item.genres).reduce(
 					(total, genre) =>
 						total + (preferenceWeights.get(genre.toLocaleLowerCase()) ?? 0),
