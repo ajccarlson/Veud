@@ -6,9 +6,15 @@ import {
 	useLoaderData,
 } from 'react-router'
 import { MediaCollectionCard } from '#app/components/media-collection-card.tsx'
+import {
+	ProfileEmptyState,
+	ProfilePageHeader,
+} from '#app/components/profile-ui.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+
+export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profile-ui.tsx'
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
@@ -49,23 +55,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 export default function ProfileCollections() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<section className="mx-auto max-w-6xl space-y-5 text-[#ffefcc]">
-			<header className="flex flex-wrap items-end justify-between gap-4">
-				<div>
-					<h2 className="text-2xl font-black text-[#ffffb1]">Collections</h2>
-					<p className="mt-1 text-sm text-[#a2ffd5]">
-						{data.collections.length} curated{' '}
-						{data.collections.length === 1 ? 'list' : 'lists'}
-					</p>
-				</div>
-				{data.isOwner ? (
-					<Button asChild>
-						<Link to="/collections/new">Create a collection</Link>
-					</Button>
-				) : null}
-			</header>
+		<section className="user-landing-collections">
+			<ProfilePageHeader
+				eyebrow="Member curation"
+				title="Collections"
+				description="Themed, ranked, and hand-picked groups of titles."
+				meta={`${data.collections.length} curated ${data.collections.length === 1 ? 'list' : 'lists'}`}
+				action={
+					data.isOwner ? (
+						<Button asChild>
+							<Link to="/collections/new">Create a collection</Link>
+						</Button>
+					) : null
+				}
+			/>
 			{data.collections.length ? (
-				<div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+				<div className="user-landing-collections-grid">
 					{data.collections.map(collection => (
 						<MediaCollectionCard
 							key={collection.id}
@@ -75,16 +80,15 @@ export default function ProfileCollections() {
 					))}
 				</div>
 			) : (
-				<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-14 text-center">
-					<h3 className="text-xl font-black text-[#ffffb1]">
-						No collections yet
-					</h3>
-					<p className="mt-2 text-[#a2ffd5]">
-						{data.isOwner
+				<ProfileEmptyState
+					icon="archive"
+					title="Start the first curated list"
+					description={
+						data.isOwner
 							? 'Curate your first themed or ranked list.'
-							: `${data.user.name ?? data.user.username} has not published a collection.`}
-					</p>
-				</div>
+							: `${data.user.name ?? data.user.username} has not published a collection.`
+					}
+				/>
 			)}
 		</section>
 	)
