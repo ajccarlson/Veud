@@ -47,6 +47,10 @@
 	}
 
 	.list-nav-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.45rem;
 		height: 100%;
 		align-content: center;
 		background-color: #6f6f6f;
@@ -61,6 +65,19 @@
 		border-bottom-width: 4px;
 		border-color: #a2ffd5;
 		border-radius: 0.25rem;
+	}
+
+	.list-nav-private-badge {
+		padding: 0.08rem 0.35rem;
+		color: #fff7e8;
+		background: #6b2f23;
+		border: 1px solid #ff9900;
+		border-radius: 999px;
+		font-family: arial;
+		font-size: 0.6rem;
+		line-height: 1rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 	}
 
 	.list-nav-button:hover {

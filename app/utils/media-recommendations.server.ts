@@ -15,7 +15,13 @@ const recommendationMediaSelect = {
 	startYear: true,
 	airYear: true,
 	genres: true,
-	trackingStates: { select: { score: true } },
+	trackingStates: {
+		select: {
+			score: true,
+			statusWatchlistId: true,
+			statusWatchlist: { select: { isPublic: true } },
+		},
+	},
 	_count: {
 		select: {
 			trackingStates: true,
@@ -49,6 +55,7 @@ type RankedRecommendation = {
 	popularity: number
 	communityScore: number | null
 	ratingCount: number
+	trackerCount: number
 }
 
 function yearFor(media: RecommendationMedia) {
@@ -57,13 +64,19 @@ function yearFor(media: RecommendationMedia) {
 }
 
 function scoreFor(media: RecommendationMedia) {
-	const scores = media.trackingStates
+	const scores = publicTrackingStates(media)
 		.map(state => (state.score === null ? null : Number(state.score)))
 		.filter(
 			(score): score is number => score !== null && Number.isFinite(score),
 		)
 	if (!scores.length) return null
 	return scores.reduce((total, score) => total + score, 0) / scores.length
+}
+
+function publicTrackingStates(media: RecommendationMedia) {
+	return media.trackingStates.filter(
+		state => state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
+	)
 }
 
 function rankCandidate(
@@ -80,15 +93,20 @@ function rankCandidate(
 		...sourceGenres.map(genre => genre.toLocaleLowerCase()),
 		...candidateGenreKeys,
 	]).size
-	const scores = media.trackingStates.filter(state => state.score !== null)
+	const publicStates = publicTrackingStates(media)
+	const scores = publicStates.filter(state => state.score !== null)
 
 	return {
 		media,
 		matchedGenres,
 		similarity: unionSize ? matchedGenres.length / unionSize : 0,
-		popularity: catalogPopularityScore(media._count),
+		popularity: catalogPopularityScore({
+			...media._count,
+			trackingStates: publicStates.length,
+		}),
 		communityScore: scoreFor(media),
 		ratingCount: scores.length,
+		trackerCount: publicStates.length,
 	}
 }
 
@@ -100,7 +118,7 @@ function compareRecommendations(
 		right.matchedGenres.length - left.matchedGenres.length ||
 		right.similarity - left.similarity ||
 		right.popularity - left.popularity ||
-		right.media._count.trackingStates - left.media._count.trackingStates ||
+		right.trackerCount - left.trackerCount ||
 		(left.media.title ?? '').localeCompare(right.media.title ?? '') ||
 		left.media.id.localeCompare(right.media.id)
 	)
@@ -139,11 +157,7 @@ export async function getSimilarMediaRecommendations(
 			],
 		},
 		select: recommendationMediaSelect,
-		orderBy: [
-			{ trackingStates: { _count: 'desc' } },
-			{ reviews: { _count: 'desc' } },
-			{ title: 'asc' },
-		],
+		orderBy: [{ reviews: { _count: 'desc' } }, { title: 'asc' }],
 		take: MEDIA_RECOMMENDATION_CANDIDATE_LIMIT,
 	})
 	const ranked = candidates
@@ -155,7 +169,7 @@ export async function getSimilarMediaRecommendations(
 	return {
 		sourceGenres,
 		items: ranked.map(
-			({ media, matchedGenres, communityScore, ratingCount }) =>
+			({ media, matchedGenres, communityScore, ratingCount, trackerCount }) =>
 				({
 					id: media.id,
 					kind: media.kind,
@@ -166,7 +180,7 @@ export async function getSimilarMediaRecommendations(
 					matchedGenres,
 					communityScore,
 					ratingCount,
-					trackerCount: media._count.trackingStates,
+					trackerCount,
 				}) satisfies MediaRecommendation,
 		),
 	}
