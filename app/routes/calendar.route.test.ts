@@ -3,7 +3,7 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader } from './calendar.tsx'
+import { action, loader } from './calendar.tsx'
 
 async function viewerFixture() {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -40,6 +40,14 @@ async function viewerFixture() {
 		watching,
 		cookie: await getSessionCookieHeader(session),
 	}
+}
+
+function actionRequest(cookie: string, values: Record<string, string>) {
+	return new Request(`${BASE_URL}/calendar`, {
+		method: 'POST',
+		headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams(values),
+	})
 }
 
 test('calendar loader groups canonical premieres and scheduled episodes', async () => {
@@ -190,4 +198,80 @@ test('calendar groups timed releases by local date while preserving all-day date
 			.flatMap(day => day.items)
 			.some(item => item.mediaId === localPreviousDay.id),
 	).toBe(false)
+})
+
+test('calendar actions set and remove the viewer reminder shown on a release', async () => {
+	const { viewer, cookie } = await viewerFixture()
+	const releaseAt = new Date(Date.now() + 2 * 60 * 60 * 1000)
+	const media = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Calendar Reminder Action',
+			nextRelease: JSON.stringify({ releaseDate: releaseAt.toISOString() }),
+		},
+	})
+
+	await action({
+		request: actionRequest(cookie, {
+			intent: 'release-reminder-save',
+			mediaId: media.id,
+			leadMinutes: '60',
+		}),
+		params: {},
+	} as any)
+	const reminder = await prisma.releaseReminder.findUniqueOrThrow({
+		where: { ownerId_mediaId: { ownerId: viewer.id, mediaId: media.id } },
+		include: { notifications: true },
+	})
+	expect(reminder).toMatchObject({
+		leadMinutes: 60,
+		notifications: [
+			expect.objectContaining({
+				releaseAt,
+				availableAt: new Date(releaseAt.getTime() - 60 * 60 * 1000),
+			}),
+		],
+	})
+
+	const start = releaseAt.toISOString().slice(0, 10)
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/calendar?start=${start}`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(
+		loaded.data.days
+			.flatMap(day => day.items)
+			.find(item => item.mediaId === media.id)?.viewerReminder,
+	).toEqual({ id: reminder.id, leadMinutes: 60 })
+
+	const invalid = await action({
+		request: actionRequest(cookie, {
+			intent: 'release-reminder-save',
+			mediaId: media.id,
+			leadMinutes: '15',
+		}),
+		params: {},
+	} as any).catch(error => error)
+	expect(invalid).toBeInstanceOf(Response)
+	expect((invalid as Response).status).toBe(400)
+
+	await action({
+		request: actionRequest(cookie, {
+			intent: 'release-reminder-delete',
+			mediaId: media.id,
+		}),
+		params: {},
+	} as any)
+	expect(
+		await prisma.releaseReminder.count({
+			where: { ownerId: viewer.id, mediaId: media.id },
+		}),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: { releaseReminderId: reminder.id },
+		}),
+	).toBe(0)
 })
