@@ -69,6 +69,22 @@ test('signed-in home feed contains activity only from followed members', async (
 	} as any)
 
 	expect(result.data.followingCount).toBe(1)
+	expect(result.data.isSignedIn).toBe(true)
+	expect(result.data.watchlists).toEqual([])
+	expect(result.data.trendingRails).toEqual([
+		expect.objectContaining({
+			kind: 'movie',
+			items: [
+				expect.objectContaining({
+					id: media.id,
+					title: 'Personalized Home Fixture',
+					viewerTracking: expect.objectContaining({
+						status: 'plan-to-watch',
+					}),
+				}),
+			],
+		}),
+	])
 	expect(result.data.followingFeed).toEqual([
 		expect.objectContaining({
 			kind: 'review',
@@ -104,6 +120,9 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	} as any)
 
 	expect(result.data.followingCount).toBe(0)
+	expect(result.data.isSignedIn).toBe(false)
+	expect(result.data.watchlists).toEqual([])
+	expect(result.data.trendingRails).toEqual([])
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([])
 	expect(result.data.upcomingCalendar).toBeNull()
@@ -128,6 +147,9 @@ test('new members receive discovery suggestions that exclude themselves', async 
 	} as any)
 
 	expect(result.data.followingCount).toBe(0)
+	expect(result.data.isSignedIn).toBe(true)
+	expect(result.data.watchlists).toEqual([])
+	expect(result.data.trendingRails).toEqual([])
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([
 		expect.objectContaining({ id: candidate.id }),
