@@ -89,6 +89,14 @@ database and passes:
 - `pg_trgm` presence; and
 - optional `BACKUP_VERIFY_USERNAME` identity validation.
 
+Each successful PostgreSQL restore drill also writes a private, credential-free
+receipt beside the archive. It binds the archive SHA-256 and size to the source
+and disposable restore identities, verification time, migrations, and core
+counts. Verified offsite archive copies retain the same receipt, and retention
+prunes both together. The
+[PostgreSQL cutover evidence gate](postgresql-cutover-readiness.md) requires
+this receipt.
+
 Run and independently repeat the drill with:
 
 ```sh
@@ -137,6 +145,10 @@ Before the real maintenance window:
 6. Verify authentication, list reads/edits/reordering, search, profiles,
    activity, reviews, collections, notifications, and catalog workers before
    ending maintenance.
+
+Use the [PostgreSQL cutover evidence and canary gate](postgresql-cutover-readiness.md)
+to bind steps 1–6 to the approved target, budgets, hashes, and freshness windows
+before opening general traffic.
 
 Keep the SQLite database immutable during the initial PostgreSQL observation
 window. A rollback before PostgreSQL accepts new writes is an environment/client

@@ -89,6 +89,7 @@ export function prunePostgresBackups(backupDir, keep) {
 	const removed = []
 	for (const backup of listPostgresBackups(backupDir).slice(keep)) {
 		fs.unlinkSync(backup.path)
+		fs.rmSync(`${backup.path}.restore-verified.json`, { force: true })
 		removed.push(backup.name)
 	}
 	return removed
