@@ -166,6 +166,11 @@ Before expanding this into provider-scale ingestion, review the
 It records the current TMDB/MAL inventory sizes, provider-policy gates, storage
 constraints, and the phased sync architecture.
 
+The first inventory stage is documented in the
+[TMDB catalog inventory runbook](docs/tmdb-catalog-inventory.md). Its command is
+dry-run by default, streams the official gzip exports, checkpoints committed
+batches, and guards full reconciliation against suspiciously small inputs.
+
 ## Testing
 
 ### Playwright
