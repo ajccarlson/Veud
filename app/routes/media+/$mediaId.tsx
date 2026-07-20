@@ -28,7 +28,10 @@ import {
 	resolveMediaCatalog,
 	type MediaCatalogSnapshot,
 } from '#app/utils/media-catalog.ts'
-import { getMediaCommunityStatistics } from '#app/utils/media-community.server.ts'
+import {
+	getFollowedMediaTracking,
+	getMediaCommunityStatistics,
+} from '#app/utils/media-community.server.ts'
 import {
 	externalMediaUrl,
 	legacyProgressUpdate,
@@ -43,6 +46,7 @@ import {
 	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
+import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	createReviewComment,
 	toggleReviewLike,
@@ -248,6 +252,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const listTypeName = listTypeNameForMediaKind(media.kind)
 	const [
 		community,
+		followedTracking,
 		viewerState,
 		viewerEntries,
 		viewerWatchlists,
@@ -258,6 +263,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerCollections,
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
+		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -465,6 +471,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			reviews: media._count.reviews,
 			diaryEntries: media._count.diaryEntries,
 		},
+		socialContext: followedTracking,
 		reviews: reviewRows.map(({ likes, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
@@ -1170,6 +1177,74 @@ export default function MediaDetailRoute() {
 									</div>
 								</div>
 							</div>
+							{data.socialContext?.total ? (
+								<div
+									aria-labelledby="following-context-heading"
+									className="rounded-xl border bg-card p-5"
+								>
+									<div className="flex flex-wrap items-end justify-between gap-3">
+										<div>
+											<h3 id="following-context-heading" className="font-bold">
+												From people you follow
+											</h3>
+											<p className="mt-1 text-xs text-muted-foreground">
+												{data.socialContext.total}{' '}
+												{data.socialContext.total === 1
+													? 'person tracks'
+													: 'people track'}{' '}
+												this title
+												{data.socialContext.ratings
+													? ` · ${data.socialContext.ratings} ${data.socialContext.ratings === 1 ? 'rating' : 'ratings'}`
+													: ''}
+												.
+											</p>
+										</div>
+										{data.socialContext.meanScore !== null ? (
+											<div className="text-right">
+												<div className="text-xl font-bold">
+													{data.socialContext.meanScore.toFixed(2)}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													Following average
+												</div>
+											</div>
+										) : null}
+									</div>
+									<div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+										{data.socialContext.items.map(item => (
+											<Link
+												key={item.id}
+												to={`/users/${item.member.username}`}
+												className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3 transition-colors hover:bg-muted/60"
+											>
+												<img
+													src={getUserImgSrc(item.member.image?.id)}
+													alt=""
+													className="h-10 w-10 shrink-0 rounded-full border object-cover"
+												/>
+												<div className="min-w-0 flex-1">
+													<div className="truncate text-sm font-semibold">
+														{item.member.name ?? item.member.username}
+													</div>
+													<div className="truncate text-xs text-muted-foreground">
+														{item.statusLabel}
+														{item.score !== null
+															? ` · ${item.score.toLocaleString('en-US', { maximumFractionDigits: 1 })}/10`
+															: ''}
+													</div>
+												</div>
+											</Link>
+										))}
+									</div>
+									{data.socialContext.total >
+									data.socialContext.items.length ? (
+										<p className="mt-3 text-xs text-muted-foreground">
+											Showing the {data.socialContext.items.length} most
+											recently updated members.
+										</p>
+									) : null}
+								</div>
+							) : null}
 						</section>
 					) : null}
 

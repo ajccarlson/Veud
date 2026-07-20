@@ -40,6 +40,9 @@ test('member can open a canonical media page and change status', async ({
 		},
 	})
 	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: user.id, followingId: watchingMember.id },
+		}),
 		prisma.trackingState.create({
 			data: {
 				ownerId: watchingMember.id,
@@ -71,6 +74,20 @@ test('member can open a canonical media page and change status', async ({
 		await expect(page.getByLabel('Score 9: 1 rating')).toBeVisible()
 		await expect(page.getByLabel('Watching: 1 member')).toBeVisible()
 		await expect(page.getByLabel('Plan To Watch: 1 member')).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'From people you follow' }),
+		).toBeVisible()
+		await expect(page.getByText('8.40', { exact: true })).toBeVisible()
+		await expect(
+			page.getByRole('link', {
+				name: new RegExp(watchingMember.name ?? watchingMember.username),
+			}),
+		).toBeVisible()
+		await expect(
+			page.getByText(plannedMember.name ?? plannedMember.username, {
+				exact: true,
+			}),
+		).toHaveCount(0)
 		await page.getByLabel('Status').selectOption(completed.id)
 		await page.getByRole('button', { name: 'Save status' }).click()
 		await expect
