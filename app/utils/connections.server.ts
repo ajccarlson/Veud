@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { createCookieSessionStorage } from '@remix-run/node'
-=======
 import { createCookieSessionStorage } from 'react-router'
->>>>>>> develop
 import { type ProviderName } from './connections.tsx'
 // import { GitHubProvider } from './providers/github.server.ts'
 import { MALProvider } from './providers/mal.server.ts'

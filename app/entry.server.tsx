@@ -78,11 +78,8 @@ async function handleRequest(...args: DocRequestArgs) {
 	})
 }
 
-<<<<<<< HEAD
-=======
 export default wrapSentryHandleRequest(handleRequest)
 
->>>>>>> develop
 export async function handleDataRequest(response: Response) {
 	return response
 }

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import { type ActionFunctionArgs } from '@remix-run/node'
-=======
 import { type ActionFunctionArgs } from 'react-router'
->>>>>>> develop
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'

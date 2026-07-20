@@ -13,6 +13,8 @@
     "build:server": "tsx ./other/build-server.ts",
     "db:backup": "node scripts/backup-db.mjs",
     "db:verify-backup": "node scripts/verify-backup.mjs",
+    "media:backfill": "tsx scripts/backfill-media-identities.ts",
+    "tracking:backfill": "tsx scripts/backfill-tracking-states.ts",
     "predev": "npm run build:icons --silent",
     "dev": "node ./server/dev-server.js",
     "prisma:studio": "prisma studio",
@@ -74,21 +76,11 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.0.7",
-<<<<<<< HEAD
-    "@react-email/components": "0.0.15",
-    "@remix-run/express": "^2.17.5",
-    "@remix-run/node": "^2.17.5",
-    "@remix-run/react": "^2.17.5",
-    "@remix-run/server-runtime": "^2.17.5",
-    "@sentry/profiling-node": "^7.105.0",
-    "@sentry/remix": "^7.105.0",
-=======
     "@react-router/express": "^7.18.1",
     "@react-router/node": "^7.18.1",
     "@remix-run/form-data-parser": "^0.17.4",
     "@sentry/profiling-node": "^10.66.0",
     "@sentry/react-router": "^10.66.0",
->>>>>>> develop
     "address": "^2.0.2",
     "ag-grid-community": "^32.3.9",
     "ag-grid-react": "^32.3.9",
@@ -117,14 +109,6 @@
     "prisma": "^5.10.2",
     "process": "^0.11.10",
     "qrcode": "^1.5.3",
-<<<<<<< HEAD
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "remix-auth": "^3.6.0",
-    "remix-auth-form": "^1.4.0",
-    "remix-auth-github": "^1.6.0",
-    "remix-utils": "^7.5.0",
-=======
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-email": "^6.9.0",
@@ -134,7 +118,6 @@
     "remix-auth-github": "^3.0.2",
     "remix-auth-oauth2": "^3.4.1",
     "remix-utils": "^8.8.0",
->>>>>>> develop
     "sass": "^1.72.0",
     "set-cookie-parser": "^2.6.0",
     "sonner": "^1.4.3",
@@ -148,17 +131,9 @@
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",
     "@playwright/test": "^1.42.1",
-<<<<<<< HEAD
-    "@remix-run/dev": "^2.17.5",
-    "@remix-run/eslint-config": "^2.17.5",
-    "@remix-run/serve": "^2.17.5",
-    "@remix-run/testing": "^2.17.5",
-    "@sly-cli/sly": "^1.10.0",
-=======
     "@react-router/dev": "^7.18.1",
     "@sly-cli/sly": "^2.1.1",
     "@testing-library/dom": "^10.4.1",
->>>>>>> develop
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.5.2",
@@ -205,10 +180,6 @@
     "prettier": "^3.2.5",
     "prettier-plugin-sql": "^0.18.0",
     "prettier-plugin-tailwindcss": "^0.5.11",
-<<<<<<< HEAD
-    "remix-flat-routes": "^0.6.4",
-=======
->>>>>>> develop
     "tailwindcss": "^3.4.3",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
@@ -217,12 +188,9 @@
   },
   "engines": {
     "node": "22"
-<<<<<<< HEAD
-=======
   },
   "overrides": {
     "@react-spring/web": "9.4.5"
->>>>>>> develop
   },
   "epic-stack": true,
   "prisma": {

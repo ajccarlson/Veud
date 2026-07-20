@@ -5,15 +5,11 @@ import { z } from 'zod'
 import { cache, cachified } from '../cache.server.ts'
 import { connectionSessionStorage } from '../connections.server.ts'
 import { type Timings } from '../timing.server.ts'
-<<<<<<< HEAD
-import { type AuthProvider, type ProviderUser } from './provider.ts'
-=======
 import {
 	type AuthProvider,
 	getOAuthCookie,
 	type ProviderUser,
 } from './provider.ts'
->>>>>>> develop
 
 const GitHubUserSchema = z.object({ login: z.string() })
 const GitHubProfileSchema = z.object({
@@ -47,29 +43,11 @@ export class GitHubProvider implements AuthProvider {
 	getAuthStrategy() {
 		return new GitHubStrategy<ProviderUser>(
 			{
-<<<<<<< HEAD
-				clientId: process.env.GITHUB_CLIENT_ID,
-				clientSecret: process.env.GITHUB_CLIENT_SECRET,
-				redirectURI: '/auth/github/callback',
-			},
-			async ({ profile }) => {
-				const email = profile.emails[0].value.trim().toLowerCase()
-				const username = profile.displayName
-				const imageUrl = profile.photos[0].value
-				return {
-					email,
-					id: profile.id,
-					username,
-					name: profile.name.givenName,
-					imageUrl,
-				}
-=======
 				cookie: getOAuthCookie('github'),
 				clientId: process.env.GITHUB_CLIENT_ID,
 				clientSecret: process.env.GITHUB_CLIENT_SECRET,
 				redirectURI: '/auth/github/callback',
 				scopes: ['read:user', 'user:email'],
->>>>>>> develop
 			},
 			async ({ tokens }) => getGitHubProviderUser(tokens.accessToken()),
 		)

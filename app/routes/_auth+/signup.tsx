@@ -1,15 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-<<<<<<< HEAD
-import * as E from '@react-email/components'
-import {
-	json,
-	redirect,
-	type ActionFunctionArgs,
-	type MetaFunction,
-} from '@remix-run/node'
-import { Form, useActionData, /*useSearchParams*/ } from '@remix-run/react'
-=======
 import * as E from 'react-email'
 import {
 	data as json,
@@ -20,16 +10,12 @@ import {
 	useActionData /*useSearchParams*/,
 } from 'react-router'
 
->>>>>>> develop
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-<<<<<<< HEAD
-=======
 import { ProviderNameSchema } from '#app/utils/connections.tsx'
->>>>>>> develop
 // import {
 // 	ProviderConnectionForm,
 // 	providerNames,
@@ -39,11 +25,8 @@ import { sendEmail } from '#app/utils/email.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
-<<<<<<< HEAD
-=======
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { providerNameKey } from './onboarding_.$provider.tsx'
->>>>>>> develop
 import { prepareVerification } from './verify.server.ts'
 
 const SignupSchema = z.object({
@@ -53,11 +36,7 @@ const SignupSchema = z.object({
 export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
 
-<<<<<<< HEAD
-	checkHoneypot(formData)
-=======
 	await checkHoneypot(formData)
->>>>>>> develop
 
 	const submission = await parseWithZod(formData, {
 		schema: SignupSchema.superRefine(async (data, ctx) => {
@@ -83,12 +62,6 @@ export async function action({ request }: ActionFunctionArgs) {
 		)
 	}
 	const { email } = submission.value
-<<<<<<< HEAD
-	const { verifyUrl, redirectTo, otp } = await prepareVerification({
-		period: 10 * 60,
-		request,
-		type: 'onboarding',
-=======
 	const verifySession = await verifySessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
@@ -99,7 +72,6 @@ export async function action({ request }: ActionFunctionArgs) {
 		period: 10 * 60,
 		request,
 		type: providerName.success ? 'onboarding-provider' : 'onboarding',
->>>>>>> develop
 		target: email,
 	})
 

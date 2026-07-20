@@ -104,11 +104,6 @@ redirect loop.
 
 `start:prod` runs `scripts/backup-db.mjs` on start and hourly (a PM2 `cron_restart`), taking
 consistent, timestamped SQLite backups via the online-backup API — safe to run while the app is
-<<<<<<< HEAD
-live — and prunes old ones by retention. With no Fly volume anymore, **also copy the backups
-off-machine** (e.g. a scheduled `rsync` or object-storage upload) so a disk failure can't lose
-them. To restore: stop the app and copy a backup file back over the live database path.
-=======
 live — and pruning old ones by retention. Each snapshot is copied to a throwaway restore path and
 checked for SQLite integrity, foreign-key violations, required tables, and all repository
 migrations before it is retained.
@@ -136,7 +131,6 @@ cp backups/data-<timestamp>.db prisma/data.db
 rm -f prisma/data.db-wal prisma/data.db-shm
 npm run start:prod
 ```
->>>>>>> develop
 
 #### Log rotation
 
@@ -145,6 +139,27 @@ PM2 writes `out.log` and `error.log`. Install the log-rotate module so they don'
 ```
 pm2 install pm2-logrotate
 ```
+
+## Canonical media identity
+
+Tracking V2 links user-owned entry snapshots to shared provider-backed `Media`
+records. Deploy and backfill it in stages:
+
+```
+npm run db:backup
+npx prisma migrate deploy
+npm run media:backfill
+npm run media:backfill -- --commit --limit 25
+npm run media:backfill -- --commit
+npm run tracking:backfill
+npm run tracking:backfill -- --commit --limit 25
+npm run tracking:backfill -- --commit
+```
+
+Both backfills are dry-run by default and idempotent. Run the media identity
+backfill first; the tracking-state backfill then normalizes status, score, dates,
+repeat evidence, and episode/chapter/volume progress without overwriting Entry
+or its history. Neither backfill calls an upstream provider.
 
 ## Testing
 

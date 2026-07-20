@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
-  "include": ["**/*.ts", "**/*.tsx"],
-=======
   "include": ["**/*.ts", "**/*.tsx", ".react-router/types/**/*"],
->>>>>>> develop
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "isolatedModules": true,
@@ -17,10 +13,7 @@
     "noImplicitAny": true,
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
-<<<<<<< HEAD
-=======
     "rootDirs": [".", "./.react-router/types"],
->>>>>>> develop
     "paths": {
       "#*": ["./*"],
       "@/icon-name": [
@@ -29,10 +22,7 @@
       ]
     },
     "skipLibCheck": true,
-<<<<<<< HEAD
-=======
     "types": ["@react-router/node", "vite/client"],
->>>>>>> develop
     "allowImportingTsExtensions": true,
     "noEmit": true
   }
