@@ -38,6 +38,10 @@ export type ReleaseCalendarItem = {
 		statusLabel: string
 		score: number | null
 	} | null
+	viewerReminder: {
+		id: string
+		leadMinutes: number
+	} | null
 }
 
 function dateKey(date: Date) {
@@ -242,21 +246,30 @@ export async function getReleaseCalendar(
 		},
 		orderBy: [{ title: 'asc' }, { id: 'asc' }],
 	})
-	const viewerRows =
+	const [viewerRows, reminderRows] =
 		viewerId && media.length
-			? await prisma.trackingState.findMany({
-					where: {
-						ownerId: viewerId,
-						mediaId: { in: media.map(item => item.id) },
-					},
-					select: {
-						mediaId: true,
-						status: true,
-						score: true,
-						statusWatchlist: { select: { header: true } },
-					},
-				})
-			: []
+			? await Promise.all([
+					prisma.trackingState.findMany({
+						where: {
+							ownerId: viewerId,
+							mediaId: { in: media.map(item => item.id) },
+						},
+						select: {
+							mediaId: true,
+							status: true,
+							score: true,
+							statusWatchlist: { select: { header: true } },
+						},
+					}),
+					prisma.releaseReminder.findMany({
+						where: {
+							ownerId: viewerId,
+							mediaId: { in: media.map(item => item.id) },
+						},
+						select: { id: true, mediaId: true, leadMinutes: true },
+					}),
+				])
+			: [[], []]
 	const viewerTracking = new Map(
 		viewerRows.map(row => [
 			row.mediaId,
@@ -267,6 +280,12 @@ export async function getReleaseCalendar(
 					titleCase(row.status || 'tracked'),
 				score: row.score === null ? null : Number(row.score),
 			},
+		]),
+	)
+	const viewerReminders = new Map(
+		reminderRows.map(row => [
+			row.mediaId,
+			{ id: row.id, leadMinutes: row.leadMinutes },
 		]),
 	)
 	const items: ReleaseCalendarItem[] = []
@@ -280,6 +299,7 @@ export async function getReleaseCalendar(
 			imageUrl: splitLegacyThumbnail(item.thumbnail).imageUrl,
 			trackerCount: item._count.trackingStates,
 			viewerTracking: viewerTracking.get(item.id) ?? null,
+			viewerReminder: viewerReminders.get(item.id) ?? null,
 		}
 		const next = parseStoredNextRelease(item.nextRelease)
 		const nextDate = next

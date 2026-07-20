@@ -26,6 +26,7 @@ function releaseItem(
 			statusLabel: 'Watching',
 			score: 8,
 		},
+		viewerReminder: null,
 		...overrides,
 	}
 }
