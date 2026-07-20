@@ -3,7 +3,7 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader } from './reviews.tsx'
+import { action, loader } from './reviews.tsx'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -20,6 +20,17 @@ async function cookieFor(userId: string) {
 		data: { userId, expirationDate: getSessionExpirationDate() },
 	})
 	return getSessionCookieHeader(session)
+}
+
+function postRequest(values: Record<string, string>, cookie: string) {
+	return new Request(`${BASE_URL}/reviews`, {
+		method: 'POST',
+		headers: {
+			cookie,
+			'content-type': 'application/x-www-form-urlencoded',
+		},
+		body: new URLSearchParams(values),
+	})
 }
 
 test('review hub searches media and reviewers while honoring kind and spoiler filters', async () => {
@@ -158,4 +169,83 @@ test('following view is signed-in only and popular reviews rank by engagement', 
 		params: {},
 	} as any)
 	expect(anonymousFollowing.data.filters.sort).toBe('trending')
+})
+
+test('review hub likes and source-linked notifications stay synchronized', async () => {
+	const [viewer, author] = await Promise.all([
+		createUser('hub_liker'),
+		createUser('hub_review_author'),
+	])
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Inline Review Likes' },
+	})
+	const review = await prisma.review.create({
+		data: {
+			authorId: author.id,
+			mediaId: media.id,
+			body: 'A review that can be liked from discovery.',
+		},
+	})
+	const cookie = await cookieFor(viewer.id)
+
+	const liked = await action({
+		request: postRequest(
+			{ intent: 'review-like-toggle', reviewId: review.id },
+			cookie,
+		),
+		params: {},
+	} as any)
+	expect(liked.data).toMatchObject({ ok: true, liked: true })
+	const like = await prisma.reviewLike.findUniqueOrThrow({
+		where: { userId_reviewId: { userId: viewer.id, reviewId: review.id } },
+	})
+	expect(
+		await prisma.notification.findUnique({
+			where: { reviewLikeId: like.id },
+		}),
+	).toMatchObject({
+		type: 'review_like',
+		recipientId: author.id,
+		actorId: viewer.id,
+		reviewId: review.id,
+	})
+
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/reviews?sort=recent`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(loaded.data.items).toEqual([
+		expect.objectContaining({
+			id: review.id,
+			likeCount: 1,
+			viewerLiked: true,
+		}),
+	])
+
+	const unliked = await action({
+		request: postRequest(
+			{ intent: 'review-like-toggle', reviewId: review.id },
+			cookie,
+		),
+		params: {},
+	} as any)
+	expect(unliked.data).toMatchObject({ ok: true, liked: false })
+	expect(
+		await prisma.reviewLike.count({ where: { reviewId: review.id } }),
+	).toBe(0)
+	expect(
+		await prisma.notification.count({ where: { reviewId: review.id } }),
+	).toBe(0)
+
+	const missing = await action({
+		request: postRequest(
+			{ intent: 'review-like-toggle', reviewId: 'missing-review' },
+			cookie,
+		),
+		params: {},
+	} as any).catch(error => error)
+	expect(missing).toBeInstanceOf(Response)
+	expect((missing as Response).status).toBe(404)
 })

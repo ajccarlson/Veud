@@ -55,6 +55,7 @@ export type ReviewDiscoveryResult = {
 	}
 	likeCount: number
 	commentCount: number
+	viewerLiked: boolean
 }
 
 export type ReviewDiscoveryResults = {
@@ -258,7 +259,10 @@ function yearForReview(review: ReviewDiscoveryRow) {
 	return review.media.startYear || review.media.airYear || null
 }
 
-function resultFromReview(review: ReviewDiscoveryRow): ReviewDiscoveryResult {
+function resultFromReview(
+	review: ReviewDiscoveryRow,
+	viewerLiked: boolean,
+): ReviewDiscoveryResult {
 	return {
 		id: review.id,
 		body: review.body,
@@ -277,6 +281,7 @@ function resultFromReview(review: ReviewDiscoveryRow): ReviewDiscoveryResult {
 		},
 		likeCount: review._count.likes,
 		commentCount: review._count.comments,
+		viewerLiked,
 	}
 }
 
@@ -350,10 +355,23 @@ export async function getReviewDiscoveryResults(
 				(positions.get(left.id) ?? 0) - (positions.get(right.id) ?? 0),
 		)
 	}
+	const viewerLikes =
+		viewerId && rows.length
+			? await prisma.reviewLike.findMany({
+					where: {
+						userId: viewerId,
+						reviewId: { in: rows.map(review => review.id) },
+					},
+					select: { reviewId: true },
+				})
+			: []
+	const viewerLikedIds = new Set(viewerLikes.map(like => like.reviewId))
 
 	return {
 		filters: { ...filters, page },
-		items: rows.map(resultFromReview),
+		items: rows.map(review =>
+			resultFromReview(review, viewerLikedIds.has(review.id)),
+		),
 		total,
 		pageCount,
 	}
