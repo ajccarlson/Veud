@@ -149,19 +149,22 @@ model MediaExternalId {
   kind       String
   externalId String
 
-  sourceUpdatedAt  DateTime?
-  sourceTitle      String?
-  sourcePopularity Float?
-  sourceIsAdult    Boolean?
-  sourceIsVideo    Boolean?
-  firstSeenAt      DateTime  @default(now())
-  lastSeenAt       DateTime  @default(now())
-  lastFetchedAt    DateTime?
-  refreshAfter     DateTime?
-  tombstonedAt     DateTime?
-  fetchStatus      String    @default("pending")
-  failureCount     Int       @default(0)
-  lastError        String?
+  sourceUpdatedAt      DateTime?
+  sourceTitle          String?
+  sourcePopularity     Float?
+  sourceIsAdult        Boolean?
+  sourceIsVideo        Boolean?
+  hydrationPriority    Int       @default(0)
+  hydrationReason      String?
+  hydrationRequestedAt DateTime?
+  firstSeenAt          DateTime  @default(now())
+  lastSeenAt           DateTime  @default(now())
+  lastFetchedAt        DateTime?
+  refreshAfter         DateTime?
+  tombstonedAt         DateTime?
+  fetchStatus          String    @default("pending")
+  failureCount         Int       @default(0)
+  lastError            String?
 
   media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId String
@@ -169,6 +172,7 @@ model MediaExternalId {
   @@unique([provider, kind, externalId])
   @@index([mediaId])
   @@index([provider, kind, fetchStatus, refreshAfter])
+  @@index([provider, kind, hydrationPriority, sourcePopularity])
   @@index([provider, kind, sourcePopularity])
   @@index([provider, kind, lastSeenAt])
   @@index([tombstonedAt])
@@ -220,22 +224,25 @@ model MediaRelation {
 /// One observable execution of an inventory, hydration, refresh, reconciliation,
 /// or repair job. Counts are absolute checkpoints so retries remain idempotent.
 model CatalogSyncRun {
-  id             String    @id @default(cuid())
-  provider       String
-  kind           String
-  mode           String
-  status         String    @default("running")
-  leaseOwner     String
-  cursor         String?
-  recordsSeen    Int       @default(0)
-  recordsHandled Int       @default(0)
-  recordsFailed  Int       @default(0)
-  lastError      String?
-  startedAt      DateTime  @default(now())
-  heartbeatAt    DateTime  @default(now())
-  completedAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  provider           String
+  kind               String
+  mode               String
+  status             String    @default("running")
+  leaseOwner         String
+  cursor             String?
+  recordsSeen        Int       @default(0)
+  recordsHandled     Int       @default(0)
+  recordsFailed      Int       @default(0)
+  requestsMade       Int       @default(0)
+  rateLimitEvents    Int       @default(0)
+  providerRetryAfter DateTime?
+  lastError          String?
+  startedAt          DateTime  @default(now())
+  heartbeatAt        DateTime  @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@index([provider, kind, mode, startedAt])
   @@index([status, heartbeatAt])

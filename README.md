@@ -171,6 +171,11 @@ The first inventory stage is documented in the
 dry-run by default, streams the official gzip exports, checkpoints committed
 batches, and guards full reconciliation against suspiciously small inputs.
 
+Prioritized detail fetching is documented in the
+[TMDB catalog hydration runbook](docs/tmdb-catalog-hydration.md). It processes
+user-demand, upcoming, trending, and popular works before the long tail while
+persisting freshness, retry, request-count, and rate-limit state.
+
 ## Testing
 
 ### Playwright

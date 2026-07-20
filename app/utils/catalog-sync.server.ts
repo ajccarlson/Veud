@@ -37,6 +37,19 @@ export type CatalogSyncProgress = {
 	recordsFailed: number
 }
 
+export const catalogHydrationPriorities = {
+	userDemand: 40_000,
+	upcoming: 30_000,
+	trending: 20_000,
+	popular: 10_000,
+} as const
+
+export type CatalogSyncTelemetry = {
+	requestsMade: number
+	rateLimitEvents: number
+	providerRetryAfter: Date | null
+}
+
 function requireNonEmpty(value: string, label: string) {
 	const normalized = value.trim()
 	if (!normalized) throw new Error(`${label} is required`)
@@ -54,6 +67,33 @@ function requireProgress(progress: CatalogSyncProgress) {
 		throw new Error('handled and failed records cannot exceed records seen')
 	}
 	return progress
+}
+
+function requireTelemetry(telemetry: CatalogSyncTelemetry) {
+	for (const field of ['requestsMade', 'rateLimitEvents'] as const) {
+		if (!Number.isSafeInteger(telemetry[field]) || telemetry[field] < 0) {
+			throw new Error(`${field} must be a non-negative safe integer`)
+		}
+	}
+	if (
+		telemetry.providerRetryAfter &&
+		!Number.isFinite(telemetry.providerRetryAfter.getTime())
+	) {
+		throw new Error('providerRetryAfter must be a valid date')
+	}
+	return telemetry
+}
+
+function requireTelemetryNotRegressed(
+	previous: Pick<CatalogSyncTelemetry, 'requestsMade' | 'rateLimitEvents'>,
+	next: CatalogSyncTelemetry,
+) {
+	for (const field of ['requestsMade', 'rateLimitEvents'] as const) {
+		if (next[field] < previous[field]) {
+			throw new Error(`${field} cannot move backward`)
+		}
+	}
+	return next
 }
 
 function requireProgressNotRegressed(
@@ -185,6 +225,39 @@ export async function replaceCatalogTitles(
 		await tx.mediaTitle.createMany({ data: [...unique.values()] })
 	}
 	return [...unique.values()]
+}
+
+export async function requestCatalogHydration(
+	tx: Prisma.TransactionClient,
+	input: CatalogIdentity & {
+		priority: number
+		reason: string
+		requestedAt?: Date
+	},
+) {
+	const provider = requireNonEmpty(input.provider, 'provider')
+	const kind = requireNonEmpty(input.kind, 'kind')
+	const externalId = requireNonEmpty(input.externalId, 'externalId')
+	const reason = requireNonEmpty(input.reason, 'reason')
+	if (!Number.isSafeInteger(input.priority) || input.priority < 0) {
+		throw new Error('priority must be a non-negative safe integer')
+	}
+	const requestedAt = input.requestedAt ?? new Date()
+	const source = await tx.mediaExternalId.findUniqueOrThrow({
+		where: {
+			provider_kind_externalId: { provider, kind, externalId },
+		},
+		select: { id: true, hydrationPriority: true },
+	})
+	if (source.hydrationPriority > input.priority) return source
+	return tx.mediaExternalId.update({
+		where: { id: source.id },
+		data: {
+			hydrationPriority: input.priority,
+			hydrationReason: reason,
+			hydrationRequestedAt: requestedAt,
+		},
+	})
 }
 
 export function catalogSourceNeedsFetch(
@@ -359,6 +432,7 @@ export async function checkpointCatalogSyncRun(
 		runId: string
 		leaseOwner: string
 		progress: CatalogSyncProgress
+		telemetry?: CatalogSyncTelemetry
 		leaseDurationMs: number
 		now?: Date
 	},
@@ -367,6 +441,10 @@ export async function checkpointCatalogSyncRun(
 	const now = input.now ?? new Date()
 	const run = await requireActiveRun(tx, input)
 	requireProgressNotRegressed(run, progress)
+	const telemetry = input.telemetry
+		? requireTelemetry(input.telemetry)
+		: undefined
+	if (telemetry) requireTelemetryNotRegressed(run, telemetry)
 	const renewed = await tx.catalogSyncCursor.updateMany({
 		where: {
 			provider: run.provider,
@@ -385,7 +463,7 @@ export async function checkpointCatalogSyncRun(
 	}
 	return tx.catalogSyncRun.update({
 		where: { id: run.id },
-		data: { ...progress, heartbeatAt: now },
+		data: { ...progress, ...telemetry, heartbeatAt: now },
 	})
 }
 
@@ -395,6 +473,7 @@ export async function completeCatalogSyncRun(
 		runId: string
 		leaseOwner: string
 		progress: CatalogSyncProgress
+		telemetry?: CatalogSyncTelemetry
 		now?: Date
 	},
 ) {
@@ -402,6 +481,10 @@ export async function completeCatalogSyncRun(
 	const now = input.now ?? new Date()
 	const run = await requireActiveRun(tx, input)
 	requireProgressNotRegressed(run, progress)
+	const telemetry = input.telemetry
+		? requireTelemetry(input.telemetry)
+		: undefined
+	if (telemetry) requireTelemetryNotRegressed(run, telemetry)
 	const released = await tx.catalogSyncCursor.updateMany({
 		where: {
 			provider: run.provider,
@@ -424,6 +507,7 @@ export async function completeCatalogSyncRun(
 		where: { id: run.id },
 		data: {
 			...progress,
+			...telemetry,
 			status: 'completed',
 			heartbeatAt: now,
 			completedAt: now,
@@ -438,6 +522,7 @@ export async function failCatalogSyncRun(
 		leaseOwner: string
 		error: unknown
 		progress?: CatalogSyncProgress
+		telemetry?: CatalogSyncTelemetry
 		now?: Date
 	},
 ) {
@@ -445,6 +530,10 @@ export async function failCatalogSyncRun(
 	const run = await requireActiveRun(tx, input)
 	const progress = input.progress ? requireProgress(input.progress) : undefined
 	if (progress) requireProgressNotRegressed(run, progress)
+	const telemetry = input.telemetry
+		? requireTelemetry(input.telemetry)
+		: undefined
+	if (telemetry) requireTelemetryNotRegressed(run, telemetry)
 	await tx.catalogSyncCursor.updateMany({
 		where: {
 			provider: run.provider,
@@ -458,6 +547,7 @@ export async function failCatalogSyncRun(
 		where: { id: run.id },
 		data: {
 			...progress,
+			...telemetry,
 			status: 'failed',
 			lastError: boundedError(input.error),
 			heartbeatAt: now,
