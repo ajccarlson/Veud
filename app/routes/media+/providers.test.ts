@@ -12,8 +12,8 @@
  * NOTE: authored in a sandbox without vitest; run `npm run test` to confirm.
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { getAnilistSchedule, searchMAL } from './mal.ts'
-import { searchTMDB } from './tmdb.ts'
+import { formatMangaInfo, getAnilistSchedule, searchMAL } from './mal.ts'
+import { getTMDBInfo, searchTMDB } from './tmdb.ts'
 
 let fetchMock: any
 
@@ -44,7 +44,9 @@ function upstreamUrl(call: any): URL {
 // ---- searchTMDB ----
 
 test('searchTMDB maps the type, hits TMDB search, and slices to numResults', async () => {
-	fetchMock.mockResolvedValue(proxyJson({ results: [{ id: 1 }, { id: 2 }, { id: 3 }] }))
+	fetchMock.mockResolvedValue(
+		proxyJson({ results: [{ id: 1 }, { id: 2 }, { id: 3 }] }),
+	)
 
 	const results = await searchTMDB('cowboy bebop', 'TV Series', 2)
 
@@ -93,11 +95,72 @@ test('searchTMDB returns undefined when the fetch fails', async () => {
 	consoleError.mockRestore()
 })
 
+test('TMDB movie details hydrate other titles in the same collection', async () => {
+	fetchMock
+		.mockResolvedValueOnce(
+			proxyJson({
+				id: 10,
+				title: 'First Franchise Movie',
+				poster_path: '/first.jpg',
+				overview: 'The first entry.',
+				release_date: '2020-01-01',
+				runtime: 120,
+				vote_average: 8,
+				original_language: 'en',
+				genres: [],
+				belongs_to_collection: { id: 55, name: 'Franchise Collection' },
+			}),
+		)
+		.mockResolvedValueOnce(
+			proxyJson({
+				id: 55,
+				parts: [
+					{ id: 10, title: 'First Franchise Movie' },
+					{
+						id: 11,
+						title: 'Second Franchise Movie',
+						poster_path: '/second.jpg',
+						release_date: '2023-06-01',
+					},
+				],
+			}),
+		)
+		.mockResolvedValueOnce(proxyJson({ results: [] }))
+
+	const result = (await getTMDBInfo(10, 'movie')) as any
+
+	expect(fetchMock).toHaveBeenCalledTimes(3)
+	expect(upstreamUrl(fetchMock.mock.calls[0]).pathname).toBe('/3/movie/10')
+	expect(upstreamUrl(fetchMock.mock.calls[1]).pathname).toBe('/3/collection/55')
+	expect(upstreamUrl(fetchMock.mock.calls[2]).pathname).toBe(
+		'/3/movie/10/release_dates',
+	)
+	expect(result.mediaRelations).toEqual([
+		{
+			relationType: 'franchise',
+			targetIdentity: {
+				provider: 'tmdb',
+				kind: 'movie',
+				externalId: '11',
+			},
+			targetCatalog: {
+				title: 'Second Franchise Movie',
+				type: 'Movie',
+				releaseStart: new Date('2023-06-01'),
+				thumbnail:
+					'https://www.themoviedb.org/t/p/w600_and_h900_bestv2/second.jpg|https://www.themoviedb.org/movie/11',
+			},
+		},
+	])
+})
+
 // ---- searchMAL ----
 
 test('searchMAL unwraps node objects, slices, and hits the MAL search endpoint', async () => {
 	fetchMock.mockResolvedValue(
-		proxyJson({ data: [{ node: { id: 1 } }, { node: { id: 2 } }, { node: { id: 3 } }] }),
+		proxyJson({
+			data: [{ node: { id: 1 } }, { node: { id: 2 } }, { node: { id: 3 } }],
+		}),
 	)
 
 	const results = await searchMAL('naruto', 'anime', 2)
@@ -119,16 +182,73 @@ test('searchMAL escapes the query so it cannot inject extra params', async () =>
 	expect(url.searchParams.get('limit')).toBe('5')
 })
 
+test('MAL detail formatting preserves canonical related-work identities', async () => {
+	const result = await formatMangaInfo(
+		{
+			id: 1,
+			title: 'Source manga',
+			media_type: 'manga',
+			start_date: '2020-01-01',
+			main_picture: { large: 'https://example.com/source.jpg' },
+			genres: [],
+			serialization: [],
+			authors: [],
+			num_chapters: 10,
+			num_volumes: 2,
+			mean: 8,
+			synopsis: 'A source story.',
+			related_anime: [
+				{
+					relation_type: 'adaptation',
+					node: {
+						id: 2,
+						title: 'Anime adaptation',
+						main_picture: { medium: 'https://example.com/anime.jpg' },
+					},
+				},
+			],
+			related_manga: [],
+		},
+		false,
+	)
+
+	expect(result.mediaRelations).toEqual([
+		{
+			relationType: 'adaptation',
+			targetIdentity: {
+				provider: 'mal',
+				kind: 'anime',
+				externalId: '2',
+			},
+			targetCatalog: {
+				title: 'Anime adaptation',
+				thumbnail:
+					'https://example.com/anime.jpg|https://myanimelist.net/anime/2',
+			},
+		},
+	])
+})
+
 // ---- getAnilistSchedule ----
 
 test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () => {
 	const media = {
-		nextAiringEpisode: { airingAt: 0, timeUntilAiring: 3600, episode: 12, mediaId: 999 },
+		nextAiringEpisode: {
+			airingAt: 0,
+			timeUntilAiring: 3600,
+			episode: 12,
+			mediaId: 999,
+		},
 		streamingEpisodes: [
 			{ title: 'Episode 12 - The One', thumbnail: '', url: '', site: '' },
 		],
 		duration: 24,
-		coverImage: { extraLarge: 'https://img/xl.jpg', large: '', medium: '', color: '' },
+		coverImage: {
+			extraLarge: 'https://img/xl.jpg',
+			large: '',
+			medium: '',
+			color: '',
+		},
 	}
 	fetchMock.mockResolvedValue(proxyJson({ data: { Media: media } }))
 
