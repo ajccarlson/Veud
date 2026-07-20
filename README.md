@@ -171,6 +171,11 @@ The first inventory stage is documented in the
 dry-run by default, streams the official gzip exports, checkpoints committed
 batches, and guards full reconciliation against suspiciously small inputs.
 
+The anime and manga inventory stage is documented in the
+[MyAnimeList catalog inventory runbook](docs/mal-catalog-inventory.md). It scans
+official ranking pages with resumable offsets, conservative pacing, persistent
+rate-limit cooldowns, and an explicit bulk-storage policy approval gate.
+
 Prioritized detail fetching is documented in the
 [TMDB catalog hydration runbook](docs/tmdb-catalog-hydration.md). It processes
 user-demand, upcoming, trending, and popular works before the long tail while
