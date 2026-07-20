@@ -139,6 +139,7 @@ model Media {
   diaryEntries      DiaryEntry[]
   collectionItems   MediaCollectionItem[]
   releaseReminders  ReleaseReminder[]
+  catalogFeedItems  CatalogFeedItem[]
 
   @@index([kind])
   @@index([catalogPopularity])
@@ -146,6 +147,25 @@ model Media {
   @@index([releaseStart])
   @@index([releaseStatus])
   @@index([title])
+}
+
+/// A ranked provider feed snapshot tied to a canonical work. Replacing one
+/// provider/kind/feed snapshot never affects user-owned media history.
+model CatalogFeedItem {
+  id         String   @id @default(cuid())
+  provider   String
+  kind       String
+  feed       String
+  rank       Int
+  observedAt DateTime
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([provider, kind, feed, mediaId])
+  @@index([provider, kind, feed, rank])
+  @@index([mediaId])
+  @@index([observedAt])
 }
 
 /// A stable identifier assigned by an upstream catalog. `kind` participates in

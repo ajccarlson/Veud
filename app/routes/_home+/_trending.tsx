@@ -1,142 +1,229 @@
-import { useState, useEffect } from 'react'
+import { useRef } from 'react'
 import { Link } from 'react-router'
-import { getSeasonalAnime } from '#app/routes/media+/mal.ts'
-import { getTMDBTrending } from '#app/routes/media+/tmdb.ts'
-import { getThumbnailInfo } from '#app/utils/lists/column-functions.tsx'
+import {
+	QuickTrackControl,
+	type QuickTrackWatchlist,
+} from '#app/components/quick-track-control.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { type HomeTrendingRail } from '#app/utils/home-trending.server.ts'
+import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 
-async function getTrending(site: string, trendingParams: any) {
-  if (site == "tmdb") {
-    return await getTMDBTrending(trendingParams.mediaType, trendingParams.numResults)
-  }
-  else if (site == "mal") {
-    return await getSeasonalAnime(trendingParams.year, trendingParams.month, trendingParams.numResults)
-  }
+function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
+	return (
+		<svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4">
+			<path
+				d="M12.5 4.5 7 10l5.5 5.5"
+				fill="none"
+				stroke="currentColor"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth="2"
+				transform={direction === 'right' ? 'rotate(180 10 10)' : undefined}
+			/>
+		</svg>
+	)
 }
 
-function setTrending(trendingParams: any) {
-  return {
-    trendingMovie: {
-      header: "Trending Movies",
-      data: trendingParams.trendingMovies,
-    },
-    trendingTV: {
-      header: "Trending TV",
-      data: trendingParams.trendingTV,
-    },
-    seasonalAnime: {
-      header: "Airing Anime",
-      data: trendingParams.seasonalAnime,
-    }
-  }
+function TrendingRail({
+	rail,
+	watchlists,
+	isSignedIn,
+}: {
+	rail: HomeTrendingRail
+	watchlists: QuickTrackWatchlist[]
+	isSignedIn: boolean
+}) {
+	const scroller = useRef<HTMLDivElement>(null)
+	const headingId = `home-trending-${rail.kind}`
+	const scroll = (direction: -1 | 1) => {
+		scroller.current?.scrollBy({
+			left: direction * Math.max(320, scroller.current.clientWidth * 0.8),
+			behavior: 'smooth',
+		})
+	}
+
+	return (
+		<section aria-labelledby={headingId} className="min-w-0 space-y-3">
+			<header className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex items-baseline gap-3">
+					<h3 id={headingId} className="text-xl font-black text-[#ffffb1]">
+						{rail.title}
+					</h3>
+					<Link
+						to={`/discover?kind=${rail.kind}&sort=popular`}
+						className="text-xs font-bold text-[#a2ffd5] hover:underline"
+					>
+						View all
+					</Link>
+				</div>
+				<div className="flex gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="icon"
+						className="h-8 w-8"
+						onClick={() => scroll(-1)}
+						aria-label={`Scroll ${rail.title} left`}
+					>
+						<ArrowIcon direction="left" />
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="icon"
+						className="h-8 w-8"
+						onClick={() => scroll(1)}
+						aria-label={`Scroll ${rail.title} right`}
+					>
+						<ArrowIcon direction="right" />
+					</Button>
+				</div>
+			</header>
+
+			{/* A focusable overflow region enables arrow-key scrolling across browsers. */}
+			{/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
+			<div
+				ref={scroller}
+				data-testid={`trending-rail-${rail.kind}`}
+				tabIndex={0}
+				role="region"
+				aria-label={`${rail.title} titles`}
+				className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 [scrollbar-color:#54806c_#2e2f2b] [scrollbar-width:thin]"
+			>
+				{rail.items.map(item => {
+					const { imageUrl } = splitLegacyThumbnail(item.thumbnail)
+					return (
+						<article
+							key={item.id}
+							className="w-44 shrink-0 snap-start overflow-hidden rounded-xl border border-[#54806c] bg-[#383040] shadow-lg shadow-black/20"
+						>
+							<Link
+								to={`/media/${item.id}`}
+								className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a2ffd5]"
+							>
+								<div className="relative aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+									{imageUrl ? (
+										<img
+											src={imageUrl}
+											alt=""
+											loading={item.rank > 6 ? 'lazy' : 'eager'}
+											className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+										/>
+									) : (
+										<span className="flex h-full items-center justify-center px-4 text-center text-xs font-bold text-[#8ca99d]">
+											No poster available
+										</span>
+									)}
+									<span className="absolute left-2 top-2 rounded-full bg-[#222]/90 px-2 py-1 text-xs font-black text-[#ffcc66]">
+										#{item.rank}
+									</span>
+									<span className="absolute bottom-2 right-2 rounded bg-[#222]/90 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+										{item.source === 'provider-feed' ? 'Trending' : 'Popular'}
+									</span>
+								</div>
+								<div className="min-h-24 p-3">
+									<h4 className="line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
+										{item.title}
+									</h4>
+									<p className="mt-1 text-xs text-[#a2ffd5]">
+										{item.type || item.kind}
+										{item.year ? ` · ${item.year}` : ''}
+										{item.score !== null ? ` · ★ ${item.score.toFixed(1)}` : ''}
+									</p>
+								</div>
+							</Link>
+							<div className="border-t border-[#54806c]/60 p-3">
+								<QuickTrackControl
+									item={item}
+									watchlists={watchlists}
+									isSignedIn={isSignedIn}
+									loginRedirectTo="/"
+									layout="stacked"
+								/>
+							</div>
+						</article>
+					)
+				})}
+			</div>
+			{/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+		</section>
+	)
 }
 
-export function TrendingData({ currentUser }: any) {
-  const [trendingMovies, setTrendingMovies] = useState<any[]>()
-  const [trendingTV, setTrendingTV] = useState<any[]>()
-  const [seasonalAnime, setSeasonalAnime] = useState<any[]>()
-  const [trendingItems, setTrendingItems] = useState(setTrending({trendingMovies, trendingTV, seasonalAnime}))
-  
-  const thumbnailArray = ["https://image.tmdb.org/t/p/original/ksBffAuz4xzquWCTCjlG2kAEZ7P.jpg", "https://image.tmdb.org/t/p/original/7L9MgdBPMMCnkcKN2nAD862g0qN.jpg", "https://image.tmdb.org/t/p/original/2y6jZRoM6arYpNXC2GZAjUV4bmW.jpg", "https://image.tmdb.org/t/p/original/VZbAdOpwUX6wqyYQAAFS9YKgKS.jpg", "https://image.tmdb.org/t/p/original/5uZyubyIqpGfnOg3Zj87pf5Khm6.jpg", "https://image.tmdb.org/t/p/original/hNBNhNd6fnvsFdDwKz6mh890jaZ.jpg", "https://image.tmdb.org/t/p/original/jd13Sq0pdl81F90p2pQAbBI3NZk.jpg", "https://image.tmdb.org/t/p/original/31yHdUtoooGcslDcJsPzxP5sEWM.jpg", "https://image.tmdb.org/t/p/original/wHNwlE6ftEpgjVbdhLXOtv1hLs0.jpg", "https://image.tmdb.org/t/p/original/2meX1nMdScFOoV4370rqHWKmXhY.jpg", "https://image.tmdb.org/t/p/original/d87JXX3DLkRJMfm5StCmmnmhHuX.jpg", "https://image.tmdb.org/t/p/original/8BcQ49alz5CQABR0oiBKpQtQSro.jpg", "https://image.tmdb.org/t/p/original/lvSB0bnLzuxwrfTlI2l13gctWRn.jpg", "https://image.tmdb.org/t/p/original/5SXCdStomTouV3487vCSkDPEBHr.jpg", "https://image.tmdb.org/t/p/original/wQEW3xLrQAThu1GvqpsKQyejrYS.jpg", "https://image.tmdb.org/t/p/original/q8eejQcg1bAqImEV8jh8RtBD4uH.jpg", "https://image.tmdb.org/t/p/original/1b0thlqquLMGrjHcxFVWSaZtTLC.jpg", "https://image.tmdb.org/t/p/original/pbrkL804c8yAv3zBZR4QPEafpAR.jpg", "https://image.tmdb.org/t/p/original/65BTgbR7w8g5h8PlNwUgRVWqPyQ.jpg", "https://image.tmdb.org/t/p/original/1Ld1OTmrocP7h5px8k16ymaxIvS.jpg", "https://image.tmdb.org/t/p/original/hiKmpZMGZsrkA3cdce8a7Dpos1j.jpg", "https://image.tmdb.org/t/p/original/qU4HDNKv7gjdlvMu74r70rISPwn.jpg", "https://image.tmdb.org/t/p/original/sPaUE06Zu99aEr4uTFNnK8ZV9pD.jpg", "https://image.tmdb.org/t/p/original/fTdBMqmlfQ7ZeiLkvHyh14Bx8a3.jpg", "https://image.tmdb.org/t/p/original/vAp1u1TVufGRzmNsqtVuZhdHUFY.jpg", "https://image.tmdb.org/t/p/original/8WMuefemyvvJxoZoZ62L06rDGtM.jpg", "https://image.tmdb.org/t/p/original/wdUghFTcbuIqM49qdfamSewbRle.jpg", "https://image.tmdb.org/t/p/original/xcDiiWTFJ6T3D3qayL1DdlDeQz8.jpg", "https://image.tmdb.org/t/p/original/yodnsKfTUbcxemzTx1hb5rkVJeU.jpg", "https://image.tmdb.org/t/p/original/dvl0XE1A6JBYlV72E2HVGZsYiK9.jpg", "https://image.tmdb.org/t/p/original/nfWhNM5VVd9a5bEGobs83TWTuLM.jpg", "https://image.tmdb.org/t/p/original/aYD6bR1xs9OAK3lA5WHbvIX2gMN.jpg", "https://image.tmdb.org/t/p/original/fK0KYp0lgixgUhSPuT9HCqS6Yy.jpg", "https://image.tmdb.org/t/p/original/uEoaOfvWibpvjBNxFoj4MxWn0OH.jpg", "https://image.tmdb.org/t/p/original/mpUcBHfzKpSo72rwo2EaaGkeSX1.jpg", "https://image.tmdb.org/t/p/original/iETN9WbG94gYbzpqftwtpQvhCiD.jpg", "https://image.tmdb.org/t/p/original/nzE6hIvfVOnPNAdX83OKy0yNGMa.jpg", "https://image.tmdb.org/t/p/original/jCp38EnWH2MEDgYPrujBC13dMOy.jpg", "https://image.tmdb.org/t/p/original/zH9VWcgBCQaGjeR8c1C4UtuOwWd.jpg", "https://image.tmdb.org/t/p/original/uqTCaYBoSLT9MAdyQ9tU6QyCZ3A.jpg", "https://image.tmdb.org/t/p/original/dK1DD0M7vm9rJAqKVLlXrn6dswN.jpg", "https://image.tmdb.org/t/p/original/7VMPXWo1KpeMiefk6Dpf4Odhs8w.jpg", "https://image.tmdb.org/t/p/original/ohNzyaaRJ3gyunuPwzFqwlfnZJp.jpg", "https://image.tmdb.org/t/p/original/twA0XYggQKwNaDQlTZvvdPec3p8.jpg", "https://image.tmdb.org/t/p/original/3K7VJW9dVx9PfgulZiYLJZafBYU.jpg", "https://image.tmdb.org/t/p/original/zZqpAXxVSBtxV9qPBcscfXBcL2w.jpg", "https://image.tmdb.org/t/p/original/95mqtO1ZHvtnsqoMXAqBk8EjuRu.jpg", "https://image.tmdb.org/t/p/original/djhEQvGsv7o3qf8fLQc1p6KHEy1.jpg", "https://image.tmdb.org/t/p/original/pYEFwZj6YDR8OhX9tyO78IoJADe.jpg", "https://image.tmdb.org/t/p/original/5N0cTcBq57e4yhARt6dOmrupvAT.jpg", "https://image.tmdb.org/t/p/original/26KFG5GQ6PfCRaeURFs2T339eXJ.jpg", "https://image.tmdb.org/t/p/original/szxo4pzatit94Avn0aqyLJhwIVR.jpg", "https://image.tmdb.org/t/p/original/cmyZfAGmtiYtKNwuXjmRn3fXRQA.jpg", "https://image.tmdb.org/t/p/original/wYG0n3F8fPPm3Uz87Ru7DafFiT7.jpg", "https://image.tmdb.org/t/p/original/xOpQ4jIQJ0HSUhVDixZA9yWqVBP.jpg", "https://image.tmdb.org/t/p/original/4lr2VqOcw9YROMnOWoHtUR9xGxA.jpg", "https://image.tmdb.org/t/p/original/zMHyNxNt4zhL939XX8QLBW3gWfu.jpg", "https://image.tmdb.org/t/p/original/pB3t7qGaN89trJzNNBTyGKYzh2.jpg", "https://image.tmdb.org/t/p/original/hzW2kxEXGkciDc5tB20AbcysnUu.jpg", "https://image.tmdb.org/t/p/original/dORCOeripNHI7l1TEayBrsUhWoM.jpg", "https://image.tmdb.org/t/p/original/nIcWLH8IWz6CfkD5KXF37QL2dR9.jpg", "https://image.tmdb.org/t/p/original/d7JUXVvjvVCXWs1mlpyO5ESdWdT.jpg", "https://image.tmdb.org/t/p/original/dK1JoC1OgXly6RcgiedkHlyYNy1.jpg"]
+export function TrendingData({
+	rails,
+	watchlists,
+	isSignedIn,
+}: {
+	rails: HomeTrendingRail[]
+	watchlists: QuickTrackWatchlist[]
+	isSignedIn: boolean
+}) {
+	return (
+		<section
+			aria-labelledby="home-trending-heading"
+			className="w-full max-w-7xl space-y-8 self-center px-4 text-[#ffefcc]"
+		>
+			<header className="flex flex-wrap items-end justify-between gap-4">
+				<div>
+					<p className="text-xs font-black uppercase tracking-[0.2em] text-[#a2ffd5]">
+						Discover what’s moving
+					</p>
+					<h2
+						id="home-trending-heading"
+						className="mt-1 text-3xl font-black text-[#ff9900] sm:text-4xl"
+					>
+						Trending now
+					</h2>
+					<p className="mt-2 max-w-2xl text-sm text-[#c6ded2]">
+						Fresh provider charts backed by Veud’s canonical catalog, with
+						popular fallbacks whenever a chart has not refreshed yet.
+					</p>
+				</div>
+				<Button asChild variant="outline">
+					<Link to="/discover">Explore the catalog</Link>
+				</Button>
+			</header>
 
-  const [chosenThumbnail/*, setChosenThumbnail*/] = useState(Math.floor(Math.random() * thumbnailArray.length))
+			{rails.length ? (
+				<div className="min-w-0 space-y-8">
+					{rails.map(rail => (
+						<TrendingRail
+							key={rail.kind}
+							rail={rail}
+							watchlists={watchlists}
+							isSignedIn={isSignedIn}
+						/>
+					))}
+				</div>
+			) : (
+				<div className="rounded-xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-12 text-center">
+					<h3 className="font-black text-[#ffffb1]">
+						Catalog charts are warming up
+					</h3>
+					<p className="mt-1 text-sm text-[#a2ffd5]">
+						Trending titles will appear after the first catalog inventory or
+						feed refresh.
+					</p>
+				</div>
+			)}
 
-  useEffect(() => {
-    let cancelled = false
-    if (!trendingMovies || trendingMovies.length < 1) {
-      getTrending("tmdb", {mediaType: "movie", numResults: 10}).then(val => {
-        if (!cancelled) setTrendingMovies(val)
-      }).catch(e => {
-        if (!cancelled) console.error(e)
-      })
-    }
-    return () => { cancelled = true }
-  }, [trendingMovies])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!trendingTV || trendingTV.length < 1) {
-      getTrending("tmdb", {mediaType: "tv", numResults: 10}).then(val => {
-        if (!cancelled) setTrendingTV(val)
-      }).catch(e => {
-        if (!cancelled) console.error(e)
-      })
-    }
-    return () => { cancelled = true }
-  }, [trendingTV])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!seasonalAnime || seasonalAnime.length < 1) {
-      const date = new Date()
-      getTrending("mal", {year: date.getFullYear(), month: date.getMonth() + 1, numResults: 10}).then(val => {
-        if (!cancelled) setSeasonalAnime(val)
-      }).catch(e => {
-        if (!cancelled) console.error(e)
-      })
-    }
-    return () => { cancelled = true }
-  }, [seasonalAnime])
-
-  useEffect(() => {
-    setTrendingItems(setTrending({trendingMovies, trendingTV, seasonalAnime}))
-  }, [trendingMovies, trendingTV, seasonalAnime])
-
-  return (
-    <div className="trending-main">
-      <div className="trending-container">
-        {!currentUser ? 
-          <div className="home-signup-container">
-            <h1 className="home-signup-header">Join Today</h1>
-            <div className="home-signup-items" style={{backgroundImage: `linear-gradient(rgba(27, 23, 30, 0.7), rgba(27, 23, 30, 0.7)), url("${thumbnailArray[chosenThumbnail]}")`}}>
-              <div className="home-signup-message">
-                Manage your own personalized lists, keep track of your viewing history, and discover a new obsession.
-              </div>
-            </div>
-            <Link to={'/signup'} className="home-signup-button">
-                Sign Up
-              </Link>
-          </div>
-        :
-          null
-        }
-        {Object.entries(trendingItems).map(([trendingKey, trendingValue]: [string, any], trendingIndex) => {
-          return (
-            trendingValue.data?.length > 1 ?
-              <div className="trending-item-container">
-                <h1 className="trending-item-header animate-slide-top [animation-fill-mode:backwards] ">{trendingValue.header}</h1>
-                <div className="trending-nav-thumbnail-container">
-                  {trendingValue.data.slice(0, 10).map((trendingItem: any, index: number) => {
-                    return (
-                      <div className="trending-nav-thumbnail-item animate-roll-reveal [animation-fill-mode:backwards]" key={index} style={{ animationDelay: `${index * 0.07}s` }}>
-                        <Link to={getThumbnailInfo(trendingItem.thumbnail).url} className="trending-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(trendingItem.thumbnail).content}")`}}>
-                          {/* <span className="trending-thumbnail-header">
-                            <div className="trending-thumbnail-start-year">
-                              {trendingItem.year}
-                            </div>
-                          </span> */}
-                          <span className="trending-thumbnail-footer">
-                            {trendingItem.title.length > 20 ? `${trendingItem.title.substring(0, 20)}...` : trendingItem.title}
-                          </span>
-                        </Link>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            :
-            <div className="trending-loader-main">
-              <div className="trending-loader-container" style={{
-                transform: `rotate(${90 * trendingIndex}deg)`
-              }}>
-                <div className="trending-loader-item trending-loader-item-1"></div>
-                <div className="trending-loader-item trending-loader-item-2"></div>
-                <div className="trending-loader-item trending-loader-item-3"></div>
-                <div className="trending-loader-item trending-loader-item-4"></div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+			{!isSignedIn ? (
+				<div className="overflow-hidden rounded-2xl border border-[#54806c] bg-gradient-to-r from-[#383040] to-[#403530] p-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-8">
+					<div>
+						<h3 className="text-2xl font-black text-[#ffffb1]">
+							Make it yours
+						</h3>
+						<p className="mt-2 max-w-2xl text-[#c6ded2]">
+							Build personal lists, keep a viewing diary, and turn these charts
+							into your next watch.
+						</p>
+					</div>
+					<Button asChild className="mt-5 w-full sm:mt-0 sm:w-auto">
+						<Link to="/signup">Join Veud</Link>
+					</Button>
+				</div>
+			) : null}
+		</section>
+	)
 }
