@@ -78,3 +78,67 @@ test('member can engage with a review and open an unread notification', async ({
 		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
 	}
 })
+
+test('member can discover spoiler-safe reviews from followed critics', async ({
+	page,
+	login,
+	insertNewUser,
+}) => {
+	const viewer = await login()
+	const author = await insertNewUser()
+	const [safeMedia, spoilerMedia] = await Promise.all([
+		prisma.media.create({
+			data: { kind: 'movie', title: 'Review Hub Browser Safe' },
+		}),
+		prisma.media.create({
+			data: { kind: 'anime', title: 'Review Hub Browser Spoiler' },
+		}),
+	])
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: viewer.id, followingId: author.id },
+		}),
+		prisma.review.create({
+			data: {
+				authorId: author.id,
+				mediaId: safeMedia.id,
+				body: 'A visible browser review excerpt.',
+				rating: 8,
+			},
+		}),
+		prisma.review.create({
+			data: {
+				authorId: author.id,
+				mediaId: spoilerMedia.id,
+				body: 'The browser-only secret ending.',
+				containsSpoilers: true,
+			},
+		}),
+	])
+
+	try {
+		await page.goto('/reviews?sort=following')
+		await expect(
+			page.getByRole('heading', { name: 'From people you follow reviews' }),
+		).toBeVisible()
+		await expect(
+			page.getByText('A visible browser review excerpt.'),
+		).toBeVisible()
+		await expect(page.getByText('The browser-only secret ending.')).toHaveCount(
+			0,
+		)
+		await expect(
+			page.getByText(/Contains spoilers\. Open the title page/),
+		).toBeVisible()
+		await page.getByLabel('Spoiler-free reviews only').check()
+		await page.getByRole('button', { name: 'Browse' }).click()
+		await expect(page).toHaveURL(/spoilers=exclude/)
+		await expect(
+			page.getByRole('heading', { name: 'Review Hub Browser Spoiler' }),
+		).toHaveCount(0)
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: [safeMedia.id, spoilerMedia.id] } } })
+			.catch(() => {})
+	}
+})
