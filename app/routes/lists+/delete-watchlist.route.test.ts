@@ -69,7 +69,9 @@ function requestParamFor(watchlistId: string, listTypeId: string) {
 test('delete-watchlist exposes only an action (a GET is 405, not an open endpoint)', () => {
 	expect(typeof action).toBe('function')
 	// No loader export -> Remix answers GET with 405, closing the old unauthenticated read.
-	expect((deleteWatchlistRoute as Record<string, unknown>).loader).toBeUndefined()
+	expect(
+		(deleteWatchlistRoute as Record<string, unknown>).loader,
+	).toBeUndefined()
 })
 
 test('the owner can delete their own watchlist', async () => {
@@ -86,6 +88,72 @@ test('the owner can delete their own watchlist', async () => {
 	expect(gone).toBeNull()
 })
 
+test('deleting the current list restores a surviving private tracking status', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const privateList = await prisma.watchlist.create({
+		data: {
+			ownerId: userId,
+			typeId: listTypeId,
+			name: 'private-backlog',
+			header: 'Private backlog',
+			position: 2,
+			isPublic: false,
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Deletion privacy title' },
+	})
+	const state = await prisma.trackingState.create({
+		data: {
+			ownerId: userId,
+			mediaId: media.id,
+			status: 'public-current',
+			statusWatchlistId: watchlistId,
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId,
+				mediaId: media.id,
+				trackingStateId: state.id,
+				position: 1,
+				title: media.title ?? 'Deletion privacy title',
+			},
+			{
+				watchlistId: privateList.id,
+				mediaId: media.id,
+				trackingStateId: state.id,
+				position: 1,
+				title: media.title ?? 'Deletion privacy title',
+			},
+		],
+	})
+
+	await action({
+		request: await authedRequestFor(userId),
+		params: { request: requestParamFor(watchlistId, listTypeId) },
+	} as any)
+
+	const reconciled = await prisma.trackingState.findUniqueOrThrow({
+		where: { id: state.id },
+	})
+	expect(reconciled.statusWatchlistId).toBe(privateList.id)
+	expect(reconciled.status).toBe(privateList.name)
+	const event = await prisma.activityEvent.findFirstOrThrow({
+		where: { trackingStateId: state.id },
+		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+	})
+	expect(event).toEqual(
+		expect.objectContaining({
+			statusWatchlistId: privateList.id,
+			previousStatusLabel: 'LiveAction',
+			previousStatusWatchlistId: null,
+			isPublic: false,
+		}),
+	)
+})
+
 test('a logged-in non-owner cannot delete the watchlist (404, and it survives)', async () => {
 	const { watchlistId, listTypeId } = await seedOwnedWatchlist()
 	const other = await createUserRecord()
@@ -98,7 +166,9 @@ test('a logged-in non-owner cannot delete the watchlist (404, and it survives)',
 
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
-	const survived = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
+	const survived = await prisma.watchlist.findUnique({
+		where: { id: watchlistId },
+	})
 	expect(survived).not.toBeNull()
 })
 
@@ -114,6 +184,8 @@ test('an unauthenticated caller cannot delete the watchlist', async () => {
 	const status = (res as Response).status
 	expect(status).toBeGreaterThanOrEqual(300)
 	expect(status).toBeLessThan(400)
-	const survived = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
+	const survived = await prisma.watchlist.findUnique({
+		where: { id: watchlistId },
+	})
 	expect(survived).not.toBeNull()
 })
