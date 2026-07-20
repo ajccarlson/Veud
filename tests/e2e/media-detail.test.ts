@@ -5,8 +5,13 @@ import { expect, test } from '#tests/playwright-utils.ts'
 test('member can open a canonical media page and change status', async ({
 	page,
 	login,
+	insertNewUser,
 }) => {
 	const user = await login()
+	const [watchingMember, plannedMember] = await Promise.all([
+		insertNewUser(),
+		insertNewUser(),
+	])
 	const listType = await prisma.listType.findUniqueOrThrow({
 		where: { name: 'anime' },
 	})
@@ -19,27 +24,136 @@ test('member can open a canonical media page and change status', async ({
 			typeId: listType.id,
 		},
 	})
-	const media = await prisma.media.create({
-		data: {
-			kind: 'anime',
-			title: 'Canonical Media Browser Test',
-			length: '12 eps',
-			description: 'A browser-level canonical media fixture.',
-			externalIds: {
-				create: {
-					provider: 'mal',
+	const [media, recommendedMedia, trackedMatch, unrelatedMedia] =
+		await Promise.all([
+			prisma.media.create({
+				data: {
 					kind: 'anime',
-					externalId: faker.string.numeric(10),
+					title: 'Canonical Media Browser Test',
+					genres: 'Action, Fantasy',
+					length: '12 eps',
+					description: 'A browser-level canonical media fixture.',
+					externalIds: {
+						create: {
+							provider: 'mal',
+							kind: 'anime',
+							externalId: faker.string.numeric(10),
+						},
+					},
 				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: 'Recommended Browser Match',
+					genres: 'Action, Fantasy, Adventure',
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: 'Hidden Tracked Match',
+					genres: 'Action, Fantasy',
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: 'Unrelated Browser Romance',
+					genres: 'Romance',
+				},
+			}),
+		])
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: user.id, followingId: watchingMember.id },
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: watchingMember.id,
+				mediaId: media.id,
+				status: 'watching',
+				score: 8.4,
 			},
-		},
-	})
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: plannedMember.id,
+				mediaId: media.id,
+				status: 'plan-to-watch',
+				score: 8.5,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: user.id,
+				mediaId: trackedMatch.id,
+				status: 'completed',
+				statusWatchlistId: completed.id,
+			},
+		}),
+	])
 
 	try {
 		await page.goto(`/media/${media.id}`)
 		await expect(
 			page.getByRole('heading', { name: 'Canonical Media Browser Test' }),
 		).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Community insights' }),
+		).toBeVisible()
+		await expect(page.getByText('8.45', { exact: true })).toBeVisible()
+		await expect(page.getByLabel('Score 8: 1 rating')).toBeVisible()
+		await expect(page.getByLabel('Score 9: 1 rating')).toBeVisible()
+		await expect(page.getByLabel('Watching: 1 member')).toBeVisible()
+		await expect(page.getByLabel('Plan To Watch: 1 member')).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'From people you follow' }),
+		).toBeVisible()
+		await expect(page.getByText('8.40', { exact: true })).toBeVisible()
+		await expect(
+			page.getByRole('link', {
+				name: new RegExp(watchingMember.name ?? watchingMember.username),
+			}),
+		).toBeVisible()
+		await expect(
+			page.getByText(plannedMember.name ?? plannedMember.username, {
+				exact: true,
+			}),
+		).toHaveCount(0)
+		await expect(
+			page.getByRole('heading', { name: 'More like this' }),
+		).toBeVisible()
+		await expect(
+			page.getByRole('link', { name: /Recommended Browser Match/ }),
+		).toBeVisible()
+		await expect(page.getByText('Hidden Tracked Match')).toHaveCount(0)
+		await expect(page.getByText('Unrelated Browser Romance')).toHaveCount(0)
+		await page.getByRole('button', { name: '☆ Add to favorites' }).click()
+		await expect(
+			page.getByRole('button', { name: '★ Favorited' }),
+		).toBeVisible()
+		await expect(page.getByLabel('1 community favorite')).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.userFavorite.findFirst({
+					where: { ownerId: user.id, mediaId: media.id },
+					select: { title: true, position: true },
+				}),
+			)
+			.toEqual({ title: 'Canonical Media Browser Test', position: 1 })
+		await page.getByRole('button', { name: '★ Favorited' }).click()
+		await expect(
+			page.getByRole('button', { name: '☆ Add to favorites' }),
+		).toBeVisible()
+		await expect(page.getByLabel('0 community favorites')).toBeVisible()
+		await expect
+			.poll(() =>
+				prisma.userFavorite.count({
+					where: { ownerId: user.id, mediaId: media.id },
+				}),
+			)
+			.toBe(0)
 		await page.getByLabel('Status').selectOption(completed.id)
 		await page.getByRole('button', { name: 'Save status' }).click()
 		await expect
@@ -132,6 +246,19 @@ test('member can open a canonical media page and change status', async ({
 		await expect(page.getByText('Published a review')).toBeVisible()
 		await expect(page.getByText('Logged a rewatch')).toBeVisible()
 	} finally {
-		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
+		await prisma.media
+			.deleteMany({
+				where: {
+					id: {
+						in: [
+							media.id,
+							recommendedMedia.id,
+							trackedMatch.id,
+							unrelatedMedia.id,
+						],
+					},
+				},
+			})
+			.catch(() => {})
 	}
 })

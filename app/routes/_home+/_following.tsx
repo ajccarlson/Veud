@@ -91,6 +91,7 @@ export function FollowingFeed({
 		{ key: 'tracking', label: 'Tracking' },
 		{ key: 'review', label: 'Reviews' },
 		{ key: 'diary', label: 'Diary' },
+		{ key: 'collection', label: 'Collections' },
 	]
 	const selectedFilter = filters[filterIndex]?.key ?? 'all'
 	const filtered = items.filter(
@@ -124,9 +125,9 @@ export function FollowingFeed({
 					{filtered.length ? (
 						<div className="space-y-3">
 							{filtered.slice(0, visibleCount).map(item => {
-								const poster = splitLegacyThumbnail(
-									item.media.thumbnail,
-								).imageUrl
+								const poster = item.media
+									? splitLegacyThumbnail(item.media.thumbnail).imageUrl
+									: null
 								return (
 									<article
 										key={item.id}
@@ -151,12 +152,21 @@ export function FollowingFeed({
 													<span className="text-[#a2ffd5]">
 														{item.action.toLowerCase()}
 													</span>{' '}
-													<Link
-														to={`/media/${item.media.id}`}
-														className="font-semibold text-[#ffefcc] hover:underline"
-													>
-														{item.media.title}
-													</Link>
+													{item.collection ? (
+														<Link
+															to={`/collections/${item.collection.id}`}
+															className="font-semibold text-[#ffefcc] hover:underline"
+														>
+															{item.collection.title}
+														</Link>
+													) : item.media ? (
+														<Link
+															to={`/media/${item.media.id}`}
+															className="font-semibold text-[#ffefcc] hover:underline"
+														>
+															{item.media.title}
+														</Link>
+													) : null}
 												</div>
 												<time className="text-xs text-[#8ca99d]">
 													{relativeTime(item.time)}
@@ -164,7 +174,7 @@ export function FollowingFeed({
 											</div>
 										</header>
 
-										{item.review || item.diary ? (
+										{(item.review || item.diary) && item.media ? (
 											<div className="mt-3 flex gap-3 pl-14">
 												{poster ? (
 													<Link
@@ -206,6 +216,39 @@ export function FollowingFeed({
 																: ''}
 														</div>
 													) : null}
+												</div>
+											</div>
+										) : null}
+
+										{item.collection ? (
+											<div className="mt-3 space-y-3 pl-14">
+												{item.collection.description ? (
+													<p className="line-clamp-3 text-sm leading-6 text-[#c6ded2]">
+														{item.collection.description}
+													</p>
+												) : null}
+												<div className="flex items-center gap-3">
+													<div className="flex overflow-hidden rounded-md bg-[#2e2f2b]">
+														{item.collection.items.map(collectionItem => {
+															const image = splitLegacyThumbnail(
+																collectionItem.media.thumbnail,
+															).imageUrl
+															return image ? (
+																<img
+																	key={collectionItem.media.id}
+																	src={image}
+																	alt=""
+																	className="h-16 w-11 object-cover"
+																/>
+															) : null
+														})}
+													</div>
+													<span className="text-sm font-semibold text-[#a2ffd5]">
+														{item.collection.itemCount}{' '}
+														{item.collection.itemCount === 1
+															? 'title'
+															: 'titles'}
+													</span>
 												</div>
 											</div>
 										) : null}

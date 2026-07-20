@@ -23,6 +23,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			readAt: true,
 			createdAt: true,
 			reviewCommentId: true,
+			collectionCommentId: true,
 			actor: { select: { username: true, name: true } },
 			review: {
 				select: {
@@ -30,6 +31,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					media: { select: { id: true, title: true, kind: true } },
 				},
 			},
+			collection: { select: { id: true, title: true } },
 		},
 	})
 	return json({
@@ -62,7 +64,9 @@ export async function action({ request }: ActionFunctionArgs) {
 			select: {
 				id: true,
 				reviewCommentId: true,
+				collectionCommentId: true,
 				review: { select: { id: true, mediaId: true } },
+				collection: { select: { id: true } },
 			},
 		})
 		if (!notification) {
@@ -72,10 +76,19 @@ export async function action({ request }: ActionFunctionArgs) {
 			where: { id: notification.id },
 			data: { readAt: new Date() },
 		})
-		const anchor = notification.reviewCommentId
-			? `comment-${notification.reviewCommentId}`
-			: `review-${notification.review.id}`
-		return redirect(`/media/${notification.review.mediaId}#${anchor}`)
+		if (notification.collection) {
+			const anchor = notification.collectionCommentId
+				? `collection-comment-${notification.collectionCommentId}`
+				: 'discussion'
+			return redirect(`/collections/${notification.collection.id}#${anchor}`)
+		}
+		if (notification.review) {
+			const anchor = notification.reviewCommentId
+				? `comment-${notification.reviewCommentId}`
+				: `review-${notification.review.id}`
+			return redirect(`/media/${notification.review.mediaId}#${anchor}`)
+		}
+		throw new Response('Notification target not found', { status: 404 })
 	}
 
 	throw new Response('Invalid notification action', { status: 400 })
@@ -84,6 +97,8 @@ export async function action({ request }: ActionFunctionArgs) {
 function notificationAction(type: string) {
 	if (type === 'review_like') return 'liked your review of'
 	if (type === 'review_reply') return 'replied to your comment on'
+	if (type === 'collection_like') return 'liked your collection'
+	if (type === 'collection_comment') return 'commented on your collection'
 	return 'commented on your review of'
 }
 
@@ -105,7 +120,7 @@ export default function NotificationsRoute() {
 				<div>
 					<h1 className="text-3xl font-black">Notifications</h1>
 					<p className="text-sm text-muted-foreground">
-						Likes and discussion on your reviews.
+						Likes and discussion on your reviews and collections.
 					</p>
 				</div>
 				{data.unreadCount ? (
@@ -121,31 +136,39 @@ export default function NotificationsRoute() {
 			{data.notifications.length ? (
 				<ul className="divide-y overflow-hidden rounded-xl border bg-card">
 					{data.notifications.map(notification => {
+						const collection = notification.collection
+						const review = notification.review
+						if (!collection && !review) return null
+						const subject = collection
+							? collection.title
+							: review!.media.title?.trim() || `Untitled ${review!.media.kind}`
 						const copy = (
 							<>
 								<span className="font-semibold">
 									{notification.actor.name ?? notification.actor.username}
 								</span>{' '}
 								{notificationAction(notification.type)}{' '}
-								<span className="font-semibold">
-									{notification.review.media.title?.trim() ||
-										`Untitled ${notification.review.media.kind}`}
-								</span>
+								<span className="font-semibold">{subject}</span>
 							</>
 						)
-						const anchor = notification.reviewCommentId
-							? `comment-${notification.reviewCommentId}`
-							: `review-${notification.review.id}`
+						const href = collection
+							? `/collections/${collection.id}#${
+									notification.collectionCommentId
+										? `collection-comment-${notification.collectionCommentId}`
+										: 'discussion'
+								}`
+							: `/media/${review!.media.id}#${
+									notification.reviewCommentId
+										? `comment-${notification.reviewCommentId}`
+										: `review-${review!.id}`
+								}`
 						return (
 							<li
 								key={notification.id}
 								className={notification.readAt ? 'p-4' : 'bg-primary/5 p-4'}
 							>
 								{notification.readAt ? (
-									<Link
-										to={`/media/${notification.review.media.id}#${anchor}`}
-										className="block hover:underline"
-									>
+									<Link to={href} className="block hover:underline">
 										{copy}
 									</Link>
 								) : (

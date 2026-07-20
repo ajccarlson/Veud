@@ -29,6 +29,10 @@ import {
 	type MediaCatalogSnapshot,
 } from '#app/utils/media-catalog.ts'
 import {
+	getFollowedMediaTracking,
+	getMediaCommunityStatistics,
+} from '#app/utils/media-community.server.ts'
+import {
 	externalMediaUrl,
 	legacyProgressUpdate,
 	listTypeNameForMediaKind,
@@ -36,12 +40,19 @@ import {
 	splitLegacyThumbnail,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { toggleMediaFavorite } from '#app/utils/media-favorites.server.ts'
 import {
 	journalTerms,
 	parseDiaryDate,
 	REVIEW_COMMENT_MAX_LENGTH,
 	REVIEW_MAX_LENGTH,
 } from '#app/utils/media-journal.ts'
+import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
+import { getUserImgSrc } from '#app/utils/misc.tsx'
+import {
+	createReviewComment,
+	toggleReviewLike,
+} from '#app/utils/review-engagement.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import {
 	trackingStateFromEntry,
@@ -148,6 +159,11 @@ const ActionSchema = z.discriminatedUnion('intent', [
 		intent: z.literal('diary-delete'),
 		diaryEntryId: z.string().min(1).max(100),
 	}),
+	z.object({
+		intent: z.literal('collection-add'),
+		collectionId: z.string().min(1).max(100),
+	}),
+	z.object({ intent: z.literal('favorite-toggle') }),
 ])
 
 function catalogRichness(entry: CatalogEntry) {
@@ -215,6 +231,12 @@ function todayDateInput() {
 	return new Date().toISOString().slice(0, 10)
 }
 
+function recommendationDiscoveryHref(kind: string, genre: string | undefined) {
+	const search = new URLSearchParams({ kind })
+	if (genre) search.set('genre', genre)
+	return `/discover?${search.toString()}`
+}
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -224,7 +246,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		select: {
 			id: true,
 			kind: true,
-			_count: { select: { reviews: true, diaryEntries: true } },
+			_count: {
+				select: { reviews: true, diaryEntries: true, favorites: true },
+			},
 			...mediaCatalogSelect,
 			externalIds: {
 				select: { provider: true, kind: true, externalId: true },
@@ -239,6 +263,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const listTypeName = listTypeNameForMediaKind(media.kind)
 	const [
 		community,
+		followedTracking,
+		recommendations,
 		viewerState,
 		viewerEntries,
 		viewerWatchlists,
@@ -246,12 +272,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		reviewRows,
 		viewerReview,
 		viewerDiaryEntries,
+		viewerCollections,
+		viewerFavorite,
 	] = await Promise.all([
-		prisma.trackingState.aggregate({
-			where: { mediaId: media.id },
-			_count: { id: true, score: true },
-			_avg: { score: true },
-		}),
+		getMediaCommunityStatistics(media.id),
+		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
+		getSimilarMediaRecommendations(
+			{ id: media.id, kind: media.kind, genres: catalog?.genres },
+			viewerId,
+		),
 		viewerId
 			? prisma.trackingState.findUnique({
 					where: {
@@ -374,6 +403,27 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					},
 				})
 			: [],
+		viewerId
+			? prisma.mediaCollection.findMany({
+					where: { ownerId: viewerId },
+					orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }],
+					select: {
+						id: true,
+						title: true,
+						items: {
+							where: { mediaId: media.id },
+							take: 1,
+							select: { id: true },
+						},
+					},
+				})
+			: [],
+		viewerId
+			? prisma.userFavorite.findFirst({
+					where: { ownerId: viewerId, mediaId: media.id },
+					select: { id: true },
+				})
+			: null,
 	])
 
 	const legacyTracking = viewerEntries
@@ -440,12 +490,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				.filter(link => link.url !== null),
 		},
 		community: {
-			trackers: community._count.id,
-			ratings: community._count.score,
-			meanScore: community._avg.score ? Number(community._avg.score) : null,
+			...community,
 			reviews: media._count.reviews,
 			diaryEntries: media._count.diaryEntries,
+			favorites: media._count.favorites,
 		},
+		socialContext: followedTracking,
+		recommendations,
 		reviews: reviewRows.map(({ likes, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
@@ -460,6 +511,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewer: viewerId
 			? {
 					id: viewerId,
+					isFavorite: Boolean(viewerFavorite),
 					tracking,
 					watchlists: viewerWatchlists,
 					progress,
@@ -475,6 +527,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					diaryEntries: viewerDiaryEntries.map(entry => ({
 						...entry,
 						rating: entry.rating === null ? null : Number(entry.rating),
+					})),
+					collections: viewerCollections.map(({ items, ...collection }) => ({
+						...collection,
+						containsMedia: items.length > 0,
 					})),
 				}
 			: null,
@@ -736,80 +792,23 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		if (parsed.data.intent === 'review-like-toggle') {
-			const review = await tx.review.findFirst({
-				where: { id: parsed.data.reviewId, mediaId },
-				select: { id: true, authorId: true },
+			const result = await toggleReviewLike(tx, {
+				userId,
+				reviewId: parsed.data.reviewId,
+				mediaId,
 			})
-			if (!review) throw new Response('Review not found', { status: 404 })
-
-			const existing = await tx.reviewLike.findUnique({
-				where: {
-					userId_reviewId: { userId, reviewId: review.id },
-				},
-				select: { id: true },
-			})
-			if (existing) {
-				await tx.reviewLike.delete({ where: { id: existing.id } })
-				return json({ ok: true, liked: false })
-			}
-
-			const like = await tx.reviewLike.create({
-				data: { userId, reviewId: review.id },
-				select: { id: true },
-			})
-			if (review.authorId !== userId) {
-				await tx.notification.create({
-					data: {
-						type: 'review_like',
-						recipientId: review.authorId,
-						actorId: userId,
-						reviewId: review.id,
-						reviewLikeId: like.id,
-					},
-				})
-			}
-			return json({ ok: true, liked: true })
+			return json({ ok: true, ...result })
 		}
 
 		if (parsed.data.intent === 'review-comment-create') {
-			const review = await tx.review.findFirst({
-				where: { id: parsed.data.reviewId, mediaId },
-				select: { id: true, authorId: true },
+			const result = await createReviewComment(tx, {
+				userId,
+				reviewId: parsed.data.reviewId,
+				parentId: parsed.data.parentId,
+				body: parsed.data.body,
+				mediaId,
 			})
-			if (!review) throw new Response('Review not found', { status: 404 })
-
-			const parent = parsed.data.parentId
-				? await tx.reviewComment.findFirst({
-						where: { id: parsed.data.parentId, reviewId: review.id },
-						select: { id: true, authorId: true },
-					})
-				: null
-			if (parsed.data.parentId && !parent) {
-				throw new Response('Parent comment not found', { status: 400 })
-			}
-
-			const comment = await tx.reviewComment.create({
-				data: {
-					authorId: userId,
-					reviewId: review.id,
-					parentId: parent?.id,
-					body: parsed.data.body,
-				},
-				select: { id: true },
-			})
-			const recipientId = parent?.authorId ?? review.authorId
-			if (recipientId !== userId) {
-				await tx.notification.create({
-					data: {
-						type: parent ? 'review_reply' : 'review_comment',
-						recipientId,
-						actorId: userId,
-						reviewId: review.id,
-						reviewCommentId: comment.id,
-					},
-				})
-			}
-			return json({ ok: true, commentId: comment.id })
+			return json({ ok: true, ...result })
 		}
 
 		if (parsed.data.intent === 'review-comment-delete') {
@@ -856,6 +855,53 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			if (!deleted.count)
 				throw new Response('Diary entry not found', { status: 404 })
 			return json({ ok: true })
+		}
+
+		if (parsed.data.intent === 'collection-add') {
+			const collection = await tx.mediaCollection.findFirst({
+				where: { id: parsed.data.collectionId, ownerId: userId },
+				select: { id: true },
+			})
+			if (!collection)
+				throw new Response('Collection not found', { status: 404 })
+			const existing = await tx.mediaCollectionItem.findUnique({
+				where: {
+					collectionId_mediaId: { collectionId: collection.id, mediaId },
+				},
+				select: { id: true },
+			})
+			if (!existing) {
+				const highest = await tx.mediaCollectionItem.aggregate({
+					where: { collectionId: collection.id },
+					_max: { position: true },
+				})
+				await tx.mediaCollectionItem.create({
+					data: {
+						collectionId: collection.id,
+						mediaId,
+						position: (highest._max.position ?? 0) + 1,
+					},
+				})
+				await tx.mediaCollection.update({
+					where: { id: collection.id },
+					data: { updatedAt: new Date() },
+				})
+			}
+			return json({ ok: true, collectionId: collection.id })
+		}
+
+		if (parsed.data.intent === 'favorite-toggle') {
+			const catalog = resolveMediaCatalog(
+				media,
+				representativeEntry(media.entries),
+			)
+			const favorite = await toggleMediaFavorite(tx, {
+				ownerId: userId,
+				mediaId,
+				kind: media.kind,
+				catalog,
+			})
+			return json({ ok: true, ...favorite })
 		}
 
 		if (parsed.data.intent === 'status') {
@@ -1000,6 +1046,10 @@ export default function MediaDetailRoute() {
 	const busy = navigation.state !== 'idle'
 	const tracking = data.viewer?.tracking
 	const journal = journalTerms(data.media.kind)
+	const maxScoreCount = Math.max(
+		1,
+		...data.community.scoreDistribution.map(bucket => bucket.count),
+	)
 
 	return (
 		<main className="mx-auto w-full max-w-6xl px-4 py-8 text-foreground">
@@ -1040,14 +1090,37 @@ export default function MediaDetailRoute() {
 							{data.media.kind}
 							{data.media.type ? ` · ${data.media.type}` : ''}
 						</div>
-						<h1 className="text-4xl font-bold">{data.media.title}</h1>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<h1 className="text-4xl font-bold">{data.media.title}</h1>
+							{data.viewer ? (
+								<Form method="post">
+									<input type="hidden" name="intent" value="favorite-toggle" />
+									<Button
+										type="submit"
+										variant={data.viewer.isFavorite ? 'default' : 'outline'}
+										disabled={busy}
+										aria-pressed={data.viewer.isFavorite}
+									>
+										{data.viewer.isFavorite
+											? '★ Favorited'
+											: '☆ Add to favorites'}
+									</Button>
+								</Form>
+							) : (
+								<Button asChild variant="outline">
+									<Link to={`/login?redirectTo=/media/${data.media.id}`}>
+										☆ Add to favorites
+									</Link>
+								</Button>
+							)}
+						</div>
 						<div className="text-sm text-muted-foreground">
 							{displayDate(data.media.releaseStart)} –{' '}
 							{displayDate(data.media.releaseEnd)}
 						</div>
 					</header>
 
-					<section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+					<section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
 						<div className="rounded-xl border bg-card p-4">
 							<div className="text-2xl font-bold">
 								{data.community.trackers}
@@ -1078,7 +1151,174 @@ export default function MediaDetailRoute() {
 							</div>
 							<div className="text-sm text-muted-foreground">Diary logs</div>
 						</div>
+						<div
+							className="rounded-xl border bg-card p-4"
+							aria-label={`${data.community.favorites} community ${data.community.favorites === 1 ? 'favorite' : 'favorites'}`}
+						>
+							<div className="text-2xl font-bold">
+								{data.community.favorites}
+							</div>
+							<div className="text-sm text-muted-foreground">Favorites</div>
+						</div>
 					</section>
+
+					{data.community.trackers ? (
+						<section
+							aria-labelledby="community-insights-heading"
+							className="space-y-4"
+						>
+							<div>
+								<h2
+									id="community-insights-heading"
+									className="text-2xl font-bold"
+								>
+									Community insights
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									See how members rate and track this title.
+								</p>
+							</div>
+							<div className="grid gap-4 lg:grid-cols-2">
+								<div className="rounded-xl border bg-card p-5">
+									<h3 className="font-bold">Score distribution</h3>
+									<p className="mt-1 text-xs text-muted-foreground">
+										Decimal ratings are rounded to the nearest whole score for
+										this chart.
+									</p>
+									{data.community.ratings ? (
+										<div className="mt-4 space-y-1.5">
+											{data.community.scoreDistribution
+												.slice()
+												.reverse()
+												.map(bucket => (
+													<div
+														key={bucket.score}
+														className="grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] items-center gap-2 text-xs"
+														aria-label={`Score ${bucket.score}: ${bucket.count} ${bucket.count === 1 ? 'rating' : 'ratings'}`}
+													>
+														<span className="font-semibold">
+															{bucket.score}
+														</span>
+														<span className="h-2 overflow-hidden rounded-full bg-muted">
+															<span
+																className="block h-full rounded-full bg-primary"
+																style={{
+																	width: `${(bucket.count / maxScoreCount) * 100}%`,
+																}}
+															/>
+														</span>
+														<span className="text-right text-muted-foreground">
+															{bucket.count}
+														</span>
+													</div>
+												))}
+										</div>
+									) : (
+										<p className="mt-4 text-sm text-muted-foreground">
+											No member ratings yet.
+										</p>
+									)}
+								</div>
+
+								<div className="rounded-xl border bg-card p-5">
+									<h3 className="font-bold">Tracking status</h3>
+									<p className="mt-1 text-xs text-muted-foreground">
+										Current library status across {data.community.trackers}{' '}
+										{data.community.trackers === 1 ? 'member' : 'members'}.
+									</p>
+									<div className="mt-4 space-y-3">
+										{data.community.statusBreakdown.map(status => (
+											<div
+												key={status.status}
+												aria-label={`${status.label}: ${status.count} ${status.count === 1 ? 'member' : 'members'}`}
+											>
+												<div className="flex items-center justify-between gap-3 text-sm">
+													<span className="font-semibold">{status.label}</span>
+													<span className="text-muted-foreground">
+														{status.count} · {Math.round(status.percentage)}%
+													</span>
+												</div>
+												<div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+													<div
+														className="h-full rounded-full bg-primary"
+														style={{ width: `${status.percentage}%` }}
+													/>
+												</div>
+											</div>
+										))}
+									</div>
+								</div>
+							</div>
+							{data.socialContext?.total ? (
+								<div
+									aria-labelledby="following-context-heading"
+									className="rounded-xl border bg-card p-5"
+								>
+									<div className="flex flex-wrap items-end justify-between gap-3">
+										<div>
+											<h3 id="following-context-heading" className="font-bold">
+												From people you follow
+											</h3>
+											<p className="mt-1 text-xs text-muted-foreground">
+												{data.socialContext.total}{' '}
+												{data.socialContext.total === 1
+													? 'person tracks'
+													: 'people track'}{' '}
+												this title
+												{data.socialContext.ratings
+													? ` · ${data.socialContext.ratings} ${data.socialContext.ratings === 1 ? 'rating' : 'ratings'}`
+													: ''}
+												.
+											</p>
+										</div>
+										{data.socialContext.meanScore !== null ? (
+											<div className="text-right">
+												<div className="text-xl font-bold">
+													{data.socialContext.meanScore.toFixed(2)}
+												</div>
+												<div className="text-xs text-muted-foreground">
+													Following average
+												</div>
+											</div>
+										) : null}
+									</div>
+									<div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+										{data.socialContext.items.map(item => (
+											<Link
+												key={item.id}
+												to={`/users/${item.member.username}`}
+												className="flex min-w-0 items-center gap-3 rounded-lg border bg-background p-3 transition-colors hover:bg-muted/60"
+											>
+												<img
+													src={getUserImgSrc(item.member.image?.id)}
+													alt=""
+													className="h-10 w-10 shrink-0 rounded-full border object-cover"
+												/>
+												<div className="min-w-0 flex-1">
+													<div className="truncate text-sm font-semibold">
+														{item.member.name ?? item.member.username}
+													</div>
+													<div className="truncate text-xs text-muted-foreground">
+														{item.statusLabel}
+														{item.score !== null
+															? ` · ${item.score.toLocaleString('en-US', { maximumFractionDigits: 1 })}/10`
+															: ''}
+													</div>
+												</div>
+											</Link>
+										))}
+									</div>
+									{data.socialContext.total >
+									data.socialContext.items.length ? (
+										<p className="mt-3 text-xs text-muted-foreground">
+											Showing the {data.socialContext.items.length} most
+											recently updated members.
+										</p>
+									) : null}
+								</div>
+							) : null}
+						</section>
+					) : null}
 
 					{data.viewer ? (
 						<section className="space-y-5 rounded-xl border bg-card p-5">
@@ -1194,10 +1434,54 @@ export default function MediaDetailRoute() {
 								>
 									Log in
 								</Link>{' '}
-								to track, review, and log this title.
+								to track, favorite, review, and log this title.
 							</p>
 						</section>
 					)}
+
+					{data.viewer ? (
+						<section className="space-y-4 rounded-xl border bg-card p-5">
+							<div>
+								<h2 className="text-xl font-bold">Save to a collection</h2>
+								<p className="text-sm text-muted-foreground">
+									Add this title to one of your curated lists.
+								</p>
+							</div>
+							{data.viewer.collections.length ? (
+								<Form method="post" className="flex flex-wrap items-end gap-3">
+									<input type="hidden" name="intent" value="collection-add" />
+									<div className="min-w-52 flex-1 space-y-2">
+										<Label htmlFor="collection-id">Collection</Label>
+										<select
+											id="collection-id"
+											name="collectionId"
+											className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+										>
+											{data.viewer.collections.map(collection => (
+												<option key={collection.id} value={collection.id}>
+													{collection.containsMedia ? '✓ ' : ''}
+													{collection.title}
+												</option>
+											))}
+										</select>
+									</div>
+									<Button type="submit" variant="outline" disabled={busy}>
+										Add to collection
+									</Button>
+								</Form>
+							) : (
+								<p className="text-sm text-muted-foreground">
+									<Link
+										to="/collections/new"
+										className="font-semibold underline"
+									>
+										Create your first collection
+									</Link>{' '}
+									to save this title.
+								</p>
+							)}
+						</section>
+					) : null}
 
 					{data.viewer ? (
 						<section className="grid gap-5 lg:grid-cols-2">
@@ -1369,6 +1653,90 @@ export default function MediaDetailRoute() {
 							</p>
 						) : null}
 					</section>
+
+					{data.recommendations.items.length ? (
+						<section
+							aria-labelledby="similar-media-heading"
+							className="space-y-4"
+						>
+							<header className="flex flex-wrap items-end justify-between gap-3">
+								<div>
+									<h2 id="similar-media-heading" className="text-2xl font-bold">
+										More like this
+									</h2>
+									<p className="mt-1 text-sm text-muted-foreground">
+										{data.recommendations.sourceGenres.length
+											? 'Ranked by shared genres, then community activity.'
+											: `Popular ${data.media.kind} titles from the community.`}
+									</p>
+								</div>
+								<Button asChild variant="outline" size="sm">
+									<Link
+										to={recommendationDiscoveryHref(
+											data.media.kind,
+											data.recommendations.sourceGenres[0],
+										)}
+									>
+										Explore more
+									</Link>
+								</Button>
+							</header>
+							<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+								{data.recommendations.items.map(item => {
+									const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
+									return (
+										<Link
+											key={item.id}
+											to={`/media/${item.id}`}
+											className="group flex min-w-0 gap-3 rounded-xl border bg-card p-3 transition hover:border-primary/60 hover:bg-muted/50"
+										>
+											<div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+												{poster ? (
+													<img
+														src={poster}
+														alt=""
+														loading="lazy"
+														className="h-full w-full object-cover"
+													/>
+												) : (
+													<div className="flex h-full items-center justify-center px-2 text-center text-[0.65rem] text-muted-foreground">
+														No poster
+													</div>
+												)}
+											</div>
+											<div className="min-w-0 flex-1 py-0.5">
+												<div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													{item.type || item.kind}
+													{item.year ? ` · ${item.year}` : ''}
+												</div>
+												<h3 className="mt-1 line-clamp-2 font-bold leading-5 group-hover:underline">
+													{item.title}
+												</h3>
+												{item.matchedGenres.length ? (
+													<div className="mt-2 flex flex-wrap gap-1">
+														{item.matchedGenres.slice(0, 2).map(genre => (
+															<span
+																key={genre}
+																className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-semibold text-primary"
+															>
+																{genre}
+															</span>
+														))}
+													</div>
+												) : null}
+												<div className="mt-2 text-xs text-muted-foreground">
+													{item.communityScore !== null
+														? `★ ${item.communityScore.toFixed(1)} (${item.ratingCount}) · `
+														: 'Not yet rated · '}
+													{item.trackerCount} tracking
+												</div>
+											</div>
+										</Link>
+									)
+								})}
+							</div>
+						</section>
+					) : null}
 
 					<section className="space-y-3">
 						<div className="flex items-end justify-between gap-3">
