@@ -44,6 +44,7 @@ model User {
   mediaCollections      MediaCollection[]
   collectionLikes       CollectionLike[]
   collectionComments    CollectionComment[]
+  releaseReminders      ReleaseReminder[]
 }
 
 model ListType {
@@ -129,6 +130,7 @@ model Media {
   reviews           Review[]
   diaryEntries      DiaryEntry[]
   collectionItems   MediaCollectionItem[]
+  releaseReminders  ReleaseReminder[]
 
   @@index([kind])
 }
@@ -365,18 +367,39 @@ model ReviewComment {
   @@index([parentId])
 }
 
-/// A source-linked inbox item. Source relations cascade so undoing a like or
-/// deleting a comment/review cannot leave an orphaned notification behind.
+/// A member's opt-in notification schedule for one canonical title.
+model ReleaseReminder {
+  id          String   @id @default(cuid())
+  leadMinutes Int      @default(60)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId       String
+  media         Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId       String
+  notifications Notification[]
+
+  @@unique([ownerId, mediaId])
+  @@index([ownerId, updatedAt])
+  @@index([mediaId])
+}
+
+/// A source-linked inbox item. Social source relations and release reminders
+/// cascade so removing the originating interaction or subscription cannot
+/// leave an orphaned notification behind.
 model Notification {
-  id        String    @id @default(cuid())
-  type      String
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(cuid())
+  type        String
+  readAt      DateTime?
+  availableAt DateTime  @default(now())
+  releaseAt   DateTime?
+  createdAt   DateTime  @default(now())
 
   recipient           User               @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recipientId         String
-  actor               User               @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  actorId             String
+  actor               User?              @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actorId             String?
   review              Review?            @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   reviewId            String?
   reviewLike          ReviewLike?        @relation(fields: [reviewLikeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -389,10 +412,15 @@ model Notification {
   collectionLikeId    String?            @unique
   collectionComment   CollectionComment? @relation(fields: [collectionCommentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   collectionCommentId String?            @unique
+  releaseReminder     ReleaseReminder?   @relation(fields: [releaseReminderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  releaseReminderId   String?
 
+  @@unique([releaseReminderId, releaseAt])
   @@index([recipientId, readAt, createdAt])
+  @@index([recipientId, availableAt, readAt])
   @@index([reviewId])
   @@index([collectionId])
+  @@index([releaseReminderId])
 }
 
 /// A dated consumption log. Unlike TrackingState, diary rows are intentionally
