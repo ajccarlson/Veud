@@ -183,7 +183,10 @@ test('a limited commit resumes the same export and an idempotent rerun is skippe
 			sourcePopularity: 0.1,
 			sourceIsAdult: false,
 			sourceIsVideo: false,
-			media: expect.objectContaining({ title: 'Movie 1' }),
+			media: expect.objectContaining({
+				title: 'Movie 1',
+				catalogPopularity: 0.1,
+			}),
 		}),
 	)
 

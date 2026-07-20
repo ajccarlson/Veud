@@ -276,6 +276,9 @@ export function normalizeTmdbDetails(
 		language: languageName(originalLanguage) ?? undefined,
 		studios: commaSeparatedNames(payload.production_companies) ?? undefined,
 		tmdbScore: optionalNumber(payload.vote_average) ?? undefined,
+		catalogScore: optionalNumber(payload.vote_average) ?? undefined,
+		catalogPopularity: optionalNumber(payload.popularity) ?? undefined,
+		releaseStatus: optionalString(payload.status) ?? undefined,
 	}
 	return {
 		id,
