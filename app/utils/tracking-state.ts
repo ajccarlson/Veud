@@ -136,8 +136,10 @@ function historyProgressByUnit(
 }
 
 function explicitRepeatCount(history: Record<string, unknown>) {
-	const value = Number(history.repeatCount ?? history.rewatchCount)
-	return Number.isSafeInteger(value) && value > 0 ? value : 0
+	const rawValue = history.repeatCount ?? history.rewatchCount
+	if (rawValue === null || rawValue === undefined || rawValue === '') return null
+	const value = Number(rawValue)
+	return Number.isSafeInteger(value) && value >= 0 ? value : null
 }
 
 export function trackingStateFromEntry(
@@ -186,9 +188,12 @@ export function trackingStateFromEntry(
 		})
 	}
 
-	let repeatCount = explicitRepeatCount(history)
-	for (const historical of historyProgress.values()) {
-		repeatCount = Math.max(repeatCount, historical.repeatCount)
+	const explicitRepeats = explicitRepeatCount(history)
+	let repeatCount = explicitRepeats ?? 0
+	if (explicitRepeats === null) {
+		for (const historical of historyProgress.values()) {
+			repeatCount = Math.max(repeatCount, historical.repeatCount)
+		}
 	}
 
 	return {
