@@ -19,33 +19,40 @@ export function listNavButtons(
 	const hasOtherListTypes = Object.keys(typedWatchlists).length > 1
 
 	return (
-		<main className="list-nav-buttons">
+		<nav className="list-nav-buttons" aria-label="Watchlists and media types">
 			<div className="list-nav-buttons-main" id="list-nav">
-				<div className="list-nav-buttons-container">
-					{watchlists.map((list: any) => (
-						<Link
-							key={list.id}
-							to={`/lists/${username}/${listTypeData.name}/${list.name}`}
-							className={`list-nav-button ${watchListData.id === list.id ? 'list-nav-current' : ''}`}
-							id={list.id}
-							data-watchlist-id={list.id}
-							data-watchlist-name={list.name}
-							data-watchlist-header={list.header}
-							aria-current={watchListData.id === list.id ? 'page' : undefined}
-						>
-							<span>{list.header}</span>
-							{!list.isPublic ? (
-								<span className="list-nav-private-badge">Private</span>
-							) : null}
-						</Link>
-					))}
+				<div className="list-nav-list-scroller">
+					<div className="list-nav-buttons-container">
+						{watchlists.map((list: any) => (
+							<Link
+								key={list.id}
+								prefetch="intent"
+								to={`/lists/${username}/${listTypeData.name}/${list.name}`}
+								className={`list-nav-button ${watchListData.id === list.id ? 'list-nav-current' : ''}`}
+								id={list.id}
+								data-watchlist-id={list.id}
+								data-watchlist-name={list.name}
+								data-watchlist-header={list.header}
+								aria-current={watchListData.id === list.id ? 'page' : undefined}
+							>
+								<span>{list.header}</span>
+								{!list.isPublic ? (
+									<span className="list-nav-private-badge">Private</span>
+								) : null}
+							</Link>
+						))}
+					</div>
 				</div>
 				{hasOtherListTypes ? (
 					<div className="list-type-nav-container" id="list-type-nav">
 						<div className="list-type-dropdown-container">
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
-									<button type="button" className="list-type-dropdown-trigger">
+									<button
+										type="button"
+										className="list-type-dropdown-trigger"
+										aria-label={`Change media type. Current type: ${listTypeData.header}`}
+									>
 										<span className="list-type-dropdown-icon">
 											<Icon name="hamburger-menu" aria-hidden="true" />
 										</span>
@@ -68,6 +75,7 @@ export function listNavButtons(
 											return (
 												<DropdownMenuItem key={typeId} asChild>
 													<Link
+														prefetch="intent"
 														to={`/lists/${username}/${targetType.name}/${firstList.name}`}
 														className="list-type-dropdown-button"
 													>
@@ -82,6 +90,6 @@ export function listNavButtons(
 					</div>
 				) : null}
 			</div>
-		</main>
+		</nav>
 	)
 }
