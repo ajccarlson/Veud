@@ -128,6 +128,8 @@ function titleCase(value: string) {
 type NextRelease = {
 	releaseAt: Date
 	allDay: boolean
+	source: 'anilist' | 'tmdb' | null
+	observedAt: Date | null
 	episode: number | null
 	season: number | null
 	chapter: number | null
@@ -136,6 +138,9 @@ type NextRelease = {
 }
 
 const MAX_UNCONFIRMED_RELEASE_GAP_MS = 366 * DAY_MS
+const MAX_OBSERVED_SCHEDULE_AGE_MS = 14 * DAY_MS
+const MAX_OBSERVATION_CLOCK_SKEW_MS = 5 * 60 * 1_000
+const releaseScheduleSources = ['anilist', 'tmdb'] as const
 const activeReleaseStatus =
 	/airing|returning|releasing|ongoing|in production|planned|upcoming/i
 const finishedReleaseStatus = /ended|finished|cancel|released/i
@@ -159,13 +164,29 @@ export function parseStoredNextRelease(
 		}
 		const releaseAt = new Date(rawDate)
 		if (Number.isNaN(releaseAt.getTime())) return null
+		const hasSource = parsed.source !== undefined
+		const hasObservedAt = parsed.observedAt !== undefined
+		if (hasSource !== hasObservedAt) return null
+		let source: NextRelease['source'] = null
+		let observedAt: Date | null = null
+		if (hasSource && hasObservedAt) {
+			if (
+				typeof parsed.source !== 'string' ||
+				!releaseScheduleSources.includes(parsed.source as never) ||
+				typeof parsed.observedAt !== 'string'
+			) {
+				return null
+			}
+			source = parsed.source as NonNullable<NextRelease['source']>
+			observedAt = new Date(parsed.observedAt)
+			if (!Number.isFinite(observedAt.getTime())) return null
+		}
 		return {
 			releaseAt,
 			allDay:
-				(typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) ||
-				(releaseAt.getUTCHours() === 0 &&
-					releaseAt.getUTCMinutes() === 0 &&
-					releaseAt.getUTCSeconds() === 0),
+				typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate),
+			source,
+			observedAt,
 			episode: finitePositiveNumber(parsed.episode),
 			season: finitePositiveNumber(parsed.season),
 			chapter: finitePositiveNumber(parsed.chapter),
@@ -188,12 +209,22 @@ export function isPlausibleNextRelease(
 		releaseEnd: Date | null
 		releaseStatus: string | null
 	},
+	now = new Date(),
 ) {
 	const kind = media.kind.toLowerCase()
 	if (kind === 'movie' && (release.episode || release.chapter)) return false
 	if (kind === 'manga' && release.episode) return false
 	if ((kind === 'anime' || kind === 'tv') && release.chapter) return false
 	if (media.releaseStart && release.releaseAt < media.releaseStart) return false
+	if (
+		release.observedAt &&
+		(release.observedAt.getTime() - now.getTime() >
+			MAX_OBSERVATION_CLOCK_SKEW_MS ||
+			now.getTime() - release.observedAt.getTime() >
+				MAX_OBSERVED_SCHEDULE_AGE_MS)
+	) {
+		return false
+	}
 
 	const status = media.releaseStatus?.trim() || null
 	if (status && finishedReleaseStatus.test(status)) return false
@@ -237,8 +268,9 @@ export async function getReleaseCalendar(
 	viewerId: string | null,
 	requestedTimeZone = 'UTC',
 ) {
+	const now = new Date()
 	const timeZone = normalizeTimeZone(requestedTimeZone)
-	const start = parseDateKey(input.start) ?? startOfWeek(new Date(), timeZone)
+	const start = parseDateKey(input.start) ?? startOfWeek(now, timeZone)
 	const end = addDays(start, 7)
 	const startKey = dateKey(start)
 	const endKey = dateKey(end)
@@ -347,7 +379,9 @@ export async function getReleaseCalendar(
 		}
 		const parsedNext = parseStoredNextRelease(item.nextRelease)
 		const next =
-			parsedNext && isPlausibleNextRelease(parsedNext, item) ? parsedNext : null
+			parsedNext && isPlausibleNextRelease(parsedNext, item, now)
+				? parsedNext
+				: null
 		const nextDate = next
 			? eventDateKey(next.releaseAt, next.allDay, timeZone)
 			: null
@@ -409,8 +443,8 @@ export async function getReleaseCalendar(
 		end: dateKey(addDays(start, 6)),
 		previousStart: dateKey(addDays(start, -7)),
 		nextStart: dateKey(end),
-		todayStart: dateKey(startOfWeek(new Date(), timeZone)),
-		today: dateKeyInTimeZone(new Date(), timeZone),
+		todayStart: dateKey(startOfWeek(now, timeZone)),
+		today: dateKeyInTimeZone(now, timeZone),
 		isSignedIn: Boolean(viewerId),
 		total: items.length,
 		days: Array.from({ length: 7 }, (_, index) => {

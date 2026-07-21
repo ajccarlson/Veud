@@ -87,7 +87,9 @@ export async function getAnilistSchedule(entryID: any) {
 					),
 			)
 			data = await response.json()
+			const observedAt = data[0]?.observedAt
 			data = data[1].data.Media
+			data = { ...data, observedAt }
 
 			if (!response || !data) throw new Error('Error: no data found!')
 		} catch (e) {
@@ -118,6 +120,11 @@ export async function getAnilistSchedule(entryID: any) {
 		}
 
 		return {
+			source: 'anilist',
+			observedAt:
+				typeof data.observedAt === 'string'
+					? data.observedAt
+					: new Date().toISOString(),
 			id: nextAiringEpisode.mediaId ? nextAiringEpisode.mediaId : null,
 			name: currentEpisode,
 			overview: null,
