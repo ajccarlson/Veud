@@ -2,7 +2,6 @@ import { Form } from 'react-router'
 import { timeSince } from '#app/utils/lists/column-functions.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
-import { listNavigationDisplayer } from '#app/routes/lists+/.$username+/.$list-type+/index.tsx'
 
 function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
   let checkedColumns: any[] = []
@@ -105,20 +104,21 @@ async function handleSubmit(e: any, columns: string[], watchlist: any, listParam
     } as any).toString()), { method: 'POST' })
     const updateSettingsData = await updateSettingsResponse.json() as Array<any>
     
-    const updateResponse = await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
+    await fetch('/lists/fetch/now-updated/' + encodeURIComponent(new URLSearchParams({
       authorization: listParams.VEUD_API_KEY,
       watchlistId: watchlist.id
     } as any).toString()), { method: 'POST' })
-  
-    listParams.watchListData.find((object: any, index: number) => {
-      if (object.watchlist.id === watchlist.id) {
-        listParams.watchListData[index].watchlist = updateSettingsData.slice(-1)[0]
-        return true;
-      }
-    })
-  
+
+    const updatedWatchlist = updateSettingsData.slice(-1)[0]
+    listParams.setWatchListData((current: any[]) =>
+      current.map(item =>
+        item.watchlist.id === watchlist.id
+          ? { ...item, watchlist: updatedWatchlist }
+          : item,
+      ),
+    )
+
     listParams.setShownSettings((oldValues: any) => { return oldValues.filter((setting: any) => setting !== watchlist.id) })
-    listParams.setNavItems(listNavigationDisplayer(listParams))
   }
 }
 
@@ -195,8 +195,11 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
                       ownerId: listParams.listOwner.id
                     } as any).toString()), { method: 'POST' })
 
-    listParams.watchListData = listParams.watchListData.filter((item: any) => item.watchlist.id !== entryData.watchlist.id)
-                    listParams.setNavItems(listNavigationDisplayer(listParams))
+                    listParams.setWatchListData((current: any[]) =>
+                      current.filter(
+                        item => item.watchlist.id !== entryData.watchlist.id,
+                      ),
+                    )
                   }}>
                   <div className="list-landing-settings-delete-icon">
                     <Icon name="trash"></Icon>

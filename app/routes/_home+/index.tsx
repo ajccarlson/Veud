@@ -111,7 +111,7 @@ export default function Index() {
 								followingCount={data.followingCount}
 								suggestedMembers={data.suggestedMembers}
 							/>
-							<aside className="home-dashboard-sidebar space-y-7">
+							<aside className="home-dashboard-sidebar space-y-4">
 								<HomeLibrary
 									username={currentUser.username}
 									summary={data.librarySummary}

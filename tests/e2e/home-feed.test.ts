@@ -102,6 +102,7 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 	page,
 	login,
 }) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
 	const viewer = await login()
 	const liveActionType = await prisma.listType.upsert({
 		where: { name: 'liveaction' },
@@ -152,6 +153,19 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 
 	try {
 		await page.goto('/')
+		const homeContainer = page.locator('.home-container')
+		await expect(homeContainer).toBeVisible()
+		await expect
+			.poll(async () => {
+				const box = await homeContainer.boundingBox()
+				if (!box) return Number.POSITIVE_INFINITY
+
+				const leftGutter = box.x
+				const rightGutter = 1440 - (box.x + box.width)
+				return Math.abs(leftGutter - rightGutter)
+			})
+			.toBeLessThanOrEqual(2)
+
 		const trendingHeading = page.getByRole('heading', { name: 'Trending now' })
 		const followingHeading = page.getByRole('heading', {
 			name: 'Following',
@@ -172,7 +186,13 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 		const scrollRight = page.getByRole('button', {
 			name: 'Scroll Trending movies right',
 		})
-		await expect(page.getByText('Home Trending Ranked')).toBeVisible()
+		const rankedCard = rail
+			.locator('[data-tracking-state]')
+			.filter({ hasText: 'Home Trending Ranked' })
+		await expect(rankedCard).toHaveAttribute('data-tracking-state', 'available')
+		await expect(
+			rankedCard.getByText('Ready to add', { exact: true }),
+		).toBeVisible()
 		await expect
 			.poll(() =>
 				rail.evaluate(element => element.scrollWidth > element.clientWidth),
@@ -196,10 +216,14 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 			.toBeGreaterThan(0)
 		await expect(scrollLeft).toBeEnabled()
 
-		await page
+		await rankedCard
 			.getByRole('button', { name: 'Track Home Trending Ranked' })
 			.click()
-		await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+		await expect(rankedCard.getByText('Saved', { exact: true })).toBeVisible()
+		await expect(rankedCard).toHaveAttribute('data-tracking-state', 'tracked')
+		await expect(
+			rankedCard.getByText('On your list', { exact: true }),
+		).toBeVisible()
 		await expect
 			.poll(() =>
 				prisma.trackingState.findUnique({
