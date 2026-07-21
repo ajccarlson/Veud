@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
+	representativeLoadShape,
 	summarizeExplain,
 } from './postgres-load-utils.mjs'
 
@@ -60,4 +61,51 @@ test('summarizes nested explain plans without credentials or raw SQL', () => {
 		sharedReadBlocks: 0,
 	})
 	expect(bytesLabel(1_048_576)).toBe('1.00 MiB')
+})
+
+test('derives a bounded representative catalog and member load shape', () => {
+	expect(
+		representativeLoadShape({
+			mediaCount: 1_000,
+			memberCount: 25,
+			trackingPerMember: 120,
+			activityPerMember: 15,
+		}),
+	).toEqual({
+		memberCount: 25,
+		watchlistRows: 75,
+		trackingPerMember: 120,
+		trackingRows: 3_000,
+		entryRows: 3_000,
+		activityPerMember: 15,
+		activityRows: 375,
+		relationRows: 99,
+		feedRows: 10,
+	})
+
+	expect(
+		representativeLoadShape({
+			mediaCount: 8,
+			memberCount: 2,
+			trackingPerMember: 100,
+			activityPerMember: 20,
+		}),
+	).toEqual(
+		expect.objectContaining({
+			trackingPerMember: 8,
+			trackingRows: 16,
+			activityPerMember: 8,
+			activityRows: 16,
+		}),
+	)
+})
+
+test('rejects unsafe representative member row counts', () => {
+	expect(() =>
+		representativeLoadShape({
+			mediaCount: 100_000,
+			memberCount: 100_000,
+			trackingPerMember: 100,
+		}),
+	).toThrow('may not exceed 5,000,000 tracking rows')
 })

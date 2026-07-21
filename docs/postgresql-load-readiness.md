@@ -2,10 +2,10 @@
 
 Last rehearsed: 2026-07-20 with PostgreSQL 16
 
-This runbook measures the PostgreSQL catalog schema with deterministic synthetic
-records. It is safe to use only against an empty or disposable load-test
-database. It does not fetch or persist provider content and does not replace the
-final production-like staging rehearsal.
+This runbook measures the PostgreSQL catalog and member-facing schema with
+deterministic synthetic records. It is safe to use only against an empty or
+disposable load-test database. It does not fetch or persist provider content and
+does not replace the final production-like staging rehearsal.
 
 ## Safety boundary
 
@@ -18,9 +18,11 @@ following:
 - the generated Prisma client targets PostgreSQL; and
 - an existing synthetic run is absent unless `--resume` is supplied.
 
-Synthetic records use the `load-catalog-` ID prefix. Cleanup deletes only media
-with that prefix and relies on the schema's cascading relations. Never weaken
-the database-name guard to point this command at production.
+Synthetic records use the `load-catalog-` ID prefix. Cleanup deletes only
+members and media with that prefix, then removes only temporary list types that
+the harness itself inserted; schema cascades remove their dependent rows. Exact
+post-cleanup counts should be zero for all three prefixes. Never weaken the
+database-name guard to point this command at production.
 
 ## Running the rehearsal
 
@@ -46,14 +48,27 @@ indexes, query plans, and JSON report can be inspected:
 npm run db:loadtest:postgres -- \
   --commit \
   --count 1564333 \
+  --member-count 1000 \
+  --tracking-per-member 100 \
+  --activity-per-member 20 \
+  --member-read-iterations 20 \
+  --tracking-write-batches 5 \
   --require-trigram-indexes
 ```
 
-The count matches the current combined TMDB and MAL inventory estimate in the
-catalog coverage feasibility study. The command creates one canonical media, one
-provider identity, one primary title, and an alternate title for every fourth
-identity. It then runs `ANALYZE`, records `EXPLAIN (ANALYZE, BUFFERS)`
-summaries, performs concurrent title searches and hydration-style updates, and
+The media count matches the current combined TMDB and MAL inventory estimate in
+the catalog coverage feasibility study. The member values above are illustrative
+floors, not approved production distributions; replace them with a shape agreed
+by the deployment owner. The command creates rich canonical metadata, one
+provider identity, one primary title, an alternate title for every fourth
+identity, a relation for every tenth identity, and a feed item for every
+hundredth identity. When `--member-count` is positive, it also creates three
+compatible watchlists per member plus deterministic tracking states, legacy
+entries, and activity history. Synthetic images use the non-routable
+`synthetic.invalid` domain and no provider content is fetched.
+
+The harness then runs `ANALYZE`, records `EXPLAIN (ANALYZE, BUFFERS)` summaries,
+performs concurrent catalog/profile reads and hydration/tracking writes, and
 writes a credential-free mode-`0600` JSON report under `test-results/`.
 
 An interrupted deterministic load can be continued with `--resume`. After the
@@ -65,6 +80,9 @@ npm run db:loadtest:postgres -- \
   --commit \
   --resume \
   --count 1564333 \
+  --member-count 1000 \
+  --tracking-per-member 100 \
+  --activity-per-member 20 \
   --require-trigram-indexes \
   --cleanup-after
 ```
@@ -77,12 +95,16 @@ normal development client afterward with `npm run prisma:generate:sqlite`.
 The report includes:
 
 - inserted, existing, and total synthetic identity counts;
+- exact relation, feed, member, watchlist, tracking, entry, and activity counts;
 - insert wall time and identity throughput;
-- database and core catalog relation sizes before and after loading;
+- database, catalog, relationship, tracking, entry, and activity relation sizes
+  before and after loading;
 - planner node types, index names, execution time, and shared buffer activity
   for canonical title, alternate title, selective and broad description,
-  no-match, and popularity-page reads; and
-- wall time for concurrent searches plus small hydration-style update batches.
+  no-match, popularity-page, related-media, trending-feed, profile-entry, and
+  profile-activity reads; and
+- wall time for concurrent searches, member reads, hydration updates, and
+  tracking writes.
 
 PostgreSQL may correctly prefer a sequential scan when a table is small or a
 predicate matches much of it. For that reason, `--require-trigram-indexes`
@@ -93,8 +115,10 @@ smoke run.
 ## Measured local rehearsal
 
 The 2026-07-20 disposable PostgreSQL 16 rehearsal used 100,000 synthetic media
-identities. It validated the harness and index gate, but represents only about
-6.4% of the current 1,564,333-identity target.
+identities. It validated the original flat-catalog harness and index gate, but
+represents only about 6.4% of the current 1,564,333-identity target and predates
+the mandatory relationship/member workload. It therefore cannot satisfy the
+current cutover evidence policy.
 
 | Check                             |                         Result |
 | --------------------------------- | -----------------------------: |
@@ -117,8 +141,18 @@ queries used planner-chosen non-trigram paths; the index gate still passed over
 the representative query set.
 
 These values are local warm-cache observations, not service-level objectives.
-Network latency, real title distributions, full related metadata, catalog
-workers, member traffic, and production hardware can materially change them.
+Network latency, real title distributions, catalog workers, member traffic, and
+production hardware can materially change them.
+
+## Representative PostgreSQL 16 smoke result
+
+The 2026-07-20 implementation smoke run used a disposable local PostgreSQL 16
+container with 2,000 media, 199 relationships, 20 feed items, 20 members, 60
+watchlists, 1,000 tracking states/entries, and 200 activity events. All ten
+catalog/profile query plans and 20 catalog searches, five hydration updates,
+eight member reads, and three tracking writes completed. Cleanup removed every
+synthetic media, member, and temporary list-type row. This proves correctness of
+the richer harness; it is intentionally not performance or cutover evidence.
 
 ## CI boundary
 
@@ -135,9 +169,9 @@ Before PostgreSQL cutover approval:
    retain the report with the release evidence.
 2. Agree on query, import, concurrency, backup, and restore budgets with the
    deployment owner; compare cold- and warm-cache results against them.
-3. Repeat with representative alternate titles, descriptions, relationships,
-   images, and member tracking data, then run inventory/hydration workers under
-   interactive reads and writes.
+3. Run the representative relationship/member mode documented above using
+   owner-approved counts, then run inventory/hydration workers alongside the
+   interactive read and write workload.
 4. Exercise interruption/resume, native backup/restore, locks, connection-pool
    saturation, disk headroom, monitoring, and one-process canary behavior.
 5. Rehearse the final maintenance-window and rollback decision points in the

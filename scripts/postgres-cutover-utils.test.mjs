@@ -121,6 +121,13 @@ function validEvidence() {
 		minimumInsertRowsPerSecond: 2_000,
 		minimumConcurrentSearches: 20,
 		minimumConcurrentUpdateBatches: 5,
+		minimumSyntheticRelations: 5_000,
+		minimumSyntheticMembers: 1_000,
+		minimumSyntheticTrackingRows: 100_000,
+		minimumSyntheticEntries: 100_000,
+		minimumSyntheticActivityRows: 20_000,
+		minimumConcurrentMemberReads: 20,
+		minimumConcurrentTrackingWriteBatches: 5,
 		maximumLoadAgeHours: 24,
 		maximumTransferAgeHours: 24,
 		maximumBackupAgeHours: 4,
@@ -160,7 +167,7 @@ function validEvidence() {
 		loadReport: {
 			version: 1,
 			measuredAt: '2026-07-20T11:00:00.000Z',
-			target: 'load.example:5432/veud_load_test',
+			target: policy.expectedDatabaseTarget,
 			requestedRows: 100_000,
 			loadedRows: 100_000,
 			existingRows: 0,
@@ -169,7 +176,20 @@ function validEvidence() {
 			storageGrowthBytes: 1_000_000,
 			missingTrigramIndexes: [],
 			queries: requiredLoadQueries.map(name => ({ name, executionMs: 25 })),
-			concurrency: { searches: 20, updateBatches: 5, wallMs: 50 },
+			representative: {
+				relationRows: 10_000,
+				memberCount: 1_000,
+				trackingRows: 100_000,
+				entryRows: 100_000,
+				activityRows: 20_000,
+			},
+			concurrency: {
+				searches: 20,
+				updateBatches: 5,
+				memberReads: 20,
+				trackingWriteBatches: 5,
+				wallMs: 50,
+			},
 		},
 		backupReceipt: {
 			version: 1,
@@ -249,5 +269,25 @@ test('rejects stale, undersized, mismatched, or failing evidence together', () =
 
 	expect(() => evaluatePostgresCutoverEvidence(evidence)).toThrow(
 		/transfer snapshot SHA-256.*at least 100000 rows.*trigram index.*backup receipt source.*every canary request.*canary p95.*hours old/s,
+	)
+})
+
+test('rejects a flat catalog load without representative member evidence', () => {
+	const evidence = validEvidence()
+	delete evidence.loadReport.representative
+	evidence.loadReport.concurrency.memberReads = 0
+	evidence.loadReport.concurrency.trackingWriteBatches = 0
+
+	expect(() => evaluatePostgresCutoverEvidence(evidence)).toThrow(
+		/representative relations.*representative members.*representative tracking rows.*representative entries.*representative activity rows.*concurrent member reads.*tracking write batches/s,
+	)
+})
+
+test('rejects load evidence measured against a different database target', () => {
+	const evidence = validEvidence()
+	evidence.loadReport.target = 'other.example:5432/veud_staging'
+
+	expect(() => evaluatePostgresCutoverEvidence(evidence)).toThrow(
+		'load report target does not match policy',
 	)
 })
