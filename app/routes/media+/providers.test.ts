@@ -244,10 +244,12 @@ test('only current and announced anime request an upcoming schedule', () => {
 })
 
 test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () => {
+	const absoluteRelease = new Date('2099-07-20T18:30:00.000Z')
 	const media = {
 		nextAiringEpisode: {
-			airingAt: 0,
-			timeUntilAiring: 3600,
+			airingAt: absoluteRelease.getTime() / 1_000,
+			// Cached relative countdowns must not affect the canonical timestamp.
+			timeUntilAiring: 1,
 			episode: 12,
 			mediaId: 999,
 		},
@@ -270,9 +272,33 @@ test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () =
 	expect(next.id).toBe(999)
 	expect(next.name).toBe('Episode 12 - The One')
 	expect(next.runtime).toBe(24)
-	expect(next.releaseDate).toBeInstanceOf(Date)
-	// timeUntilAiring is 3600s, so releaseDate should be ~1 hour out (wide tolerance for timing)
-	const deltaMs = next.releaseDate.getTime() - Date.now()
-	expect(deltaMs).toBeGreaterThan(3_500_000)
-	expect(deltaMs).toBeLessThan(3_700_000)
+	expect(next.releaseDate).toEqual(absoluteRelease)
+})
+
+test('getAnilistSchedule rejects countdown-only or expired schedule data', async () => {
+	fetchMock
+		.mockResolvedValueOnce(
+			proxyJson({
+				data: {
+					Media: {
+						nextAiringEpisode: { timeUntilAiring: 3600, episode: 2 },
+					},
+				},
+			}),
+		)
+		.mockResolvedValueOnce(
+			proxyJson({
+				data: {
+					Media: {
+						nextAiringEpisode: {
+							airingAt: new Date('2005-07-20T18:30:00.000Z').getTime() / 1_000,
+							episode: 2,
+						},
+					},
+				},
+			}),
+		)
+
+	await expect(getAnilistSchedule(1)).resolves.toBeNull()
+	await expect(getAnilistSchedule(2)).resolves.toBeNull()
 })
