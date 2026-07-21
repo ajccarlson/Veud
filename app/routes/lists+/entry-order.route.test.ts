@@ -32,21 +32,24 @@ async function fixture() {
 		createUser('order_owner'),
 		createUser('order_other'),
 	])
-	const suffix = faker.string.alphanumeric({ length: 8 }).toLowerCase()
 	const [animeType, movieType] = await Promise.all([
-		prisma.listType.create({
-			data: {
-				name: `anime_${suffix}`,
+		prisma.listType.upsert({
+			where: { name: 'anime' },
+			update: {},
+			create: {
+				name: 'anime',
 				header: 'Anime',
 				columns: '{}',
 				mediaType: '["episode"]',
 				completionType: '{}',
 			},
 		}),
-		prisma.listType.create({
-			data: {
-				name: `movie_${suffix}`,
-				header: 'Movies',
+		prisma.listType.upsert({
+			where: { name: 'liveaction' },
+			update: {},
+			create: {
+				name: 'liveaction',
+				header: 'Live Action',
 				columns: '{}',
 				mediaType: '["movie"]',
 				completionType: '{}',
@@ -224,6 +227,29 @@ test('rejects unauthorized and incompatible targets without changing the source'
 			await prisma.entry.findUniqueOrThrow({ where: { id: data.moved.id } }),
 		).toMatchObject({ watchlistId: data.source.id, position: 2 })
 	}
+})
+
+test('rejects a canonical media kind that does not match the destination type', async () => {
+	const data = await fixture()
+	const manga = await prisma.media.create({ data: { kind: 'manga' } })
+	const incompatibleEntry = await prisma.entry.create({
+		data: {
+			watchlistId: data.source.id,
+			position: 4,
+			title: 'Manga in a legacy anime list',
+			mediaId: manga.id,
+		},
+	})
+
+	const response = await moveRow({
+		request: data.request,
+		params: moveParams(incompatibleEntry.id, data.destination.id),
+	} as any).catch(error => error)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
+	expect(
+		await prisma.entry.findUniqueOrThrow({ where: { id: incompatibleEntry.id } }),
+	).toMatchObject({ watchlistId: data.source.id, position: 4 })
 })
 
 test('moves an entry to a typed position within the same list', async () => {
