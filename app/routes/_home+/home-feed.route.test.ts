@@ -52,6 +52,8 @@ test('signed-in home feed contains activity only from followed members', async (
 				ownerId: viewer.id,
 				mediaId: media.id,
 				status: 'plan-to-watch',
+				score: 8.5,
+				repeatCount: 2,
 			},
 		}),
 	])
@@ -71,6 +73,16 @@ test('signed-in home feed contains activity only from followed members', async (
 	expect(result.data.followingCount).toBe(1)
 	expect(result.data.isSignedIn).toBe(true)
 	expect(result.data.watchlists).toEqual([])
+	expect(result.data.librarySummary).toEqual({
+		totalTitles: 1,
+		meanScore: 8.5,
+		repeatCount: 2,
+		groups: [
+			{ key: 'liveaction', label: 'Live action', count: 1 },
+			{ key: 'anime', label: 'Anime', count: 0 },
+			{ key: 'manga', label: 'Manga', count: 0 },
+		],
+	})
 	expect(result.data.trendingRails).toEqual([
 		expect.objectContaining({
 			kind: 'movie',
@@ -122,6 +134,7 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	expect(result.data.followingCount).toBe(0)
 	expect(result.data.isSignedIn).toBe(false)
 	expect(result.data.watchlists).toEqual([])
+	expect(result.data.librarySummary).toBeNull()
 	expect(result.data.trendingRails).toEqual([])
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([])
@@ -149,6 +162,16 @@ test('new members receive discovery suggestions that exclude themselves', async 
 	expect(result.data.followingCount).toBe(0)
 	expect(result.data.isSignedIn).toBe(true)
 	expect(result.data.watchlists).toEqual([])
+	expect(result.data.librarySummary).toEqual({
+		totalTitles: 0,
+		meanScore: null,
+		repeatCount: 0,
+		groups: [
+			{ key: 'liveaction', label: 'Live action', count: 0 },
+			{ key: 'anime', label: 'Anime', count: 0 },
+			{ key: 'manga', label: 'Manga', count: 0 },
+		],
+	})
 	expect(result.data.trendingRails).toEqual([])
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([

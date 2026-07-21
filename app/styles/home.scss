@@ -84,7 +84,7 @@
 			align-items: start;
 		}
 
-		.home-upcoming {
+		.home-dashboard-sidebar {
 			position: sticky;
 			top: 1rem;
 		}
@@ -100,6 +100,23 @@
 			black calc(100% - 0.65rem),
 			transparent
 		);
+	}
+
+	.home-trending-rail[data-at-start='true'][data-at-end='false'] {
+		mask-image: linear-gradient(
+			to right,
+			black,
+			black calc(100% - 0.65rem),
+			transparent
+		);
+	}
+
+	.home-trending-rail[data-at-start='false'][data-at-end='true'] {
+		mask-image: linear-gradient(to right, transparent, black 0.65rem, black);
+	}
+
+	.home-trending-rail[data-at-start='true'][data-at-end='true'] {
+		mask-image: none;
 	}
 
 	.home-trending-rail::-webkit-scrollbar {
@@ -147,6 +164,57 @@
 		color: #222222;
 		background: #a2ffd5;
 		border-color: #a2ffd5;
+	}
+
+	.home-library-stat {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		padding: 0.65rem 0.2rem;
+		background: rgba(34, 34, 34, 0.72);
+		border: 1px solid rgba(162, 255, 213, 0.12);
+		border-radius: 0.65rem;
+	}
+
+	.home-library-stat strong {
+		font-size: 1.15rem;
+		line-height: 1.2;
+		color: #ffffb1;
+	}
+
+	.home-library-stat span {
+		font-size: 0.6rem;
+		font-weight: 800;
+		text-align: center;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: #8ca99d;
+	}
+
+	.home-library-group {
+		display: block;
+		padding: 0.25rem 0;
+	}
+
+	.home-library-bar {
+		display: block;
+		height: 100%;
+		border-radius: inherit;
+		transition: width 180ms ease;
+	}
+
+	.home-library-bar--liveaction {
+		background: #a97a62;
+	}
+
+	.home-library-bar--anime {
+		background: #9b86bd;
+	}
+
+	.home-library-bar--manga {
+		background: #71c09c;
 	}
 
 	@media (max-width: 35rem) {
