@@ -16,6 +16,17 @@ const filterIcon = `
   </svg>
 `
 
+const rowDragIcon = `
+  <svg class="veud-grid-drag-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <circle cx="8" cy="6" r="1.5" />
+    <circle cx="16" cy="6" r="1.5" />
+    <circle cx="8" cy="12" r="1.5" />
+    <circle cx="16" cy="12" r="1.5" />
+    <circle cx="8" cy="18" r="1.5" />
+    <circle cx="16" cy="18" r="1.5" />
+  </svg>
+`
+
 export const gridOptions = {
 	autoSizeStrategy: {
 		type: 'fitGridWidth',
@@ -27,6 +38,7 @@ export const gridOptions = {
 		filter: filterIcon,
 		menu: filterIcon,
 		menuAlt: filterIcon,
+		rowDrag: rowDragIcon,
 	},
 	defaultColDef: {
 		editable: false,
