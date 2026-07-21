@@ -6,6 +6,7 @@ import {
 import {
 	catalogDataFromSnapshot,
 	hasCatalogValue,
+	type MediaCatalogField,
 	mediaCatalogFields,
 	mediaCatalogSelect,
 } from './media-catalog.ts'
@@ -20,9 +21,22 @@ export async function hydrateMediaCatalog(
 	tx: Prisma.TransactionClient,
 	mediaId: string,
 	snapshot: Record<string, unknown>,
-	options: { overwrite?: boolean } = {},
+	options: {
+		overwrite?: boolean
+		authoritativeFields?: MediaCatalogField[]
+		syncLegacyFields?: MediaCatalogField[]
+	} = {},
 ) {
 	const candidate = catalogDataFromSnapshot(snapshot)
+	const authoritativeFields = new Set(options.authoritativeFields ?? [])
+	for (const field of authoritativeFields) {
+		if (
+			Object.prototype.hasOwnProperty.call(snapshot, field) &&
+			snapshot[field] === null
+		) {
+			candidate[field] = null
+		}
+	}
 	if (Object.keys(candidate).length === 0) return
 
 	let data = candidate
@@ -35,9 +49,11 @@ export async function hydrateMediaCatalog(
 			mediaCatalogFields
 				.filter(
 					field =>
-						!hasCatalogValue(current[field]) &&
-						hasCatalogValue(candidate[field]),
+						authoritativeFields.has(field) ||
+						(!hasCatalogValue(current[field]) &&
+							hasCatalogValue(candidate[field])),
 				)
+				.filter(field => Object.prototype.hasOwnProperty.call(candidate, field))
 				.map(field => [field, candidate[field]]),
 		)
 	}
@@ -47,6 +63,17 @@ export async function hydrateMediaCatalog(
 			where: { id: mediaId },
 			data: data as Prisma.MediaUpdateInput,
 		})
+		const legacyData = Object.fromEntries(
+			(options.syncLegacyFields ?? [])
+				.filter(field => Object.prototype.hasOwnProperty.call(data, field))
+				.map(field => [field, data[field]]),
+		)
+		if (Object.keys(legacyData).length) {
+			await tx.entry.updateMany({
+				where: { mediaId },
+				data: legacyData as Prisma.EntryUpdateManyMutationInput,
+			})
+		}
 	}
 }
 

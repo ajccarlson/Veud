@@ -496,6 +496,95 @@ test('refreshing a legacy row can establish its canonical identity', async () =>
 	).toEqual(expect.objectContaining({ mediaId: updated.mediaId }))
 })
 
+test('provider refresh clears canonical and legacy schedules only when authoritative', async () => {
+	const owner = await createOwner('anime')
+	const staleSchedule = JSON.stringify({
+		releaseDate: '2026-09-01T12:00:00.000Z',
+		episode: 9,
+	})
+	const added = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'Schedule refresh title',
+			type: 'TV Series',
+			nextRelease: staleSchedule,
+			mediaIdentity: {
+				provider: 'mal',
+				kind: 'anime',
+				externalId: '55114',
+			},
+		}),
+	} as any)
+	const sibling = await prisma.entry.create({
+		data: {
+			watchlistId: owner.watchlistId,
+			position: 2,
+			title: 'Legacy sibling snapshot',
+			type: 'TV Series',
+			nextRelease: staleSchedule,
+			mediaId: added.mediaId,
+		},
+	})
+
+	await updateRow({
+		request: owner.request,
+		params: {
+			request: new URLSearchParams({
+				rowIndex: added.id,
+				row: JSON.stringify({
+					title: 'Failed provider refresh preserves schedule',
+					mediaIdentity: {
+						provider: 'mal',
+						kind: 'anime',
+						externalId: '55114',
+					},
+				}),
+			}).toString(),
+		},
+	} as any)
+	expect(
+		(
+			await prisma.media.findUniqueOrThrow({
+				where: { id: added.mediaId as string },
+			})
+		).nextRelease,
+	).toBe(staleSchedule)
+
+	await updateRow({
+		request: owner.request,
+		params: {
+			request: new URLSearchParams({
+				rowIndex: added.id,
+				row: JSON.stringify({
+					title: 'Provider confirms no upcoming episode',
+					nextRelease: null,
+					mediaIdentity: {
+						provider: 'mal',
+						kind: 'anime',
+						externalId: '55114',
+					},
+				}),
+			}).toString(),
+		},
+	} as any)
+
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: added.mediaId as string },
+			select: { nextRelease: true },
+		}),
+	).toEqual({ nextRelease: null })
+	expect(
+		await prisma.entry.findMany({
+			where: { id: { in: [added.id, sibling.id] } },
+			orderBy: { position: 'asc' },
+			select: { nextRelease: true },
+		}),
+	).toEqual([{ nextRelease: null }, { nextRelease: null }])
+})
+
 test('correcting canonical identity removes the superseded orphan state', async () => {
 	const owner = await createOwner('anime')
 	const added = await addRow({
