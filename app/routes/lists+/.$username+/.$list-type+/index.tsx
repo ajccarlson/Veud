@@ -1,5 +1,9 @@
-import { data as json, type LoaderFunctionArgs } from 'react-router'
-import { useLoaderData } from 'react-router'
+import {
+	data as json,
+	type LoaderFunctionArgs,
+	useLoaderData,
+	useNavigation,
+} from 'react-router'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from 'react-router'
 import { useState, useEffect } from 'react'
@@ -44,13 +48,15 @@ async function createNewList(listParams: any) {
   }).toString()), { method: 'POST' })
   const addData: any = await addResponse.json();
 
-  listParams.watchListData.push({
-    watchlist: addData,
-    listEntries: []
-  })
+  listParams.setWatchListData((current: any[]) => [
+    ...current,
+    {
+      watchlist: addData,
+      listEntries: [],
+    },
+  ])
 
   listParams.setShownSettings([...listParams.shownSettings, addData.id])
-  listParams.setNavItems(listNavigationDisplayer(listParams))
 }
 
 function getWatchlistNav(entryData: any, listParams: any) {
@@ -166,16 +172,18 @@ export function listNavigationDisplayer(listParams: any) {
 }
 
 export async function loader(params: LoaderFunctionArgs) {
-  const viewerId = await getUserId(params.request)
-  const listOwner = await prisma.user.findUnique({
-    where: {
-      username: params['params']['username']!,
-    },
-  })
+  const [viewerId, listOwner, listTypes] = await Promise.all([
+    getUserId(params.request),
+    prisma.user.findUnique({
+      where: {
+        username: params['params']['username']!,
+      },
+    }),
+    prisma.listType.findMany(),
+  ])
 
   invariantResponse(listOwner, 'User not found', { status: 404 }) 
 
-  const listTypes = await prisma.listType.findMany()
   const listType = params['params']['list-type']
   const listTypeData = listTypes.find(type => type.name === listType)
   invariantResponse(listTypeData, 'List type not found', { status: 404 })
@@ -241,21 +249,40 @@ export function ErrorBoundary() {
 export default function Lists() {
   const [shownSettings, setShownSettings] = useState<any[]>([])
   const [settingsErrors, setSettingsErrors] = useState<any[]>([])
-  const [navItems, setNavItems] = useState<any[]>([])
   const loaderData = useLoaderData<typeof loader>()
+  const [watchListData, setWatchListData] = useState<any[]>(
+    () => loaderData.watchListData,
+  )
+  const navigation = useNavigation()
   const currentUser = useOptionalUser()
   const currentUserId = currentUser ? currentUser.id : null
 
-  const sameType = loaderData.watchListData.filter((item: any) => item.watchlist.typeId === loaderData.listTypeData.id)
-  const listParams = {watchListData: loaderData.watchListData, sameType, listOwner: loaderData.listOwner, username: loaderData.username, currentUser, currentUserId, listTypes: loaderData.listTypes, listTypeData: loaderData.listTypeData, shownSettings, VEUD_API_KEY: (loaderData as any).VEUD_API_KEY, setShownSettings, navItems, setNavItems, settingsErrors, setSettingsErrors}
-
   useEffect(() => {
-  	setSettingsErrors(settingsErrors)
-  }, [settingsErrors])
+    setWatchListData(loaderData.watchListData)
+    setShownSettings([])
+    setSettingsErrors([])
+  }, [loaderData.listTypeData.id, loaderData.watchListData])
 
-  useEffect(() => {
-  	setNavItems(listNavigationDisplayer(listParams))
-  }, [shownSettings]);
+  const sameType = watchListData.filter(
+    (item: any) => item.watchlist.typeId === loaderData.listTypeData.id,
+  )
+  const listParams = {
+    watchListData,
+    setWatchListData,
+    sameType,
+    listOwner: loaderData.listOwner,
+    username: loaderData.username,
+    currentUser,
+    currentUserId,
+    listTypes: loaderData.listTypes,
+    listTypeData: loaderData.listTypeData,
+    shownSettings,
+    VEUD_API_KEY: (loaderData as any).VEUD_API_KEY,
+    setShownSettings,
+    settingsErrors,
+    setSettingsErrors,
+  }
+  const navItems = listNavigationDisplayer(listParams)
 
   let firstListMessage: string | undefined
   if (!sameType || sameType.length < 1) {
@@ -268,7 +295,10 @@ export default function Lists() {
   }
 
   return (
-		<main className="list-landing">
+		<main
+			className="list-landing"
+			aria-busy={navigation.state !== 'idle'}
+		>
       <div className="list-landing-nav-main">
         <div className="list-landing-nav-container">
 					<header className="list-landing-page-header">
@@ -280,6 +310,9 @@ export default function Lists() {
 						</div>
 						<p>
 							{sameType.length} {sameType.length === 1 ? 'list' : 'lists'}
+							{navigation.state !== 'idle' ? (
+								<span className="list-landing-loading">Updating…</span>
+							) : null}
 						</p>
 					</header>
           { navItems }

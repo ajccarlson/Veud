@@ -29,12 +29,14 @@ export function QuickTrackControl({
 	isSignedIn,
 	loginRedirectTo,
 	layout = 'row',
+	onTracked,
 }: {
 	item: QuickTrackMedia
 	watchlists: QuickTrackWatchlist[]
 	isSignedIn: boolean
 	loginRedirectTo: string
 	layout?: 'row' | 'stacked'
+	onTracked?: () => void
 }) {
 	const fetcher = useFetcher<typeof quickTrackAction>()
 	const listTypeName = listTypeNameForMediaKind(item.kind)
@@ -53,6 +55,12 @@ export function QuickTrackControl({
 	useEffect(() => {
 		setSelectedWatchlistId(savedWatchlistId ?? '')
 	}, [savedWatchlistId])
+	const trackedWatchlistId = fetcher.data?.ok
+		? fetcher.data.tracking.watchlistId
+		: null
+	useEffect(() => {
+		if (trackedWatchlistId) onTracked?.()
+	}, [onTracked, trackedWatchlistId])
 
 	if (!isSignedIn) {
 		const loginParams = new URLSearchParams({ redirectTo: loginRedirectTo })
@@ -74,7 +82,7 @@ export function QuickTrackControl({
 	const saved =
 		fetcher.data?.ok &&
 		fetcher.data.tracking.watchlistId === selectedWatchlistId
-	const verb = item.viewerTracking ? 'Update' : 'Track'
+	const verb = item.viewerTracking || fetcher.data?.ok ? 'Update' : 'Track'
 
 	return (
 		<fetcher.Form
