@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
 	QuickTrackControl,
@@ -20,16 +20,10 @@ function TrendingCard({
 	watchlists: QuickTrackWatchlist[]
 	isSignedIn: boolean
 }) {
-	const [isTracked, setIsTracked] = useState(Boolean(item.viewerTracking))
-	const markTracked = useCallback(() => setIsTracked(true), [])
 	const { imageUrl } = splitLegacyThumbnail(item.thumbnail)
-	const trackingState = isTracked ? 'tracked' : 'available'
 
 	return (
-		<article
-			className={`home-trending-card home-trending-card--${trackingState} w-44 shrink-0 snap-start overflow-hidden rounded-xl shadow-lg shadow-black/20`}
-			data-tracking-state={trackingState}
-		>
+		<article className="home-trending-card w-44 shrink-0 snap-start overflow-hidden rounded-xl shadow-lg shadow-black/20">
 			<Link
 				to={`/media/${item.id}`}
 				className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a2ffd5]"
@@ -50,12 +44,6 @@ function TrendingCard({
 					<span className="absolute left-2 top-2 rounded-full bg-[#222]/90 px-2 py-1 text-xs font-black text-[#ffcc66]">
 						#{item.rank}
 					</span>
-					<span className="home-trending-state-badge">
-						{isTracked ? 'On your list' : 'Ready to add'}
-					</span>
-					<span className="absolute bottom-2 right-2 rounded bg-[#222]/90 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
-						{item.source === 'provider-feed' ? 'Trending' : 'Popular'}
-					</span>
 				</div>
 				<div className="min-h-24 p-3">
 					<h4 className="line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
@@ -75,7 +63,6 @@ function TrendingCard({
 					isSignedIn={isSignedIn}
 					loginRedirectTo="/"
 					layout="stacked"
-					onTracked={markTracked}
 				/>
 			</div>
 		</article>

@@ -29,14 +29,12 @@ export function QuickTrackControl({
 	isSignedIn,
 	loginRedirectTo,
 	layout = 'row',
-	onTracked,
 }: {
 	item: QuickTrackMedia
 	watchlists: QuickTrackWatchlist[]
 	isSignedIn: boolean
 	loginRedirectTo: string
 	layout?: 'row' | 'stacked'
-	onTracked?: () => void
 }) {
 	const fetcher = useFetcher<typeof quickTrackAction>()
 	const listTypeName = listTypeNameForMediaKind(item.kind)
@@ -55,12 +53,7 @@ export function QuickTrackControl({
 	useEffect(() => {
 		setSelectedWatchlistId(savedWatchlistId ?? '')
 	}, [savedWatchlistId])
-	const trackedWatchlistId = fetcher.data?.ok
-		? fetcher.data.tracking.watchlistId
-		: null
-	useEffect(() => {
-		if (trackedWatchlistId) onTracked?.()
-	}, [onTracked, trackedWatchlistId])
+	const isTracked = Boolean(item.viewerTracking || fetcher.data?.ok)
 
 	if (!isSignedIn) {
 		const loginParams = new URLSearchParams({ redirectTo: loginRedirectTo })
@@ -82,7 +75,7 @@ export function QuickTrackControl({
 	const saved =
 		fetcher.data?.ok &&
 		fetcher.data.tracking.watchlistId === selectedWatchlistId
-	const verb = item.viewerTracking || fetcher.data?.ok ? 'Update' : 'Track'
+	const verb = isTracked ? 'Update' : 'Track'
 
 	return (
 		<fetcher.Form
@@ -97,7 +90,13 @@ export function QuickTrackControl({
 				onChange={event => setSelectedWatchlistId(event.currentTarget.value)}
 				disabled={busy}
 				aria-label={`Tracking status for ${item.title}`}
-				className="h-9 min-w-0 flex-1 rounded-md border border-[#54806c] bg-[#2e2f2b] px-2 text-xs text-[#ffefcc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]"
+				data-tracking-state={isTracked ? 'tracked' : 'available'}
+				className={cn(
+					'quick-track-watchlist-select h-9 min-w-0 flex-1 rounded-md border px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]',
+					isTracked
+						? 'border-[#a2ffd5] bg-[#315746] text-[#f1fff8] shadow-[inset_0_0_0_1px_rgba(162,255,213,0.15)]'
+						: 'border-[#54806c] bg-[#2e2f2b] text-[#ffefcc]',
+				)}
 			>
 				{compatible.map(watchlist => (
 					<option key={watchlist.id} value={watchlist.id}>
