@@ -55,8 +55,9 @@
 	.home-container {
 		display: flex;
 		flex-direction: column;
-		gap: clamp(2.75rem, 5vw, 5rem);
+		gap: clamp(1.5rem, 3vw, 2.5rem);
 		min-width: 0;
+		margin-inline: auto;
 		padding: 2rem 0.75rem 5rem;
 		height: fit-content;
 		width: calc(100% - clamp(1rem, 4vw, 4rem));
@@ -71,17 +72,91 @@
 	.home-dashboard {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: 2rem;
+		gap: 1.25rem;
 		width: 100%;
 		max-width: 80rem;
 		margin-inline: auto;
-		padding-inline: 1rem;
+		padding: 1.75rem 1rem 0;
+		border-top: 1px solid rgb(162 255 213 / 14%);
+	}
+
+	.home-trending-section {
+		padding: clamp(1rem, 2.5vw, 1.75rem);
+		background: linear-gradient(
+			145deg,
+			rgb(56 48 64 / 38%),
+			rgb(34 34 34 / 82%) 48%,
+			rgb(84 128 108 / 18%)
+		);
+		border: 1px solid rgb(162 255 213 / 14%);
+		border-radius: 1.25rem;
+		box-shadow: 0 1rem 2.75rem rgb(0 0 0 / 18%);
+	}
+
+	.home-trending-card {
+		background: #383040;
+		border: 1px solid transparent;
+		transition:
+			border-color 150ms ease,
+			box-shadow 150ms ease,
+			transform 150ms ease;
+	}
+
+	.home-trending-card:hover,
+	.home-trending-card:focus-within {
+		transform: translateY(-0.15rem);
+	}
+
+	.home-trending-card--available {
+		border-color: rgb(174 133 203 / 55%);
+		box-shadow:
+			inset 0 0.2rem 0 #7b5b91,
+			0 0.75rem 1.75rem rgb(0 0 0 / 20%);
+	}
+
+	.home-trending-card--tracked {
+		border-color: rgb(162 255 213 / 62%);
+		box-shadow:
+			inset 0 0.2rem 0 #71c09c,
+			0 0.75rem 1.75rem rgb(0 0 0 / 20%);
+	}
+
+	.home-trending-state-badge {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		max-width: calc(100% - 3.5rem);
+		padding: 0.25rem 0.5rem;
+		border: 1px solid rgb(255 255 255 / 18%);
+		border-radius: 999px;
+		font-size: 0.58rem;
+		font-weight: 900;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		box-shadow: 0 0.2rem 0.6rem rgb(0 0 0 / 35%);
+	}
+
+	.home-trending-card--available .home-trending-state-badge {
+		color: #fff7e8;
+		background: rgb(86 55 106 / 94%);
+	}
+
+	.home-trending-card--tracked .home-trending-state-badge {
+		color: #17251e;
+		background: rgb(162 255 213 / 95%);
+		border-color: #a2ffd5;
+	}
+
+	.home-trending-card-actions {
+		border-top: 1px solid rgb(84 128 108 / 45%);
 	}
 
 	@media (min-width: 64rem) {
 		.home-dashboard {
 			grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 1fr);
 			align-items: start;
+			gap: 1.5rem;
 		}
 
 		.home-dashboard-sidebar {

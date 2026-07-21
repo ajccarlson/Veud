@@ -175,16 +175,18 @@ test('member can keep tracking global search results across lists in one session
 	await page.goto(`/lists/${user.username}/anime/${watching.name}`)
 	await expect(page.getByRole('button', { name: 'Add title' })).toHaveCount(0)
 	await expect(
-		page.locator('form.site-search').getByLabel(
-			'Search movies, TV, anime, and manga',
-		),
+		page
+			.locator('form.site-search')
+			.getByLabel('Search movies, TV, anime, and manga'),
 	).toBeVisible()
 	await trackCatalogResult(titles[0], watching)
 	await page.setViewportSize({ width: 390, height: 844 })
-	const siteSearchBounds = await page.locator('form.site-search').evaluate(form => {
-		const bounds = form.getBoundingClientRect()
-		return { left: bounds.left, right: bounds.right, width: bounds.width }
-	})
+	const siteSearchBounds = await page
+		.locator('form.site-search')
+		.evaluate(form => {
+			const bounds = form.getBoundingClientRect()
+			return { left: bounds.left, right: bounds.right, width: bounds.width }
+		})
 	expect(siteSearchBounds.left).toBeGreaterThanOrEqual(-1)
 	expect(siteSearchBounds.right).toBeLessThanOrEqual(391)
 	expect(siteSearchBounds.width).toBeGreaterThan(250)
@@ -343,9 +345,7 @@ test('list landing keeps every list reachable inside the viewport', async ({
 		})
 
 		expect(metrics.landingLeft).toBeGreaterThanOrEqual(-1)
-		expect(metrics.landingRight).toBeLessThanOrEqual(
-			metrics.viewportWidth + 1,
-		)
+		expect(metrics.landingRight).toBeLessThanOrEqual(metrics.viewportWidth + 1)
 		expect(metrics.landingBottom).toBeLessThanOrEqual(
 			metrics.viewportHeight + 1,
 		)
@@ -379,7 +379,78 @@ test('list landing keeps every list reachable inside the viewport', async ({
 			name: 'Edit Landing list 8 list settings',
 		}),
 	).toBeVisible()
-	await expect(page.getByRole('navigation', { name: 'Media list types' })).toBeVisible()
+	await expect(
+		page.getByRole('navigation', { name: 'Media list types' }),
+	).toBeVisible()
+})
+
+test('list landing switches media types without a reload or stale cards', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listTypes = await prisma.listType.findMany({
+		where: { name: { in: ['anime', 'manga'] } },
+	})
+	const animeType = listTypes.find(type => type.name === 'anime')!
+	const mangaType = listTypes.find(type => type.name === 'manga')!
+	await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				name: 'anime-switch-list',
+				header: 'Anime switch list',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				description: 'Anime landing switch fixture.',
+				ownerId: user.id,
+				typeId: animeType.id,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				name: 'manga-switch-list',
+				header: 'Manga switch list',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				description: 'Manga landing switch fixture.',
+				ownerId: user.id,
+				typeId: mangaType.id,
+			},
+		}),
+	])
+
+	await page.goto(`/lists/${user.username}/anime`)
+	await expect(
+		page.getByRole('article', { name: 'Anime switch list' }),
+	).toBeVisible()
+	await expect(
+		page.getByRole('article', { name: 'Manga switch list' }),
+	).toHaveCount(0)
+	await page.evaluate(() => {
+		sessionStorage.removeItem('list-landing-document-unloaded')
+		window.addEventListener('beforeunload', () => {
+			sessionStorage.setItem('list-landing-document-unloaded', 'true')
+		})
+	})
+
+	const mediaTypes = page.getByRole('navigation', {
+		name: 'Media list types',
+	})
+	await mediaTypes.getByRole('link', { name: 'Manga' }).click()
+
+	await expect(page).toHaveURL(`/lists/${user.username}/manga`)
+	await expect(page.getByRole('heading', { name: 'Manga lists' })).toBeVisible()
+	await expect(
+		page.getByRole('article', { name: 'Manga switch list' }),
+	).toBeVisible()
+	await expect(
+		page.getByRole('article', { name: 'Anime switch list' }),
+	).toHaveCount(0)
+	expect(
+		await page.evaluate(() =>
+			sessionStorage.getItem('list-landing-document-unloaded'),
+		),
+	).toBeNull()
 })
 
 test('quick-add results keep long-title actions reachable on mobile', async ({

@@ -82,10 +82,7 @@
 
 	.list-landing-nav-container {
 		display: grid;
-		grid-template-columns: repeat(
-			auto-fit,
-			minmax(min(100%, 29rem), 1fr)
-		);
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 29rem), 1fr));
 		align-content: start;
 		gap: clamp(0.9rem, 2vw, 1.5rem);
 		width: min(100%, 92rem);
@@ -130,6 +127,15 @@
 		font-weight: 900;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
+	}
+
+	.list-landing-loading {
+		display: block;
+		margin-top: 0.2rem;
+		color: var(--list-landing-warm);
+		font-size: 0.68rem;
+		font-weight: 900;
+		letter-spacing: 0.04em;
 	}
 
 	.list-landing-nav-item-container {
