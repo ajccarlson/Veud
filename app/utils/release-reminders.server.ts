@@ -51,7 +51,9 @@ export function getNextCanonicalReminderRelease(
 	const candidates: CanonicalReminderRelease[] = []
 	const parsedNext = parseStoredNextRelease(media.nextRelease)
 	const next =
-		parsedNext && isPlausibleNextRelease(parsedNext, media) ? parsedNext : null
+		parsedNext && isPlausibleNextRelease(parsedNext, media, now)
+			? parsedNext
+			: null
 	if (next && next.releaseAt.getTime() > now.getTime()) {
 		candidates.push({
 			releaseAt: next.releaseAt,
