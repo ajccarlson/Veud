@@ -167,6 +167,7 @@ test('normalizes anime and manga metadata, titles, relations, URLs, and retry de
 			}),
 		}),
 	)
+	expect(anime.catalog.nextRelease).toBeNull()
 	expect(anime.titles).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({ value: 'Anime 42', isPrimary: true }),
@@ -211,6 +212,12 @@ test('normalizes anime and manga metadata, titles, relations, URLs, and retry de
 			]),
 		}),
 	)
+	expect(manga.catalog.nextRelease).toBeNull()
+	const airing = normalizeMalDetails(
+		{ ...animePayload(43), status: 'currently_airing', end_date: null },
+		'anime',
+	)
+	expect(airing.catalog).not.toHaveProperty('nextRelease')
 	expect(new URL(malDetailUrl('anime', '42')).pathname).toBe('/v2/anime/42')
 	expect(
 		new URL(malDetailUrl('manga', '7')).searchParams.get('fields'),
