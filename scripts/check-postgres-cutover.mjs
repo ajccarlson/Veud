@@ -11,6 +11,7 @@ Required:
   --policy PATH               Owner-approved cutover policy JSON
   --transfer-checkpoint PATH  Completed SQLite-to-PostgreSQL checkpoint
   --load-report PATH          Representative-scale load JSON report
+  --load-checkpoint PATH      Completed interrupted/resumed load checkpoint
   --backup PATH               Restore-verified PostgreSQL archive
   --canary-report PATH        Fresh application canary JSON report
 
@@ -28,6 +29,7 @@ const valueFlags = new Set([
 	'--policy',
 	'--transfer-checkpoint',
 	'--load-report',
+	'--load-checkpoint',
 	'--backup',
 	'--backup-receipt',
 	'--snapshot',
@@ -100,6 +102,10 @@ async function main() {
 		valueFor('--load-report', true),
 		'Load report',
 	)
+	const loadCheckpointPath = existingPath(
+		valueFor('--load-checkpoint', true),
+		'Load checkpoint',
+	)
 	const backupPath = existingPath(valueFor('--backup', true), 'Backup')
 	const canaryReportPath = existingPath(
 		valueFor('--canary-report', true),
@@ -125,6 +131,7 @@ async function main() {
 		policySha256,
 		checkpointSha256,
 		loadReportSha256,
+		loadCheckpointSha256,
 		backupReceiptSha256,
 		canaryReportSha256,
 	] = await Promise.all([
@@ -133,6 +140,7 @@ async function main() {
 		sha256File(policyPath),
 		sha256File(checkpointPath),
 		sha256File(loadReportPath),
+		sha256File(loadCheckpointPath),
 		sha256File(backupReceiptPath),
 		sha256File(canaryReportPath),
 	])
@@ -140,6 +148,7 @@ async function main() {
 		policy: readJson(policyPath, 'Policy'),
 		checkpoint,
 		loadReport: readJson(loadReportPath, 'Load report'),
+		loadCheckpoint: readJson(loadCheckpointPath, 'Load checkpoint'),
 		backupReceipt: readJson(backupReceiptPath, 'Backup receipt'),
 		canaryReport: readJson(canaryReportPath, 'Canary report'),
 		actualSnapshot,
@@ -148,6 +157,7 @@ async function main() {
 			policy: policySha256,
 			checkpoint: checkpointSha256,
 			loadReport: loadReportSha256,
+			loadCheckpoint: loadCheckpointSha256,
 			backupReceipt: backupReceiptSha256,
 			canaryReport: canaryReportSha256,
 		},
