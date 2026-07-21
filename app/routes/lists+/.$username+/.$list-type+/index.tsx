@@ -54,13 +54,19 @@ async function createNewList(listParams: any) {
 }
 
 function getWatchlistNav(entryData: any, listParams: any) {
+	const titleId = `list-card-${entryData.watchlist.id}`
+
   return(
-    <div className="list-landing-nav-item-container">
+    <article
+			key={entryData.watchlist.id}
+			className="list-landing-nav-item-container"
+			aria-labelledby={titleId}
+		>
       <div className="list-landing-nav-top">
         <div className="list-landing-nav-title">
-          <h1 className="list-landing-nav-header">
+					<h2 id={titleId} className="list-landing-nav-header">
             {entryData.watchlist.header}
-          </h1>
+					</h2>
           {!entryData.watchlist.isPublic ? (
             <span className="list-visibility-badge">Private</span>
           ) : null}
@@ -81,8 +87,8 @@ function getWatchlistNav(entryData: any, listParams: any) {
                   <hr className="list-landing-nav-entry-preview-separator"></hr>
                 : null}
                 <div className="list-landing-nav-thumbnail-container">
-                  {entryData.listEntries.slice(0, 5).map((listEntry: any) => 
-                    <div className="list-landing-nav-thumbnail-item">
+									{entryData.listEntries.slice(0, 5).map((listEntry: any) =>
+										<div key={listEntry.id} className="list-landing-nav-thumbnail-item">
                       <Link to={getThumbnailInfo(listEntry.thumbnail).url} className="list-landing-body-thumbnail-image" style={{backgroundImage: `url("${getThumbnailInfo(listEntry.thumbnail).content}")`}}>
                         <span className="list-landing-thumbnail-header">
                           <div className="list-landing-thumbnail-start-year">
@@ -110,24 +116,37 @@ function getWatchlistNav(entryData: any, listParams: any) {
           </div>
         </div>
       </div>
-      {listParams.currentUserId == listParams.listOwner.id ? 
+      {listParams.currentUserId == listParams.listOwner.id ?
         <div className="list-landing-nav-link-container">
-          <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-item-button" className="list-landing-nav-link-item">
+					<Link
+						to={`/lists/${listParams.username}/${listParams.listTypeData.name}/${entryData.watchlist.name}`}
+						className="list-landing-nav-link-item"
+						aria-label={`Open ${entryData.watchlist.header} list`}
+					>
             Open
-          </a>
-          <button id="list-landing-nav-link-end-button" className="list-landing-nav-link-end" onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}>
+					</Link>
+					<button
+						type="button"
+						className="list-landing-nav-link-end"
+						aria-label={`Edit ${entryData.watchlist.header} list settings`}
+						onClick={() => {listParams.setShownSettings([...listParams.shownSettings, entryData.watchlist.id])}}
+					>
             Settings
           </button>
         </div>
       :
         <div className="list-landing-nav-link-container">
-          <a href={"/lists/" + listParams.username + "/" + listParams.listTypeData.name + "/" + entryData.watchlist.name} id="list-landing-nav-link-end-button" className="list-landing-nav-link-end">
+					<Link
+						to={`/lists/${listParams.username}/${listParams.listTypeData.name}/${entryData.watchlist.name}`}
+						className="list-landing-nav-link-end"
+						aria-label={`Open ${entryData.watchlist.header} list`}
+					>
             Open
-          </a>
+					</Link>
         </div>
       }
-      <Spacer size="xs"/>
-    </div>
+			<Spacer size="xs"/>
+		</article>
   )
 }
 
@@ -249,31 +268,51 @@ export default function Lists() {
   }
 
   return (
-    <main className="list-landing" style={{ width: '100%', height: '100%' }}>
+		<main className="list-landing">
       <div className="list-landing-nav-main">
         <div className="list-landing-nav-container">
+					<header className="list-landing-page-header">
+						<div>
+							<p className="list-landing-page-eyebrow">
+								{loaderData.username}'s library
+							</p>
+							<h1>{loaderData.listTypeData.header} lists</h1>
+						</div>
+						<p>
+							{sameType.length} {sameType.length === 1 ? 'list' : 'lists'}
+						</p>
+					</header>
           { navItems }
-          <div className="list-landing-starting-message"> { firstListMessage } </div>
-          {listParams.currentUserId == listParams.listOwner.id ? 
-            <span className='list-landing-nav-insert' onClick={(e) => {createNewList(listParams)}}>
-              <Icon name="plus"></Icon>
-            </span>
+					{firstListMessage ? (
+						<div className="list-landing-starting-message">
+							{firstListMessage}
+						</div>
+					) : null}
+          {listParams.currentUserId == listParams.listOwner.id ?
+							<button
+								type="button"
+								className="list-landing-nav-insert"
+								onClick={() => {createNewList(listParams)}}
+							>
+								<Icon name="plus" aria-hidden="true" />
+								Create list
+							</button>
           :
             null
           }
         </div>
       </div>
-      <div className="list-landing-sidebar-container">
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/liveaction`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "liveaction"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
+			<nav className="list-landing-sidebar-container" aria-label="Media list types">
+				<Link prefetch="intent" to={`/lists/${loaderData.username}/liveaction`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "liveaction"? 'list-landing-sidebar-item-current' : ''}`}>
           Live Action
         </Link>
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/anime`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "anime"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
+				<Link prefetch="intent" to={`/lists/${loaderData.username}/anime`} className={`list-landing-sidebar-item ${listParams.listTypeData.name == "anime"? 'list-landing-sidebar-item-current' : ''}`}>
           Anime
         </Link>
-        <Link prefetch="intent" to={`/lists/${loaderData.username}/manga`} className={`list-landing-sidebar-item list-landing-sidebar-item-bottom ${listParams.listTypeData.name == "manga"? 'list-landing-sidebar-item-current' : ''}`} reloadDocument>
+				<Link prefetch="intent" to={`/lists/${loaderData.username}/manga`} className={`list-landing-sidebar-item list-landing-sidebar-item-bottom ${listParams.listTypeData.name == "manga"? 'list-landing-sidebar-item-current' : ''}`}>
           Manga
         </Link>
-      </div>
+			</nav>
     </main>
   )
 }

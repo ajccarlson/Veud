@@ -15,7 +15,7 @@ function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
     if (displayedColumns[displayedIndex]) {
       if (column == displayedColumns[displayedIndex]) {
         checkedColumns.push(
-          <label className="list-landing-settings-checkbox-item">
+					<label key={column} className="list-landing-settings-checkbox-item">
             <input id={`${column}-checkbox`} name={`${column}-checkbox`} type="checkbox" defaultChecked={true}/>
             {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
           </label>
@@ -25,7 +25,7 @@ function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
       }
       else {
         checkedColumns.push(
-          <label className="list-landing-settings-checkbox-item">
+					<label key={column} className="list-landing-settings-checkbox-item">
             <input type="checkbox" id={`${column}-checkbox`} name={`${column}-checkbox`}/>
             {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
           </label>
@@ -34,7 +34,7 @@ function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
     }
     else {
       checkedColumns.push(
-        <label className="list-landing-settings-checkbox-item">
+				<label key={column} className="list-landing-settings-checkbox-item">
             <input type="checkbox" id={`${column}-checkbox`} name={`${column}-checkbox`}/>
           {(column.charAt(0).toUpperCase() + column.substr(1)).split(/(?=[A-Z])/).join(" ")}
         </label>
@@ -128,12 +128,12 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
   const checkedColumns = checkDisplayedColumns(columns, displayedColumns)
 
   return(
-    <Form method="post" onSubmit={(e) => {handleSubmit(e, columns, entryData.watchlist, listParams)}}>
+		<Form key={entryData.watchlist.id} method="post" onSubmit={(e) => {handleSubmit(e, columns, entryData.watchlist, listParams)}}>
       <div className="list-landing-nav-item-container">
         <div className="list-landing-nav-top">
-          <h1 className="list-landing-nav-header">
+					<h2 className="list-landing-nav-header">
             {entryData.watchlist.header}
-          </h1> 
+					</h2>
           <div className="list-landing-nav-length">
             {entryData.listEntries.length}
           </div>
