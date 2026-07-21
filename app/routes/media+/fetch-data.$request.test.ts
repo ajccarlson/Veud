@@ -125,12 +125,25 @@ test('sends Trakt-only credentials to Trakt (per-host isolation)', async () => {
 
 test('sends the MAL client-id header to MyAnimeList', async () => {
 	await callLoader(
-		'url=' +
-			encodeURIComponent('https://api.myanimelist.net/v2/anime/1'),
+		'url=' + encodeURIComponent('https://api.myanimelist.net/v2/anime/1'),
 	)
 	const [, init] = fetchMock.mock.calls[0]
 	const headers = (init?.headers ?? {}) as Record<string, string>
 	expect(headers['X-MAL-CLIENT-ID']).toBe('mal-client-id')
+})
+
+test('returns the upstream observation time in the proxy metadata slot', async () => {
+	const before = Date.now()
+	const result = await callLoader(
+		'url=' + encodeURIComponent('https://api.themoviedb.org/3/movie/1'),
+	)
+	const after = Date.now()
+	const metadata = result[0] as { observedAt: string }
+	const observedAt = new Date(metadata.observedAt).getTime()
+
+	expect(observedAt).toBeGreaterThanOrEqual(before)
+	expect(observedAt).toBeLessThanOrEqual(after)
+	expect(result[1]).toEqual({ ok: true })
 })
 
 // ---- Upstream failures surface as a generic 502; details stay server-side ----
