@@ -34,13 +34,36 @@ function TrendingRail({
 	isSignedIn: boolean
 }) {
 	const scroller = useRef<HTMLDivElement>(null)
+	const [scrollEdges, setScrollEdges] = useState({ atStart: true, atEnd: true })
 	const headingId = `home-trending-${rail.kind}`
+	const updateScrollEdges = () => {
+		const element = scroller.current
+		if (!element) return
+		const maximum = Math.max(0, element.scrollWidth - element.clientWidth)
+		setScrollEdges({
+			atStart: element.scrollLeft <= 2,
+			atEnd: element.scrollLeft >= maximum - 2,
+		})
+	}
 	const scroll = (direction: -1 | 1) => {
 		scroller.current?.scrollBy({
 			left: direction * Math.max(320, scroller.current.clientWidth * 0.8),
 			behavior: 'smooth',
 		})
 	}
+
+	useEffect(() => {
+		const element = scroller.current
+		if (!element) return
+		updateScrollEdges()
+		element.addEventListener('scroll', updateScrollEdges, { passive: true })
+		const resizeObserver = new ResizeObserver(updateScrollEdges)
+		resizeObserver.observe(element)
+		return () => {
+			element.removeEventListener('scroll', updateScrollEdges)
+			resizeObserver.disconnect()
+		}
+	}, [rail.items.length])
 
 	return (
 		<section aria-labelledby={headingId} className="min-w-0 space-y-3">
@@ -63,6 +86,7 @@ function TrendingRail({
 						size="icon"
 						className="h-8 w-8"
 						onClick={() => scroll(-1)}
+						disabled={scrollEdges.atStart}
 						aria-label={`Scroll ${rail.title} left`}
 					>
 						<ArrowIcon direction="left" />
@@ -73,6 +97,7 @@ function TrendingRail({
 						size="icon"
 						className="h-8 w-8"
 						onClick={() => scroll(1)}
+						disabled={scrollEdges.atEnd}
 						aria-label={`Scroll ${rail.title} right`}
 					>
 						<ArrowIcon direction="right" />
@@ -81,13 +106,20 @@ function TrendingRail({
 			</header>
 
 			{/* A focusable overflow region enables arrow-key scrolling across browsers. */}
-			{/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
+			{/* eslint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions */}
 			<div
 				ref={scroller}
 				data-testid={`trending-rail-${rail.kind}`}
 				tabIndex={0}
 				role="region"
 				aria-label={`${rail.title} titles`}
+				data-at-start={scrollEdges.atStart}
+				data-at-end={scrollEdges.atEnd}
+				onKeyDown={event => {
+					if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+					event.preventDefault()
+					scroll(event.key === 'ArrowLeft' ? -1 : 1)
+				}}
 				className="home-trending-rail flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth py-2"
 			>
 				{rail.items.map(item => {
@@ -145,7 +177,7 @@ function TrendingRail({
 					)
 				})}
 			</div>
-			{/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+			{/* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions */}
 		</section>
 	)
 }
