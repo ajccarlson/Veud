@@ -115,6 +115,8 @@ function validatePolicy(policy, nowMs, errors) {
 		'minimumSyntheticActivityRows',
 		'minimumConcurrentMemberReads',
 		'minimumConcurrentTrackingWriteBatches',
+		'minimumDatabasePressureSamples',
+		'maximumConnectionUtilization',
 		'maximumLoadAgeHours',
 		'maximumTransferAgeHours',
 		'maximumBackupAgeHours',
@@ -140,6 +142,7 @@ function validatePolicy(policy, nowMs, errors) {
 		'minimumSyntheticActivityRows',
 		'minimumConcurrentMemberReads',
 		'minimumConcurrentTrackingWriteBatches',
+		'minimumDatabasePressureSamples',
 		'minimumCanaryRequests',
 		'minimumCanaryConcurrency',
 	]) {
@@ -149,6 +152,15 @@ function validatePolicy(policy, nowMs, errors) {
 	}
 	if (typeof policy?.requireBackupIdentity !== 'boolean') {
 		errors.push('policy.requireBackupIdentity must be a boolean')
+	}
+	if (typeof policy?.requireInterruptedResume !== 'boolean') {
+		errors.push('policy.requireInterruptedResume must be a boolean')
+	}
+	if (policy?.maximumConnectionUtilization > 1) {
+		errors.push('policy.maximumConnectionUtilization must be at most 1')
+	}
+	if (!nonNegativeInteger(policy?.maximumWaitingLocks)) {
+		errors.push('policy.maximumWaitingLocks must be an integer >= 0')
 	}
 	if (
 		!Array.isArray(policy?.requiredCanaryPaths) ||
@@ -187,6 +199,7 @@ export function evaluatePostgresCutoverEvidence({
 	policy,
 	checkpoint,
 	loadReport,
+	loadCheckpoint,
 	backupReceipt,
 	canaryReport,
 	actualSnapshot,
@@ -241,6 +254,15 @@ export function evaluatePostgresCutoverEvidence({
 	if (loadReport?.target !== policy?.expectedDatabaseTarget) {
 		errors.push('load report target does not match policy')
 	}
+	if (loadCheckpoint?.version !== 1) {
+		errors.push('load checkpoint version must be 1')
+	}
+	if (loadCheckpoint?.status !== 'completed') {
+		errors.push('load checkpoint status must be completed')
+	}
+	if (loadCheckpoint?.target !== policy?.expectedDatabaseTarget) {
+		errors.push('load checkpoint target does not match policy')
+	}
 	if (
 		!nonNegativeInteger(loadReport?.loadedRows) ||
 		loadReport.loadedRows < policy?.minimumSyntheticRows
@@ -256,6 +278,42 @@ export function evaluatePostgresCutoverEvidence({
 	) {
 		errors.push('load report must represent a complete initial insertion run')
 	}
+	if (
+		loadCheckpoint?.requestedRows !== loadReport?.requestedRows ||
+		loadCheckpoint?.initialRows !== 0 ||
+		loadCheckpoint?.loadedRows !== loadReport?.loadedRows
+	) {
+		errors.push('load checkpoint counts must match the complete initial load')
+	}
+	if (
+		loadReport?.recovery?.checkpointSha256 !== evidenceSha256?.loadCheckpoint
+	) {
+		errors.push('load checkpoint SHA-256 does not match the load report')
+	}
+	if (policy?.requireInterruptedResume) {
+		const interruptedAt = Date.parse(loadCheckpoint?.interruptedAt)
+		const resumedAt = Date.parse(loadCheckpoint?.resumedAt)
+		const completedAt = Date.parse(loadCheckpoint?.completedAt)
+		if (
+			!Number.isFinite(interruptedAt) ||
+			!Number.isFinite(resumedAt) ||
+			!Number.isFinite(completedAt) ||
+			interruptedAt > resumedAt ||
+			resumedAt > completedAt ||
+			!positive(loadReport?.recovery?.observedRowsAtResume)
+		) {
+			errors.push(
+				'load checkpoint must prove an interrupted run resumed from persisted rows before completion',
+			)
+		}
+	}
+	checkAge(
+		'load checkpoint completedAt',
+		loadCheckpoint?.completedAt,
+		policy?.maximumLoadAgeHours,
+		nowMs,
+		errors,
+	)
 	for (const [field, policyField, label] of [
 		['relationRows', 'minimumSyntheticRelations', 'relations'],
 		['memberCount', 'minimumSyntheticMembers', 'members'],
@@ -343,6 +401,29 @@ export function evaluatePostgresCutoverEvidence({
 		errors.push(
 			`load report must include at least ${policy?.minimumConcurrentTrackingWriteBatches} concurrent tracking write batches`,
 		)
+	}
+	const pressure = loadReport?.concurrency?.databasePressure
+	if (
+		!nonNegativeInteger(pressure?.sampleCount) ||
+		pressure.sampleCount < policy?.minimumDatabasePressureSamples
+	) {
+		errors.push(
+			`load report must include at least ${policy?.minimumDatabasePressureSamples} database pressure samples`,
+		)
+	}
+	if (
+		!finite(pressure?.peakConnectionUtilization) ||
+		pressure.peakConnectionUtilization > policy?.maximumConnectionUtilization
+	) {
+		errors.push(
+			`connection utilization must be at most ${policy?.maximumConnectionUtilization}`,
+		)
+	}
+	if (
+		!nonNegativeInteger(pressure?.peakWaitingLocks) ||
+		pressure.peakWaitingLocks > policy?.maximumWaitingLocks
+	) {
+		errors.push(`waiting locks must be at most ${policy?.maximumWaitingLocks}`)
 	}
 	checkAge(
 		'load report measuredAt',
@@ -478,6 +559,8 @@ export function evaluatePostgresCutoverEvidence({
 				loadedRows: loadReport.loadedRows,
 				rowsPerSecond: loadReport.insert.rowsPerSecond,
 				representative: loadReport.representative,
+				databasePressure: loadReport.concurrency.databasePressure,
+				checkpointSha256: evidenceSha256.loadCheckpoint,
 				reportSha256: evidenceSha256.loadReport,
 			},
 			backup: {

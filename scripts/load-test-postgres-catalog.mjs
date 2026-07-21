@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -8,7 +9,9 @@ import {
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	representativeLoadShape,
+	summarizeDatabasePressure,
 	summarizeExplain,
+	validateLoadCheckpoint,
 } from './postgres-load-utils.mjs'
 
 const args = process.argv.slice(2)
@@ -26,6 +29,8 @@ Options:
   --member-read-iterations N Concurrent profile/activity reads (default: 20)
   --tracking-write-batches N Concurrent member tracking updates (default: 5)
   --report PATH             JSON report path (default: test-results/...)
+  --checkpoint PATH         Atomic resume checkpoint (required with --resume)
+  --interrupt-after-batches N Deliberately stop after N completed media batches
   --commit                  Generate data and run measurements (default: dry-run)
   --resume                  Continue a deterministic interrupted load
   --cleanup-after           Delete only load-catalog-* records after reporting
@@ -69,6 +74,8 @@ function assertKnownArguments() {
 		'--member-read-iterations',
 		'--tracking-write-batches',
 		'--report',
+		'--checkpoint',
+		'--interrupt-after-batches',
 	])
 	const booleans = new Set([
 		'--commit',
@@ -86,6 +93,30 @@ function assertKnownArguments() {
 		}
 		throw new Error(`Unknown argument: ${argument}`)
 	}
+}
+
+function writePrivateJson(filename, value) {
+	fs.mkdirSync(path.dirname(filename), { recursive: true })
+	const partial = `${filename}.partial`
+	fs.writeFileSync(partial, `${JSON.stringify(value, null, 2)}\n`, {
+		mode: 0o600,
+	})
+	fs.renameSync(partial, filename)
+	fs.chmodSync(filename, 0o600)
+}
+
+function readJson(filename, label) {
+	try {
+		return JSON.parse(fs.readFileSync(filename, 'utf8'))
+	} catch (error) {
+		throw new Error(
+			`${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+		)
+	}
+}
+
+function sha256File(filename) {
+	return createHash('sha256').update(fs.readFileSync(filename)).digest('hex')
 }
 
 function kindSql(series = 'n') {
@@ -569,6 +600,25 @@ async function queryMetrics(prisma, count, shape) {
 	return queries
 }
 
+async function databasePressureSnapshot(prisma) {
+	const rows = await prisma.$queryRawUnsafe(
+		`SELECT
+			current_setting('max_connections')::int AS "maxConnections",
+			(SELECT COUNT(*)::int FROM pg_stat_activity
+			 WHERE datname = current_database()) AS "totalConnections",
+			(SELECT COUNT(*)::int FROM pg_stat_activity
+			 WHERE datname = current_database() AND state = 'active') AS "activeConnections",
+			(SELECT COUNT(*)::int FROM pg_locks AS locks
+			 JOIN pg_stat_activity AS activity ON activity.pid = locks.pid
+			 WHERE activity.datname = current_database() AND NOT locks.granted) AS "waitingLocks"`,
+	)
+	return rows[0]
+}
+
+function wait(milliseconds) {
+	return new Promise(resolve => setTimeout(resolve, milliseconds))
+}
+
 async function concurrentMetrics(
 	prisma,
 	count,
@@ -634,12 +684,22 @@ async function concurrentMetrics(
 			)
 		}
 	}
-	await Promise.all(jobs)
+	let workFinished = false
+	const work = Promise.all(jobs).finally(() => {
+		workFinished = true
+	})
+	const pressureSamples = []
+	do {
+		pressureSamples.push(await databasePressureSnapshot(prisma))
+		if (!workFinished) await Promise.race([work, wait(10)])
+	} while (!workFinished && pressureSamples.length < 1_000)
+	await work
 	return {
 		searches,
 		updateBatches,
 		memberReads: shape.memberCount ? memberReads : 0,
 		trackingWriteBatches: shape.memberCount ? trackingWriteBatches : 0,
+		databasePressure: summarizeDatabasePressure(pressureSamples),
 		wallMs: Number((performance.now() - started).toFixed(3)),
 	}
 }
@@ -710,6 +770,19 @@ async function main() {
 	const trackingWriteBatches = integer('--tracking-write-batches', 5, {
 		maximum: 100,
 	})
+	const interruptAfterBatches = integer('--interrupt-after-batches', 0, {
+		minimum: 0,
+		maximum: 100_000,
+	})
+	const totalBatches = Math.ceil(count / batchSize)
+	if (
+		valueFor('--interrupt-after-batches') !== undefined &&
+		(interruptAfterBatches < 1 || interruptAfterBatches > totalBatches)
+	) {
+		throw new Error(
+			`--interrupt-after-batches must be from 1 through ${totalBatches}`,
+		)
+	}
 	const shape = representativeLoadShape({
 		mediaCount: count,
 		memberCount,
@@ -725,6 +798,18 @@ async function main() {
 		valueFor('--report') ??
 			`test-results/postgres-load-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
 	)
+	const checkpointArgument = valueFor('--checkpoint')
+	if (resume && !checkpointArgument) {
+		throw new Error('--resume requires the original --checkpoint path')
+	}
+	if (resume && interruptAfterBatches) {
+		throw new Error(
+			'--interrupt-after-batches cannot be combined with --resume',
+		)
+	}
+	const checkpointPath = path.resolve(
+		checkpointArgument ?? `${reportPath}.checkpoint.json`,
+	)
 	console.log(`Target: ${target.identity}`)
 	console.log(`Synthetic identities: ${count}`)
 	console.log(
@@ -734,6 +819,7 @@ async function main() {
 		`Mode: ${commit ? (resume ? 'COMMIT/RESUME' : 'COMMIT') : 'DRY-RUN'}`,
 	)
 	console.log(`Report: ${reportPath}`)
+	console.log(`Checkpoint: ${checkpointPath}`)
 	if (!commit) return
 
 	const generatedSchema = fs.readFileSync(
@@ -751,16 +837,81 @@ async function main() {
 				`Target already contains ${existing} synthetic rows; use --resume or --cleanup-after with the original run`,
 			)
 		}
-		const storageBefore = await databaseMetrics(prisma)
-		const insertStarted = performance.now()
+		const expectedCheckpoint = {
+			target: target.identity,
+			requestedRows: count,
+			memberCount: shape.memberCount,
+			trackingPerMember: shape.trackingPerMember,
+			activityPerMember: shape.activityPerMember,
+		}
+		let checkpoint
+		let observedRowsAtResume = 0
+		if (resume) {
+			if (!fs.existsSync(checkpointPath)) {
+				throw new Error(`Load checkpoint not found: ${checkpointPath}`)
+			}
+			checkpoint = validateLoadCheckpoint(
+				readJson(checkpointPath, 'Load checkpoint'),
+				expectedCheckpoint,
+			)
+			observedRowsAtResume = existing
+			if (existing < checkpoint.loadedRows) {
+				throw new Error(
+					`Target lost synthetic rows after the checkpoint: expected at least ${checkpoint.loadedRows}, found ${existing}`,
+				)
+			}
+			checkpoint.status = 'loading'
+			checkpoint.resumedAt ??= new Date().toISOString()
+			checkpoint.updatedAt = new Date().toISOString()
+			writePrivateJson(checkpointPath, checkpoint)
+		} else {
+			if (fs.existsSync(checkpointPath)) {
+				throw new Error(
+					`Checkpoint already exists: ${checkpointPath}; use a new path or resume the original run`,
+				)
+			}
+			const startedAt = new Date().toISOString()
+			checkpoint = {
+				version: 1,
+				status: 'loading',
+				...expectedCheckpoint,
+				initialRows: existing,
+				loadedRows: existing,
+				batchesCompleted: 0,
+				insertWallMs: 0,
+				storageBefore: await databaseMetrics(prisma),
+				startedAt,
+				updatedAt: startedAt,
+			}
+			writePrivateJson(checkpointPath, checkpoint)
+		}
+		const storageBefore = checkpoint.storageBefore
+		let invocationBatches = 0
 		for (let start = 1; start <= count; start += batchSize) {
 			const end = Math.min(count, start + batchSize - 1)
+			const batchStarted = performance.now()
 			await insertBatch(prisma, start, end)
+			checkpoint.insertWallMs += performance.now() - batchStarted
+			checkpoint.loadedRows = Math.max(checkpoint.loadedRows, end)
+			checkpoint.batchesCompleted += 1
+			checkpoint.updatedAt = new Date().toISOString()
+			writePrivateJson(checkpointPath, checkpoint)
+			invocationBatches += 1
 			console.log(`Loaded ${end}/${count} synthetic identities`)
+			if (interruptAfterBatches === invocationBatches) {
+				checkpoint.status = 'interrupted'
+				checkpoint.interruptedAt = new Date().toISOString()
+				checkpoint.updatedAt = checkpoint.interruptedAt
+				writePrivateJson(checkpointPath, checkpoint)
+				throw new Error(
+					`Deliberate interruption after ${invocationBatches} batches; resume with --resume --checkpoint ${checkpointPath}`,
+				)
+			}
 		}
+		const relatedStarted = performance.now()
 		await insertCatalogContext(prisma, count)
 		await insertRepresentativeMembers(prisma, shape, count)
-		const insertMs = performance.now() - insertStarted
+		checkpoint.insertWallMs += performance.now() - relatedStarted
 		const loaded = await syntheticCount(prisma)
 		if (loaded !== count) {
 			throw new Error(
@@ -783,6 +934,12 @@ async function main() {
 				)
 			}
 		}
+		checkpoint.status = 'completed'
+		checkpoint.loadedRows = loaded
+		checkpoint.completedAt = new Date().toISOString()
+		checkpoint.updatedAt = checkpoint.completedAt
+		writePrivateJson(checkpointPath, checkpoint)
+		const checkpointSha256 = sha256File(checkpointPath)
 		await prisma.$executeRawUnsafe('ANALYZE "Media"')
 		await prisma.$executeRawUnsafe('ANALYZE "MediaTitle"')
 		await prisma.$executeRawUnsafe('ANALYZE "MediaExternalId"')
@@ -813,14 +970,15 @@ async function main() {
 		const missingIndexes = [...requiredIndexes].filter(
 			index => !usedIndexes.has(index),
 		)
-		const insertedRows = loaded - existing
+		const insertedRows = loaded - checkpoint.initialRows
+		const insertMs = checkpoint.insertWallMs
 		const report = {
 			version: 1,
 			measuredAt: new Date().toISOString(),
 			target: target.identity,
 			requestedRows: count,
 			loadedRows: loaded,
-			existingRows: existing,
+			existingRows: checkpoint.initialRows,
 			insertedRows,
 			insert: {
 				wallMs: Number(insertMs.toFixed(3)),
@@ -833,6 +991,13 @@ async function main() {
 				trackingPerMember: shape.trackingPerMember,
 				activityPerMember: shape.activityPerMember,
 			},
+			recovery: {
+				checkpointSha256,
+				interruptedAt: checkpoint.interruptedAt ?? null,
+				resumedAt: checkpoint.resumedAt ?? null,
+				observedRowsAtResume,
+				completedAt: checkpoint.completedAt,
+			},
 			storageBefore,
 			storageAfter,
 			storageGrowthBytes:
@@ -841,11 +1006,7 @@ async function main() {
 			concurrency,
 			missingTrigramIndexes: missingIndexes,
 		}
-		fs.mkdirSync(path.dirname(reportPath), { recursive: true })
-		fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, {
-			mode: 0o600,
-		})
-		fs.chmodSync(reportPath, 0o600)
+		writePrivateJson(reportPath, report)
 		console.log(
 			`Inserted ${insertedRows} identities at ${report.insert.rowsPerSecond} rows/s; database growth ${bytesLabel(report.storageGrowthBytes)}.`,
 		)

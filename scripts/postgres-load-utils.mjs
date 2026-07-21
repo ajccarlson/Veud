@@ -126,3 +126,119 @@ export function representativeLoadShape({
 		feedRows: Math.floor(mediaCount / 100),
 	}
 }
+
+function validTimestamp(value) {
+	return typeof value === 'string' && Number.isFinite(Date.parse(value))
+}
+
+export function validateLoadCheckpoint(checkpoint, expected) {
+	const errors = []
+	if (checkpoint?.version !== 1) errors.push('version must be 1')
+	if (!['loading', 'interrupted', 'completed'].includes(checkpoint?.status)) {
+		errors.push('status must be loading, interrupted, or completed')
+	}
+	if (checkpoint?.target !== expected.target) errors.push('target changed')
+	for (const field of [
+		'requestedRows',
+		'memberCount',
+		'trackingPerMember',
+		'activityPerMember',
+	]) {
+		if (checkpoint?.[field] !== expected[field]) {
+			errors.push(`${field} changed`)
+		}
+	}
+	for (const field of [
+		'initialRows',
+		'loadedRows',
+		'batchesCompleted',
+		'insertWallMs',
+	]) {
+		if (
+			typeof checkpoint?.[field] !== 'number' ||
+			!Number.isFinite(checkpoint[field]) ||
+			checkpoint[field] < 0
+		) {
+			errors.push(`${field} must be a non-negative number`)
+		}
+	}
+	if (checkpoint?.loadedRows > checkpoint?.requestedRows) {
+		errors.push('loadedRows exceeds requestedRows')
+	}
+	if (checkpoint?.initialRows > checkpoint?.loadedRows) {
+		errors.push('initialRows exceeds loadedRows')
+	}
+	if (
+		!checkpoint?.storageBefore ||
+		!Number.isFinite(checkpoint.storageBefore.databaseBytes) ||
+		checkpoint.storageBefore.databaseBytes <= 0
+	) {
+		errors.push('storageBefore must contain the initial database size')
+	}
+	for (const field of ['startedAt', 'updatedAt']) {
+		if (!validTimestamp(checkpoint?.[field])) {
+			errors.push(`${field} must be an ISO timestamp`)
+		}
+	}
+	if (
+		checkpoint?.status === 'interrupted' &&
+		!validTimestamp(checkpoint?.interruptedAt)
+	) {
+		errors.push('interruptedAt must record the interruption')
+	}
+	if (
+		checkpoint?.status === 'completed' &&
+		!validTimestamp(checkpoint?.completedAt)
+	) {
+		errors.push('completedAt must record completion')
+	}
+	if (errors.length) {
+		throw new Error(`Load checkpoint is incompatible:\n${errors.join('\n')}`)
+	}
+	return checkpoint
+}
+
+export function summarizeDatabasePressure(samples) {
+	if (!Array.isArray(samples) || !samples.length) {
+		throw new Error('At least one database pressure sample is required')
+	}
+	const normalized = samples.map(sample => {
+		const values = {
+			maxConnections: Number(sample.maxConnections),
+			totalConnections: Number(sample.totalConnections),
+			activeConnections: Number(sample.activeConnections),
+			waitingLocks: Number(sample.waitingLocks),
+		}
+		if (
+			!Number.isFinite(values.maxConnections) ||
+			values.maxConnections <= 0 ||
+			Object.entries(values).some(
+				([field, value]) =>
+					field !== 'maxConnections' && (!Number.isFinite(value) || value < 0),
+			)
+		) {
+			throw new Error('Database pressure samples must contain finite counts')
+		}
+		return values
+	})
+	const maxConnections = Math.max(
+		...normalized.map(sample => sample.maxConnections),
+	)
+	const peakTotalConnections = Math.max(
+		...normalized.map(sample => sample.totalConnections),
+	)
+	return {
+		sampleCount: normalized.length,
+		maxConnections,
+		peakTotalConnections,
+		peakActiveConnections: Math.max(
+			...normalized.map(sample => sample.activeConnections),
+		),
+		peakWaitingLocks: Math.max(
+			...normalized.map(sample => sample.waitingLocks),
+		),
+		peakConnectionUtilization: Number(
+			(peakTotalConnections / maxConnections).toFixed(4),
+		),
+	}
+}
