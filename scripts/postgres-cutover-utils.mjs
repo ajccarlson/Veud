@@ -7,6 +7,10 @@ export const requiredLoadQueries = [
 	'broad-description',
 	'no-match',
 	'popular-page',
+	'related-media',
+	'trending-feed',
+	'profile-entries',
+	'profile-activity',
 ]
 
 const backupCountFields = [
@@ -104,6 +108,13 @@ function validatePolicy(policy, nowMs, errors) {
 		'minimumInsertRowsPerSecond',
 		'minimumConcurrentSearches',
 		'minimumConcurrentUpdateBatches',
+		'minimumSyntheticRelations',
+		'minimumSyntheticMembers',
+		'minimumSyntheticTrackingRows',
+		'minimumSyntheticEntries',
+		'minimumSyntheticActivityRows',
+		'minimumConcurrentMemberReads',
+		'minimumConcurrentTrackingWriteBatches',
 		'maximumLoadAgeHours',
 		'maximumTransferAgeHours',
 		'maximumBackupAgeHours',
@@ -122,6 +133,13 @@ function validatePolicy(policy, nowMs, errors) {
 		'minimumTransferredTables',
 		'minimumConcurrentSearches',
 		'minimumConcurrentUpdateBatches',
+		'minimumSyntheticRelations',
+		'minimumSyntheticMembers',
+		'minimumSyntheticTrackingRows',
+		'minimumSyntheticEntries',
+		'minimumSyntheticActivityRows',
+		'minimumConcurrentMemberReads',
+		'minimumConcurrentTrackingWriteBatches',
 		'minimumCanaryRequests',
 		'minimumCanaryConcurrency',
 	]) {
@@ -220,6 +238,9 @@ export function evaluatePostgresCutoverEvidence({
 
 	if (loadReport?.version !== 1) errors.push('load report version must be 1')
 	checkTarget('load report target', loadReport?.target, errors)
+	if (loadReport?.target !== policy?.expectedDatabaseTarget) {
+		errors.push('load report target does not match policy')
+	}
 	if (
 		!nonNegativeInteger(loadReport?.loadedRows) ||
 		loadReport.loadedRows < policy?.minimumSyntheticRows
@@ -234,6 +255,21 @@ export function evaluatePostgresCutoverEvidence({
 		loadReport?.insertedRows !== loadReport?.loadedRows
 	) {
 		errors.push('load report must represent a complete initial insertion run')
+	}
+	for (const [field, policyField, label] of [
+		['relationRows', 'minimumSyntheticRelations', 'relations'],
+		['memberCount', 'minimumSyntheticMembers', 'members'],
+		['trackingRows', 'minimumSyntheticTrackingRows', 'tracking rows'],
+		['entryRows', 'minimumSyntheticEntries', 'entries'],
+		['activityRows', 'minimumSyntheticActivityRows', 'activity rows'],
+	]) {
+		const value = loadReport?.representative?.[field]
+		const minimum = policy?.[policyField]
+		if (!nonNegativeInteger(value) || value < minimum) {
+			errors.push(
+				`load report must contain at least ${minimum} representative ${label}`,
+			)
+		}
 	}
 	if (!positive(loadReport?.storageGrowthBytes)) {
 		errors.push('load report must contain positive database growth')
@@ -289,6 +325,23 @@ export function evaluatePostgresCutoverEvidence({
 	) {
 		errors.push(
 			`load report must include at least ${policy?.minimumConcurrentUpdateBatches} concurrent update batches`,
+		)
+	}
+	if (
+		!nonNegativeInteger(loadReport?.concurrency?.memberReads) ||
+		loadReport.concurrency.memberReads < policy?.minimumConcurrentMemberReads
+	) {
+		errors.push(
+			`load report must include at least ${policy?.minimumConcurrentMemberReads} concurrent member reads`,
+		)
+	}
+	if (
+		!nonNegativeInteger(loadReport?.concurrency?.trackingWriteBatches) ||
+		loadReport.concurrency.trackingWriteBatches <
+			policy?.minimumConcurrentTrackingWriteBatches
+	) {
+		errors.push(
+			`load report must include at least ${policy?.minimumConcurrentTrackingWriteBatches} concurrent tracking write batches`,
 		)
 	}
 	checkAge(
@@ -424,6 +477,7 @@ export function evaluatePostgresCutoverEvidence({
 				measuredAt: loadReport.measuredAt,
 				loadedRows: loadReport.loadedRows,
 				rowsPerSecond: loadReport.insert.rowsPerSecond,
+				representative: loadReport.representative,
 				reportSha256: evidenceSha256.loadReport,
 			},
 			backup: {

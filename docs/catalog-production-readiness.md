@@ -57,19 +57,23 @@ remains the fast isolated test datasource.
 
 Snapshot transfer and PostgreSQL-native backup/restore automation have passed a
 full local rehearsal. A guarded synthetic load harness now records storage,
-throughput, query plans, indexed search timing, and concurrent reads/updates; its
-100,000-identity PostgreSQL 16 rehearsal passed the three-index plan gate. See
-the [PostgreSQL catalog load runbook](postgresql-load-readiness.md).
+throughput, query plans, indexed search timing, relationships, feed rows, member
+tracking/history, profile reads, and concurrent catalog/member reads and writes.
+Its original 100,000-identity PostgreSQL 16 rehearsal passed the three-index
+plan gate; a later disposable smoke run proved the richer relational/member
+shape and complete cleanup. See the
+[PostgreSQL catalog load runbook](postgresql-load-readiness.md).
 
 The production hold remains. The next batch must run the current
-1,564,333-identity target on production-like staging, add representative related
-metadata and member traffic, and record database/index size, import and hydration
-throughput, search latency, lock and pool behavior, backup/restore timing,
-interruption recovery, and canary/rollback behavior.
+1,564,333-identity target on production-like staging using owner-approved
+relationship and member counts, and record database/index size, import and
+hydration throughput, search/profile latency, lock and pool behavior,
+backup/restore timing, interruption recovery, and canary/rollback behavior.
 
 Cutover evidence automation is available in the
 [PostgreSQL cutover runbook](postgresql-cutover-readiness.md): verified backups
 now emit archive-bound restore receipts, the read-only canary records public
 application and database-health latency, and the final gate hashes and evaluates
-all artifacts against an owner-approved policy. The automation enforces the
+all artifacts against an owner-approved policy. The gate now rejects flat
+catalog-only load reports and target mismatches. The automation enforces the
 hold; it does not satisfy the still-unrun production-like staging gates.

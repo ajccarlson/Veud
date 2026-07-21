@@ -69,3 +69,60 @@ export function bytesLabel(value) {
 	}
 	return `${size.toFixed(unit ? 2 : 0)} ${units[unit]}`
 }
+
+function boundedInteger(label, value, { minimum = 0, maximum }) {
+	if (
+		!Number.isSafeInteger(value) ||
+		value < minimum ||
+		(maximum !== undefined && value > maximum)
+	) {
+		const range =
+			maximum === undefined
+				? `at least ${minimum}`
+				: `from ${minimum} through ${maximum}`
+		throw new Error(`${label} must be an integer ${range}`)
+	}
+	return value
+}
+
+export function representativeLoadShape({
+	mediaCount,
+	memberCount = 0,
+	trackingPerMember = 100,
+	activityPerMember = 20,
+}) {
+	boundedInteger('mediaCount', mediaCount, { minimum: 1, maximum: 2_000_000 })
+	boundedInteger('memberCount', memberCount, { maximum: 100_000 })
+	boundedInteger('trackingPerMember', trackingPerMember, {
+		minimum: 1,
+		maximum: 10_000,
+	})
+	boundedInteger('activityPerMember', activityPerMember, {
+		maximum: 1_000,
+	})
+
+	const effectiveTrackingPerMember = Math.min(trackingPerMember, mediaCount)
+	const effectiveActivityPerMember = Math.min(
+		activityPerMember,
+		effectiveTrackingPerMember,
+	)
+	const trackingRows = memberCount * effectiveTrackingPerMember
+	const activityRows = memberCount * effectiveActivityPerMember
+	if (trackingRows > 5_000_000) {
+		throw new Error(
+			'representative member load may not exceed 5,000,000 tracking rows',
+		)
+	}
+
+	return {
+		memberCount,
+		watchlistRows: memberCount * 3,
+		trackingPerMember: effectiveTrackingPerMember,
+		trackingRows,
+		entryRows: trackingRows,
+		activityPerMember: effectiveActivityPerMember,
+		activityRows,
+		relationRows: Math.floor((mediaCount - 1) / 10),
+		feedRows: Math.floor(mediaCount / 100),
+	}
+}
