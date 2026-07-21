@@ -23,7 +23,10 @@ test('selects the earliest canonical future release and describes its installmen
 	expect(
 		getNextCanonicalReminderRelease(
 			{
-				releaseStart: new Date('2026-07-22T00:00:00.000Z'),
+				kind: 'anime',
+				releaseStart: new Date('2026-07-18T00:00:00.000Z'),
+				releaseEnd: null,
+				releaseStatus: 'Currently Airing',
 				nextRelease: JSON.stringify({
 					releaseDate: '2026-07-20T18:30:00.000Z',
 					season: 2,
@@ -37,6 +40,63 @@ test('selects the earliest canonical future release and describes its installmen
 		allDay: false,
 		label: 'Season 2 · Episode 4',
 	})
+})
+
+test('rejects reminders backed by an ended title with a stale schedule', () => {
+	expect(
+		getNextCanonicalReminderRelease(
+			{
+				kind: 'anime',
+				releaseStart: new Date('2005-01-07T00:00:00.000Z'),
+				releaseEnd: new Date('2005-03-25T00:00:00.000Z'),
+				releaseStatus: 'Finished Airing',
+				nextRelease: JSON.stringify({
+					releaseDate: '2026-07-20T18:30:00.000Z',
+					episode: 2,
+				}),
+			},
+			new Date('2026-07-19T10:00:00.000Z'),
+		),
+	).toBeNull()
+})
+
+test('removes a previously delivered notification when its schedule becomes invalid', async () => {
+	const owner = await createOwner()
+	const now = new Date('2026-07-19T10:00:00.000Z')
+	const releaseAt = new Date('2026-07-20T18:30:00.000Z')
+	const media = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Invalidated Reminder Fixture',
+			releaseStart: new Date('2005-01-07T00:00:00.000Z'),
+			releaseEnd: new Date('2005-03-25T00:00:00.000Z'),
+			releaseStatus: 'Finished Airing',
+			nextRelease: JSON.stringify({
+				releaseDate: releaseAt.toISOString(),
+				episode: 2,
+			}),
+		},
+	})
+	const reminder = await prisma.releaseReminder.create({
+		data: { ownerId: owner.id, mediaId: media.id, leadMinutes: 1440 },
+	})
+	await prisma.notification.create({
+		data: {
+			type: 'release_reminder',
+			recipientId: owner.id,
+			releaseReminderId: reminder.id,
+			releaseAt,
+			availableAt: new Date('2026-07-19T09:00:00.000Z'),
+		},
+	})
+
+	await syncReleaseRemindersForUser(prisma, owner.id, now)
+
+	expect(
+		await prisma.notification.count({
+			where: { releaseReminderId: reminder.id },
+		}),
+	).toBe(0)
 })
 
 test('creates one scheduled notification and reschedules a pending release', async () => {
