@@ -82,8 +82,9 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		).toBeVisible()
 		await expect(page.getByText('Browser Fantasy Match')).toBeVisible()
 
+		const discoverPage = page.getByRole('main')
 		await page.getByLabel('Title or keyword').fill('Browser Amour')
-		await page.getByLabel('Media type').selectOption('movie')
+		await discoverPage.getByLabel('Media type').selectOption('movie')
 		await page.getByLabel('Release year').fill('2026')
 		await page.getByLabel('Release status').selectOption('Released')
 		await page.getByLabel('Provider').selectOption('tmdb')
@@ -96,7 +97,7 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		await expect(page.getByText('Browser Fantasy Match')).not.toBeVisible()
 
 		await page.getByLabel('Title or keyword').fill('')
-		await page.getByLabel('Media type').selectOption('all')
+		await discoverPage.getByLabel('Media type').selectOption('all')
 		await page.getByLabel('Release year').fill('')
 		await page.getByLabel('Release status').selectOption('')
 		await page.getByLabel('Provider').selectOption('all')

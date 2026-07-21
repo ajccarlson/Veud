@@ -1,61 +1,168 @@
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { execa } from 'execa'
 import fsExtra from 'fs-extra'
 
-const BASE_DATABASE_PATH = path.join(process.cwd(), 'tests/prisma/base.db')
+export const DEVELOPMENT_DATABASE_PATH = path.join(
+	process.cwd(),
+	'prisma/data.db',
+)
 export const PLAYWRIGHT_DATABASE_PATH = path.join(
 	process.cwd(),
 	'tests/prisma/playwright.db',
 )
+const PLAYWRIGHT_MIGRATION_DATABASE_URL = `file:${PLAYWRIGHT_DATABASE_PATH}`
 export const PLAYWRIGHT_DATABASE_URL = `file:${PLAYWRIGHT_DATABASE_PATH}?connection_limit=1`
+const DEVELOPMENT_DATABASE_GUARD_PATH = path.join(
+	process.cwd(),
+	'tests/prisma/playwright-development-database.json',
+)
 
-export async function preparePlaywrightDatabase() {
-	await fsExtra.ensureDir(path.dirname(PLAYWRIGHT_DATABASE_PATH))
-	await fsExtra.remove(PLAYWRIGHT_DATABASE_PATH)
-	await execa('npx', ['prisma', 'migrate', 'deploy'], {
-		stdio: 'inherit',
-		env: { ...process.env, DATABASE_URL: `file:${BASE_DATABASE_PATH}` },
-	})
-	await fsExtra.copyFile(BASE_DATABASE_PATH, PLAYWRIGHT_DATABASE_PATH)
+type DatabaseFingerprint =
+	| { exists: false }
+	| { exists: true; bytes: number; sha256: string }
 
-	const prisma = new PrismaClient({ datasourceUrl: PLAYWRIGHT_DATABASE_URL })
-	try {
-		const permissions = []
-		for (const entity of ['user', 'watchlist']) {
-			for (const action of ['create', 'read', 'update', 'delete']) {
-				permissions.push(
-					await prisma.permission.upsert({
-						where: {
-							action_entity_access: { entity, action, access: 'own' },
-						},
-						create: { entity, action, access: 'own' },
-						update: {},
-						select: { id: true },
-					}),
-				)
-			}
-		}
-		await prisma.role.upsert({
-			where: { name: 'user' },
-			create: { name: 'user', permissions: { connect: permissions } },
-			update: { permissions: { set: permissions } },
-		})
-
-		const listTypeCount = await prisma.listType.count()
-		if (listTypeCount !== 3) {
-			throw new Error(
-				`Expected 3 migrated list types in the Playwright database; found ${listTypeCount}`,
-			)
-		}
-	} finally {
-		await prisma.$disconnect()
+export function assertIsolatedDatabasePath(
+	testDatabasePath: string,
+	developmentDatabasePath = DEVELOPMENT_DATABASE_PATH,
+) {
+	const resolvedTestPath = path.resolve(testDatabasePath)
+	const resolvedDevelopmentPath = path.resolve(developmentDatabasePath)
+	const testDatabaseDirectory = `${path.resolve(
+		process.cwd(),
+		'tests/prisma',
+	)}${path.sep}`
+	if (resolvedTestPath === resolvedDevelopmentPath) {
+		throw new Error('Playwright cannot use the development database')
+	}
+	if (!resolvedTestPath.startsWith(testDatabaseDirectory)) {
+		throw new Error('Playwright database must stay inside tests/prisma')
 	}
 }
 
-export async function removePlaywrightDatabase() {
+async function fingerprintDatabase(
+	databasePath: string,
+): Promise<DatabaseFingerprint> {
+	try {
+		const contents = await readFile(databasePath)
+		return {
+			exists: true,
+			bytes: contents.byteLength,
+			sha256: createHash('sha256').update(contents).digest('hex'),
+		}
+	} catch (error) {
+		if (
+			error &&
+			typeof error === 'object' &&
+			'code' in error &&
+			error.code === 'ENOENT'
+		) {
+			return { exists: false }
+		}
+		throw error
+	}
+}
+
+async function removePlaywrightDatabaseFiles() {
 	await fsExtra.remove(PLAYWRIGHT_DATABASE_PATH)
 	await fsExtra.remove(`${PLAYWRIGHT_DATABASE_PATH}-journal`)
 	await fsExtra.remove(`${PLAYWRIGHT_DATABASE_PATH}-wal`)
 	await fsExtra.remove(`${PLAYWRIGHT_DATABASE_PATH}-shm`)
+}
+
+async function captureDevelopmentDatabaseGuard() {
+	await fsExtra.writeJson(DEVELOPMENT_DATABASE_GUARD_PATH, {
+		path: DEVELOPMENT_DATABASE_PATH,
+		fingerprint: await fingerprintDatabase(DEVELOPMENT_DATABASE_PATH),
+	})
+}
+
+async function verifyDevelopmentDatabaseGuard() {
+	if (!(await fsExtra.pathExists(DEVELOPMENT_DATABASE_GUARD_PATH))) return
+	const guard = (await fsExtra.readJson(DEVELOPMENT_DATABASE_GUARD_PATH)) as {
+		path: string
+		fingerprint: DatabaseFingerprint
+	}
+	const current = await fingerprintDatabase(guard.path)
+	if (JSON.stringify(current) !== JSON.stringify(guard.fingerprint)) {
+		throw new Error(
+			'Playwright run changed prisma/data.db; browser tests must use only their disposable database',
+		)
+	}
+}
+
+export async function preparePlaywrightDatabase() {
+	assertIsolatedDatabasePath(PLAYWRIGHT_DATABASE_PATH)
+	await fsExtra.ensureDir(path.dirname(PLAYWRIGHT_DATABASE_PATH))
+	await removePlaywrightDatabaseFiles()
+	// Prisma 5's SQLite schema engine requires the target file to exist before
+	// `migrate deploy`, even though the database is otherwise created from scratch.
+	await fsExtra.ensureFile(PLAYWRIGHT_DATABASE_PATH)
+	await fsExtra.remove(DEVELOPMENT_DATABASE_GUARD_PATH)
+	await captureDevelopmentDatabaseGuard()
+	try {
+		await execa('npx', ['prisma', 'migrate', 'deploy'], {
+			stdio: 'inherit',
+			env: { ...process.env, DATABASE_URL: PLAYWRIGHT_MIGRATION_DATABASE_URL },
+		})
+
+		const prisma = new PrismaClient({ datasourceUrl: PLAYWRIGHT_DATABASE_URL })
+		try {
+			const permissions = []
+			for (const entity of ['user', 'watchlist']) {
+				for (const action of ['create', 'read', 'update', 'delete']) {
+					permissions.push(
+						await prisma.permission.upsert({
+							where: {
+								action_entity_access: { entity, action, access: 'own' },
+							},
+							create: { entity, action, access: 'own' },
+							update: {},
+							select: { id: true },
+						}),
+					)
+				}
+			}
+			await prisma.role.upsert({
+				where: { name: 'user' },
+				create: { name: 'user', permissions: { connect: permissions } },
+				update: { permissions: { set: permissions } },
+			})
+
+			const [listTypeCount, userCount, watchlistCount, entryCount, mediaCount] =
+				await Promise.all([
+					prisma.listType.count(),
+					prisma.user.count(),
+					prisma.watchlist.count(),
+					prisma.entry.count(),
+					prisma.media.count(),
+				])
+			if (listTypeCount !== 3) {
+				throw new Error(
+					`Expected 3 migrated list types in the Playwright database; found ${listTypeCount}`,
+				)
+			}
+			if (userCount || watchlistCount || entryCount || mediaCount) {
+				throw new Error(
+					'Playwright database must start without users, lists, entries, or catalog fixtures',
+				)
+			}
+		} finally {
+			await prisma.$disconnect()
+		}
+	} catch (error) {
+		await removePlaywrightDatabase()
+		throw error
+	}
+}
+
+export async function removePlaywrightDatabase() {
+	try {
+		await verifyDevelopmentDatabaseGuard()
+	} finally {
+		await removePlaywrightDatabaseFiles()
+		await fsExtra.remove(DEVELOPMENT_DATABASE_GUARD_PATH)
+	}
 }
