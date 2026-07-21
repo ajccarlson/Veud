@@ -12,8 +12,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
-import { AdvancedEntryEditor } from './advanced-entry-editor.tsx'
+import {
+	AdvancedEntryEditor,
+	openAdvancedEntryEditor,
+} from './advanced-entry-editor.tsx'
 import { gridAPI, columnParams } from './grid-state.ts'
 import { createNewRow, refreshGrid, moveEntry } from './grid-actions.ts'
 import {
@@ -34,6 +40,15 @@ export function positionColumn() {
 			filter: 'agNumberColumnFilter',
 			rowDrag: columnParams.currentUserId == columnParams.listOwner.id,
 			cellRenderer: (params: any) => {
+				const destinationWatchlists = (
+					columnParams.typedWatchlists[columnParams.listTypeData.id] ?? []
+				)
+					.filter((watchlist: any) => watchlist.id !== params.data.watchlistId)
+					.sort(
+						(first: any, second: any) =>
+							first.position - second.position ||
+							first.header.localeCompare(second.header),
+					)
 				return (
 					<div>
 						{columnParams.currentUserId == columnParams.listOwner.id ? (
@@ -101,14 +116,52 @@ export function positionColumn() {
 										>
 											<DropdownMenuLabel>Row actions</DropdownMenuLabel>
 											<DropdownMenuItem
-												onSelect={event => {
+												onSelect={() =>
+													openAdvancedEntryEditor(params.data.id)
+												}
+											>
+												Advanced edit
+											</DropdownMenuItem>
+											<DropdownMenuSub>
+												<DropdownMenuSubTrigger
+													disabled={!destinationWatchlists.length}
+												>
+													Move to…
+												</DropdownMenuSubTrigger>
+												<DropdownMenuSubContent>
+													{destinationWatchlists.map((watchlist: any) => (
+														<DropdownMenuItem
+															key={watchlist.id}
+															onSelect={async () => {
+																try {
+																	await moveEntry(params.data.id, watchlist.id)
+																	columnParams.navigate(
+																		`/lists/${columnParams.listOwner.username}/${columnParams.listTypeData.name}/${watchlist.name}`,
+																	)
+																} catch (error) {
+																	console.error(
+																		'[watchlist] failed to move entry',
+																		error,
+																	)
+																	await refreshGrid(columnParams)
+																}
+															}}
+														>
+															{watchlist.header}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuSubContent>
+											</DropdownMenuSub>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onSelect={() => {
 													createNewRow('Above', params)
 												}}
 											>
 												Insert 1 row above
 											</DropdownMenuItem>
 											<DropdownMenuItem
-												onSelect={event => {
+												onSelect={() => {
 													createNewRow('Below', params)
 												}}
 											>
@@ -116,7 +169,14 @@ export function positionColumn() {
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
-												onSelect={async event => {
+												onSelect={async () => {
+													if (
+														!window.confirm(
+															`Delete “${params.data.title || 'this entry'}”? This cannot be undone.`,
+														)
+													) {
+														return
+													}
 													const deleteResponse = await fetch(
 														'/lists/fetch/delete-row/' +
 															encodeURIComponent(
@@ -137,6 +197,7 @@ export function positionColumn() {
 													gridAPI.applyTransaction({ remove: [params.data] })
 													await refreshGrid(columnParams)
 												}}
+												className="ag-row-action-destructive"
 											>
 												Delete row
 											</DropdownMenuItem>
