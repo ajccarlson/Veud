@@ -3,6 +3,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
+import {
+	progressUnitsForMediaKind,
+	totalFromLegacyCounter,
+} from '#app/utils/media-detail.ts'
+import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { refreshGrid } from './grid-actions.ts'
 import { columnParams } from './grid-state.ts'
 
@@ -42,6 +47,34 @@ function fieldLabel(field: string) {
 	return field.charAt(0).toUpperCase() + field.slice(1)
 }
 
+function mediaKindForEntry(data: any) {
+	if (data.media?.kind) return data.media.kind as string
+	if (columnParams.listTypeData.name === 'anime') return 'anime'
+	if (columnParams.listTypeData.name === 'manga') return 'manga'
+	return /eps?\b/i.test(String(data.length ?? '')) ? 'tv' : 'movie'
+}
+
+function progressLabel(unit: string) {
+	if (unit === 'episode') return 'Episodes watched'
+	if (unit === 'chapter') return 'Chapters read'
+	if (unit === 'volume') return 'Volumes read'
+	return `${fieldLabel(unit)} progress`
+}
+
+function legacyTotal(data: any, unit: string) {
+	if (unit === 'episode') return totalFromLegacyCounter(data.length)
+	if (unit === 'chapter') return totalFromLegacyCounter(data.chapters)
+	if (unit === 'volume') return totalFromLegacyCounter(data.volumes)
+	return null
+}
+
+export function openAdvancedEntryEditor(entryId: string) {
+	const dialog = document.getElementById(
+		`advanced-entry-editor-${entryId}`,
+	) as HTMLDialogElement | null
+	dialog?.showModal()
+}
+
 export function AdvancedEntryEditor({ params }: { params: any }) {
 	const dialogRef = useRef<HTMLDialogElement>(null)
 	const [saving, setSaving] = useState(false)
@@ -58,6 +91,26 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 		Object.hasOwn(availableColumns, field),
 	)
 	const history = historyForEntry(data.history)
+	const mediaKind = mediaKindForEntry(data)
+	const legacyTracking = trackingStateFromEntry(data, {
+		status: data.watchlistId,
+		statusWatchlistId: data.watchlistId,
+		mediaKind,
+	})
+	const tracking = data.trackingState ?? legacyTracking
+	const progressUnits = progressUnitsForMediaKind(mediaKind)
+	const progressByUnit = new Map(
+		(tracking.progress ?? []).map((progress: any) => [progress.unit, progress]),
+	)
+	const watchlists = (
+		columnParams.typedWatchlists[columnParams.listTypeData.id] ?? []
+	)
+		.slice()
+		.sort(
+			(first: any, second: any) =>
+				first.position - second.position ||
+				first.header.localeCompare(second.header),
+		)
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -87,6 +140,16 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 		if (Object.hasOwn(availableColumns, 'finishedDate')) {
 			fields.finished = String(formData.get('finished') ?? '')
 		}
+		fields.destinationWatchlistId = String(
+			formData.get('destinationWatchlistId') ?? data.watchlistId,
+		)
+		fields.repeatCount = Number(formData.get('repeatCount'))
+		fields.progress = Object.fromEntries(
+			progressUnits.map(unit => [
+				unit,
+				Number(formData.get(`progress:${unit}`)),
+			]),
+		)
 
 		try {
 			const response = await fetch('/lists/fetch/advanced-edit', {
@@ -126,6 +189,7 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 			</button>
 
 			<dialog
+				id={`advanced-entry-editor-${data.id}`}
 				ref={dialogRef}
 				className="ag-advanced-edit-dialog"
 				onCancel={() => setError('')}
@@ -145,6 +209,62 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 							×
 						</button>
 					</header>
+
+					<fieldset>
+						<legend>Tracking</legend>
+						<div className="ag-advanced-edit-tracking-grid">
+							<label>
+								<span>Status</span>
+								<select
+									name="destinationWatchlistId"
+									defaultValue={data.watchlistId}
+								>
+									{watchlists.map((watchlist: any) => (
+										<option key={watchlist.id} value={watchlist.id}>
+											{watchlist.header}
+										</option>
+									))}
+								</select>
+							</label>
+							<label>
+								<span>Repeat count</span>
+								<Input
+									name="repeatCount"
+									type="number"
+									min="0"
+									max="1000000"
+									step="1"
+									defaultValue={tracking.repeatCount ?? 0}
+								/>
+							</label>
+						</div>
+						{progressUnits.length ? (
+							<div className="ag-advanced-edit-progress-grid">
+								{progressUnits.map(unit => {
+									const saved = progressByUnit.get(unit) as
+										| { current?: number; total?: number | null }
+										| undefined
+									const total = saved?.total ?? legacyTotal(data, unit)
+									return (
+										<label key={unit}>
+											<span>
+												{progressLabel(unit)}
+												{total ? ` (of ${total})` : ''}
+											</span>
+											<Input
+												name={`progress:${unit}`}
+												type="number"
+												min="0"
+												max={total ?? 1000000}
+												step="1"
+												defaultValue={saved?.current ?? 0}
+											/>
+										</label>
+									)
+								})}
+							</div>
+						) : null}
+					</fieldset>
 
 					{categoryFields.length ||
 					Object.hasOwn(availableColumns, 'personal') ? (
@@ -192,7 +312,9 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 										<Input
 											name="started"
 											type="date"
-											defaultValue={dateInputValue(history.started)}
+											defaultValue={dateInputValue(
+												history.started ?? tracking.startedAt,
+											)}
 										/>
 									</label>
 								) : null}
@@ -202,7 +324,9 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 										<Input
 											name="finished"
 											type="date"
-											defaultValue={dateInputValue(history.finished)}
+											defaultValue={dateInputValue(
+												history.finished ?? tracking.completedAt,
+											)}
 										/>
 									</label>
 								) : null}

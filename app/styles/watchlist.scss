@@ -373,6 +373,15 @@
 		outline: none;
 	}
 
+	.ag-row-action-destructive {
+		color: #ffb3b3;
+	}
+
+	.ag-row-action-destructive:focus {
+		color: #fff;
+		background: rgba(180, 30, 30, 0.45);
+	}
+
 	.ag-position-cell:hover .ag-move-row-input {
 		background-color: hsl(var(--background));
 		border-color: hsl(var(--input));
@@ -459,14 +468,22 @@
 	}
 
 	.ag-advanced-edit-score-grid,
-	.ag-advanced-edit-date-grid {
+	.ag-advanced-edit-date-grid,
+	.ag-advanced-edit-tracking-grid,
+	.ag-advanced-edit-progress-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
 		gap: 0.75rem;
 	}
 
+	.ag-advanced-edit-progress-grid {
+		margin-top: 0.75rem;
+	}
+
 	.ag-advanced-edit-score-grid label,
 	.ag-advanced-edit-date-grid label,
+	.ag-advanced-edit-tracking-grid label,
+	.ag-advanced-edit-progress-grid label,
 	.ag-advanced-edit-field {
 		display: grid;
 		gap: 0.35rem;
@@ -475,7 +492,8 @@
 		font-weight: 600;
 	}
 
-	.ag-advanced-edit-field select {
+	.ag-advanced-edit-field select,
+	.ag-advanced-edit-tracking-grid select {
 		height: 2.5rem;
 		padding: 0 0.75rem;
 		color: hsl(var(--foreground));
