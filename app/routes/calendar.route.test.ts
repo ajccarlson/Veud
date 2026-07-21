@@ -50,9 +50,9 @@ function actionRequest(cookie: string, values: Record<string, string>) {
 	})
 }
 
-test('calendar loader groups canonical premieres and scheduled episodes', async () => {
+test('calendar loader groups canonical releases and rejects stale ended schedules', async () => {
 	const { viewer, watching, cookie } = await viewerFixture()
-	const [episode, premiere, outside] = await Promise.all([
+	const [episode, premiere, outside, ended] = await Promise.all([
 		prisma.media.create({
 			data: {
 				kind: 'anime',
@@ -80,6 +80,19 @@ test('calendar loader groups canonical premieres and scheduled episodes', async 
 				releaseStart: new Date('2026-07-29T00:00:00.000Z'),
 			},
 		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Ended Calendar Impostor',
+				releaseStart: new Date('2005-01-07T00:00:00.000Z'),
+				releaseEnd: new Date('2005-03-25T00:00:00.000Z'),
+				releaseStatus: 'Finished Airing',
+				nextRelease: JSON.stringify({
+					releaseDate: '2026-07-20T18:30:00.000Z',
+					episode: 2,
+				}),
+			},
+		}),
 	])
 	await prisma.trackingState.create({
 		data: {
@@ -101,6 +114,11 @@ test('calendar loader groups canonical premieres and scheduled episodes', async 
 	expect(
 		anonymous.data.days.flatMap(day => day.items).map(item => item.title),
 	).toEqual(['Calendar Episode', 'Calendar Premiere'])
+	expect(
+		anonymous.data.days
+			.flatMap(day => day.items)
+			.some(item => item.mediaId === ended.id),
+	).toBe(false)
 	expect(
 		anonymous.data.days
 			.flatMap(day => day.items)
