@@ -1,5 +1,8 @@
 import { type Prisma } from '@prisma/client'
-import { parseStoredNextRelease } from './release-calendar.server.ts'
+import {
+	isPlausibleNextRelease,
+	parseStoredNextRelease,
+} from './release-calendar.server.ts'
 
 const MINUTE_MS = 60 * 1_000
 
@@ -13,7 +16,10 @@ type ReminderDatabase = Pick<
 >
 
 type ReminderMedia = {
+	kind: string
 	releaseStart: Date | null
+	releaseEnd: Date | null
+	releaseStatus: string | null
 	nextRelease: string | null
 }
 
@@ -43,7 +49,9 @@ export function getNextCanonicalReminderRelease(
 	now = new Date(),
 ): CanonicalReminderRelease | null {
 	const candidates: CanonicalReminderRelease[] = []
-	const next = parseStoredNextRelease(media.nextRelease)
+	const parsedNext = parseStoredNextRelease(media.nextRelease)
+	const next =
+		parsedNext && isPlausibleNextRelease(parsedNext, media) ? parsedNext : null
 	if (next && next.releaseAt.getTime() > now.getTime()) {
 		candidates.push({
 			releaseAt: next.releaseAt,
@@ -99,11 +107,7 @@ async function reconcileReminder(
 	const release = getNextCanonicalReminderRelease(reminder.media, now)
 	const releaseTime = release?.releaseAt.getTime() ?? null
 	const stalePendingIds = reminder.notifications
-		.filter(
-			notification =>
-				notification.availableAt.getTime() > now.getTime() &&
-				notification.releaseAt?.getTime() !== releaseTime,
-		)
+		.filter(notification => notification.releaseAt?.getTime() !== releaseTime)
 		.map(notification => notification.id)
 	if (stalePendingIds.length) {
 		await db.notification.deleteMany({
@@ -163,7 +167,15 @@ export async function syncReleaseRemindersForUser(
 			id: true,
 			ownerId: true,
 			leadMinutes: true,
-			media: { select: { releaseStart: true, nextRelease: true } },
+			media: {
+				select: {
+					kind: true,
+					releaseStart: true,
+					releaseEnd: true,
+					releaseStatus: true,
+					nextRelease: true,
+				},
+			},
 			notifications: {
 				where: { releaseAt: { gt: now } },
 				select: { id: true, releaseAt: true, availableAt: true },
@@ -198,7 +210,15 @@ export async function saveReleaseReminder(
 			id: true,
 			ownerId: true,
 			leadMinutes: true,
-			media: { select: { releaseStart: true, nextRelease: true } },
+			media: {
+				select: {
+					kind: true,
+					releaseStart: true,
+					releaseEnd: true,
+					releaseStatus: true,
+					nextRelease: true,
+				},
+			},
 			notifications: {
 				where: { releaseAt: { gt: now } },
 				select: { id: true, releaseAt: true, availableAt: true },

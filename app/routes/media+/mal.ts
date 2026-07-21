@@ -48,7 +48,6 @@ export async function getAnilistSchedule(entryID: any) {
           Media (idMal: $id, type: ANIME) {
             nextAiringEpisode {
               airingAt
-              timeUntilAiring
               episode
               mediaId
             }
@@ -98,35 +97,35 @@ export async function getAnilistSchedule(entryID: any) {
 			return
 		}
 
-		let currentEpisode, releaseDate
-		if (data.nextAiringEpisode) {
-			if (data.streamingEpisodes) {
-				const foundEpisode = data.streamingEpisodes.find((episode: any) =>
-					episode.title.includes(
-						`Episode ${data.nextAiringEpisode.episode} - `,
-					),
-				)
-				currentEpisode = foundEpisode ? foundEpisode.title : null
-			}
+		const nextAiringEpisode = data.nextAiringEpisode
+		if (!nextAiringEpisode) return null
+		const airingAt = Number(nextAiringEpisode.airingAt)
+		if (!Number.isSafeInteger(airingAt) || airingAt <= 0) return null
+		const releaseDate = new Date(airingAt * 1_000)
+		if (
+			!Number.isFinite(releaseDate.getTime()) ||
+			releaseDate.getTime() <= Date.now()
+		) {
+			return null
+		}
 
-			const date = new Date()
-			const milliseconds = data.nextAiringEpisode.timeUntilAiring * 1000
-			releaseDate = new Date(date.getTime() + milliseconds)
+		let currentEpisode = null
+		if (Array.isArray(data.streamingEpisodes)) {
+			const foundEpisode = data.streamingEpisodes.find((episode: any) =>
+				episode.title.includes(`Episode ${nextAiringEpisode.episode} - `),
+			)
+			currentEpisode = foundEpisode ? foundEpisode.title : null
 		}
 
 		return {
-			id: data.nextAiringEpisode.mediaId
-				? data.nextAiringEpisode.mediaId
-				: null,
+			id: nextAiringEpisode.mediaId ? nextAiringEpisode.mediaId : null,
 			name: currentEpisode,
 			overview: null,
 			releaseDate: releaseDate,
-			episode: data.nextAiringEpisode.episode
-				? data.nextAiringEpisode.episode
-				: null,
+			episode: nextAiringEpisode.episode ? nextAiringEpisode.episode : null,
 			season: null,
 			runtime: data.duration ? data.duration : null,
-			image: data.coverImage.extraLarge
+			image: data.coverImage?.extraLarge
 				? `${String(data.coverImage.extraLarge)}|https://myanimelist.net/anime/${entryID}/${entryID}/episode`
 				: null,
 		}
