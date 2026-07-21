@@ -41,8 +41,10 @@ Preview the target and parameters without writing:
 npm run db:loadtest:postgres -- --count 1564333
 ```
 
-Then run the representative-size test. Keep the data initially so the database,
-indexes, query plans, and JSON report can be inspected:
+Then run the representative-size test. Use stable private report/checkpoint
+paths so the same configuration can be resumed. The first command deliberately
+exits nonzero after two complete media batches; this is the expected rehearsal
+result, not a pass:
 
 ```sh
 npm run db:loadtest:postgres -- \
@@ -53,7 +55,31 @@ npm run db:loadtest:postgres -- \
   --activity-per-member 20 \
   --member-read-iterations 20 \
   --tracking-write-batches 5 \
-  --require-trigram-indexes
+  --checkpoint test-results/postgres-load-staging.checkpoint.json \
+  --report test-results/postgres-load-staging.json \
+  --interrupt-after-batches 2
+```
+
+Confirm that the checkpoint reports `status: "interrupted"` and that its
+`loadedRows` exist in PostgreSQL. Resume with the identical data-shape settings;
+the harness rejects a changed target, count, or member shape. This command
+finishes the measurements and can clean the synthetic rows after writing both
+artifacts:
+
+```sh
+npm run db:loadtest:postgres -- \
+  --commit \
+  --resume \
+  --count 1564333 \
+  --member-count 1000 \
+  --tracking-per-member 100 \
+  --activity-per-member 20 \
+  --member-read-iterations 20 \
+  --tracking-write-batches 5 \
+  --checkpoint test-results/postgres-load-staging.checkpoint.json \
+  --report test-results/postgres-load-staging.json \
+  --require-trigram-indexes \
+  --cleanup-after
 ```
 
 The media count matches the current combined TMDB and MAL inventory estimate in
@@ -68,24 +94,9 @@ entries, and activity history. Synthetic images use the non-routable
 `synthetic.invalid` domain and no provider content is fetched.
 
 The harness then runs `ANALYZE`, records `EXPLAIN (ANALYZE, BUFFERS)` summaries,
-performs concurrent catalog/profile reads and hydration/tracking writes, and
-writes a credential-free mode-`0600` JSON report under `test-results/`.
-
-An interrupted deterministic load can be continued with `--resume`. After the
-report and database have been inspected, repeat with both `--resume` and
-`--cleanup-after` to measure idempotence and delete the synthetic data:
-
-```sh
-npm run db:loadtest:postgres -- \
-  --commit \
-  --resume \
-  --count 1564333 \
-  --member-count 1000 \
-  --tracking-per-member 100 \
-  --activity-per-member 20 \
-  --require-trigram-indexes \
-  --cleanup-after
-```
+performs concurrent catalog/profile reads and hydration/tracking writes, samples
+`pg_stat_activity` and waiting locks while that work is active, and writes
+credential-free mode-`0600` report/checkpoint JSON under `test-results/`.
 
 Use `--help` for batch, concurrency, and report-path controls. Restore the
 normal development client afterward with `npm run prisma:generate:sqlite`.
@@ -104,7 +115,12 @@ The report includes:
   no-match, popularity-page, related-media, trending-feed, profile-entry, and
   profile-activity reads; and
 - wall time for concurrent searches, member reads, hydration updates, and
-  tracking writes.
+  tracking writes;
+- database-pressure sample count, configured connection capacity, peak total and
+  active connections, peak utilization, and waiting locks; and
+- an atomic batch checkpoint with interruption, resume, completion, accumulated
+  insertion time, and initial-storage evidence. The final report embeds the
+  checkpoint SHA-256 so later edits are detected by the cutover gate.
 
 PostgreSQL may correctly prefer a sequential scan when a table is small or a
 predicate matches much of it. For that reason, `--require-trigram-indexes`
@@ -153,6 +169,14 @@ catalog/profile query plans and 20 catalog searches, five hydration updates,
 eight member reads, and three tracking writes completed. Cleanup removed every
 synthetic media, member, and temporary list-type row. This proves correctness of
 the richer harness; it is intentionally not performance or cutover evidence.
+
+A second smoke deliberately stopped after 1,000 of 2,000 media rows and resumed
+from the same checkpoint. Resume observed all 1,000 persisted rows, completed
+the representative workload, and bound the completed checkpoint SHA-256 into the
+report. Concurrent work sampled a peak of 17/100 connections (17%), seven active
+connections, and zero waiting locks. Cleanup again left zero synthetic media,
+members, or list types. These small local values prove the recovery and
+measurement paths only; staging must establish its own approved budgets.
 
 ## CI boundary
 

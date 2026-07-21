@@ -60,8 +60,9 @@ full local rehearsal. A guarded synthetic load harness now records storage,
 throughput, query plans, indexed search timing, relationships, feed rows, member
 tracking/history, profile reads, and concurrent catalog/member reads and writes.
 Its original 100,000-identity PostgreSQL 16 rehearsal passed the three-index
-plan gate; a later disposable smoke run proved the richer relational/member
-shape and complete cleanup. See the
+plan gate; later disposable smoke runs proved the richer relational/member
+shape, deliberate interruption/resume, connection/lock sampling, checkpoint hash
+binding, and complete cleanup. See the
 [PostgreSQL catalog load runbook](postgresql-load-readiness.md).
 
 The production hold remains. The next batch must run the current
@@ -75,5 +76,6 @@ Cutover evidence automation is available in the
 now emit archive-bound restore receipts, the read-only canary records public
 application and database-health latency, and the final gate hashes and evaluates
 all artifacts against an owner-approved policy. The gate now rejects flat
-catalog-only load reports and target mismatches. The automation enforces the
+catalog-only load reports, target/checkpoint mismatches, unproven recovery, and
+connection or waiting-lock pressure outside policy. The automation enforces the
 hold; it does not satisfy the still-unrun production-like staging gates.
