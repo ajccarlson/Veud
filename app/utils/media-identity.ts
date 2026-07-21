@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+	mediaKindMatchesListType,
+	providerMatchesMediaKind,
+} from './media-kind.ts'
 
 export const MediaIdentitySchema = z
 	.object({
@@ -49,19 +53,10 @@ export function mediaIdentityMatchesListType(
 	identity: MediaIdentity,
 	listTypeName: string,
 ) {
-	if (listTypeName === 'liveaction') {
-		return (
-			identity.provider === 'tmdb' &&
-			(identity.kind === 'movie' || identity.kind === 'tv')
-		)
-	}
-	if (listTypeName === 'anime') {
-		return identity.provider === 'mal' && identity.kind === 'anime'
-	}
-	if (listTypeName === 'manga') {
-		return identity.provider === 'mal' && identity.kind === 'manga'
-	}
-	return false
+	return (
+		providerMatchesMediaKind(identity.provider, identity.kind) &&
+		mediaKindMatchesListType(identity.kind, listTypeName)
+	)
 }
 
 /**

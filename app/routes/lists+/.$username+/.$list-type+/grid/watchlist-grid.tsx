@@ -14,10 +14,6 @@ import {
 import '@ag-grid-community/styles/ag-grid.css'
 import '#app/styles/watchlist.scss'
 import {
-	MediaSearchBar,
-	MediaTypeDropdown,
-} from '#app/components/search-add-watchlist-entry.tsx'
-import {
 	getSiteIdSafe,
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
@@ -47,7 +43,6 @@ export function watchlistGrid(
 	VEUD_API_KEY: any,
 	navigate: (path: string) => void,
 ) {
-	const canEdit = currentUserId === listOwner.id
 	const [listEntries, setListEntries] = useState(() => [...listEntriesPass])
 	const [selectedSearchType, setSelectedSearchType] = useState('Type')
 	const [dragDestination, setDragDestination] = useState<string | null>(null)
@@ -102,21 +97,6 @@ export function watchlistGrid(
 
 	return (
 		<div className="watchlist-grid-shell">
-			{canEdit ? (
-				<section className="watchlist-quick-add" aria-label="Add a title">
-					<div className="watchlist-quick-add-label">
-						<span>Quick add</span>
-						{listTypeData.name === 'liveaction' ? (
-							<MediaTypeDropdown columnParams={currentColumnParams} />
-						) : null}
-					</div>
-					<MediaSearchBar
-						params={{}}
-						columnParams={currentColumnParams}
-						compactTrigger
-					/>
-				</section>
-			) : null}
 			<div className="ag-theme-custom-react">
 				{dragDestination ? (
 					<div className="ag-drag-destination-banner" role="status">

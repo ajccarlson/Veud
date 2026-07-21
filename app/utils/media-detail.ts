@@ -1,5 +1,7 @@
 import { type TrackingEntryLike } from './tracking-state.ts'
 
+export { listTypeNameForMediaKind } from './media-kind.ts'
+
 export type SupportedProgressUnit = 'episode' | 'chapter' | 'volume'
 
 export type LegacyProgressUpdate = {
@@ -7,13 +9,6 @@ export type LegacyProgressUpdate = {
 	length?: string
 	chapters?: string
 	volumes?: string
-}
-
-export function listTypeNameForMediaKind(kind: string) {
-	if (kind === 'movie' || kind === 'tv') return 'liveaction'
-	if (kind === 'anime') return 'anime'
-	if (kind === 'manga') return 'manga'
-	return null
 }
 
 export function progressUnitsForMediaKind(
