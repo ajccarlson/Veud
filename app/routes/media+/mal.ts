@@ -374,6 +374,11 @@ export async function formatMangaInfo(data: any, full = true) {
 			authors: authors,
 			malScore: data['mean'],
 			description: data['synopsis'],
+			nextRelease:
+				full &&
+				(data['status'] === 'finished' || data['status'] === 'discontinued')
+					? null
+					: undefined,
 			mediaRelations: formatMalRelations(data),
 		}
 
