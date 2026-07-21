@@ -5,12 +5,14 @@ import {
 	useLoaderData,
 } from 'react-router'
 import { FollowingFeed } from '#app/routes/_home+/_following.tsx'
+import { HomeLibrary } from '#app/routes/_home+/_library.tsx'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
+import { getHomeLibrarySummary } from '#app/utils/home-library.server.ts'
 import { getHomeTrending } from '#app/utils/home-trending.server.ts'
 import {
 	dateKeyInTimeZone,
@@ -22,6 +24,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
 	const timeZone = getHints(request).timeZone
 	const trendingPromise = getHomeTrending(userId)
+	const librarySummaryPromise = userId
+		? getHomeLibrarySummary(userId)
+		: Promise.resolve(null)
 	const watchlistsPromise = userId
 		? prisma.watchlist.findMany({
 				where: { ownerId: userId },
@@ -68,14 +73,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					},
 				})
 			: []
-	const [trendingRails, watchlists] = await Promise.all([
+	const [trendingRails, watchlists, librarySummary] = await Promise.all([
 		trendingPromise,
 		watchlistsPromise,
+		librarySummaryPromise,
 	])
 
 	return json({
 		trendingRails,
 		watchlists,
+		librarySummary,
 		isSignedIn: Boolean(userId),
 		upcomingCalendar,
 		followingFeed,
@@ -97,14 +104,21 @@ export default function Index() {
 						watchlists={data.watchlists}
 						isSignedIn={data.isSignedIn}
 					/>
-					{currentUser ? (
+					{currentUser && data.librarySummary ? (
 						<div className="home-dashboard">
 							<FollowingFeed
 								items={data.followingFeed}
 								followingCount={data.followingCount}
 								suggestedMembers={data.suggestedMembers}
 							/>
-							<UpcomingData calendar={data.upcomingCalendar} />
+							<aside className="home-dashboard-sidebar space-y-7">
+								<HomeLibrary
+									username={currentUser.username}
+									summary={data.librarySummary}
+									destinationCount={data.watchlists.length}
+								/>
+								<UpcomingData calendar={data.upcomingCalendar} />
+							</aside>
 						</div>
 					) : null}
 				</div>
