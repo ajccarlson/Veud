@@ -1,97 +1,5 @@
-import { type Page } from '@playwright/test'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
-
-const catalogTitles = {
-	101: 'First catalog result',
-	102: 'Second catalog result',
-	103: 'Third catalog result',
-} as const
-
-function malDetails(id: keyof typeof catalogTitles) {
-	return {
-		id,
-		title: catalogTitles[id],
-		main_picture: { large: `https://example.com/${id}.jpg` },
-		start_date: '2024-01-01',
-		end_date: '2024-03-01',
-		media_type: 'tv',
-		start_season: { year: 2024, season: 'winter' },
-		num_episodes: 12,
-		average_episode_duration: 1440,
-		rating: 'pg_13',
-		genres: [],
-		studios: [],
-		mean: 8,
-		synopsis: `${catalogTitles[id]} synopsis`,
-		related_anime: [],
-		related_manga: [],
-	}
-}
-
-async function mockMalCatalog(page: Page) {
-	await page.route('**/media/fetch-data/**', async route => {
-		const encodedRequest = route.request().url().split('/media/fetch-data/')[1]
-		const proxyParams = new URLSearchParams(decodeURIComponent(encodedRequest))
-		const upstream = new URL(proxyParams.get('url') ?? '')
-
-		if (upstream.hostname === 'graphql.anilist.co') {
-			await route.fulfill({
-				json: [
-					{},
-					{
-						data: {
-							Media: {
-								nextAiringEpisode: {
-									timeUntilAiring: 3600,
-									episode: 2,
-									mediaId: 101,
-								},
-								streamingEpisodes: [],
-								duration: 24,
-								coverImage: { extraLarge: null },
-							},
-						},
-					},
-				],
-			})
-			return
-		}
-
-		const detailMatch = upstream.pathname.match(/\/v2\/anime\/(\d+)$/)
-		if (detailMatch) {
-			const id = Number(detailMatch[1]) as keyof typeof catalogTitles
-			await route.fulfill({ json: [{}, malDetails(id)] })
-			return
-		}
-
-		const query = upstream.searchParams.get('q') ?? ''
-		const id = (
-			query.startsWith('Second') ? 102 : query.startsWith('Third') ? 103 : 101
-		) as keyof typeof catalogTitles
-		await route.fulfill({
-			json: [
-				{},
-				{
-					data: [
-						{
-							node: {
-								id,
-								title: catalogTitles[id],
-								main_picture: {
-									large: `https://example.com/${id}.jpg`,
-								},
-								start_date: '2024-01-01',
-								media_type: 'tv',
-								start_season: { year: 2024, season: 'winter' },
-							},
-						},
-					],
-				},
-			],
-		})
-	})
-}
 
 async function titlesInOrder(watchlistId: string) {
 	return prisma.entry
@@ -167,10 +75,11 @@ test('member can type a new position and see the persisted order', async ({
 	await expect(renderedRows.nth(2)).toContainText('First reliability entry')
 })
 
-test('member can keep adding search results across lists in one session', async ({
+test('member can keep tracking global search results across lists in one session', async ({
 	page,
 	login,
 }) => {
+	test.setTimeout(30_000)
 	const user = await login()
 	const listType = await prisma.listType.findUniqueOrThrow({
 		where: { name: 'anime' },
@@ -197,106 +106,95 @@ test('member can keep adding search results across lists in one session', async 
 			},
 		}),
 	])
-	await mockMalCatalog(page)
+	const titles = [
+		'Universal Anime Alpha',
+		'Universal Anime Beta',
+		'Universal Anime Gamma',
+	]
+	const media = await Promise.all(
+		titles.map((title, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title,
+					type: 'TV Series',
+					startSeason: 'Winter 2024',
+					thumbnail: `https://example.com/universal-${index}.jpg|https://myanimelist.net/anime/${99100 + index}`,
+					catalogPopularity: 100 - index,
+					externalIds: {
+						create: {
+							provider: 'mal',
+							kind: 'anime',
+							externalId: String(99100 + index),
+						},
+					},
+				},
+			}),
+		),
+	)
 
-	async function addCatalogResult(
-		query: string,
+	async function trackCatalogResult(
 		title: string,
-		watchlistId: string,
-		destinationLabel?: string,
+		destination: { id: string; header: string },
 	) {
-		await page.getByRole('button', { name: 'Add title' }).click()
-		const dialog = page.getByRole('dialog', { name: 'Choose a title' })
-		await expect(dialog).toBeVisible()
-		const search = dialog.getByRole('searchbox', {
-			name: 'Search the catalog',
-		})
-		await search.fill(query)
-		await search.press('Enter')
-		if (destinationLabel) {
-			await dialog.getByLabel('Add to list').selectOption({
-				label: destinationLabel,
-			})
+		const siteSearch = page.locator('form.site-search')
+		await siteSearch
+			.getByLabel('Search movies, TV, anime, and manga')
+			.fill(title)
+		await siteSearch.getByLabel('Media type').selectOption('anime')
+		await siteSearch
+			.getByLabel('Search movies, TV, anime, and manga')
+			.press('Enter')
+		await expect(page).toHaveURL(/\/discover\?q=/)
+		const card = page.getByRole('article').filter({ hasText: title })
+		await expect(card).toBeVisible()
+		await expect(card.getByText('mal', { exact: true })).toBeVisible()
+		const status = card.getByLabel(`Tracking status for ${title}`)
+		if (title === titles[0] && destination.id === watching.id) {
+			await expect(status).toHaveValue(watching.id)
 		}
-		await dialog.getByRole('button', { name: title }).click()
+		await status.selectOption(destination.id)
+		const verb = (await prisma.trackingState.count({
+			where: { ownerId: user.id, mediaId: media[titles.indexOf(title)].id },
+		}))
+			? 'Update'
+			: 'Track'
+		await card.getByRole('button', { name: `${verb} ${title}` }).click()
 		await expect
-			.poll(() => prisma.entry.count({ where: { watchlistId, title } }))
+			.poll(() =>
+				prisma.entry.count({
+					where: {
+						watchlistId: destination.id,
+						mediaId: media[titles.indexOf(title)].id,
+					},
+				}),
+			)
 			.toBe(1)
-		await expect(dialog).not.toBeVisible()
-		await expect(page.getByRole('button', { name: 'Add title' })).toBeVisible()
 	}
 
 	await page.goto(`/lists/${user.username}/anime/${watching.name}`)
-	await addCatalogResult('First query', catalogTitles[101], watching.id)
-	await page.setViewportSize({ width: 390, height: 844 })
-	await page.getByRole('button', { name: 'Add title' }).click()
-	const trackedDialog = page.getByRole('dialog', { name: 'Choose a title' })
-	await trackedDialog
-		.getByRole('searchbox', { name: 'Search the catalog' })
-		.fill('First query')
-	await trackedDialog
-		.getByRole('searchbox', { name: 'Search the catalog' })
-		.press('Enter')
-	const dialogBounds = await trackedDialog.evaluate(dialog => {
-		const bounds = dialog.getBoundingClientRect()
-		return {
-			left: bounds.left,
-			top: bounds.top,
-			right: bounds.right,
-			bottom: bounds.bottom,
-		}
-	})
-	expect(dialogBounds.left).toBeGreaterThanOrEqual(-1)
-	expect(dialogBounds.top).toBeGreaterThanOrEqual(-1)
-	expect(dialogBounds.right).toBeLessThanOrEqual(391)
-	expect(dialogBounds.bottom).toBeLessThanOrEqual(845)
-	await expect(trackedDialog.locator('img')).toHaveAttribute(
-		'src',
-		'https://example.com/101.jpg',
-	)
-	await expect(trackedDialog.getByText('MAL', { exact: true })).toBeVisible()
+	await expect(page.getByRole('button', { name: 'Add title' })).toHaveCount(0)
 	await expect(
-		trackedDialog.getByText('TV Series', { exact: true }),
+		page.locator('form.site-search').getByLabel(
+			'Search movies, TV, anime, and manga',
+		),
 	).toBeVisible()
-	await expect(trackedDialog.getByText('2024', { exact: true })).toBeVisible()
-	await expect(trackedDialog.getByText('Currently in Watching')).toBeVisible()
-	await expect(
-		trackedDialog.getByRole('button', {
-			name: `In Watching ${catalogTitles[101]}`,
-		}),
-	).toBeDisabled()
+	await trackCatalogResult(titles[0], watching)
+	await page.setViewportSize({ width: 390, height: 844 })
+	const siteSearchBounds = await page.locator('form.site-search').evaluate(form => {
+		const bounds = form.getBoundingClientRect()
+		return { left: bounds.left, right: bounds.right, width: bounds.width }
+	})
+	expect(siteSearchBounds.left).toBeGreaterThanOrEqual(-1)
+	expect(siteSearchBounds.right).toBeLessThanOrEqual(391)
+	expect(siteSearchBounds.width).toBeGreaterThan(250)
 	await page.setViewportSize({ width: 1280, height: 720 })
-	await trackedDialog
-		.getByLabel('Add to list')
-		.selectOption({ label: 'Completed' })
-	await trackedDialog
-		.getByRole('button', {
-			name: `Move to Completed ${catalogTitles[101]}`,
-		})
-		.click()
+	await trackCatalogResult(titles[0], completed)
 	await expect
 		.poll(() => prisma.entry.count({ where: { watchlistId: watching.id } }))
 		.toBe(0)
-	await expect
-		.poll(() =>
-			prisma.entry.count({
-				where: { watchlistId: completed.id, title: catalogTitles[101] },
-			}),
-		)
-		.toBe(1)
-
-	await addCatalogResult(
-		'Second query',
-		catalogTitles[102],
-		completed.id,
-		'Completed',
-	)
-
-	await page.getByRole('link', { name: 'Completed' }).click()
-	await expect(page).toHaveURL(
-		new RegExp(`/lists/${user.username}/anime/${completed.name}$`),
-	)
-	await addCatalogResult('Third query', catalogTitles[103], completed.id)
+	await trackCatalogResult(titles[1], completed)
+	await trackCatalogResult(titles[2], completed)
 
 	expect(
 		await prisma.entry.findMany({
@@ -305,9 +203,9 @@ test('member can keep adding search results across lists in one session', async 
 			select: { title: true, position: true },
 		}),
 	).toEqual([
-		{ title: catalogTitles[101], position: 1 },
-		{ title: catalogTitles[102], position: 2 },
-		{ title: catalogTitles[103], position: 3 },
+		{ title: titles[0], position: 1 },
+		{ title: titles[1], position: 2 },
+		{ title: titles[2], position: 3 },
 	])
 })
 
