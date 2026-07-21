@@ -507,7 +507,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	})
 	const thumbnail = splitLegacyThumbnail(catalog?.thumbnail)
 	const upcomingRelease = getNextCanonicalReminderRelease({
+		kind: media.kind,
 		releaseStart: catalog?.releaseStart ?? null,
+		releaseEnd: catalog?.releaseEnd ?? null,
+		releaseStatus: catalog?.releaseStatus ?? null,
 		nextRelease: catalog?.nextRelease ?? null,
 	})
 
