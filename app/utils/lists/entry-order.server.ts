@@ -1,4 +1,6 @@
 import { type Prisma } from '@prisma/client'
+import { mediaIdentityFromThumbnail } from '#app/utils/media-identity.ts'
+import { mediaKindMatchesListType } from '#app/utils/media-kind.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 
 export class EntryOrderError extends Error {
@@ -102,11 +104,12 @@ export async function moveEntryToWatchlist(
 		where: { id: input.entryId },
 		include: {
 			watchlist: { select: { id: true, ownerId: true, typeId: true } },
+			media: { select: { kind: true } },
 		},
 	})
 	const destination = await tx.watchlist.findFirst({
 		where: { id: input.destinationWatchlistId, ownerId: input.ownerId },
-		select: { id: true, typeId: true },
+		select: { id: true, typeId: true, type: { select: { name: true } } },
 	})
 	if (!entry || entry.watchlist.ownerId !== input.ownerId || !destination) {
 		throw new EntryOrderError('Entry or watchlist not found', 404)
@@ -114,6 +117,14 @@ export async function moveEntryToWatchlist(
 	if (entry.watchlist.typeId !== destination.typeId) {
 		throw new EntryOrderError(
 			'Entries can only move between compatible lists',
+			400,
+		)
+	}
+	const mediaKind =
+		entry.media?.kind ?? mediaIdentityFromThumbnail(entry.thumbnail)?.kind
+	if (mediaKind && !mediaKindMatchesListType(mediaKind, destination.type.name)) {
+		throw new EntryOrderError(
+			'This media type cannot be added to the destination list',
 			400,
 		)
 	}
