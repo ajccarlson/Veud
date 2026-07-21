@@ -40,10 +40,11 @@ test('member can curate, reorder, and publish a media collection', async ({
 		await expect(
 			page.getByRole('heading', { name: 'Add a title' }),
 		).toBeVisible()
-		await page
+		const collectionPage = page.getByRole('main')
+		await collectionPage
 			.getByPlaceholder('Search media')
 			.fill('Collection Browser Arrival')
-		await page.getByRole('button', { name: 'Search' }).click()
+		await collectionPage.getByRole('button', { name: 'Search' }).click()
 		const arrivalResult = page
 			.getByRole('article')
 			.filter({ hasText: 'Collection Browser Arrival' })
