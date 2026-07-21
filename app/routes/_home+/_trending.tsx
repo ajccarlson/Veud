@@ -1,12 +1,86 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
 	QuickTrackControl,
 	type QuickTrackWatchlist,
 } from '#app/components/quick-track-control.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { type HomeTrendingRail } from '#app/utils/home-trending.server.ts'
+import {
+	type HomeTrendingItem,
+	type HomeTrendingRail,
+} from '#app/utils/home-trending.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+
+function TrendingCard({
+	item,
+	watchlists,
+	isSignedIn,
+}: {
+	item: HomeTrendingItem
+	watchlists: QuickTrackWatchlist[]
+	isSignedIn: boolean
+}) {
+	const [isTracked, setIsTracked] = useState(Boolean(item.viewerTracking))
+	const markTracked = useCallback(() => setIsTracked(true), [])
+	const { imageUrl } = splitLegacyThumbnail(item.thumbnail)
+	const trackingState = isTracked ? 'tracked' : 'available'
+
+	return (
+		<article
+			className={`home-trending-card home-trending-card--${trackingState} w-44 shrink-0 snap-start overflow-hidden rounded-xl shadow-lg shadow-black/20`}
+			data-tracking-state={trackingState}
+		>
+			<Link
+				to={`/media/${item.id}`}
+				className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a2ffd5]"
+			>
+				<div className="relative aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+					{imageUrl ? (
+						<img
+							src={imageUrl}
+							alt=""
+							loading={item.rank > 6 ? 'lazy' : 'eager'}
+							className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+						/>
+					) : (
+						<span className="flex h-full items-center justify-center px-4 text-center text-xs font-bold text-[#8ca99d]">
+							No poster available
+						</span>
+					)}
+					<span className="absolute left-2 top-2 rounded-full bg-[#222]/90 px-2 py-1 text-xs font-black text-[#ffcc66]">
+						#{item.rank}
+					</span>
+					<span className="home-trending-state-badge">
+						{isTracked ? 'On your list' : 'Ready to add'}
+					</span>
+					<span className="absolute bottom-2 right-2 rounded bg-[#222]/90 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+						{item.source === 'provider-feed' ? 'Trending' : 'Popular'}
+					</span>
+				</div>
+				<div className="min-h-24 p-3">
+					<h4 className="line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
+						{item.title}
+					</h4>
+					<p className="mt-1 text-xs text-[#a2ffd5]">
+						{item.type || item.kind}
+						{item.year ? ` · ${item.year}` : ''}
+						{item.score !== null ? ` · ★ ${item.score.toFixed(1)}` : ''}
+					</p>
+				</div>
+			</Link>
+			<div className="home-trending-card-actions p-3">
+				<QuickTrackControl
+					item={item}
+					watchlists={watchlists}
+					isSignedIn={isSignedIn}
+					loginRedirectTo="/"
+					layout="stacked"
+					onTracked={markTracked}
+				/>
+			</div>
+		</article>
+	)
+}
 
 function ArrowIcon({ direction }: { direction: 'left' | 'right' }) {
 	return (
@@ -122,60 +196,14 @@ function TrendingRail({
 				}}
 				className="home-trending-rail flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth py-2"
 			>
-				{rail.items.map(item => {
-					const { imageUrl } = splitLegacyThumbnail(item.thumbnail)
-					return (
-						<article
-							key={item.id}
-							className="w-44 shrink-0 snap-start overflow-hidden rounded-xl border border-[#54806c] bg-[#383040] shadow-lg shadow-black/20"
-						>
-							<Link
-								to={`/media/${item.id}`}
-								className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a2ffd5]"
-							>
-								<div className="relative aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
-									{imageUrl ? (
-										<img
-											src={imageUrl}
-											alt=""
-											loading={item.rank > 6 ? 'lazy' : 'eager'}
-											className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
-										/>
-									) : (
-										<span className="flex h-full items-center justify-center px-4 text-center text-xs font-bold text-[#8ca99d]">
-											No poster available
-										</span>
-									)}
-									<span className="absolute left-2 top-2 rounded-full bg-[#222]/90 px-2 py-1 text-xs font-black text-[#ffcc66]">
-										#{item.rank}
-									</span>
-									<span className="absolute bottom-2 right-2 rounded bg-[#222]/90 px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
-										{item.source === 'provider-feed' ? 'Trending' : 'Popular'}
-									</span>
-								</div>
-								<div className="min-h-24 p-3">
-									<h4 className="line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
-										{item.title}
-									</h4>
-									<p className="mt-1 text-xs text-[#a2ffd5]">
-										{item.type || item.kind}
-										{item.year ? ` · ${item.year}` : ''}
-										{item.score !== null ? ` · ★ ${item.score.toFixed(1)}` : ''}
-									</p>
-								</div>
-							</Link>
-							<div className="border-t border-[#54806c]/60 p-3">
-								<QuickTrackControl
-									item={item}
-									watchlists={watchlists}
-									isSignedIn={isSignedIn}
-									loginRedirectTo="/"
-									layout="stacked"
-								/>
-							</div>
-						</article>
-					)
-				})}
+				{rail.items.map(item => (
+					<TrendingCard
+						key={item.id}
+						item={item}
+						watchlists={watchlists}
+						isSignedIn={isSignedIn}
+					/>
+				))}
 			</div>
 			{/* eslint-enable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-noninteractive-element-interactions */}
 		</section>
@@ -207,7 +235,7 @@ export function TrendingData({
 	return (
 		<section
 			aria-labelledby="home-trending-heading"
-			className="w-full max-w-7xl space-y-8 self-center px-4 text-[#ffefcc]"
+			className="home-trending-section w-full max-w-7xl space-y-6 self-center text-[#ffefcc]"
 		>
 			<header className="flex flex-wrap items-end justify-between gap-4">
 				<div>

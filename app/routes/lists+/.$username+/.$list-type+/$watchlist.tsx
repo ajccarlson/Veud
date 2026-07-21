@@ -13,16 +13,18 @@ import '#app/styles/watchlist.scss'
 
 export async function loader(params: LoaderFunctionArgs) {
 	const viewerId = await getUserId(params.request)
-	const listOwner = await prisma.user.findUnique({
-		where: {
-			username: params['params']['username']!,
-		},
-	})
+	const [listOwner, listTypes] = await Promise.all([
+		prisma.user.findUnique({
+			where: {
+				username: params['params']['username']!,
+			},
+		}),
+		prisma.listType.findMany(),
+	])
 
 	invariantResponse(listOwner, 'User not found', { status: 404 })
 
 	const listType = params['params']['list-type']
-	const listTypes = await prisma.listType.findMany()
 	const listTypeData = listTypes.find(type => type.name === listType)
 	// Guard before reading `.header`/`.id`: the original accessed these before its 404
 	// check, so a missing list type would have thrown a 500 instead of the intended 404.
@@ -60,48 +62,35 @@ export async function loader(params: LoaderFunctionArgs) {
 		{},
 	)
 
-	const listEntries = await prisma.entry.findMany({
-		where: {
-			watchlistId: watchListData.id,
-		},
-		include: {
-			media: { select: { kind: true } },
-			trackingState: {
-				select: {
-					status: true,
-					statusWatchlistId: true,
-					score: true,
-					startedAt: true,
-					completedAt: true,
-					repeatCount: true,
-					progress: {
-						select: { unit: true, current: true, total: true },
+	const [listEntries, favorites, trackingStates] = await Promise.all([
+		prisma.entry.findMany({
+			where: {
+				watchlistId: watchListData.id,
+			},
+			include: {
+				media: { select: { kind: true } },
+				trackingState: {
+					select: {
+						status: true,
+						statusWatchlistId: true,
+						score: true,
+						startedAt: true,
+						completedAt: true,
+						repeatCount: true,
+						progress: {
+							select: { unit: true, current: true, total: true },
+						},
 					},
 				},
 			},
-		},
-	})
-
-	const listEntriesSorted = listEntries.sort(
-		(a: any, b: any) => a.position - b.position,
-	)
-
-	const favorites = await prisma.userFavorite.findMany({
-		where: {
-			ownerId: listOwner.id,
-		},
-	})
-
-	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
-		(x, y) => {
-			;(x[y.typeId] = x[y.typeId] || []).push(y)
-			return x
-		},
-		{},
-	)
-	const trackingStates =
+		}),
+		prisma.userFavorite.findMany({
+			where: {
+				ownerId: listOwner.id,
+			},
+		}),
 		viewerId === listOwner.id
-			? await prisma.trackingState.findMany({
+			? prisma.trackingState.findMany({
 					where: { ownerId: viewerId },
 					select: {
 						mediaId: true,
@@ -120,7 +109,20 @@ export async function loader(params: LoaderFunctionArgs) {
 						},
 					},
 				})
-			: []
+			: Promise.resolve([]),
+	])
+
+	const listEntriesSorted = listEntries.sort(
+		(a: any, b: any) => a.position - b.position,
+	)
+
+	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
+		(x, y) => {
+			;(x[y.typeId] = x[y.typeId] || []).push(y)
+			return x
+		},
+		{},
+	)
 	const trackingByIdentity = Object.fromEntries(
 		trackingStates.flatMap(tracking =>
 			tracking.media.externalIds.map(identity => [
