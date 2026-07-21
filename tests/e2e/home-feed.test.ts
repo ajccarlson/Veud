@@ -187,12 +187,25 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 			name: 'Scroll Trending movies right',
 		})
 		const rankedCard = rail
-			.locator('[data-tracking-state]')
+			.locator('article')
 			.filter({ hasText: 'Home Trending Ranked' })
-		await expect(rankedCard).toHaveAttribute('data-tracking-state', 'available')
-		await expect(
-			rankedCard.getByText('Ready to add', { exact: true }),
-		).toBeVisible()
+		const watchlistSelect = rankedCard.getByLabel(
+			'Tracking status for Home Trending Ranked',
+		)
+		await expect(watchlistSelect).toHaveAttribute(
+			'data-tracking-state',
+			'available',
+		)
+		await expect(watchlistSelect).toHaveCSS(
+			'background-color',
+			'rgb(46, 47, 43)',
+		)
+		await expect(rankedCard.getByText('Popular', { exact: true })).toHaveCount(
+			0,
+		)
+		await expect(rankedCard.getByText('Trending', { exact: true })).toHaveCount(
+			0,
+		)
 		await expect
 			.poll(() =>
 				rail.evaluate(element => element.scrollWidth > element.clientWidth),
@@ -220,10 +233,14 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 			.getByRole('button', { name: 'Track Home Trending Ranked' })
 			.click()
 		await expect(rankedCard.getByText('Saved', { exact: true })).toBeVisible()
-		await expect(rankedCard).toHaveAttribute('data-tracking-state', 'tracked')
-		await expect(
-			rankedCard.getByText('On your list', { exact: true }),
-		).toBeVisible()
+		await expect(watchlistSelect).toHaveAttribute(
+			'data-tracking-state',
+			'tracked',
+		)
+		await expect(watchlistSelect).toHaveCSS(
+			'background-color',
+			'rgb(49, 87, 70)',
+		)
 		await expect
 			.poll(() =>
 				prisma.trackingState.findUnique({
