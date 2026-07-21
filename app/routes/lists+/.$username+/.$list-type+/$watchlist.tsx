@@ -64,6 +64,22 @@ export async function loader(params: LoaderFunctionArgs) {
 		where: {
 			watchlistId: watchListData.id,
 		},
+		include: {
+			media: { select: { kind: true } },
+			trackingState: {
+				select: {
+					status: true,
+					statusWatchlistId: true,
+					score: true,
+					startedAt: true,
+					completedAt: true,
+					repeatCount: true,
+					progress: {
+						select: { unit: true, current: true, total: true },
+					},
+				},
+			},
+		},
 	})
 
 	const listEntriesSorted = listEntries.sort(
