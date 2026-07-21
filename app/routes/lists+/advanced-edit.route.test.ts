@@ -10,9 +10,11 @@ async function createOwnerWithEntry() {
 	const owner = await prisma.user.create({
 		data: { email: `${suffix}@example.com`, username: `u_${suffix}` },
 	})
-	const listType = await prisma.listType.create({
-		data: {
-			name: `anime-${suffix}`,
+	const listType = await prisma.listType.upsert({
+		where: { name: 'anime' },
+		update: {},
+		create: {
+			name: 'anime',
 			header: 'Anime',
 			columns: '{}',
 			mediaType: '["episode"]',
