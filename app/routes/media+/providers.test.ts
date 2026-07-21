@@ -21,6 +21,7 @@ import {
 import { getTMDBInfo, searchTMDB } from './tmdb.ts'
 
 let fetchMock: any
+const PROXY_OBSERVED_AT = '2026-07-20T12:00:00.000Z'
 
 beforeEach(() => {
 	fetchMock = vi.spyOn(globalThis, 'fetch')
@@ -32,10 +33,13 @@ afterEach(() => {
 
 // The proxy returns `[response, data]`; the helpers read `res.json()` as that array.
 function proxyJson(data: unknown) {
-	return new Response(JSON.stringify([{}, data]), {
-		status: 200,
-		headers: { 'Content-Type': 'application/json' },
-	})
+	return new Response(
+		JSON.stringify([{ observedAt: PROXY_OBSERVED_AT }, data]),
+		{
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		},
+	)
 }
 
 // The helpers fetch `/media/fetch-data/<encodeURIComponent(URLSearchParams)>`. Recover the
@@ -159,6 +163,48 @@ test('TMDB movie details hydrate other titles in the same collection', async () 
 	])
 })
 
+test('TMDB TV schedules include durable provider observation metadata', async () => {
+	fetchMock
+		.mockResolvedValueOnce(
+			proxyJson({
+				id: 20,
+				name: 'Scheduled TV Fixture',
+				poster_path: '/tv.jpg',
+				overview: 'A scheduled series.',
+				first_air_date: '2026-01-01',
+				last_air_date: '2026-07-10',
+				number_of_episodes: 10,
+				vote_average: 8,
+				original_language: 'en',
+				genres: [],
+				next_episode_to_air: {
+					id: 21,
+					name: 'The next episode',
+					overview: '',
+					air_date: '2026-07-27',
+					episode_number: 11,
+					season_number: 1,
+					runtime: 45,
+					still_path: '/episode.jpg',
+				},
+			}),
+		)
+		.mockResolvedValueOnce(proxyJson({ results: [] }))
+
+	const result = (await getTMDBInfo(20, 'tv')) as any
+
+	expect(result.nextRelease).toMatchObject({
+		source: 'tmdb',
+		releaseDate: '2026-07-27',
+		episode: 11,
+		season: 1,
+	})
+	expect(
+		Number.isFinite(new Date(result.nextRelease.observedAt).getTime()),
+	).toBe(true)
+	expect(result.nextRelease.observedAt).toBe(PROXY_OBSERVED_AT)
+})
+
 // ---- searchMAL ----
 
 test('searchMAL unwraps node objects, slices, and hits the MAL search endpoint', async () => {
@@ -270,6 +316,8 @@ test('getAnilistSchedule derives nextRelease from nextAiringEpisode', async () =
 
 	expect(next.episode).toBe(12)
 	expect(next.id).toBe(999)
+	expect(next.source).toBe('anilist')
+	expect(next.observedAt).toBe(PROXY_OBSERVED_AT)
 	expect(next.name).toBe('Episode 12 - The One')
 	expect(next.runtime).toBe(24)
 	expect(next.releaseDate).toEqual(absoluteRelease)
