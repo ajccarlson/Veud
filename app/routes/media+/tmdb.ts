@@ -155,6 +155,8 @@ export async function formatTMDBResults(entry: any, type: string, entryID: any, 
           try {
             if (data.next_episode_to_air) {
               nextRelease = {
+                source: 'tmdb',
+                observedAt: typeof data.observedAt === 'string' ? data.observedAt : new Date().toISOString(),
                 id: data.next_episode_to_air.id,
                 name: data.next_episode_to_air.name,
                 overview: data.next_episode_to_air.overview,

@@ -95,11 +95,33 @@ const RATE_LIMITERS: Record<string, TokenBucket | null> = {
 const HOUR = 1000 * 60 * 60
 const DAY = HOUR * 24
 
+type CachedProviderResponse = {
+	__veudProviderCache: 1
+	observedAt: string
+	data: unknown
+}
+
+function isCachedProviderResponse(
+	value: unknown,
+): value is CachedProviderResponse {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+	const candidate = value as Record<string, unknown>
+	return (
+		candidate.__veudProviderCache === 1 &&
+		typeof candidate.observedAt === 'string' &&
+		Number.isFinite(new Date(candidate.observedAt).getTime()) &&
+		'data' in candidate
+	)
+}
+
 // Cache TTLs. "Now" data (trending / seasonal / airing schedules) changes daily; title and
 // search details change rarely. `swr` serves stale while revalidating in the background.
 // Keyed off the request path/query/body so it covers both REST and AniList's single-endpoint
 // GraphQL (whose query text carries the "season"/"airing" signal).
-function cacheTtlFor(target: URL, body: string | undefined): { ttl: number; swr: number } {
+function cacheTtlFor(
+	target: URL,
+	body: string | undefined,
+): { ttl: number; swr: number } {
 	const haystack = `${target.pathname}${target.search}${body ?? ''}`
 	if (/trending|season|schedule|airing|calendar/i.test(haystack)) {
 		return { ttl: 6 * HOUR, swr: DAY }
@@ -197,23 +219,29 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 	// Fetch fresh from upstream, rate-limited per host. Factored out so it can run either
 	// directly (tests) or as cachified's getFreshValue (production).
-	const fetchUpstream = async (markUncacheable?: () => void): Promise<any> => {
+	const fetchUpstream = async (
+		markUncacheable?: () => void,
+	): Promise<CachedProviderResponse> => {
 		const limiter = RATE_LIMITERS[target.hostname]
 		if (limiter && !isTest) await limiter.acquire()
 		const response = await fetch(target.toString(), options)
 		const json = await response.json()
 		if (!response.ok) markUncacheable?.() // never cache an upstream error body
-		return json
+		return {
+			__veudProviderCache: 1,
+			observedAt: new Date().toISOString(),
+			data: json,
+		}
 	}
 
 	const bodyForKey = typeof options.body === 'string' ? options.body : undefined
 	const { ttl, swr } = cacheTtlFor(target, bodyForKey)
 
-	let data: any
+	let cached: unknown
 	try {
 		// The shared SQLite cache + module-level rate limiter are bypassed under test so the
 		// security tests stay deterministic and never read or write the real cache DB.
-		data = isTest
+		cached = isTest
 			? await fetchUpstream()
 			: await cachified({
 					key: `media:${method}:${target.toString()}${bodyForKey ? `:${hashKey(bodyForKey)}` : ''}`,
@@ -233,8 +261,15 @@ export async function loader({ params }: LoaderFunctionArgs) {
 		throw new Response('Upstream request failed', { status: 502 })
 	}
 
-	// Preserve the existing response contract for callers: a 2-element array whose first
-	// element they merge-and-discard (a fetch Response serializes to {} over the wire), so we
-	// return {} in its place on both cache hits and misses.
-	return [{}, data]
+	// Keep the existing two-element response contract, but use the formerly empty
+	// metadata slot to expose the actual upstream observation time. Older raw cache
+	// values remain readable during the envelope rollout and expire normally.
+	const providerResponse = isCachedProviderResponse(cached)
+		? cached
+		: {
+				__veudProviderCache: 1 as const,
+				observedAt: new Date().toISOString(),
+				data: cached,
+			}
+	return [{ observedAt: providerResponse.observedAt }, providerResponse.data]
 }
