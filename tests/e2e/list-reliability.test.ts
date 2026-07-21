@@ -444,6 +444,7 @@ test('member can quick edit fields that are hidden from the grid', async ({
 	await dialog.getByLabel('Personal').fill('8.5')
 	await dialog.getByLabel('Started').fill('2026-07-01')
 	await dialog.getByLabel('Finished').fill('2026-07-18')
+	await dialog.getByLabel('Repeat count').fill('2')
 	await dialog.getByLabel('Priority').selectOption('High')
 	await dialog.getByLabel('Notes').fill('Watch the director commentary.')
 	await dialog.getByRole('button', { name: 'Save changes' }).click()
@@ -465,6 +466,7 @@ test('member can quick edit fields that are hidden from the grid', async ({
 				notes: saved.notes,
 				started: history.started,
 				finished: history.finished,
+				repeatCount: history.repeatCount,
 			}
 		})
 		.toEqual({
@@ -474,6 +476,7 @@ test('member can quick edit fields that are hidden from the grid', async ({
 			notes: 'Watch the director commentary.',
 			started: '2026-07-01T00:00:00.000Z',
 			finished: '2026-07-18T00:00:00.000Z',
+			repeatCount: 2,
 		})
 
 	await page
@@ -484,6 +487,9 @@ test('member can quick edit fields that are hidden from the grid', async ({
 		page.getByRole('menuitem', { name: 'Insert 1 row above' }),
 	).toBeVisible()
 	await expect(page.getByRole('menuitem', { name: 'Delete row' })).toBeVisible()
+	await page.getByRole('menuitem', { name: 'Advanced edit' }).click()
+	await expect(dialog).toBeVisible()
+	await dialog.getByRole('button', { name: 'Close quick edit' }).click()
 })
 
 test('hovering a list tab opens it so a dragged entry can be positioned', async ({

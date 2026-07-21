@@ -82,6 +82,23 @@ test('uses the most recent history event when the display field has no numerator
 	])
 })
 
+test('an explicit repeat count overrides inferred legacy repeat evidence', () => {
+	const snapshot = trackingStateFromEntry(
+		{
+			length: '4 / 12 eps',
+			history: JSON.stringify({
+				repeatCount: 0,
+				progress: {
+					4: { completed: true, finishDate: [100, 200, 300] },
+				},
+			}),
+		},
+		{ status: 'watching', mediaKind: 'anime' },
+	)
+
+	expect(snapshot.repeatCount).toBe(0)
+})
+
 test('treats malformed history and zero scores as empty state', () => {
 	const snapshot = trackingStateFromEntry(
 		{ personal: 0, length: '2h 22m', history: '{broken' },
