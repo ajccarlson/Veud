@@ -6,6 +6,7 @@ import {
 } from '#app/utils/lists/authorization.server.ts'
 import {
 	ensureMediaForIdentity,
+	hydrateMediaCatalog,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
 import { parseMediaRelationCandidates } from '#app/utils/media-relations.ts'
@@ -74,8 +75,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		})
 
 		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity, data)
+			? await ensureMediaForIdentity(tx, mediaIdentity)
 			: undefined
+		if (mediaId) {
+			await hydrateMediaCatalog(tx, mediaId, data, {
+				authoritativeFields: ['nextRelease'],
+				syncLegacyFields: ['nextRelease'],
+			})
+		}
 		if (mediaId && mediaIdentity && mediaRelations) {
 			await syncMediaRelations(tx, {
 				sourceMediaId: mediaId,

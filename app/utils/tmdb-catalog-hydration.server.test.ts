@@ -97,7 +97,12 @@ async function seedMovie(id: number, popularity = id) {
 }
 
 test('normalizes movie and TV details, URLs, and provider retry deadlines', () => {
-	const movie = normalizeTmdbDetails(moviePayload(42, 'Amélie'), 'movie')
+	const observedAt = new Date('2026-07-20T12:00:00.000Z')
+	const movie = normalizeTmdbDetails(
+		moviePayload(42, 'Amélie'),
+		'movie',
+		observedAt,
+	)
 	expect(movie).toEqual(
 		expect.objectContaining({
 			id: 42,
@@ -122,6 +127,7 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 			}),
 		}),
 	)
+	expect(movie.catalog.nextRelease).toBeNull()
 	expect(movie.titles).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({ value: 'Amélie', isPrimary: true }),
@@ -130,7 +136,7 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 		]),
 	)
 
-	const tv = normalizeTmdbDetails(tvPayload(7), 'tv')
+	const tv = normalizeTmdbDetails(tvPayload(7), 'tv', observedAt)
 	expect(tv.catalog).toEqual(
 		expect.objectContaining({
 			title: 'Localized Series',
@@ -142,6 +148,30 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 			releaseStatus: 'Returning Series',
 		}),
 	)
+	expect(tv.catalog.nextRelease).toBeNull()
+	const scheduledTv = normalizeTmdbDetails(
+		{
+			...tvPayload(8),
+			next_episode_to_air: {
+				id: 81,
+				name: 'Provider-confirmed episode',
+				air_date: '2026-07-27',
+				episode_number: 25,
+				season_number: 2,
+				runtime: 24,
+				still_path: '/episode.jpg',
+			},
+		},
+		'tv',
+		observedAt,
+	)
+	expect(JSON.parse(scheduledTv.catalog.nextRelease as string)).toMatchObject({
+		source: 'tmdb',
+		observedAt: observedAt.toISOString(),
+		releaseDate: '2026-07-27',
+		episode: 25,
+		season: 2,
+	})
 	expect(
 		new URL(tmdbDetailUrl('movie', '42')).searchParams.get(
 			'append_to_response',
@@ -196,6 +226,86 @@ test('dry-run reports the eligible queue without fetching or writing a run', asy
 	)
 	expect(fetchImpl).not.toHaveBeenCalled()
 	expect(await prisma.catalogSyncRun.count()).toBe(0)
+})
+
+test('successful provider hydration clears stale canonical and legacy schedules', async () => {
+	const source = await prisma.$transaction(tx =>
+		upsertCatalogIdentity(tx, {
+			provider: 'tmdb',
+			kind: 'tv',
+			externalId: '77',
+			sourceTitle: 'Previously scheduled series',
+			seenAt: new Date('2026-07-01T00:00:00.000Z'),
+		}),
+	)
+	const staleSchedule = JSON.stringify({
+		releaseDate: '2026-09-01',
+		episode: 99,
+	})
+	await prisma.media.update({
+		where: { id: source.mediaId },
+		data: { nextRelease: staleSchedule },
+	})
+	const listType = await prisma.listType.upsert({
+		where: { name: 'liveaction' },
+		update: {},
+		create: {
+			name: 'liveaction',
+			header: 'Live Action',
+			columns: '{}',
+			mediaType: 'liveaction',
+			completionType: 'watched',
+		},
+	})
+	const owner = await prisma.user.create({
+		data: { email: 'schedule-clear@example.com', username: 'schedule_clear' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'watching',
+			header: 'Watching',
+			ownerId: owner.id,
+			typeId: listType.id,
+		},
+	})
+	const entry = await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: 'Previously scheduled series',
+			type: 'TV Series',
+			nextRelease: staleSchedule,
+			mediaId: source.mediaId,
+		},
+	})
+
+	const result = await hydrateTmdbCatalog({
+		prisma,
+		kind: 'tv',
+		apiToken: 'test-token',
+		commit: true,
+		limit: 1,
+		concurrency: 1,
+		leaseOwner: 'schedule-clear-worker',
+		fetchImpl: vi.fn(async () =>
+			jsonResponse({ ...tvPayload(77), next_episode_to_air: null }),
+		) as typeof fetch,
+		now: () => new Date('2026-07-20T12:00:00.000Z'),
+	})
+
+	expect(result.recordsHandled).toBe(1)
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: source.mediaId },
+			select: { nextRelease: true },
+		}),
+	).toEqual({ nextRelease: null })
+	expect(
+		await prisma.entry.findUniqueOrThrow({
+			where: { id: entry.id },
+			select: { nextRelease: true },
+		}),
+	).toEqual({ nextRelease: null })
 })
 
 test('quick-add demand outranks seeded upcoming, trending, popular, and inventory work', async () => {
