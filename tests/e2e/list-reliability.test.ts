@@ -262,6 +262,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	}
 	await expect(page.getByText('NaN', { exact: true })).toHaveCount(0)
 	await expect(page.locator('.veud-grid-filter-icon').first()).toBeVisible()
+	await expect(page.locator('.veud-grid-drag-icon').first()).toBeVisible()
 
 	async function expectResponsiveGrid() {
 		const metrics = await page.evaluate(() => {
@@ -294,6 +295,168 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	await expectResponsiveGrid()
 	await page.setViewportSize({ width: 390, height: 844 })
 	await expectResponsiveGrid()
+})
+
+test('list landing keeps every list reachable inside the viewport', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	await prisma.watchlist.createMany({
+		data: Array.from({ length: 8 }, (_, index) => ({
+			name: `landing-${index + 1}`,
+			header: `Landing list ${index + 1}`,
+			position: index + 1,
+			displayedColumns: 'position, title, type',
+			description:
+				'A deliberately long description that verifies cards wrap and remain inside the list page background at every viewport size.',
+			ownerId: user.id,
+			typeId: listType.id,
+		})),
+	})
+
+	async function expectBoundedLanding() {
+		const metrics = await page.evaluate(() => {
+			const landing = document.querySelector('.list-landing')!
+			const content = document.querySelector('.list-landing-nav-main')!
+			const mediaTypes = document.querySelector(
+				'.list-landing-sidebar-container',
+			)!
+			const landingRect = landing.getBoundingClientRect()
+			const contentRect = content.getBoundingClientRect()
+			const mediaTypesRect = mediaTypes.getBoundingClientRect()
+			return {
+				viewportWidth: window.innerWidth,
+				viewportHeight: window.innerHeight,
+				landingLeft: landingRect.left,
+				landingRight: landingRect.right,
+				landingBottom: landingRect.bottom,
+				contentBottom: contentRect.bottom,
+				contentScrollHeight: content.scrollHeight,
+				contentClientHeight: content.clientHeight,
+				mediaTypesLeft: mediaTypesRect.left,
+				mediaTypesRight: mediaTypesRect.right,
+			}
+		})
+
+		expect(metrics.landingLeft).toBeGreaterThanOrEqual(-1)
+		expect(metrics.landingRight).toBeLessThanOrEqual(
+			metrics.viewportWidth + 1,
+		)
+		expect(metrics.landingBottom).toBeLessThanOrEqual(
+			metrics.viewportHeight + 1,
+		)
+		expect(metrics.contentBottom).toBeLessThanOrEqual(
+			metrics.viewportHeight + 1,
+		)
+		expect(metrics.mediaTypesLeft).toBeGreaterThanOrEqual(-1)
+		expect(metrics.mediaTypesRight).toBeLessThanOrEqual(
+			metrics.viewportWidth + 1,
+		)
+		expect(metrics.contentScrollHeight).toBeGreaterThan(
+			metrics.contentClientHeight,
+		)
+	}
+
+	await page.setViewportSize({ width: 1100, height: 650 })
+	await page.goto(`/lists/${user.username}/anime`)
+	await expect(page.getByRole('article')).toHaveCount(8)
+	await expectBoundedLanding()
+	const lastList = page.getByRole('article', { name: 'Landing list 8' })
+	await lastList.scrollIntoViewIfNeeded()
+	await expect(
+		lastList.getByRole('link', { name: 'Open Landing list 8 list' }),
+	).toBeVisible()
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await expectBoundedLanding()
+	await lastList.scrollIntoViewIfNeeded()
+	await expect(
+		lastList.getByRole('button', {
+			name: 'Edit Landing list 8 list settings',
+		}),
+	).toBeVisible()
+	await expect(page.getByRole('navigation', { name: 'Media list types' })).toBeVisible()
+})
+
+test('quick-add results keep long-title actions reachable on mobile', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'quick-add-layout',
+			header: 'Quick add layout',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: ' ',
+			type: 'TV Series',
+		},
+	})
+
+	const titles = Array.from(
+		{ length: 6 },
+		(_, index) =>
+			`An Exceptionally Long Catalog Result Title Number ${index + 1} That Still Has A Reachable Add Button`,
+	)
+	await page.route('**/media/fetch-data/**', async route => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify([
+				{ observedAt: new Date().toISOString() },
+				{
+					data: titles.map((title, index) => ({
+						node: {
+							id: 88000 + index,
+							title,
+							media_type: 'tv',
+							start_date: '2024-01-01',
+							main_picture: {
+								medium: `https://example.com/poster-${index}.jpg`,
+							},
+						},
+					})),
+				},
+			]),
+		})
+	})
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+	const quickAddSearch = page.locator('.watchlist-search-inline input')
+	await quickAddSearch.fill('long title')
+	await quickAddSearch.press('Enter')
+
+	const dialog = page.getByRole('dialog', { name: 'Choose a title' })
+	await expect(dialog).toBeVisible()
+	await expect(dialog.getByRole('article')).toHaveCount(titles.length)
+	const lastResult = dialog.getByRole('article').last()
+	await lastResult.scrollIntoViewIfNeeded()
+	const addButton = lastResult.getByRole('button', {
+		name: `Add to Quick add layout ${titles.at(-1)}`,
+	})
+	await expect(addButton).toBeVisible()
+	const bounds = await addButton.boundingBox()
+	expect(bounds).not.toBeNull()
+	expect(bounds!.x).toBeGreaterThanOrEqual(0)
+	expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+	expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844)
 })
 
 test('member can quick edit fields that are hidden from the grid', async ({
