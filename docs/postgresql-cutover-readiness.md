@@ -9,13 +9,14 @@ stop processes, enable writes, or approve a production cutover by itself.
 
 ## Evidence chain
 
-| Evidence            | What binds it to the release                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Transfer checkpoint | Final snapshot SHA-256, destination identity, completed table set, and completion time                         |
-| Load report         | Representative row count, throughput, every required query plan/timing, trigram-index use, and concurrent work |
-| Backup receipt      | Archive SHA-256 and size, source and disposable restore identities, restore time, migrations, and core counts  |
-| Canary report       | Explicit application origin, database-backed healthcheck, public reads, request count, failures, and latency   |
-| Approved policy     | Expected targets, freshness windows, minimum counts/throughput, and maximum query/canary latency               |
+| Evidence            | What binds it to the release                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Transfer checkpoint | Final snapshot SHA-256, destination identity, completed table set, and completion time                        |
+| Load report         | Representative counts, throughput, query timings, trigram-index use, concurrent work, and database pressure   |
+| Load checkpoint     | Target and shape, initial/persisted/final counts, interruption/resume/completion times, and report-bound hash |
+| Backup receipt      | Archive SHA-256 and size, source and disposable restore identities, restore time, migrations, and core counts |
+| Canary report       | Explicit application origin, database-backed healthcheck, public reads, request count, failures, and latency  |
+| Approved policy     | Expected targets, freshness windows, minimum counts/throughput, and maximum query/canary latency              |
 
 The final gate report records SHA-256 hashes for the policy and every JSON
 artifact plus the snapshot and PostgreSQL archive hashes. Reports and backup
@@ -33,13 +34,23 @@ deployment owner. The gate deliberately rejects the placeholder approver.
 	"version": 1,
 	"approvedBy": "REPLACE_WITH_APPROVER",
 	"approvedAt": "2026-07-20T00:00:00.000Z",
-	"expectedDatabaseTarget": "db.example.com:5432/veud",
+	"expectedDatabaseTarget": "db.example.com:5432/veud_staging",
 	"expectedCanaryOrigin": "https://canary.example.com",
 	"minimumSyntheticRows": 1564333,
 	"minimumTransferredTables": 39,
 	"minimumInsertRowsPerSecond": 2000,
 	"minimumConcurrentSearches": 20,
 	"minimumConcurrentUpdateBatches": 5,
+	"minimumSyntheticRelations": 100000,
+	"minimumSyntheticMembers": 1000,
+	"minimumSyntheticTrackingRows": 100000,
+	"minimumSyntheticEntries": 100000,
+	"minimumSyntheticActivityRows": 20000,
+	"minimumConcurrentMemberReads": 20,
+	"minimumConcurrentTrackingWriteBatches": 5,
+	"minimumDatabasePressureSamples": 1,
+	"maximumConnectionUtilization": 0.8,
+	"maximumWaitingLocks": 0,
 	"maximumLoadAgeHours": 168,
 	"maximumTransferAgeHours": 24,
 	"maximumBackupAgeHours": 4,
@@ -55,13 +66,18 @@ deployment owner. The gate deliberately rejects the placeholder approver.
 		"/credits"
 	],
 	"requireBackupIdentity": true,
+	"requireInterruptedResume": true,
 	"maximumQueryExecutionMs": {
 		"canonical-title": 150,
 		"alternate-title": 150,
 		"rare-description": 250,
 		"broad-description": 500,
 		"no-match": 150,
-		"popular-page": 250
+		"popular-page": 250,
+		"related-media": 150,
+		"trending-feed": 150,
+		"profile-entries": 250,
+		"profile-activity": 250
 	},
 	"minimumBackupCounts": {
 		"users": 1,
@@ -74,15 +90,20 @@ deployment owner. The gate deliberately rejects the placeholder approver.
 ```
 
 `expectedDatabaseTarget` is the credential-free identity printed by the transfer
-tooling. `minimumBackupCounts` should come from the verified final SQLite
-snapshot inventory, not an estimate. `minimumTransferredTables` is 39 for the
-current schema and must move with schema additions. Concurrency floors prevent a
-single-request run from satisfying multi-user evidence; required canary paths
-prevent a narrow health-only run from passing. `requireBackupIdentity` requires
-the restore drill to find the configured `BACKUP_VERIFY_USERNAME` without
-recording that username in the receipt. Never lower a budget merely to make a
-failed rehearsal pass; record and resolve the reason or obtain an explicit new
-approval.
+tooling and must also match the load report; use a clearly staging-marked
+database name so the load harness safety guard accepts it. The representative
+minimums are illustrative and must be replaced by an owner-approved member and
+catalog distribution. `minimumBackupCounts` should come from the verified final
+SQLite snapshot inventory, not an estimate. `minimumTransferredTables` is 39 for
+the current schema and must move with schema additions. Concurrency floors
+prevent a flat catalog or single-request run from satisfying multi-user
+evidence; required canary paths prevent a narrow health-only run from passing.
+The connection utilization and waiting-lock limits must reflect the staging pool
+and workload rather than the illustrative values above. `requireBackupIdentity`
+requires the restore drill to find the configured `BACKUP_VERIFY_USERNAME`
+without recording that username in the receipt. Never lower a budget merely to
+make a failed rehearsal pass; record and resolve the reason or obtain an
+explicit new approval.
 
 ## Build the evidence
 
@@ -106,8 +127,17 @@ npm run db:smoke:postgres
 Run the current 1,564,333-identity target on production-like staging as
 described in the
 [PostgreSQL catalog load runbook](postgresql-load-readiness.md). Retain the
-initial insertion report—not the idempotent resume report, whose inserted-row
-throughput is intentionally zero.
+report produced when the deliberately interrupted logical run first completes;
+its accumulated insertion time spans both invocations. Do not replace it by
+re-running an already completed checkpoint. The gate rejects a flat catalog
+report: the artifact must include the approved relationship, member, tracking,
+entry, and activity counts; all catalog/profile query timings; and concurrent
+catalog and member reads plus hydration and tracking writes. Retain the
+completed load checkpoint beside the report. When `requireInterruptedResume` is
+enabled, the checkpoint and report must prove a deliberate interruption,
+persisted rows at resume, ordered interruption/resume/completion timestamps, and
+matching SHA-256. Database pressure must stay within the approved
+connection-utilization and waiting-lock budgets.
 
 ### 3. Create and restore-test a native backup
 
@@ -166,16 +196,18 @@ npm run db:cutover:postgres -- \
   --transfer-checkpoint backups/data-<timestamp>.db.postgres-transfer.json \
   --snapshot backups/data-<timestamp>.db \
   --load-report test-results/postgres-load-<timestamp>.json \
+  --load-checkpoint test-results/postgres-load-<timestamp>.checkpoint.json \
   --backup backups/postgres-<timestamp>.dump \
   --canary-report test-results/postgres-canary-<timestamp>.json
 ```
 
 The backup receipt defaults to the sidecar path; override it with
 `--backup-receipt` when necessary. A pass requires all artifact hashes and
-targets to agree, every artifact to be fresh, every count and throughput floor
-to be met, every query to remain within its individual budget, all trigram
-indexes to have appeared in the load plans, and every canary request to pass
-within the p95 budget.
+targets to agree, the load report to match its completed checkpoint, every
+artifact to be fresh, every count and throughput floor to be met, database
+pressure to stay within policy, every query to remain within its individual
+budget, all trigram indexes to have appeared in the load plans, and every canary
+request to pass within the p95 budget.
 
 Store the resulting `test-results/postgres-cutover-<timestamp>.json` with the
 release record. It is an evidence manifest, not a cryptographic signature; the
@@ -194,12 +226,16 @@ database and produced a matching receipt with 6 users, 35 lists, 5,483 entries,
 One PostgreSQL-backed application process then served 40 read-only requests
 across the default canary paths with no failures, 140.062 ms p95, and 175.527 ms
 maximum latency. The final local gate passed after binding those artifacts to
-the earlier 100,000-identity load report and a rehearsal-only policy.
+the earlier 100,000-identity load report and a rehearsal-only policy. That
+historical report predates the relationship/member workload and no longer passes
+the strengthened gate.
 
 This proves the operator flow and enforcement behavior, not production approval.
 The local policy intentionally required only 100,000 synthetic rows; the
 production-like 1,564,333-identity run, real owner approval, representative
-traffic, and failure/rollback rehearsal remain mandatory.
+traffic, and failure/rollback rehearsal remain mandatory. A small disposable
+PostgreSQL 16 smoke separately proved the new representative generator and
+zero-residue cleanup, but did not produce cutover evidence.
 
 ## Open writes or roll back
 
