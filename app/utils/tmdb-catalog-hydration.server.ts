@@ -232,9 +232,42 @@ function alternativeTitles(
 	})
 }
 
+function normalizedTmdbNextRelease(
+	payload: Record<string, unknown>,
+	kind: TmdbCatalogKind,
+	observedAt: Date,
+) {
+	if (kind === 'movie') return null
+	const value = payload.next_episode_to_air
+	if (value === null || value === undefined) return null
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+	const episode = value as Record<string, unknown>
+	const releaseDate = optionalString(episode.air_date)
+	if (!releaseDate || !optionalDate(releaseDate)) return undefined
+	const episodeNumber = optionalNumber(episode.episode_number)
+	const seasonNumber = optionalNumber(episode.season_number)
+	const stillPath = optionalString(episode.still_path)
+	return JSON.stringify({
+		source: 'tmdb',
+		observedAt: observedAt.toISOString(),
+		id: optionalNumber(episode.id),
+		name: optionalString(episode.name),
+		overview: optionalString(episode.overview),
+		releaseDate,
+		episode:
+			episodeNumber !== null && episodeNumber > 0 ? episodeNumber : null,
+		season: seasonNumber !== null && seasonNumber > 0 ? seasonNumber : null,
+		runtime: optionalNumber(episode.runtime),
+		image: stillPath
+			? `https://www.themoviedb.org/t/p/original${stillPath}|https://www.themoviedb.org/tv/${payload.id}/watch`
+			: null,
+	})
+}
+
 export function normalizeTmdbDetails(
 	value: unknown,
 	kind: TmdbCatalogKind,
+	observedAt = new Date(),
 ): NormalizedTmdbDetails {
 	const payload = requireObject(value, 'TMDB detail response')
 	const id = requireTmdbId(payload.id)
@@ -280,6 +313,7 @@ export function normalizeTmdbDetails(
 		catalogScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogPopularity: optionalNumber(payload.popularity) ?? undefined,
 		releaseStatus: optionalString(payload.status) ?? undefined,
+		nextRelease: normalizedTmdbNextRelease(payload, kind, observedAt),
 	}
 	return {
 		id,
@@ -638,7 +672,7 @@ async function fetchDetails(
 			fetchImpl: input.fetchImpl,
 			now: input.now,
 		})
-		const details = normalizeTmdbDetails(payload, input.kind)
+		const details = normalizeTmdbDetails(payload, input.kind, input.now)
 		if (String(details.id) !== candidate.externalId) {
 			throw new Error(
 				`TMDB detail id ${details.id} did not match requested id ${candidate.externalId}`,
@@ -930,7 +964,11 @@ export async function hydrateTmdbCatalog(
 							tx,
 							result.candidate.mediaId,
 							result.details.catalog,
-							{ overwrite: true },
+							{
+								overwrite: true,
+								authoritativeFields: ['nextRelease'],
+								syncLegacyFields: ['nextRelease'],
+							},
 						)
 						await replaceCatalogTitles(tx, {
 							mediaId: result.candidate.mediaId,
