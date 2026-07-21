@@ -65,6 +65,10 @@ test('home shows a unified activity feed from followed members', async ({
 		await expect(
 			page.getByRole('heading', { name: 'Following', exact: true }),
 		).toBeVisible()
+		const library = page.getByRole('region', { name: 'Your library' })
+		await expect(library).toBeVisible()
+		await expect(library.getByText('1', { exact: true }).first()).toBeVisible()
+		await expect(library.getByText('Anime')).toBeVisible()
 		await expect(
 			page
 				.getByText(followed.name ?? followed.username, { exact: true })
@@ -162,18 +166,35 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 		expect(trendingBox?.y).toBeLessThan(followingBox?.y ?? 0)
 
 		const rail = page.getByTestId('trending-rail-movie')
+		const scrollLeft = page.getByRole('button', {
+			name: 'Scroll Trending movies left',
+		})
+		const scrollRight = page.getByRole('button', {
+			name: 'Scroll Trending movies right',
+		})
 		await expect(page.getByText('Home Trending Ranked')).toBeVisible()
 		await expect
 			.poll(() =>
 				rail.evaluate(element => element.scrollWidth > element.clientWidth),
 			)
 			.toBe(true)
-		await page
-			.getByRole('button', { name: 'Scroll Trending movies right' })
-			.click()
+		await expect(scrollLeft).toBeDisabled()
+		await expect(scrollRight).toBeEnabled()
+		await rail.focus()
+		await page.keyboard.press('ArrowRight')
 		await expect
 			.poll(() => rail.evaluate(element => element.scrollLeft))
 			.toBeGreaterThan(0)
+		await expect(scrollLeft).toBeEnabled()
+		await rail.evaluate(element => {
+			element.scrollLeft = 0
+		})
+		await expect(scrollLeft).toBeDisabled()
+		await scrollRight.click()
+		await expect
+			.poll(() => rail.evaluate(element => element.scrollLeft))
+			.toBeGreaterThan(0)
+		await expect(scrollLeft).toBeEnabled()
 
 		await page
 			.getByRole('button', { name: 'Track Home Trending Ranked' })
