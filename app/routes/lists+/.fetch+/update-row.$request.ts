@@ -62,7 +62,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	return await prisma.$transaction(async tx => {
 		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity, data)
+			? await ensureMediaForIdentity(tx, mediaIdentity)
 			: (entry.mediaId ?? undefined)
 		const mediaKind = mediaIdentity
 			? mediaIdentity.kind
@@ -74,8 +74,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 						})
 					)?.kind
 				: undefined
-		if (mediaId && !mediaIdentity) {
-			await hydrateMediaCatalog(tx, mediaId, data)
+		if (mediaId) {
+			await hydrateMediaCatalog(tx, mediaId, data, {
+				authoritativeFields: mediaIdentity ? ['nextRelease'] : undefined,
+				syncLegacyFields: mediaIdentity ? ['nextRelease'] : undefined,
+			})
 		}
 		const trackingStateId =
 			mediaId && mediaKind

@@ -180,6 +180,17 @@ function titleCase(value: string | null) {
 		.replace(/\b\w/g, character => character.toUpperCase())
 }
 
+function statusConfirmsNoUpcomingRelease(
+	value: unknown,
+	kind: MalCatalogKind,
+) {
+	const status = optionalString(value)?.toLowerCase()
+	if (!status) return false
+	return kind === 'anime'
+		? status === 'finished_airing'
+		: status === 'finished' || status === 'discontinued'
+}
+
 function mediaType(value: unknown, kind: MalCatalogKind) {
 	const raw = optionalString(value)
 	if (!raw) return null
@@ -379,6 +390,9 @@ export function normalizeMalDetails(
 		catalogScore: mean,
 		catalogPopularity: malCatalogPopularity(popularityRank),
 		releaseStatus: titleCase(optionalString(payload.status)),
+		...(statusConfirmsNoUpcomingRelease(payload.status, kind)
+			? { nextRelease: null }
+			: {}),
 	}
 	if (kind === 'anime') {
 		const studios = linkedNamedValues(payload.studios, 'MAL studio', item => {
@@ -829,7 +843,11 @@ export async function hydrateMalCatalog(
 						tx,
 						candidate.mediaId,
 						result.details.catalog,
-						{ overwrite: true },
+						{
+							overwrite: true,
+							authoritativeFields: ['nextRelease'],
+							syncLegacyFields: ['nextRelease'],
+						},
 					)
 					await replaceCatalogTitles(tx, {
 						mediaId: candidate.mediaId,

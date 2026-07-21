@@ -21,6 +21,7 @@ import {
 	mediaIdentityKey,
 	type MediaIdentity,
 } from '#app/utils/media-identity.ts'
+import { serializeNextRelease } from '#app/utils/release-schedule.ts'
 import '#app/styles/watchlist-search.scss'
 
 type TrackingSummary = {
@@ -139,7 +140,7 @@ async function buildEntryFromResult(
 			airYear: String(resultInfo.year),
 			releaseStart: new Date(resultInfo.releaseStart),
 			releaseEnd: new Date(resultInfo.releaseEnd),
-			nextRelease: JSON.stringify(resultInfo.nextRelease),
+			nextRelease: serializeNextRelease(resultInfo.nextRelease),
 			length: resultInfo.length,
 			rating: resultInfo.rating,
 			history: entryHistory(),
@@ -167,7 +168,7 @@ async function buildEntryFromResult(
 			startSeason: resultInfo.startSeason?.name ?? null,
 			releaseStart: new Date(resultInfo.releaseStart),
 			releaseEnd: new Date(resultInfo.releaseEnd),
-			nextRelease: JSON.stringify(resultInfo.nextRelease),
+			nextRelease: serializeNextRelease(resultInfo.nextRelease),
 			length: resultInfo.length,
 			rating: resultInfo.rating,
 			history: entryHistory(),
@@ -194,6 +195,7 @@ async function buildEntryFromResult(
 		type: resultInfo.type,
 		startYear: String(resultInfo.startYear),
 		releaseStart: result.start_date ? new Date(result.start_date) : null,
+		nextRelease: serializeNextRelease(resultInfo.nextRelease),
 		chapters: String(resultInfo.chapters),
 		volumes: String(resultInfo.volumes),
 		history: entryHistory(),
