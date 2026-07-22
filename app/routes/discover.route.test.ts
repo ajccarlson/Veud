@@ -1,9 +1,14 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader } from './discover.tsx'
+
+afterEach(() => {
+	vi.unstubAllEnvs()
+	vi.unstubAllGlobals()
+})
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -112,4 +117,50 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	expect(result.data.isSignedIn).toBe(true)
 	expect(result.data.preferredGenres).toEqual(['Fantasy'])
 	expect(result.data.items.map(item => item.id)).toEqual([unseen.id])
+})
+
+test('anonymous memory search stays catalog-local even when AI is configured', async () => {
+	await Promise.all(
+		Array.from({ length: 5 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Silver Observatory Match ${index + 1}`,
+					description:
+						'A child finds a silver observatory hidden beneath a desert town.',
+					catalogPopularity: 100 - index,
+				},
+			}),
+		),
+	)
+	vi.stubEnv('OPENAI_API_KEY', 'configured-key')
+	const fetchMock = vi.fn<typeof fetch>()
+	vi.stubGlobal('fetch', fetchMock)
+
+	const result = await loader({
+		request: new Request(
+			`${BASE_URL}/discover?mode=memory&kind=movie&q=silver+observatory+under+a+desert+town`,
+		),
+		params: {},
+	} as any)
+
+	expect(fetchMock).not.toHaveBeenCalled()
+	expect(result.data.aiSearchAvailable).toBe(false)
+	expect(result.data.memorySearchSource).toBe('catalog-match')
+	expect(result.data.memorySearchFallbackReason).toBe('sign-in-required')
+	expect(result.data.items).toHaveLength(5)
+	expect(result.data.items).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				title: 'Silver Observatory Match 1',
+				memoryMatch: expect.objectContaining({
+					matchedClues: expect.arrayContaining([
+						'silver',
+						'observatory',
+						'desert',
+					]),
+				}),
+			}),
+		]),
+	)
 })
