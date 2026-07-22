@@ -16,6 +16,8 @@ import {
 
 const args = process.argv.slice(2)
 const prefix = 'load-catalog-'
+const syntheticBroadDescriptionNeedle = 'Shared synthetic load description'
+const syntheticDescriptionLead = `${syntheticBroadDescriptionNeedle} for indexed discovery.`
 const usage = `Usage: npm run db:loadtest:postgres -- [options]
 
 Options:
@@ -173,7 +175,7 @@ async function insertBatch(prisma, start, end) {
 				WHEN 'anime' THEN 'TV' ELSE 'Manga' END,
 			DATE '1960-01-01' + ((n * 17) % 24000),
 			CASE WHEN n % 3 = 0 THEN DATE '1960-01-01' + ((n * 17) % 24000) + (n % 800) ELSE NULL END,
-			'Shared synthetic load description for indexed discovery. Record ' || n || '. ' ||
+			$3::text || ' Record ' || n || '. ' ||
 				repeat('Cast, setting, themes, and release metadata vary across this representative catalog record. ', (n % 4) + 1) ||
 				CASE n % 997 WHEN 0 THEN 'rare-nebula-token' ELSE '' END,
 			CASE n % 5 WHEN 0 THEN 'Drama, Mystery' WHEN 1 THEN 'Action, Fantasy'
@@ -191,6 +193,7 @@ async function insertBatch(prisma, start, end) {
 		ON CONFLICT ("id") DO NOTHING`,
 		start,
 		end,
+		syntheticDescriptionLead,
 	)
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "MediaExternalId" (
@@ -539,7 +542,7 @@ async function queryMetrics(prisma, count, shape) {
 			prisma,
 			'broad-description',
 			'SELECT id FROM "Media" WHERE description LIKE $1 LIMIT 24',
-			['%shared synthetic load description%'],
+			[`%${syntheticBroadDescriptionNeedle}%`],
 		),
 		explain(
 			prisma,
@@ -551,7 +554,6 @@ async function queryMetrics(prisma, count, shape) {
 			prisma,
 			'popular-page',
 			`SELECT id FROM "Media"
-			 WHERE id LIKE 'load-catalog-media-%'
 			 ORDER BY "catalogPopularity" DESC NULLS LAST, id
 			 LIMIT 24 OFFSET $1`,
 			[Math.min(10_000, Math.max(0, count - 24))],
