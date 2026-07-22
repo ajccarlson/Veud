@@ -342,8 +342,6 @@ export function MediaSearchBar(params: any) {
 					'/lists/fetch/add-row/' +
 						encodeURIComponent(
 							new URLSearchParams({
-								authorization: params.columnParams.VEUD_API_KEY,
-								listTypeData: JSON.stringify(params.columnParams.listTypeData),
 								row: JSON.stringify(row),
 							}).toString(),
 						),

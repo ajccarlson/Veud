@@ -19,6 +19,7 @@ import {
 	// useFetcher,
 	useFetchers,
 	useLoaderData,
+	useLocation,
 	// useMatches,
 	useSubmit,
 } from 'react-router'
@@ -101,7 +102,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	const user = userId
 		? await time(
 				() =>
-					prisma.user.findUniqueOrThrow({
+					prisma.user.findUnique({
 						select: {
 							id: true,
 							name: true,
@@ -148,7 +149,17 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			)
 		: 0
 
-	const listTypes = await prisma.listType.findMany()
+	const listTypeOrder = new Map([
+		['liveaction', 0],
+		['anime', 1],
+		['manga', 2],
+	])
+	const listTypes = (await prisma.listType.findMany()).sort(
+		(first, second) =>
+			(listTypeOrder.get(first.name) ?? Number.MAX_SAFE_INTEGER) -
+				(listTypeOrder.get(second.name) ?? Number.MAX_SAFE_INTEGER) ||
+			first.header.localeCompare(second.header),
+	)
 
 	const { toast, headers: toastHeaders } = await getToast(request)
 	const honeyProps = await honeypot.getInputProps()
@@ -232,7 +243,7 @@ function Document({
 				<meta name="viewport" content="width=device-width,initial-scale=1" />
 				<Links />
 			</head>
-			<body className="bg-background text-foreground">
+			<body className="min-h-screen bg-background text-foreground">
 				{children}
 				<script
 					nonce={nonce}
@@ -252,6 +263,8 @@ function App() {
 	const nonce = useNonce()
 	const user = useOptionalUser()
 	const theme = useTheme()
+	const location = useLocation()
+	const usesBoundedLayout = location.pathname.startsWith('/lists')
 	// const matches = useMatches()
 	// const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	// const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
@@ -260,8 +273,10 @@ function App() {
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
 			{/* root-main */}
-			<div className="root flex h-screen flex-col justify-between">
-				<header className="container py-6">
+			<div
+				className={`root flex min-h-screen flex-col${usesBoundedLayout ? ' root-bounded' : ''}`}
+			>
+				<header className="root-site-header container py-6">
 					<nav className="root-header">
 						<div className="root-logo-container">
 							<div className="root-logo">
@@ -275,6 +290,7 @@ function App() {
 						<div className="root-community-links">
 							<CommunityDropdown />
 						</div>
+						<MobileNavigation />
 						<SiteSearch
 							aiAvailable={data.aiSearchAvailable}
 							isSignedIn={Boolean(data.user)}
@@ -319,7 +335,7 @@ function App() {
 					</nav>
 				</header>
 
-				<div className="min-h-0 flex-1">
+				<div className="root-content">
 					<Outlet />
 				</div>
 
@@ -332,6 +348,72 @@ function App() {
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
 		</Document>
+	)
+}
+
+function MobileNavigation() {
+	const user = useOptionalUser()
+
+	return (
+		<details className="root-mobile-nav">
+			<summary aria-label="Open site navigation">
+				<Icon name="hamburger-menu" aria-hidden="true" />
+			</summary>
+			<div className="root-mobile-nav-panel" aria-label="Site navigation">
+				<Link to="/discover" prefetch="intent">
+					<Icon name="magnifying-glass" aria-hidden="true" />
+					Discover
+				</Link>
+				<Link to="/calendar" prefetch="intent">
+					<Icon name="calendar" aria-hidden="true" />
+					Calendar
+				</Link>
+				<Link to="/reviews" prefetch="intent">
+					<Icon name="quote" aria-hidden="true" />
+					Reviews
+				</Link>
+				<Link to="/collections" prefetch="intent">
+					<Icon name="archive" aria-hidden="true" />
+					Collections
+				</Link>
+				<Link to="/users" prefetch="intent">
+					<Icon name="person" aria-hidden="true" />
+					Members
+				</Link>
+				{user ? (
+					<>
+						<span className="root-mobile-nav-divider" aria-hidden="true" />
+						<Link to={`/lists/${user.username}`} prefetch="intent">
+							<Icon name="list-bullet" aria-hidden="true" />
+							My lists
+						</Link>
+						<Link to="/notifications" prefetch="intent">
+							<Icon name="bell" aria-hidden="true" />
+							Notifications
+						</Link>
+						<Link to={`/users/${user.username}`} prefetch="intent">
+							<Icon name="avatar" aria-hidden="true" />
+							Profile
+						</Link>
+						<Link to="/settings/profile" prefetch="intent">
+							<Icon name="gear" aria-hidden="true" />
+							Account settings
+						</Link>
+						<Form action="/logout" method="POST">
+							<button type="submit">
+								<Icon name="exit" aria-hidden="true" />
+								Log out
+							</button>
+						</Form>
+					</>
+				) : (
+					<Link to="/login" prefetch="intent">
+						<Icon name="enter" aria-hidden="true" />
+						Log in
+					</Link>
+				)}
+			</div>
+		</details>
 	)
 }
 
@@ -453,7 +535,6 @@ function ListsDropdown() {
 								<Link
 									prefetch="intent"
 									to={`/lists/${user.username}/${listType.name}`}
-									reloadDocument
 								>
 									{listType.header}
 								</Link>

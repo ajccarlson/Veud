@@ -17,7 +17,7 @@ export default defineConfig({
 			}
 		},
 
-		sourcemap: true,
+		sourcemap: MODE !== 'production',
 	},
 	server: {
 		watch: {

@@ -177,6 +177,44 @@ function resultSummary(total: number, filters: DiscoveryQuery) {
 	return `${total} ${noun}`
 }
 
+function HighlightedMemorySummary({
+	summary,
+	clues,
+}: {
+	summary: string
+	clues: string[]
+}) {
+	const highlightableClues = [...new Set(clues.map(clue => clue.trim()))]
+		.filter(clue =>
+			summary.toLocaleLowerCase().includes(clue.toLocaleLowerCase()),
+		)
+		.sort((left, right) => right.length - left.length)
+	if (!highlightableClues.length) return <p>{summary}</p>
+	const escapedClues = highlightableClues.map(clue =>
+		clue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+	)
+	const parts = summary.split(new RegExp(`(${escapedClues.join('|')})`, 'gi'))
+	const normalizedClues = new Set(
+		highlightableClues.map(clue => clue.toLocaleLowerCase()),
+	)
+	return (
+		<p>
+			{parts.map((part, index) =>
+				normalizedClues.has(part.toLocaleLowerCase()) ? (
+					<mark
+						key={`${part}-${index}`}
+						className="rounded-sm bg-[#ffffb1] px-0.5 font-semibold text-[#211f24]"
+					>
+						{part}
+					</mark>
+				) : (
+					part
+				),
+			)}
+		</p>
+	)
+}
+
 export default function DiscoverRoute() {
 	const data = useLoaderData<typeof loader>()
 	const location = useLocation()
@@ -453,8 +491,14 @@ export default function DiscoverRoute() {
 												</div>
 											) : null}
 											{item.memoryMatch ? (
-												<div className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]">
-													<p>{item.memoryMatch.summary}</p>
+												<div
+													className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]"
+													aria-label="Memory match explanation"
+												>
+													<HighlightedMemorySummary
+														summary={item.memoryMatch.summary}
+														clues={item.memoryMatch.matchedClues}
+													/>
 													{item.memoryMatch.matchedClues.length ? (
 														<div
 															className="mt-2 flex flex-wrap items-center gap-1.5"
