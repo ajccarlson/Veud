@@ -145,7 +145,7 @@ function TrendingRail({
 						type="button"
 						variant="outline"
 						size="icon"
-						className="h-8 w-8"
+						className="h-11 w-11"
 						onClick={() => scroll(-1)}
 						disabled={scrollEdges.atStart}
 						aria-label={`Scroll ${rail.title} left`}
@@ -156,7 +156,7 @@ function TrendingRail({
 						type="button"
 						variant="outline"
 						size="icon"
-						className="h-8 w-8"
+						className="h-11 w-11"
 						onClick={() => scroll(1)}
 						disabled={scrollEdges.atEnd}
 						aria-label={`Scroll ${rail.title} right`}
