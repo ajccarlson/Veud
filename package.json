@@ -103,7 +103,7 @@
     "@sentry/profiling-node": "^10.66.0",
     "@sentry/react-router": "^10.66.0",
     "address": "^2.0.2",
-    "ag-grid-community": "^32.3.9",
+    "ag-grid-community": "^36.0.2",
     "ag-grid-react": "^32.3.9",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.3",
