@@ -178,6 +178,42 @@ connections, and zero waiting locks. Cleanup again left zero synthetic media,
 members, or list types. These small local values prove the recovery and
 measurement paths only; staging must establish its own approved budgets.
 
+## Full local target rehearsal
+
+On 2026-07-21, the guarded representative harness completed the entire current
+1,564,333-identity target on a disposable local PostgreSQL 16 database. The
+logical run deliberately stopped after 20,000 committed identities, observed
+those exact rows on resume, completed the remaining catalog and member shape,
+bound the completed checkpoint hash into the report, and removed every synthetic
+media, member, and temporary list-type row afterward.
+
+| Check                                   |               Result |
+| --------------------------------------- | -------------------: |
+| Inserted identities                     |            1,564,333 |
+| Insert throughput                       | 6,279.49 rows/second |
+| Database growth                         |             3.89 GiB |
+| Relationships / feed rows               |     156,433 / 15,643 |
+| Members / watchlists                    |        1,000 / 3,000 |
+| Tracking states / entries               |    100,000 / 100,000 |
+| Activity events                         |               20,000 |
+| Mixed concurrent workload               |           122.092 ms |
+| Peak connections / capacity             |             17 / 100 |
+| Peak waiting locks                      |                    0 |
+| Slowest measured query (`popular-page`) |           150.274 ms |
+| Synthetic cleanup                       |         zero residue |
+
+The rehearsal also corrected two measurement-fixture defects before retaining
+evidence: the broad-description needle now shares the generator's exact casing,
+and the popularity-page query no longer includes a synthetic-only ID predicate
+that the application does not use. The corrected broad match returned 24 rows in
+0.038 ms, while selective title, alternate-title, description, and no-match
+plans collectively exercised all three required trigram indexes.
+
+This is meaningful correctness and workstation-scale capacity evidence, but it
+is not production-like staging approval. Network latency, storage class,
+container limits, connection pooling, cold-cache behavior, real provider data,
+and live catalog-worker contention still require the separate deployment gate.
+
 ## CI boundary
 
 CI loads and cleans up 2,000 identities after the PostgreSQL migration, drift,
@@ -189,8 +225,8 @@ does not enforce planner choices or performance thresholds on shared runners.
 
 Before PostgreSQL cutover approval:
 
-1. Run the 1,564,333-identity test on production-like staging hardware and
-   retain the report with the release evidence.
+1. Repeat the now-proven 1,564,333-identity test on production-like staging
+   hardware and retain that environment's report with the release evidence.
 2. Agree on query, import, concurrency, backup, and restore budgets with the
    deployment owner; compare cold- and warm-cache results against them.
 3. Run the representative relationship/member mode documented above using
