@@ -237,6 +237,23 @@ traffic, and failure/rollback rehearsal remain mandatory. A small disposable
 PostgreSQL 16 smoke separately proved the new representative generator and
 zero-residue cleanup, but did not produce cutover evidence.
 
+On 2026-07-21, a second local rehearsal exercised the strengthened gate at the
+full 1,564,333-identity target. It retained deliberate interruption/resume
+evidence, the complete relationship/member workload, 17% peak connection
+utilization, zero waiting locks, all required trigram-index plans, and exact
+zero-residue cleanup. A fresh migration-current 24.69 MB SQLite snapshot then
+transferred all 39 schema/join tables with exact counts, produced a 6.34 MB
+custom-format PostgreSQL archive, restored that archive into a separate
+disposable database, verified a known account, and served 40/40 read-only canary
+requests at 111.884 ms p95. The local artifact gate passed without changing
+deployment state.
+
+That pass closes the missing full-target local rehearsal, not the production
+gate. The same chain must still run on production-like staging with protected
+artifacts, named release ownership, approved real-environment budgets, live
+worker contention, cold-cache and maintenance-window observation, and the
+documented forward-repair/rollback decision before writes can move.
+
 ## Open writes or roll back
 
 Do not route general traffic or enable writes when any check fails. While the
