@@ -45,7 +45,7 @@ async function seedOwnedWatchlist() {
 						create: {
 							name: `LiveAction ${suffix}`,
 							header: 'LiveAction',
-							columns: '[]',
+							columns: JSON.stringify({ position: 'number', title: 'string' }),
 							mediaType: 'liveAction',
 							completionType: 'watched',
 						},
@@ -83,6 +83,8 @@ test('applies whitelisted settings', async () => {
 				['name', 'renamed'],
 				['header', 'New Header'],
 				['isPublic', false],
+				['defaultSortColumn', 'title'],
+				['defaultSortDirection', 'desc'],
 			]),
 		},
 	} as any)
@@ -91,6 +93,27 @@ test('applies whitelisted settings', async () => {
 	expect(wl?.name).toBe('renamed')
 	expect(wl?.header).toBe('New Header')
 	expect(wl?.isPublic).toBe(false)
+	expect(wl?.defaultSortColumn).toBe('title')
+	expect(wl?.defaultSortDirection).toBe('desc')
+})
+
+test.each([
+	['defaultSortColumn', 'ownerId', 'Invalid default sort column'],
+	['defaultSortDirection', 'sideways', 'Invalid default sort direction'],
+] as const)('rejects invalid %s values', async (key, value, message) => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const request = await authedRequestFor(userId)
+
+	const response = await action({
+		request,
+		params: {
+			request: settingsParams(watchlistId, listTypeId, [[key, value]]),
+		},
+	} as any).catch(error => error)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
+	expect(await (response as Response).text()).toBe(message)
 })
 
 test('visibility changes hide linked and legacy list activity', async () => {
@@ -135,9 +158,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [
-				['isPublic', false],
-			]),
+			request: settingsParams(watchlistId, listTypeId, [['isPublic', false]]),
 		},
 	} as any)
 	expect(
@@ -151,9 +172,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [
-				['isPublic', true],
-			]),
+			request: settingsParams(watchlistId, listTypeId, [['isPublic', true]]),
 		},
 	} as any)
 	expect(
@@ -176,9 +195,7 @@ test('rejects non-boolean visibility values', async () => {
 	const response = await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [
-				['isPublic', 'false'],
-			]),
+			request: settingsParams(watchlistId, listTypeId, [['isPublic', 'false']]),
 		},
 	} as any).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
