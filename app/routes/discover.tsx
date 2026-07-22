@@ -12,6 +12,11 @@ import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPageHeader,
+} from '#app/components/ui/veud-layout.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -188,22 +193,22 @@ export default function DiscoverRoute() {
 	].join(':')
 
 	return (
-		<main className="mx-auto w-full max-w-7xl space-y-7 px-4 py-8 text-[#ffefcc] sm:px-6 lg:px-8">
-			<header className="max-w-3xl space-y-2">
-				<p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a2ffd5]">
-					Canonical catalog
-				</p>
-				<h1 className="text-4xl font-black text-[#ff9900]">Discover</h1>
-				<p className="text-base leading-7 text-[#c6ded2]">
-					Search every shared title, explore what the community is tracking, or
-					find something shaped by your own taste.
-				</p>
-			</header>
+		<VeudPage>
+			<VeudPageHeader
+				eyebrow="Canonical catalog"
+				title="Discover"
+				description={
+					<p>
+						Search every shared title, explore what the community is tracking,
+						or find something shaped by your own taste.
+					</p>
+				}
+			/>
 
 			<Form
 				key={filterKey}
 				method="get"
-				className="grid gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5 md:grid-cols-2 xl:grid-cols-4 xl:items-end"
+				className="grid gap-4 rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:p-5 md:grid-cols-2 xl:grid-cols-4 xl:items-end"
 			>
 				<div className="space-y-2">
 					<Label htmlFor="discover-query">Title or keyword</Label>
@@ -526,21 +531,24 @@ export default function DiscoverRoute() {
 						})}
 					</div>
 				) : (
-					<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-16 text-center">
-						<h3 className="text-xl font-black text-[#ffffb1]">
-							{data.filters.mode === 'memory'
+					<VeudEmptyState
+						title={
+							data.filters.mode === 'memory'
 								? 'No close matches yet'
-								: 'No titles found'}
-						</h3>
-						<p className="mx-auto mt-2 max-w-lg text-[#a2ffd5]">
+								: 'No titles found'
+						}
+						action={
+							<Button asChild variant="outline">
+								<Link to="/discover">Clear filters</Link>
+							</Button>
+						}
+					>
+						<p>
 							{data.memoryQueryTooShort
 								? 'Describe at least three characters of what you remember.'
 								: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
 						</p>
-						<Button asChild variant="outline" className="mt-5">
-							<Link to="/discover">Clear filters</Link>
-						</Button>
-					</div>
+					</VeudEmptyState>
 				)}
 
 				{data.pageCount > 1 ? (
@@ -576,7 +584,7 @@ export default function DiscoverRoute() {
 					</nav>
 				) : null}
 			</section>
-		</main>
+		</VeudPage>
 	)
 }
 

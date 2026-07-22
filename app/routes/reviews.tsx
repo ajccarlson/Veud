@@ -15,6 +15,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPageHeader,
+} from '#app/components/ui/veud-layout.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
@@ -129,22 +134,22 @@ export default function ReviewsRoute() {
 	].join(':')
 
 	return (
-		<main className="mx-auto w-full max-w-7xl space-y-7 px-4 py-8 text-[#ffefcc] sm:px-6 lg:px-8">
-			<header className="max-w-3xl space-y-2">
-				<p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a2ffd5]">
-					Community criticism
-				</p>
-				<h1 className="text-4xl font-black text-[#ff9900]">Reviews</h1>
-				<p className="leading-7 text-[#c6ded2]">
-					Find thoughtful takes across movies, television, anime, and manga,
-					then join the discussion on each title.
-				</p>
-			</header>
+		<VeudPage>
+			<VeudPageHeader
+				eyebrow="Community criticism"
+				title="Reviews"
+				description={
+					<p>
+						Find thoughtful takes across movies, television, anime, and manga,
+						then join the discussion on each title.
+					</p>
+				}
+			/>
 
 			<Form
 				key={filterKey}
 				method="get"
-				className="grid gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_repeat(2,minmax(10rem,1fr))_auto] lg:items-end"
+				className="grid gap-4 rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:p-5 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_repeat(2,minmax(10rem,1fr))_auto] lg:items-end"
 			>
 				<div className="space-y-2">
 					<Label htmlFor="review-query">Find reviews</Label>
@@ -456,17 +461,18 @@ export default function ReviewsRoute() {
 						})}
 					</div>
 				) : (
-					<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-16 text-center">
-						<h3 className="text-xl font-black text-[#ffffb1]">
-							No reviews found
-						</h3>
-						<p className="mt-2 text-[#a2ffd5]">
+					<VeudEmptyState
+						title="No reviews found"
+						action={
+							<Button asChild variant="outline">
+								<Link to="/reviews">Clear filters</Link>
+							</Button>
+						}
+					>
+						<p>
 							Try a broader search, another media type, or a different view.
 						</p>
-						<Button asChild variant="outline" className="mt-5">
-							<Link to="/reviews">Clear filters</Link>
-						</Button>
-					</div>
+					</VeudEmptyState>
 				)}
 
 				{data.pageCount > 1 ? (
@@ -506,7 +512,7 @@ export default function ReviewsRoute() {
 					</nav>
 				) : null}
 			</section>
-		</main>
+		</VeudPage>
 	)
 }
 
