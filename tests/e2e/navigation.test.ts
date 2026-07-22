@@ -23,3 +23,33 @@ test('provider credits live in the quiet site footer instead of community naviga
 		page.getByRole('heading', { name: 'Data sources & credits' }),
 	).toBeVisible()
 })
+
+test('shared visual foundations stay on-brand and overflow-free on mobile', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 })
+	await page.goto('/credits')
+
+	await expect(
+		page.getByRole('heading', { name: 'Data sources & credits' }),
+	).toBeVisible()
+	await expect(page.locator('body')).toHaveCSS(
+		'background-color',
+		'rgb(46, 47, 43)',
+	)
+
+	const overflowingElements = await page
+		.locator('body *')
+		.evaluateAll(elements =>
+			elements
+				.filter(element => {
+					const bounds = element.getBoundingClientRect()
+					return bounds.left < -1 || bounds.right > window.innerWidth + 1
+				})
+				.map(element => ({
+					tag: element.tagName,
+					className: element.getAttribute('class'),
+				})),
+		)
+	expect(overflowingElements).toEqual([])
+})
