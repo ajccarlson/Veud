@@ -20,7 +20,6 @@ import {
 import {
 	getSortableWatchlistColumns,
 	getWatchlistDefaultSortModel,
-	watchlistColumnLabel,
 } from '#app/utils/lists/default-sort.ts'
 import { setColumnParams } from './grid-state.ts'
 import { registerListDropZones, rowDragText } from './grid-actions.ts'
@@ -46,7 +45,6 @@ export function watchlistGrid(
 	listOwner: any,
 	currentUser: any,
 	currentUserId: any,
-	VEUD_API_KEY: any,
 	navigate: (path: string) => void,
 ) {
 	const [listEntries, setListEntries] = useState(() => [...listEntriesPass])
@@ -73,9 +71,6 @@ export function watchlistGrid(
 		sortableColumns,
 	)
 	const defaultSort = defaultSortModel[0]
-	const defaultSortLabel = defaultSort
-		? `${watchlistColumnLabel(defaultSort.colId)} · ${defaultSort.sort === 'asc' ? 'ascending' : 'descending'}`
-		: 'Manual position'
 
 	useEffect(() => {
 		setListEntries([...listEntriesPass])
@@ -103,21 +98,12 @@ export function watchlistGrid(
 		currentUser,
 		currentUserId,
 		displayedColumns,
-		VEUD_API_KEY,
 		navigate,
 	}
 	setColumnParams(currentColumnParams)
 
 	return (
 		<div className="watchlist-grid-shell">
-			<div
-				className="watchlist-grid-sort-status"
-				data-testid="default-sort-status"
-			>
-				<span>Default sort</span>
-				<strong>{defaultSortLabel}</strong>
-				{defaultSort ? <small>Clear sorting to reorder manually.</small> : null}
-			</div>
 			<MobileWatchlistCards
 				entries={listEntries}
 				columnParams={currentColumnParams}

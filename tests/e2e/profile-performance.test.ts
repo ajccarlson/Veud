@@ -38,7 +38,7 @@ test('profile tabs load their own data without reloading the heavy shell', async
 
 	await page.goto(`/users/${user.username}`)
 	await expect(
-		page.getByRole('heading', { name: 'Completion History' }),
+		page.getByRole('heading', { name: 'Completion History', exact: true }),
 	).toBeVisible()
 
 	const navigationTimings: string[] = []

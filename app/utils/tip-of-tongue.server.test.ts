@@ -38,6 +38,39 @@ test('descriptive search ranks only catalog titles and exposes matching clues', 
 	)
 })
 
+test('local matching retains meaningful short clues and selects the relevant sentence', async () => {
+	const expected = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'The Red Dog Returns',
+			description:
+				'The town prepares for a quiet festival. A boy searches for his red dog after the war.',
+			catalogPopularity: 1,
+		},
+	})
+	await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Popular Harbor',
+			description: 'Sailors celebrate a summer festival beside the sea.',
+			catalogPopularity: 100,
+		},
+	})
+
+	const result = await getTipOfTongueMatches({
+		memory: 'A boy searches for his red dog after a war.',
+		kind: 'movie',
+	})
+
+	expect(result.matches[0]).toEqual(
+		expect.objectContaining({
+			mediaId: expected.id,
+			summary: 'A boy searches for his red dog after the war.',
+			matchedClues: expect.arrayContaining(['boy', 'red', 'dog', 'war']),
+		}),
+	)
+})
+
 test('AI ranking cannot return a title outside the supplied catalog candidates', async () => {
 	const expected = await prisma.media.create({
 		data: {

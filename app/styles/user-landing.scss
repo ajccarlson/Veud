@@ -74,6 +74,10 @@
 		box-shadow: var(--veud-shadow);
 	}
 
+	&.user-landing-no-banner .user-landing-hero-banner {
+		height: clamp(9rem, 16vw, 12rem);
+	}
+
 	.user-landing-hero-shade {
 		position: absolute;
 		z-index: -1;
@@ -81,21 +85,6 @@
 		background:
 			linear-gradient(to top, rgba(19, 22, 20, 0.72), transparent 58%),
 			linear-gradient(120deg, rgba(17, 31, 25, 0.18), rgba(30, 25, 34, 0.08));
-	}
-
-	.user-landing-hero-actions {
-		position: absolute;
-		z-index: 2;
-		top: 1rem;
-		right: 1rem;
-	}
-
-	.user-landing-hero-edit {
-		gap: 0.45rem;
-		color: var(--veud-cream);
-		border-color: rgba(255, 239, 204, 0.48);
-		background: rgba(20, 21, 20, 0.64);
-		backdrop-filter: blur(0.75rem);
 	}
 
 	.user-landing-hero-body {
@@ -682,6 +671,11 @@
 	.user-landing-completion-history-chart,
 	.user-landing-stats-calendar-chart {
 		height: 16rem;
+	}
+
+	.user-landing-completion-history-chart svg text,
+	.user-landing-stats-calendar-chart svg text {
+		fill: var(--veud-text-muted) !important;
 	}
 
 	.user-landing-completion-history-chart {
@@ -1313,6 +1307,10 @@
 		.user-landing-hero-banner {
 			height: 11.5rem;
 			border-radius: 1rem;
+		}
+
+		&.user-landing-no-banner .user-landing-hero-banner {
+			height: 8rem;
 		}
 
 		.user-landing-hero-body {

@@ -5,15 +5,17 @@ import { columnParams } from './grid-state.ts'
 import { setterFunction } from './grid-actions.ts'
 
 export function ratingColumn() {
-  return [
-    {
-      field: 'rating',
-      headerName: 'Rating',
-      valueSetter: (params: any) => {setterFunction(params)},
-      minWidth: 80,
-      maxWidth: 90,
-      filter: "agSetColumnFilter",
-      hide: !columnParams.displayedColumns['rating'],
-    },
-  ]
+	return [
+		{
+			field: 'rating',
+			headerName: 'Rating',
+			valueSetter: (params: any) => {
+				setterFunction(params)
+			},
+			minWidth: 80,
+			maxWidth: 90,
+			filter: 'agTextColumnFilter',
+			hide: !columnParams.displayedColumns['rating'],
+		},
+	]
 }

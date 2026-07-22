@@ -11,20 +11,32 @@ const AI_REQUEST_WINDOW_MS = 10 * 60 * 1_000
 const aiRequestHistory = new Map<string, number[]>()
 const STOP_WORDS = new Set([
 	'about',
+	'and',
 	'after',
 	'again',
 	'also',
+	'any',
 	'because',
 	'before',
+	'but',
 	'could',
 	'didn',
 	'does',
+	'for',
 	'from',
+	'had',
+	'has',
 	'have',
+	'her',
+	'him',
+	'his',
 	'into',
 	'just',
 	'like',
 	'movie',
+	'not',
+	'our',
+	'out',
 	'remember',
 	'scene',
 	'show',
@@ -32,15 +44,22 @@ const STOP_WORDS = new Set([
 	'something',
 	'than',
 	'that',
+	'the',
 	'there',
 	'they',
 	'this',
+	'was',
+	'were',
 	'what',
 	'where',
 	'which',
+	'who',
+	'why',
 	'with',
 	'woman',
 	'would',
+	'you',
+	'your',
 ])
 
 const AiMatchesSchema = z.object({
@@ -86,15 +105,40 @@ export type TipOfTongueResults = {
 function memoryTerms(memory: string) {
 	const counts = new Map<string, number>()
 	for (const word of normalizeCatalogTitle(memory).match(/[a-z0-9]+/g) ?? []) {
-		if (word.length < 4 || STOP_WORDS.has(word)) continue
+		if (word.length < 3 || STOP_WORDS.has(word)) continue
 		counts.set(word, (counts.get(word) ?? 0) + 1)
 	}
 	return [...counts.entries()]
 		.sort(
 			(left, right) => right[1] - left[1] || right[0].length - left[0].length,
 		)
-		.slice(0, 12)
+		.slice(0, 16)
 		.map(([word]) => word)
+}
+
+function excerptFor(candidate: Candidate, matchedClues: string[]) {
+	const description = candidate.description?.trim()
+	if (!description) {
+		return `${candidate.title ?? 'This title'} is a catalog match for your description.`
+	}
+	const sentences = description
+		.split(/(?<=[.!?])\s+/)
+		.map(sentence => sentence.trim())
+		.filter(Boolean)
+	const bestSentence = sentences.reduce(
+		(best, sentence) => {
+			const normalized = normalizeCatalogTitle(sentence)
+			const score = matchedClues.filter(clue =>
+				normalized.includes(clue),
+			).length
+			return score > best.score ? { sentence, score } : best
+		},
+		{ sentence: sentences[0] ?? description, score: -1 },
+	).sentence
+	if (bestSentence.length <= 240) return bestSentence
+	const shortened = bestSentence.slice(0, 237)
+	const lastSpace = shortened.lastIndexOf(' ')
+	return `${shortened.slice(0, Math.max(lastSpace, 160)).trimEnd()}…`
 }
 
 function candidateWhere(kind: DiscoveryQuery['kind']) {
@@ -196,9 +240,7 @@ function localMatches(
 		.slice(0, limit)
 		.map(({ candidate, matchedClues }) => ({
 			mediaId: candidate.id,
-			summary:
-				(candidate.description ?? '').trim().slice(0, 240) ||
-				`${candidate.title ?? 'This title'} is a catalog match for your description.`,
+			summary: excerptFor(candidate, matchedClues),
 			matchedClues: matchedClues.slice(0, 5),
 		}))
 }

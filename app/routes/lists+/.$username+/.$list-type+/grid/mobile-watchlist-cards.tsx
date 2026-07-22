@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { getThumbnailInfo } from '#app/utils/lists/column-functions.tsx'
 import {
@@ -187,49 +188,66 @@ export function MobileWatchlistCards({
 
 	return (
 		<section className="mobile-list-view" aria-label="Mobile list">
-			<div className="mobile-list-toolbar">
-				<label className="mobile-list-filter">
-					<span>Filter this list</span>
-					<input
-						type="search"
-						value={query}
-						placeholder="Title or type"
-						onChange={event => setQuery(event.currentTarget.value)}
-					/>
-				</label>
-				<div className="mobile-list-sort-controls">
-					<label>
-						<span>Sort by</span>
-						<select
-							value={sortColumn}
-							onChange={event => setSortColumn(event.currentTarget.value)}
-						>
-							{availableSortColumns.map(column => (
-								<option key={column} value={column}>
-									{column === 'position'
-										? 'Manual position'
-										: watchlistColumnLabel(column)}
-								</option>
-							))}
-						</select>
-					</label>
-					<label>
-						<span>Direction</span>
-						<select
-							value={sortDirection}
-							onChange={event =>
-								setSortDirection(event.currentTarget.value as 'asc' | 'desc')
-							}
-						>
-							<option value="asc">Ascending</option>
-							<option value="desc">Descending</option>
-						</select>
-					</label>
+			<header className="mobile-list-toolbar">
+				<div className="mobile-list-toolbar-summary" aria-live="polite">
+					<strong>{visibleEntries.length}</strong>
+					<span>{visibleEntries.length === 1 ? 'title' : 'titles'}</span>
 				</div>
 				{isOwner ? (
 					<MediaSearchBar compactTrigger columnParams={columnParams} />
 				) : null}
-			</div>
+				<details className="mobile-list-tools">
+					<summary>
+						<Icon name="mixer-horizontal" aria-hidden="true" />
+						<span>Filter &amp; sort</span>
+						{query ? (
+							<span className="mobile-list-tools-active">Active</span>
+						) : null}
+					</summary>
+					<div className="mobile-list-tools-panel">
+						<label className="mobile-list-filter">
+							<span>Filter this list</span>
+							<input
+								type="search"
+								value={query}
+								placeholder="Title or type"
+								onChange={event => setQuery(event.currentTarget.value)}
+							/>
+						</label>
+						<div className="mobile-list-sort-controls">
+							<label>
+								<span>Sort by</span>
+								<select
+									value={sortColumn}
+									onChange={event => setSortColumn(event.currentTarget.value)}
+								>
+									{availableSortColumns.map(column => (
+										<option key={column} value={column}>
+											{column === 'position'
+												? 'Manual position'
+												: watchlistColumnLabel(column)}
+										</option>
+									))}
+								</select>
+							</label>
+							<label>
+								<span>Direction</span>
+								<select
+									value={sortDirection}
+									onChange={event =>
+										setSortDirection(
+											event.currentTarget.value as 'asc' | 'desc',
+										)
+									}
+								>
+									<option value="asc">Ascending</option>
+									<option value="desc">Descending</option>
+								</select>
+							</label>
+						</div>
+					</div>
+				</details>
+			</header>
 
 			<div className="mobile-list-card-stack" aria-live="polite">
 				{visibleEntries.length ? (
@@ -257,7 +275,7 @@ export function MobileWatchlistCards({
 								>
 									<img
 										src={
-											thumbnail.content || 'https://placehold.co/180x270?text=?'
+											thumbnail.content || '/favicons/favicon.png'
 										}
 										alt=""
 										loading="lazy"

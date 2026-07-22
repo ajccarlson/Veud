@@ -28,10 +28,6 @@ const rowDragIcon = `
 `
 
 export const gridOptions = {
-	autoSizeStrategy: {
-		type: 'fitGridWidth',
-		defaultMinWidth: 80,
-	},
 	headerHeight: 44,
 	suppressMenuHide: true,
 	icons: {
@@ -44,7 +40,6 @@ export const gridOptions = {
 		editable: false,
 		sortable: true,
 		resizable: true,
-		flex: 1,
 		suppressMovable: true,
 		wrapHeaderText: false,
 		autoHeaderHeight: false,

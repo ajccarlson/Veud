@@ -183,3 +183,26 @@ test('aggregates manga chapter and volume progress independently', () => {
 	expect(summaries.manga?.totalTitles).toBe(1)
 	expect(summaries.anime?.totalTitles).toBe(0)
 })
+
+test('recovers completed totals from legacy metadata when normalized progress is stale', () => {
+	const summaries = buildProfileTrackingSummaries({
+		listTypes,
+		watchlists,
+		entries: [
+			entry({
+				watchlistId: 'completed',
+				length: '26 eps',
+				trackingState: {
+					id: 'stale-state',
+					status: 'completed',
+					statusWatchlistId: 'completed',
+					score: null,
+					repeatCount: 0,
+					progress: [{ unit: 'episode', current: 0 }],
+				},
+			}),
+		],
+	})
+
+	expect(summaries.anime?.progress).toEqual([{ unit: 'episode', current: 26 }])
+})

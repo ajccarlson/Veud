@@ -116,9 +116,7 @@ export function positionColumn() {
 										>
 											<DropdownMenuLabel>Row actions</DropdownMenuLabel>
 											<DropdownMenuItem
-												onSelect={() =>
-													openAdvancedEntryEditor(params.data.id)
-												}
+												onSelect={() => openAdvancedEntryEditor(params.data.id)}
 											>
 												Advanced edit
 											</DropdownMenuItem>
@@ -181,10 +179,6 @@ export function positionColumn() {
 														'/lists/fetch/delete-row/' +
 															encodeURIComponent(
 																new URLSearchParams({
-																	authorization: columnParams.VEUD_API_KEY,
-																	listTypeData: JSON.stringify(
-																		columnParams.listTypeData,
-																	),
 																	id: params.data.id,
 																} as any).toString(),
 															),
@@ -250,7 +244,6 @@ export function positionColumn() {
 															'/lists/fetch/remove-favorite/' +
 																encodeURIComponent(
 																	new URLSearchParams({
-																		authorization: columnParams.VEUD_API_KEY,
 																		id: deleteRow[0].id,
 																	} as any).toString(),
 																),
@@ -305,7 +298,6 @@ export function positionColumn() {
 															'/lists/fetch/add-favorite/' +
 																encodeURIComponent(
 																	new URLSearchParams({
-																		authorization: columnParams.VEUD_API_KEY,
 																		favorite: JSON.stringify(addRow),
 																	} as any).toString(),
 																),
