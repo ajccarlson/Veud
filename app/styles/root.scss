@@ -255,4 +255,32 @@
 		object-fit: cover;
 		background-color: white;
 	}
+
+	@media (max-width: 40rem) {
+		.root-header {
+			gap: 0.55rem;
+		}
+
+		.root-user-links {
+			max-width: 100%;
+			margin-left: auto;
+			gap: 0.35rem;
+		}
+
+		.root-user-links .root-header-separator,
+		.root-user-image {
+			display: none;
+		}
+
+		.root-user-links-dropdown {
+			justify-content: center;
+			width: 2.5rem;
+			height: 2.5rem;
+			padding: 0;
+		}
+
+		.root-user-links-dropdown span {
+			display: none;
+		}
+	}
 }
