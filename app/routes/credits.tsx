@@ -1,4 +1,9 @@
 import { type MetaFunction } from 'react-router'
+import {
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 
 const tmdbLogo =
 	'https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg'
@@ -35,23 +40,21 @@ const providers = [
 
 export default function CreditsRoute() {
 	return (
-		<main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8 text-[#ffefcc] sm:px-6 lg:px-8">
-			<header className="max-w-3xl space-y-3">
-				<p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a2ffd5]">
-					About Veud
-				</p>
-				<h1 className="text-4xl font-black text-[#ff9900]">
-					Data sources &amp; credits
-				</h1>
-				<p className="text-base leading-7 text-[#c6ded2]">
-					Veud combines user-owned tracking and reviews with metadata supplied
-					by independent media-data providers. Provider data keeps its source
-					identity so it can be refreshed, corrected, or removed without
-					deleting member history.
-				</p>
-			</header>
+		<VeudPage width="narrow" className="space-y-8">
+			<VeudPageHeader
+				eyebrow="About Veud"
+				title="Data sources & credits"
+				description={
+					<p>
+						Veud combines user-owned tracking and reviews with metadata supplied
+						by independent media-data providers. Provider data keeps its source
+						identity so it can be refreshed, corrected, or removed without
+						deleting member history.
+					</p>
+				}
+			/>
 
-			<section className="space-y-4 rounded-2xl border border-[#54806c] bg-[#383040] p-6 shadow-xl shadow-black/10">
+			<VeudPanel className="space-y-4 p-6">
 				<a
 					href="https://www.themoviedb.org"
 					rel="noreferrer"
@@ -66,10 +69,10 @@ export default function CreditsRoute() {
 						src={tmdbLogo}
 					/>
 				</a>
-				<h2 className="text-2xl font-black text-[#ffefcc]">
+				<h2 className="text-2xl font-black text-veud-cream">
 					The Movie Database
 				</h2>
-				<p className="leading-7 text-[#c6ded2]">
+				<p className="leading-7 text-veud-copy">
 					Movie and television identities, artwork, scores, release information,
 					and catalog metadata are supplied by TMDB.
 				</p>
@@ -77,42 +80,39 @@ export default function CreditsRoute() {
 					This product uses the TMDB API but is not endorsed or certified by
 					TMDB.
 				</p>
-			</section>
+			</VeudPanel>
 
 			<section
 				className="grid gap-4 md:grid-cols-3"
 				aria-label="Other providers"
 			>
 				{providers.map(provider => (
-					<article
-						key={provider.name}
-						className="space-y-3 rounded-2xl border border-[#54806c] bg-[#383040] p-5"
-					>
-						<h2 className="text-xl font-black text-[#ff9900]">
+					<VeudPanel key={provider.name} className="space-y-3">
+						<h2 className="text-xl font-black text-veud-amber">
 							<a
 								href={provider.href}
 								rel="noreferrer"
 								target="_blank"
-								className="rounded-sm underline decoration-[#a2ffd5]/70 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a2ffd5]"
+								className="rounded-sm underline decoration-veud-mint/70 underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-veud-mint"
 							>
 								{provider.name}
 							</a>
 						</h2>
-						<p className="leading-7 text-[#c6ded2]">{provider.description}</p>
-					</article>
+						<p className="leading-7 text-veud-copy">{provider.description}</p>
+					</VeudPanel>
 				))}
 			</section>
 
-			<section className="space-y-3 rounded-2xl border border-[#725b78] bg-[#302937] p-6">
-				<h2 className="text-2xl font-black text-[#ffefcc]">Data boundaries</h2>
-				<p className="leading-7 text-[#c6ded2]">
+			<VeudPanel tone="warm" className="space-y-3 p-6">
+				<h2 className="text-2xl font-black text-veud-cream">Data boundaries</h2>
+				<p className="leading-7 text-veud-copy">
 					Scores, notes, list positions, diary entries, reviews, collections,
 					and privacy settings created by Veud members belong to Veud&apos;s
 					user data, not to a catalog provider. Provider names and marks belong
 					to their respective owners; their appearance here does not imply
 					endorsement of Veud.
 				</p>
-			</section>
-		</main>
+			</VeudPanel>
+		</VeudPage>
 	)
 }
