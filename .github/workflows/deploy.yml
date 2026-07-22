@@ -3,8 +3,14 @@ on:
   push:
     branches:
       - main
-      - dev
+      - develop
   pull_request: {}
+  workflow_dispatch:
+    inputs:
+      staging_url:
+        description: HTTPS origin of the deployed staging release
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -94,10 +100,8 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U veud -d veud_load_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+          --health-cmd "pg_isready -U veud -d veud_load_test" --health-interval
+          5s --health-timeout 5s --health-retries 10
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v7
@@ -129,12 +133,13 @@ jobs:
           DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
 
       - name: 📈 Smoke-test catalog load harness
-        run: npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after
+        run:
+          npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after
         env:
           DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
 
   audit:
-    name: 🛡 Audit (non-blocking)
+    name: 🛡 Audit
     runs-on: ubuntu-22.04
     steps:
       - name: ⬇️ Checkout repo
@@ -147,62 +152,75 @@ jobs:
 
       - name: 🛡 npm audit (high and above)
         run: npm audit --audit-level=high
-        continue-on-error: true
 
-  # playwright:
-  #   name: 🎭 Playwright
-  #   runs-on: ubuntu-22.04
-  #   timeout-minutes: 60
-  #   steps:
-  #     - name: ⬇️ Checkout repo
-  #       uses: actions/checkout@v7
+  browser-smoke:
+    name: 🎭 Browser acceptance smoke
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v7
 
-  #     - name: 🏄 Copy test env vars
-  #       run: cp .env.example .env
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
 
-  #     - name: ⎔ Setup node
-  #       uses: actions/setup-node@v6
-  #       with:
-  #         node-version: 22
+      - name: 📥 Download deps
+        uses: bahmutov/npm-install@v1
 
-  #     - name: 📥 Download deps
-  #       uses: bahmutov/npm-install@v1
+      - name: 🏄 Copy test env vars
+        run: cp .env.example .env
 
-  #     - name: 📥 Install Playwright Browsers
-  #       run: npm run test:e2e:install
+      - name: 📥 Install Chromium
+        run: npx playwright install --with-deps chromium
 
-  #     - name: 🛠 Setup Database
-  #       run: npx prisma migrate deploy
+      - name: 🎭 Run critical browser workflows
+        run: >-
+          npx playwright test tests/e2e/navigation.test.ts
+          tests/e2e/responsive-routes.test.ts tests/e2e/calendar.test.ts
+          tests/e2e/discover.test.ts tests/e2e/home-feed.test.ts
+          tests/e2e/list-reliability.test.ts
+          tests/e2e/profile-visual-system.test.ts --project=chromium
 
-  #     - name: 🏦 Cache Database
-  #       id: db-cache
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: prisma/data.db
-  #         key:
-  #           db-cache-schema_${{ hashFiles('./prisma/schema.prisma')
-  #           }}-migrations_${{ hashFiles('./prisma/migrations/*/migration.sql')
-  #           }}
+      - name: 📊 Upload browser report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-acceptance-report
+          path: playwright-report/
+          retention-days: 14
 
-  #     - name: 🌱 Seed Database
-  #       if: steps.db-cache.outputs.cache-hit != 'true'
-  #       run: npx prisma db seed
-  #       env:
-  #         MINIMAL_SEED: true
+  staging-canary:
+    name: 🌐 Deployed staging canary
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    environment: staging
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v7
 
-  #     - name: 🏗 Build
-  #       run: npm run build
+      - name: ⎔ Setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
 
-  #     - name: 🎭 Playwright tests
-  #       run: npx playwright test
+      - name: 📥 Download deps
+        uses: bahmutov/npm-install@v1
 
-  #     - name: 📊 Upload report
-  #       uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: playwright-report
-  #         path: playwright-report/
-  #         retention-days: 30
+      - name: 🔎 Check deployed staging release
+        run: >-
+          npm run staging:check -- --base-url "$STAGING_URL" --repeat 3 --run
+        env:
+          STAGING_URL: ${{ inputs.staging_url }}
+
+      - name: 📊 Upload staging evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: staging-acceptance-report
+          path: test-results/staging-acceptance-*.json
+          retention-days: 30
 
   build:
     name: 🏗 Build

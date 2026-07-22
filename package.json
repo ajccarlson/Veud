@@ -44,6 +44,7 @@
     "start:mocks": "cross-env NODE_ENV=production MOCKS=true tsx .",
     "start:dev": "pm2 start ecosystem.config.cjs --env development",
     "start:prod": "pm2 start ecosystem.config.cjs --env production",
+    "staging:check": "node scripts/check-staging-acceptance.mjs",
     "stop:dev": "pm2 stop ecosystem.config.cjs --env development",
     "stop:prod": "pm2 stop ecosystem.config.cjs --env production",
     "test": "vitest",
