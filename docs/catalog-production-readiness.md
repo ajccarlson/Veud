@@ -1,6 +1,6 @@
 # Catalog production-readiness boundary
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 Veud's catalog workers are resumable and suitable for bounded development and
 staging runs. Provider-scale production inventory and hydration are still
@@ -79,3 +79,24 @@ all artifacts against an owner-approved policy. The gate now rejects flat
 catalog-only load reports, target/checkpoint mismatches, unproven recovery, and
 connection or waiting-lock pressure outside policy. The automation enforces the
 hold; it does not satisfy the still-unrun production-like staging gates.
+
+## Final local prerequisite audit
+
+The 2026-07-21 roadmap closeout rechecked the active operator environment
+without printing secret values:
+
+- `DATABASE_URL` still uses the local `file:` datasource, and no separate
+  production-like staging/PostgreSQL target is configured.
+- `MAL_CLIENT_ID` is configured. One-record anime and manga inventory dry runs
+  each completed a real provider request with zero failures and zero `429`
+  responses. Dry-run mode committed no catalog or sync records.
+- `MAL_CATALOG_POLICY_APPROVAL_REF` is not configured. The written
+  storage/redisplay approval required by the worker therefore remains absent,
+  and no committed MAL inventory or hydration run was attempted.
+
+All executable local gates are complete. Resuming the held rollout requires a
+clearly identified production-like PostgreSQL staging URL plus protected backup,
+restore, and canary destinations; owner-approved staging policy/count budgets;
+and a non-secret reference to MAL's written storage/redisplay approval. After
+those inputs exist, follow the PostgreSQL cutover runbook and retain its passing
+evidence manifest before beginning bounded committed provider batches.
