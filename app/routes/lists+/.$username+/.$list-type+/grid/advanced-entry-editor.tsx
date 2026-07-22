@@ -75,7 +75,13 @@ export function openAdvancedEntryEditor(entryId: string) {
 	dialog?.showModal()
 }
 
-export function AdvancedEntryEditor({ params }: { params: any }) {
+export function AdvancedEntryEditor({
+	params,
+	idPrefix = '',
+}: {
+	params: any
+	idPrefix?: string
+}) {
 	const dialogRef = useRef<HTMLDialogElement>(null)
 	const [saving, setSaving] = useState(false)
 	const [error, setError] = useState('')
@@ -189,7 +195,7 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 			</button>
 
 			<dialog
-				id={`advanced-entry-editor-${data.id}`}
+				id={`advanced-entry-editor-${idPrefix}${data.id}`}
 				ref={dialogRef}
 				className="ag-advanced-edit-dialog"
 				onCancel={() => setError('')}
@@ -242,8 +248,7 @@ export function AdvancedEntryEditor({ params }: { params: any }) {
 							<div className="ag-advanced-edit-progress-grid">
 								{progressUnits.map(unit => {
 									const saved = progressByUnit.get(unit) as
-										| { current?: number; total?: number | null }
-										| undefined
+										{ current?: number; total?: number | null } | undefined
 									const total = saved?.total ?? legacyTotal(data, unit)
 									return (
 										<label key={unit}>
