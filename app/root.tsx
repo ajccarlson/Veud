@@ -157,7 +157,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			user,
 			unreadNotificationCount,
 			listTypes,
-			aiSearchAvailable: Boolean(process.env.OPENAI_API_KEY?.trim()),
+			aiSearchAvailable: Boolean(userId && process.env.OPENAI_API_KEY?.trim()),
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
@@ -283,7 +283,10 @@ function App() {
 								<Icon name="info-circled" aria-hidden="true" />
 							</Link>
 						</div>
-						<SiteSearch aiAvailable={data.aiSearchAvailable} />
+						<SiteSearch
+							aiAvailable={data.aiSearchAvailable}
+							isSignedIn={Boolean(data.user)}
+						/>
 						{user ? (
 							<div className="root-user-links">
 								<ListsDropdown />
