@@ -50,13 +50,41 @@ const providerLabels: Record<DiscoveryQuery['provider'], string> = {
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const filters = parseDiscoveryQuery(new URL(request.url).searchParams)
+	const memoryQueryTooShort = filters.mode === 'memory' && filters.q.length < 3
+	const genresPromise = getDiscoveryGenres()
+	const statusesPromise = getDiscoveryStatuses()
+	const watchlistsPromise = viewerId
+		? prisma.watchlist.findMany({
+				where: { ownerId: viewerId },
+				select: {
+					id: true,
+					name: true,
+					header: true,
+					position: true,
+					type: { select: { name: true } },
+				},
+				orderBy: [{ position: 'asc' }, { header: 'asc' }],
+			})
+		: Promise.resolve([])
 	const memorySearch =
-		filters.mode === 'memory' && filters.q.length >= 3
-			? await getTipOfTongueMatches({
-					memory: filters.q,
-					kind: filters.kind,
-				})
-			: null
+		filters.mode === 'memory' && !memoryQueryTooShort
+			? await getTipOfTongueMatches(
+					{
+						memory: filters.q,
+						kind: filters.kind,
+					},
+					{
+						allowAi: Boolean(viewerId),
+						rateLimitKey: viewerId ? `viewer:${viewerId}` : undefined,
+					},
+				)
+			: filters.mode === 'memory'
+				? {
+						matches: [],
+						source: 'catalog-match' as const,
+						fallbackReason: null,
+					}
+				: null
 	const [discovery, genres, statuses, watchlists] = await Promise.all([
 		memorySearch
 			? getDiscoveryResultsForMediaIds(
@@ -65,21 +93,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					memorySearch.matches.map(match => match.mediaId),
 				)
 			: getDiscoveryResults(filters, viewerId),
-		getDiscoveryGenres(),
-		getDiscoveryStatuses(),
-		viewerId
-			? prisma.watchlist.findMany({
-					where: { ownerId: viewerId },
-					select: {
-						id: true,
-						name: true,
-						header: true,
-						position: true,
-						type: { select: { name: true } },
-					},
-					orderBy: [{ position: 'asc' }, { header: 'asc' }],
-				})
-			: [],
+		genresPromise,
+		statusesPromise,
+		watchlistsPromise,
 	])
 	if (memorySearch) {
 		const matchByMediaId = new Map(
@@ -98,12 +114,41 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({
 		...discovery,
 		memorySearchSource: memorySearch?.source ?? null,
-		aiSearchAvailable: Boolean(process.env.OPENAI_API_KEY?.trim()),
+		memorySearchFallbackReason: memorySearch?.fallbackReason ?? null,
+		memoryQueryTooShort,
+		aiSearchAvailable: Boolean(viewerId && process.env.OPENAI_API_KEY?.trim()),
 		genres,
 		statuses,
 		watchlists,
 		isSignedIn: Boolean(viewerId),
 	})
+}
+
+function memorySearchStatus(data: {
+	memorySearchSource: 'ai' | 'catalog-match' | null
+	memorySearchFallbackReason:
+		| 'not-configured'
+		| 'sign-in-required'
+		| 'rate-limited'
+		| 'ai-error'
+		| 'ai-empty'
+		| null
+}) {
+	if (data.memorySearchSource === 'ai') return 'AI ranked'
+	switch (data.memorySearchFallbackReason) {
+		case 'sign-in-required':
+			return 'Catalog matched · sign in for AI ranking'
+		case 'rate-limited':
+			return 'Catalog matched · AI limit reached'
+		case 'ai-error':
+			return 'Catalog matched · AI temporarily unavailable'
+		case 'ai-empty':
+			return 'Catalog matched · AI returned no usable matches'
+		case 'not-configured':
+			return 'Catalog matched · AI not configured'
+		default:
+			return 'Catalog matched'
+	}
 }
 
 function discoveryHref(filters: DiscoveryQuery, page: number) {
@@ -276,17 +321,18 @@ export default function DiscoverRoute() {
 						name="mode"
 						value="memory"
 						defaultChecked={data.filters.mode === 'memory'}
-						disabled={!data.aiSearchAvailable}
 						className="mt-1 h-4 w-4 shrink-0 accent-[#a2ffd5]"
 					/>
 					<span>
 						<strong className="block text-sm text-[#ffffb1]">
-							Tip of My Tongue AI search
+							Tip of My Tongue
 						</strong>
 						<span className="mt-1 block text-xs leading-5 text-[#a2ffd5]">
 							{data.aiSearchAvailable
-								? 'Describe whatever you remember. Veud will return up to five catalog-backed matches and explain the clues.'
-								: 'AI search is not configured on this server. Standard catalog search remains available.'}
+								? 'Describe whatever you remember. AI will rank five catalog-backed matches; your description is sent to OpenAI with response storage disabled. Do not include personal information.'
+								: data.isSignedIn
+									? 'Describe whatever you remember. Veud will return five local catalog matches; AI ranking is not configured on this server.'
+									: 'Describe whatever you remember for local catalog matching. Sign in to use AI ranking when it is configured.'}
 						</span>
 					</span>
 				</label>
@@ -324,13 +370,15 @@ export default function DiscoverRoute() {
 					</div>
 					<p className="text-sm text-[#a2ffd5]">
 						{data.filters.mode === 'memory'
-							? `${data.total} of 5 possible matches · ${data.memorySearchSource === 'ai' ? 'AI ranked' : 'catalog matched'}`
+							? `${data.total} of 5 possible matches · ${memorySearchStatus(data)}`
 							: resultSummary(data.total, data.filters)}
 					</p>
 				</header>
 
 				{data.items.length ? (
-					<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+					<div
+						className={`grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${data.filters.mode === 'memory' ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}
+					>
 						{data.items.map(item => {
 							const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
 							return (
@@ -403,7 +451,13 @@ export default function DiscoverRoute() {
 												<div className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]">
 													<p>{item.memoryMatch.summary}</p>
 													{item.memoryMatch.matchedClues.length ? (
-														<div className="mt-2 flex flex-wrap gap-1.5">
+														<div
+															className="mt-2 flex flex-wrap items-center gap-1.5"
+															aria-label="Details matching your description"
+														>
+															<span className="mr-1 text-[0.68rem] font-bold uppercase tracking-wide text-[#8ca99d]">
+																Matches
+															</span>
 															{item.memoryMatch.matchedClues.map(clue => (
 																<mark
 																	key={clue}
@@ -474,11 +528,14 @@ export default function DiscoverRoute() {
 				) : (
 					<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-16 text-center">
 						<h3 className="text-xl font-black text-[#ffffb1]">
-							No titles found
+							{data.filters.mode === 'memory'
+								? 'No close matches yet'
+								: 'No titles found'}
 						</h3>
 						<p className="mx-auto mt-2 max-w-lg text-[#a2ffd5]">
-							Try a broader search, another media type, or clear the filters to
-							explore the full catalog.
+							{data.memoryQueryTooShort
+								? 'Describe at least three characters of what you remember.'
+								: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
 						</p>
 						<Button asChild variant="outline" className="mt-5">
 							<Link to="/discover">Clear filters</Link>

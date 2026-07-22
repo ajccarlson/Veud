@@ -150,3 +150,64 @@ test('member can filter the catalog and discover an unseen personalized title', 
 			.catch(() => {})
 	}
 })
+
+test('global advanced search returns five grounded memory matches without AI', async ({
+	page,
+}) => {
+	const matches = await Promise.all(
+		Array.from({ length: 5 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Cobalt Lighthouse Memory ${index + 1}`,
+					description:
+						'A violinist climbs a cobalt lighthouse during a winter storm.',
+					catalogPopularity: 100 - index,
+				},
+			}),
+		),
+	)
+
+	try {
+		await page.goto('/discover')
+		const siteSearch = page.locator('form.site-search')
+		await siteSearch
+			.locator('summary[aria-label="Advanced search settings"]')
+			.click()
+		const memoryMode = siteSearch.getByLabel('Enable Tip of My Tongue search')
+		await expect(memoryMode).toBeEnabled()
+		await memoryMode.check()
+		await siteSearch
+			.getByLabel('Search movies, TV, anime, and manga')
+			.fill('A violinist in a cobalt lighthouse during a winter storm')
+		await siteSearch.getByLabel('Media type').selectOption('movie')
+		await siteSearch.getByRole('button', { name: 'Search' }).click()
+
+		await expect(page).toHaveURL(/mode=memory/)
+		await expect(
+			page.getByRole('heading', { name: 'Closest matches' }),
+		).toBeVisible()
+		await expect(page.getByText(/5 of 5 possible matches/)).toBeVisible()
+		await expect(page.getByText(/Catalog matched/)).toBeVisible()
+		const resultCards = page.getByRole('article')
+		for (const match of matches) {
+			const card = resultCards.filter({ hasText: match.title! })
+			await expect(card).toBeVisible()
+			await expect(
+				card.getByLabel('Details matching your description'),
+			).toContainText('cobalt')
+			await expect(
+				card.getByLabel('Details matching your description'),
+			).toContainText('lighthouse')
+		}
+		await expect(
+			resultCards.first().getByRole('link', {
+				name: /Log in to track/,
+			}),
+		).toBeVisible()
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: matches.map(match => match.id) } } })
+			.catch(() => {})
+	}
+})
