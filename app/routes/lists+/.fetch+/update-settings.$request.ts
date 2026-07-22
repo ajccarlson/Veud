@@ -44,21 +44,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		throw new Response('Invalid settings payload', { status: 400 })
 	}
 
-	let typeId: unknown
-	try {
-		typeId = (
-			JSON.parse(searchParams.get('listTypeData') ?? '') as { id?: unknown }
-		)?.id
-	} catch {
-		throw new Response('Invalid listTypeData', { status: 400 })
-	}
-	if (typeof typeId !== 'string') {
-		throw new Response('Invalid listTypeData', { status: 400 })
-	}
-	if (typeId !== watchlist.typeId) {
-		throw new Response('Invalid list type', { status: 400 })
-	}
-
 	const listType = await prisma.listType.findUnique({
 		where: { id: watchlist.typeId },
 		select: { columns: true },
@@ -107,7 +92,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		await syncWatchlistActivityVisibility(tx, result)
 
 		const remaining = await tx.watchlist.findMany({
-			where: { typeId, ownerId: userId },
+			where: { typeId: watchlist.typeId, ownerId: userId },
 			orderBy: { position: 'asc' },
 		})
 

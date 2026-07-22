@@ -51,7 +51,7 @@ export function infoColumns() {
 			minWidth: 70,
 			maxWidth: 125,
 			cellRenderer: (params: any) => typeCellRenderer(params, columnParams),
-			filter: 'agSetColumnFilter',
+			filter: 'agTextColumnFilter',
 			cellStyle: function (params: any) {
 				if (params.value) {
 					if (params.value.includes('Movie')) {

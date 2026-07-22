@@ -8,9 +8,9 @@
  */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import { action } from '#app/routes/lists+/.fetch+/delete-empty-rows.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { action } from '#app/routes/lists+/.fetch+/delete-empty-rows.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function createUserRecord() {

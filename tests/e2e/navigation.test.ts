@@ -37,6 +37,16 @@ test('shared visual foundations stay on-brand and overflow-free on mobile', asyn
 		'background-color',
 		'rgb(46, 47, 43)',
 	)
+	await expect(page.getByRole('button', { name: /Community/ })).toBeHidden()
+	await page.getByLabel('Open site navigation').click()
+	const mobileNavigation = page.locator('.root-mobile-nav-panel')
+	await expect(mobileNavigation).toBeVisible()
+	await expect(
+		mobileNavigation.getByRole('link', { name: 'Discover' }),
+	).toBeVisible()
+	await expect(
+		mobileNavigation.getByRole('link', { name: 'Calendar' }),
+	).toBeVisible()
 
 	const overflowingElements = await page
 		.locator('body *')
@@ -52,4 +62,14 @@ test('shared visual foundations stay on-brand and overflow-free on mobile', asyn
 				})),
 		)
 	expect(overflowingElements).toEqual([])
+})
+
+test('the generic lists route opens the signed-in member library', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	await page.goto('/lists')
+	await expect(page).toHaveURL(`/lists/${user.username}/liveaction`)
+	await expect(page.getByRole('heading', { name: /lists$/i })).toBeVisible()
 })

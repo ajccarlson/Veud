@@ -8,9 +8,9 @@
  */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function createUserRecord() {
@@ -57,29 +57,24 @@ async function seedOwnedWatchlist() {
 	})
 	const wl = owner.watchlists[0]
 	if (!wl) throw new Error('test setup: watchlist was not created')
-	return { userId: owner.id, watchlistId: wl.id, listTypeId: wl.typeId }
+	return { userId: owner.id, watchlistId: wl.id }
 }
 
-function settingsParams(
-	listId: string,
-	listTypeId: string,
-	pairs: Array<[string, unknown]>,
-) {
+function settingsParams(listId: string, pairs: Array<[string, unknown]>) {
 	return new URLSearchParams({
 		listId,
-		listTypeData: JSON.stringify({ id: listTypeId }),
 		settings: JSON.stringify(pairs),
 	}).toString()
 }
 
 test('applies whitelisted settings', async () => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const request = await authedRequestFor(userId)
 
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [
+			request: settingsParams(watchlistId, [
 				['name', 'renamed'],
 				['header', 'New Header'],
 				['isPublic', false],
@@ -101,13 +96,13 @@ test.each([
 	['defaultSortColumn', 'ownerId', 'Invalid default sort column'],
 	['defaultSortDirection', 'sideways', 'Invalid default sort direction'],
 ] as const)('rejects invalid %s values', async (key, value, message) => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const request = await authedRequestFor(userId)
 
 	const response = await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [[key, value]]),
+			request: settingsParams(watchlistId, [[key, value]]),
 		},
 	} as any).catch(error => error)
 
@@ -117,7 +112,7 @@ test.each([
 })
 
 test('visibility changes hide linked and legacy list activity', async () => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const request = await authedRequestFor(userId)
 	const watchlist = await prisma.watchlist.findUniqueOrThrow({
 		where: { id: watchlistId },
@@ -158,7 +153,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [['isPublic', false]]),
+			request: settingsParams(watchlistId, [['isPublic', false]]),
 		},
 	} as any)
 	expect(
@@ -172,7 +167,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [['isPublic', true]]),
+			request: settingsParams(watchlistId, [['isPublic', true]]),
 		},
 	} as any)
 	expect(
@@ -190,12 +185,12 @@ test('visibility changes hide linked and legacy list activity', async () => {
 })
 
 test('rejects non-boolean visibility values', async () => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const request = await authedRequestFor(userId)
 	const response = await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [['isPublic', 'false']]),
+			request: settingsParams(watchlistId, [['isPublic', 'false']]),
 		},
 	} as any).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
@@ -203,14 +198,14 @@ test('rejects non-boolean visibility values', async () => {
 })
 
 test('ignores non-whitelisted fields so ownership/id cannot be reassigned', async () => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const attacker = await createUserRecord()
 	const request = await authedRequestFor(userId)
 
 	await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [
+			request: settingsParams(watchlistId, [
 				['name', 'renamed'],
 				['ownerId', attacker.id],
 				['id', 'hacked-id'],
@@ -227,14 +222,14 @@ test('ignores non-whitelisted fields so ownership/id cannot be reassigned', asyn
 })
 
 test('a logged-in non-owner cannot change settings (404)', async () => {
-	const { watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { watchlistId } = await seedOwnedWatchlist()
 	const other = await createUserRecord()
 	const request = await authedRequestFor(other.id)
 
 	const res = await action({
 		request,
 		params: {
-			request: settingsParams(watchlistId, listTypeId, [['name', 'hacked']]),
+			request: settingsParams(watchlistId, [['name', 'hacked']]),
 		},
 	} as any).catch(e => e)
 

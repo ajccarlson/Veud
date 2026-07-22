@@ -9,7 +9,7 @@
   "scripts": {
     "build": "run-s build:*",
     "build:icons": "tsx ./other/build-icons.ts",
-    "build:react-router": "react-router build --sourcemapClient",
+    "build:react-router": "react-router build",
     "build:server": "tsx ./other/build-server.ts",
     "catalog:mal-hydrate": "tsx scripts/hydrate-mal-catalog.ts",
     "catalog:mal-inventory": "tsx scripts/import-mal-inventory.ts",
