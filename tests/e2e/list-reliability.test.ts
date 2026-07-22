@@ -57,9 +57,9 @@ test('member can type a new position and see the persisted order', async ({
 	])
 
 	await page.goto(`/lists/${user.username}/anime/${source.name}`)
-	const firstPosition = page.getByLabel(
-		'Move First reliability entry to position',
-	)
+	const firstPosition = page
+		.locator('.ag-theme-custom-react')
+		.getByLabel('Move First reliability entry to position')
 	await firstPosition.fill('3')
 	await firstPosition.press('Enter')
 	await expect
@@ -73,6 +73,25 @@ test('member can type a new position and see the persisted order', async ({
 	await expect(renderedRows.nth(0)).toContainText('Moved reliability entry')
 	await expect(renderedRows.nth(1)).toContainText('Third reliability entry')
 	await expect(renderedRows.nth(2)).toContainText('First reliability entry')
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	const mobileList = page.getByRole('region', { name: 'Mobile list' })
+	const mobileCards = mobileList.getByRole('article')
+	await expect(mobileCards.nth(0)).toContainText('Moved reliability entry')
+	await expect(mobileCards.nth(2)).toContainText('First reliability entry')
+	const mobilePosition = mobileList.getByLabel(
+		'Move First reliability entry to position',
+	)
+	await mobilePosition.fill('1')
+	await mobilePosition.press('Enter')
+	await expect
+		.poll(() => titlesInOrder(source.id))
+		.toEqual([
+			'1:First reliability entry',
+			'2:Moved reliability entry',
+			'3:Third reliability entry',
+		])
+	await expect(mobileCards.nth(0)).toContainText('First reliability entry')
 })
 
 test('member can keep tracking global search results across lists in one session', async ({
@@ -303,7 +322,86 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 
 	await expectResponsiveGrid()
 	await page.setViewportSize({ width: 390, height: 844 })
-	await expectResponsiveGrid()
+	const mobileList = page.getByRole('region', { name: 'Mobile list' })
+	await expect(mobileList).toBeVisible()
+	await expect(page.locator('.ag-theme-custom-react')).toBeHidden()
+	const mobileCard = mobileList.getByRole('article', {
+		name: 'Unscored reliability entry',
+	})
+	await expect(mobileCard).toBeVisible()
+	await expect(
+		mobileCard.locator('.mobile-list-card-stats').getByText('Responsive list'),
+	).toBeVisible()
+	await expect(
+		mobileCard.getByRole('button', {
+			name: 'Quick edit Unscored reliability entry',
+		}),
+	).toBeVisible()
+	const quickEditBounds = await mobileCard
+		.getByRole('button', {
+			name: 'Quick edit Unscored reliability entry',
+		})
+		.boundingBox()
+	expect(quickEditBounds).not.toBeNull()
+	expect(quickEditBounds!.width).toBeGreaterThanOrEqual(44)
+	expect(quickEditBounds!.height).toBeGreaterThanOrEqual(44)
+	await mobileCard
+		.getByRole('button', {
+			name: 'Quick edit Unscored reliability entry',
+		})
+		.click()
+	const mobileEditor = mobileCard.getByRole('dialog')
+	await expect(mobileEditor).toBeVisible()
+	await expect(mobileEditor.getByLabel('Personal')).toBeVisible()
+	await mobileEditor.getByRole('button', { name: 'Close quick edit' }).click()
+	await expect(
+		mobileCard.getByLabel('Move Unscored reliability entry to position'),
+	).toBeVisible()
+	const mobileMetrics = await page.evaluate(() => {
+		const card = document.querySelector('.mobile-list-card')!
+		const bounds = card.getBoundingClientRect()
+		return {
+			viewportWidth: window.innerWidth,
+			documentWidth: document.documentElement.scrollWidth,
+			cardLeft: bounds.left,
+			cardRight: bounds.right,
+			overflowing: Array.from(document.body.querySelectorAll<HTMLElement>('*'))
+				.map(element => {
+					const rect = element.getBoundingClientRect()
+					return {
+						tag: element.tagName,
+						className: element.className,
+						left: Math.round(rect.left),
+						right: Math.round(rect.right),
+						width: Math.round(rect.width),
+					}
+				})
+				.filter(
+					element =>
+						element.width > 0 &&
+						(element.left < -1 || element.right > window.innerWidth + 1),
+				)
+				.slice(0, 12),
+		}
+	})
+	expect(mobileMetrics.overflowing).toEqual([])
+	expect(mobileMetrics.documentWidth).toBeLessThanOrEqual(
+		mobileMetrics.viewportWidth,
+	)
+	expect(mobileMetrics.cardLeft).toBeGreaterThanOrEqual(0)
+	expect(mobileMetrics.cardRight).toBeLessThanOrEqual(
+		mobileMetrics.viewportWidth,
+	)
+	await mobileList.getByLabel('Filter this list').fill('not present')
+	await expect(mobileList.getByText('No matching titles')).toBeVisible()
+	await mobileList.getByLabel('Filter this list').fill('reliability')
+	await expect(mobileCard).toBeVisible()
+	await page.setViewportSize({ width: 844, height: 390 })
+	await expect(mobileList).toBeVisible()
+	await expect(mobileCard).toBeVisible()
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+	).toBeLessThanOrEqual(844)
 })
 
 test('list landing keeps every list reachable inside the viewport', async ({
@@ -517,14 +615,13 @@ test('quick-add results keep long-title actions reachable on mobile', async ({
 
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
-	const quickAddSearch = page.locator('.watchlist-search-inline input')
-	await expect(quickAddSearch).toBeVisible()
-	await quickAddSearch.fill('long title')
-	await expect(quickAddSearch).toHaveValue('long title')
-	await page.getByRole('button', { name: 'Search catalog' }).click()
-
+	await page.getByRole('button', { name: 'Add title' }).click()
 	const dialog = page.getByRole('dialog', { name: 'Choose a title' })
 	await expect(dialog).toBeVisible()
+	const quickAddSearch = dialog.getByLabel('Search the catalog')
+	await quickAddSearch.fill('long title')
+	await expect(quickAddSearch).toHaveValue('long title')
+	await dialog.getByRole('button', { name: 'Search', exact: true }).click()
 	await expect(dialog.getByRole('article')).toHaveCount(titles.length)
 	const lastResult = dialog.getByRole('article').last()
 	await lastResult.scrollIntoViewIfNeeded()
@@ -799,6 +896,17 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 		.poll(() => viewport.evaluate(element => element.scrollTop))
 		.toBeGreaterThan(100)
 	await page.mouse.up()
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	const mobileList = page.getByRole('region', { name: 'Mobile list' })
+	const mobileCards = mobileList.getByRole('article')
+	await expect(mobileCards).toHaveCount(40)
+	const mobileStack = mobileList.locator('.mobile-list-card-stack')
+	expect(
+		await mobileStack.evaluate(element => element.scrollHeight),
+	).toBeGreaterThan(await mobileStack.evaluate(element => element.clientHeight))
+	await mobileCards.last().scrollIntoViewIfNeeded()
+	await expect(mobileCards.last()).toBeVisible()
 })
 
 test('member can save a default list sort without changing manual positions', async ({
