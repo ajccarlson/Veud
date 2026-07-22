@@ -719,8 +719,8 @@
 	.user-landing-switcher-arrow {
 		display: grid;
 		flex: 0 0 auto;
-		width: 2.5rem;
-		height: 2.5rem;
+		width: 2.75rem;
+		height: 2.75rem;
 		place-items: center;
 		border: 1px solid var(--veud-border);
 		border-radius: 0.65rem;
@@ -758,7 +758,7 @@
 	.user-landing-dropdown-trigger,
 	.user-landing-secondary-dropdown-trigger {
 		min-width: 8rem;
-		min-height: 2.5rem;
+		min-height: 2.75rem;
 		padding: 0.5rem 0.85rem;
 		border: 1px solid var(--veud-border-strong);
 		border-radius: 0.65rem;
