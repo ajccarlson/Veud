@@ -34,10 +34,44 @@
 
 	.watchlist-grid-shell {
 		display: grid;
-		grid-template-rows: minmax(0, 1fr);
+		grid-template-rows: auto minmax(0, 1fr);
 		height: 100%;
 		min-height: 0;
 		min-width: 0;
+	}
+
+	.watchlist-grid-sort-status {
+		display: flex;
+		align-items: baseline;
+		gap: 0.45rem;
+		min-width: 0;
+		padding: 0.35rem 0.75rem;
+		font-family: Arial, sans-serif;
+		font-size: 0.75rem;
+		color: #a2ffd5;
+		background: rgba(18, 18, 18, 0.72);
+		border-bottom: 1px solid rgba(102, 86, 61, 0.65);
+	}
+
+	.watchlist-grid-sort-status span {
+		color: #8ca99d;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.watchlist-grid-sort-status strong {
+		color: #ffffb1;
+	}
+
+	.watchlist-grid-sort-status small {
+		margin-left: auto;
+		color: #8ca99d;
+	}
+
+	@media (max-width: 40rem) {
+		.watchlist-grid-sort-status small {
+			display: none;
+		}
 	}
 
 	.watchlist-open-quick-add {
