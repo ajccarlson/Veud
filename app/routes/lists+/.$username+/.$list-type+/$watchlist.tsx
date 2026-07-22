@@ -185,7 +185,6 @@ export default function WatchList() {
 				loaderData.listOwner,
 				currentUser,
 				currentUserId,
-				(loaderData as any).VEUD_API_KEY,
 				navigate,
 			)}
 			{listNavButtons(

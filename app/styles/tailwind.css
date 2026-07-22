@@ -18,6 +18,9 @@
 		--veud-gold: 255 204 102;
 		--veud-yellow: 255 255 177;
 		--veud-danger: 255 179 164;
+		--veud-font-sans:
+			Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+			'Segoe UI', sans-serif;
 
 		--foreground-destructive: 10 100% 72.4%;
 		--background: 75 4.4% 17.6%;
@@ -54,6 +57,7 @@
 	body {
 		min-width: 20rem;
 		background-color: rgb(var(--veud-canvas));
+		font-family: var(--veud-font-sans);
 	}
 
 	::selection {

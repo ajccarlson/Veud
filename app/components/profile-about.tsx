@@ -28,7 +28,12 @@ export function ProfileAbout({ bio }: { bio: string | null }) {
 							</a>
 						),
 						img: ({ node: _node, ...props }) => (
-							<img {...props} loading="lazy" referrerPolicy="no-referrer" />
+							<img
+								alt=""
+								{...props}
+								loading="lazy"
+								referrerPolicy="no-referrer"
+							/>
 						),
 					}}
 				>

@@ -1,4 +1,4 @@
-import { Form } from 'react-router'
+import { Form, useLocation } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 
 export function SiteSearch({
@@ -8,8 +8,25 @@ export function SiteSearch({
 	aiAvailable: boolean
 	isSignedIn: boolean
 }) {
+	const location = useLocation()
+	const searchParams = new URLSearchParams(location.search)
+	const isDiscover = location.pathname === '/discover'
+	const query = isDiscover ? (searchParams.get('q') ?? '') : ''
+	const requestedKind = isDiscover ? (searchParams.get('kind') ?? 'all') : 'all'
+	const kind = ['all', 'movie', 'tv', 'anime', 'manga'].includes(requestedKind)
+		? requestedKind
+		: 'all'
+	const isMemoryMode = isDiscover && searchParams.get('mode') === 'memory'
+	const stateKey = `${query}:${kind}:${isMemoryMode ? 'memory' : 'standard'}`
+
 	return (
-		<Form action="/discover" method="get" role="search" className="site-search">
+		<Form
+			key={stateKey}
+			action="/discover"
+			method="get"
+			role="search"
+			className="site-search"
+		>
 			<label className="sr-only" htmlFor="site-search-query">
 				Search movies, TV, anime, and manga
 			</label>
@@ -22,11 +39,12 @@ export function SiteSearch({
 				required
 				placeholder="Search media…"
 				autoComplete="off"
+				defaultValue={query}
 			/>
 			<label className="sr-only" htmlFor="site-search-kind">
 				Media type
 			</label>
-			<select id="site-search-kind" name="kind" defaultValue="all">
+			<select id="site-search-kind" name="kind" defaultValue={kind}>
 				<option value="all">All</option>
 				<option value="movie">Movies</option>
 				<option value="tv">TV</option>
@@ -36,7 +54,10 @@ export function SiteSearch({
 			<button type="submit" className="site-search-submit" aria-label="Search">
 				<Icon name="magnifying-glass" aria-hidden="true" />
 			</button>
-			<details className="site-search-advanced">
+			<details
+				className="site-search-advanced"
+				open={isMemoryMode || undefined}
+			>
 				<summary aria-label="Advanced search settings" title="Advanced search">
 					<Icon name="magic-wand" aria-hidden="true" />
 				</summary>
@@ -48,6 +69,7 @@ export function SiteSearch({
 							type="checkbox"
 							name="mode"
 							value="memory"
+							defaultChecked={isMemoryMode}
 						/>
 						<span>
 							<strong>Tip of My Tongue</strong>

@@ -189,6 +189,9 @@ test('global advanced search returns five grounded memory matches without AI', a
 		).toBeVisible()
 		await expect(page.getByText(/5 of 5 possible matches/)).toBeVisible()
 		await expect(page.getByText(/Catalog matched/)).toBeVisible()
+		await expect(
+			siteSearch.getByLabel('Enable Tip of My Tongue search'),
+		).toBeChecked()
 		const resultCards = page.getByRole('article')
 		for (const match of matches) {
 			const card = resultCards.filter({ hasText: match.title! })
@@ -199,6 +202,9 @@ test('global advanced search returns five grounded memory matches without AI', a
 			await expect(
 				card.getByLabel('Details matching your description'),
 			).toContainText('lighthouse')
+			await expect(
+				card.getByLabel('Memory match explanation').locator('mark'),
+			).not.toHaveCount(0)
 		}
 		await expect(
 			resultCards.first().getByRole('link', {

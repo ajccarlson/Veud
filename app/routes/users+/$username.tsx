@@ -93,8 +93,10 @@ export default function ProfileRoute() {
 	}
 
 	return (
-		<main className={cn('user-landing')}>
-			{/* Hero — banner + avatar + identity, with an edit action on your own profile. */}
+		<main
+			className={cn('user-landing', !bannerSrc && 'user-landing-no-banner')}
+		>
+			{/* Hero — banner, identity, and one predictable action group. */}
 			<div className="user-landing-hero">
 				<div
 					className="user-landing-hero-banner"
@@ -103,20 +105,6 @@ export default function ProfileRoute() {
 					}
 				>
 					<div className="user-landing-hero-shade" aria-hidden="true" />
-					{isLoggedInUser ? (
-						<div className="user-landing-hero-actions">
-							<Button
-								asChild
-								variant="outline"
-								className="user-landing-hero-edit"
-							>
-								<Link to="/settings/profile" prefetch="intent">
-									<Icon name="pencil-1" aria-hidden="true" />
-									<span>Edit profile</span>
-								</Link>
-							</Button>
-						</div>
-					) : null}
 				</div>
 				<div className="user-landing-hero-body">
 					<img
@@ -148,6 +136,14 @@ export default function ProfileRoute() {
 						</div>
 					</div>
 					<div className="user-landing-hero-side">
+						{isLoggedInUser ? (
+							<Button asChild variant="outline">
+								<Link to="/settings/profile" prefetch="intent">
+									<Icon name="pencil-1" aria-hidden="true" />
+									<span>Edit profile</span>
+								</Link>
+							</Button>
+						) : null}
 						{loggedInUser && !isLoggedInUser ? (
 							<Button
 								variant={loaderData.isFollowing ? 'outline' : 'default'}
@@ -160,7 +156,11 @@ export default function ProfileRoute() {
 								{loaderData.isFollowing ? 'Unfollow' : 'Follow'}
 							</Button>
 						) : null}
-						<Button asChild className="user-landing-watchlists-action">
+						<Button
+							asChild
+							variant={isLoggedInUser ? 'default' : 'outline'}
+							className={isLoggedInUser ? 'user-landing-watchlists-action' : ''}
+						>
 							<Link to={`../../lists/${user.username}`} prefetch="intent">
 								<Icon name="list-bullet" aria-hidden="true" />
 								Watchlists

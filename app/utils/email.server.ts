@@ -1,5 +1,5 @@
-import { render } from 'react-email'
 import { type ReactElement } from 'react'
+import { render } from 'react-email'
 import { z } from 'zod'
 
 const resendErrorSchema = z.union([

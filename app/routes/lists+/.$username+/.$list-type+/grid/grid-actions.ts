@@ -346,10 +346,8 @@ export async function refreshGrid(columnParams: any) {
 		'/lists/fetch/get-list-entries/' +
 			encodeURIComponent(
 				new URLSearchParams({
-					authorization: columnParams.VEUD_API_KEY,
 					watchlistId: columnParams.watchlistId,
-					listTypeData: JSON.stringify(columnParams.listTypeData),
-				} as any).toString(),
+				}).toString(),
 			),
 	)
 	await requireSuccessfulResponse(listEntriesResponse)
@@ -366,11 +364,7 @@ export async function reformatHistory(params: any, newValue: any) {
 		'/lists/fetch/update-cell/' +
 			encodeURIComponent(
 				new URLSearchParams({
-					authorization: columnParams.VEUD_API_KEY,
-					listTypeData: JSON.stringify(columnParams.listTypeData),
 					colId: params.column.colId,
-					type: 'history',
-					filter: 'agDateColumnFilter',
 					rowIndex: params.node.data.id,
 					newValue: newValue,
 				} as any).toString(),
@@ -465,8 +459,6 @@ export async function createNewRow(location: any, params: any, position?: any) {
 		'/lists/fetch/add-row/' +
 			encodeURIComponent(
 				new URLSearchParams({
-					authorization: columnParams.VEUD_API_KEY,
-					listTypeData: JSON.stringify(columnParams.listTypeData),
 					row: JSON.stringify(emptyRow),
 				} as any).toString(),
 			),
@@ -480,7 +472,6 @@ export async function createNewRow(location: any, params: any, position?: any) {
 		'/lists/fetch/now-updated/' +
 			encodeURIComponent(
 				new URLSearchParams({
-					authorization: columnParams.VEUD_API_KEY,
 					watchlistId: params.data.watchlistId,
 				} as any).toString(),
 			),
@@ -519,13 +510,7 @@ export async function setterFunction(params: any) {
 	if (params.column.colId == 'position') {
 		updatePositions()
 	} else if (params.data != params.newValue) {
-		let cellType = params.colDef.cellDataType
-		if (
-			params.column.colId.toLowerCase() == 'finished' ||
-			params.column.colId.toLowerCase() == 'started'
-		) {
-			cellType = 'history'
-		} else if (params.column.colId.toLowerCase() == 'length') {
+		if (params.column.colId.toLowerCase() == 'length') {
 			const fullLengthRegex = /\d+\s*\/\s*\d+ eps/g
 			const partialLengthRegex = /\d*\s*\/*\s*\d+ eps/g
 
@@ -567,11 +552,7 @@ export async function setterFunction(params: any) {
 			'/lists/fetch/update-cell/' +
 				encodeURIComponent(
 					new URLSearchParams({
-						authorization: columnParams.VEUD_API_KEY,
-						listTypeData: JSON.stringify(columnParams.listTypeData),
 						colId: params.column.colId,
-						type: cellType,
-						filter: params.colDef.filter,
 						rowIndex: params.data.id,
 						newValue: params.newValue,
 					} as any).toString(),
@@ -584,7 +565,6 @@ export async function setterFunction(params: any) {
 			'/lists/fetch/now-updated/' +
 				encodeURIComponent(
 					new URLSearchParams({
-						authorization: columnParams.VEUD_API_KEY,
 						watchlistId: params.data.watchlistId,
 					} as any).toString(),
 				),

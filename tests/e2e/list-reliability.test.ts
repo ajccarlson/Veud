@@ -244,7 +244,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 			header: 'Responsive list',
 			position: 1,
 			displayedColumns:
-				'position, title, averaged, personal, differencePersonal, tmdbScore, differenceObjective',
+				'position, thumbnail, title, averaged, personal, differencePersonal, tmdbScore, differenceObjective',
 			ownerId: user.id,
 			typeId: listType.id,
 		},
@@ -263,6 +263,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 			enjoyment: 0,
 			personal: 0,
 			tmdbScore: 0,
+			thumbnail: '/favicons/favicon.png|https://example.com/unscored',
 		},
 	})
 
@@ -303,6 +304,14 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 				.closest('.ag-header-cell')!
 				.getBoundingClientRect()
 			const headerStyle = window.getComputedStyle(headerText)
+			const displayedHeaders = Array.from(
+				document.querySelectorAll<HTMLElement>(
+					'.ag-header-viewport .ag-header-cell:not(.ag-header-cell-moving)',
+				),
+			)
+			const lastHeaderRight = Math.max(
+				...displayedHeaders.map(header => header.getBoundingClientRect().right),
+			)
 			return {
 				viewportHeight: window.innerHeight,
 				mainBottom: mainRect.bottom,
@@ -310,6 +319,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 				headerHeight: headerRect.height,
 				headerWhiteSpace: headerStyle.whiteSpace,
 				headerWordBreak: headerStyle.wordBreak,
+				unusedGridWidth: Math.round(gridRect.right - lastHeaderRight),
 			}
 		})
 
@@ -318,6 +328,20 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 		expect(metrics.headerHeight).toBeLessThanOrEqual(44)
 		expect(metrics.headerWhiteSpace).toBe('nowrap')
 		expect(metrics.headerWordBreak).toBe('normal')
+		expect(metrics.unusedGridWidth).toBeLessThanOrEqual(2)
+		const renderedRow = page
+			.locator('.ag-center-cols-container .ag-row')
+			.filter({ hasText: 'Unscored reliability entry' })
+		const rowBounds = await renderedRow.boundingBox()
+		expect(rowBounds).not.toBeNull()
+		expect(rowBounds!.height).toBeGreaterThanOrEqual(40)
+		const thumbnailBounds = await renderedRow
+			.locator('.ag-thumbnail-image')
+			.boundingBox()
+		expect(thumbnailBounds).not.toBeNull()
+		expect(thumbnailBounds!.y + thumbnailBounds!.height).toBeLessThanOrEqual(
+			rowBounds!.y + rowBounds!.height + 1,
+		)
 	}
 
 	await expectResponsiveGrid()
@@ -392,6 +416,9 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	expect(mobileMetrics.cardRight).toBeLessThanOrEqual(
 		mobileMetrics.viewportWidth,
 	)
+	await expect(mobileList.getByLabel('Filter this list')).toBeHidden()
+	await mobileList.getByText('Filter & sort', { exact: true }).click()
+	await expect(mobileList.getByLabel('Filter this list')).toBeVisible()
 	await mobileList.getByLabel('Filter this list').fill('not present')
 	await expect(mobileList.getByText('No matching titles')).toBeVisible()
 	await mobileList.getByLabel('Filter this list').fill('reliability')
@@ -901,6 +928,12 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	const mobileList = page.getByRole('region', { name: 'Mobile list' })
 	const mobileCards = mobileList.getByRole('article')
 	await expect(mobileCards).toHaveCount(40)
+	await expect(mobileCards.first().getByRole('heading')).toHaveText(
+		'Scroll entry 01',
+	)
+	const firstMobileCardBounds = await mobileCards.first().boundingBox()
+	expect(firstMobileCardBounds).not.toBeNull()
+	expect(firstMobileCardBounds!.height).toBeGreaterThanOrEqual(140)
 	const mobileStack = mobileList.locator('.mobile-list-card-stack')
 	expect(
 		await mobileStack.evaluate(element => element.scrollHeight),
@@ -967,9 +1000,7 @@ test('member can save a default list sort without changing manual positions', as
 		.toEqual(['title', 'asc'])
 
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
-	await expect(page.getByTestId('default-sort-status')).toContainText(
-		'Title · ascending',
-	)
+	await expect(page.getByTestId('default-sort-status')).toHaveCount(0)
 	const renderedRow = (index: number) =>
 		page.locator(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
 	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
@@ -989,7 +1020,7 @@ test('member can save a default list sort without changing manual positions', as
 	await expect(titleFilter).toBeHidden()
 	await titleHeader.hover()
 	await expect(titleFilter).toBeVisible()
-	await page.getByTestId('default-sort-status').hover()
+	await page.locator('.ag-center-cols-viewport').hover()
 	await expect(titleFilter).toBeHidden()
 	await titleHeader.evaluate(element =>
 		element.classList.add('ag-header-cell-filtered'),
@@ -1002,6 +1033,13 @@ test('member can save a default list sort without changing manual positions', as
 	await expect(titleHeader).toHaveAttribute('aria-sort', 'descending')
 	await expect(renderedRow(0)).toContainText('Zebra default sort entry')
 	await page.reload()
+	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
+	await titleHeader.hover()
+	await titleFilter.first().click()
+	await expect(
+		page.locator('.watchlist-grid-shell > .ag-theme-custom-react'),
+	).toBeVisible()
+	await expect(page.locator('.ag-filter-body input').first()).toBeVisible()
 	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
 })
 

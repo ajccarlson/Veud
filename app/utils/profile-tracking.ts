@@ -120,15 +120,35 @@ export function buildProfileTrackingSummaries({
 					: entryWatchlist
 			const key = entry.mediaId ? `media:${entry.mediaId}` : `state:${state.id}`
 			if (items.get(key)?.sourceUpdatedAt === Infinity) continue
+			const legacySnapshot = trackingStateFromEntry(entry, {
+				status: state.status,
+				statusWatchlistId: state.statusWatchlistId,
+				mediaKind: entry.media?.kind ?? 'unknown',
+			})
+			const recoveredProgress = new Map(
+				state.progress.map(progress => [
+					progress.unit,
+					Math.max(0, progress.current),
+				]),
+			)
+			for (const progress of legacySnapshot.progress) {
+				const current = recoveredProgress.get(progress.unit)
+				if (
+					current === undefined ||
+					(current === 0 && progress.current > current)
+				) {
+					recoveredProgress.set(progress.unit, progress.current)
+				}
+			}
 			items.set(key, {
 				typeId: statusWatchlist.typeId,
 				statusKey: statusWatchlist.id,
 				status: state.status,
 				score: numberOrNull(state.score),
 				repeatCount: Math.max(0, state.repeatCount),
-				progress: state.progress.map(progress => ({
-					unit: progress.unit,
-					current: Math.max(0, progress.current),
+				progress: [...recoveredProgress].map(([unit, current]) => ({
+					unit,
+					current,
 				})),
 				sourceUpdatedAt: Infinity,
 				sourceId: entry.id,

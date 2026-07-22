@@ -132,7 +132,6 @@ async function handleSubmit(
 			'/lists/fetch/update-settings/' +
 				encodeURIComponent(
 					new URLSearchParams({
-						authorization: listParams.VEUD_API_KEY,
 						settings: JSON.stringify(
 							Object.keys(settingsObject).map(key => [
 								key,
@@ -140,8 +139,6 @@ async function handleSubmit(
 							]),
 						),
 						listId: watchlist.id,
-						listTypeData: JSON.stringify(listParams.listTypeData),
-						ownerId: listParams.listOwner.id,
 					} as any).toString(),
 				),
 			{ method: 'POST' },
@@ -153,7 +150,6 @@ async function handleSubmit(
 			'/lists/fetch/now-updated/' +
 				encodeURIComponent(
 					new URLSearchParams({
-						authorization: listParams.VEUD_API_KEY,
 						watchlistId: watchlist.id,
 					} as any).toString(),
 				),
@@ -313,12 +309,7 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
 											'/lists/fetch/delete-watchlist/' +
 												encodeURIComponent(
 													new URLSearchParams({
-														authorization: listParams.VEUD_API_KEY,
 														id: entryData.watchlist.id,
-														listTypeData: JSON.stringify(
-															listParams.listTypeData,
-														),
-														ownerId: listParams.listOwner.id,
 													} as any).toString(),
 												),
 											{ method: 'POST' },
