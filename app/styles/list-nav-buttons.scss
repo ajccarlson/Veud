@@ -1,12 +1,12 @@
 .list-nav-buttons {
 	width: 100%;
 	min-height: 0;
-	padding: 0.65rem clamp(0.65rem, 2vw, 1.25rem);
+	padding: 0.4rem clamp(0.5rem, 2vw, 1rem);
 	overflow: hidden;
 	color: #ffefcc;
-	background: linear-gradient(180deg, #353735 0%, #292b29 100%);
-	border-top: 1px solid rgb(162 255 213 / 28%);
-	box-shadow: 0 -0.45rem 1.25rem rgb(0 0 0 / 24%);
+	background: rgb(18 18 18 / 94%);
+	border-top: 1px solid rgb(162 255 213 / 18%);
+	box-shadow: 0 -0.25rem 0.8rem rgb(0 0 0 / 18%);
 
 	.list-nav-buttons-main {
 		display: grid;
@@ -15,7 +15,7 @@
 		gap: 0.75rem;
 		width: 100%;
 		max-width: 92rem;
-		min-height: 3.35rem;
+		min-height: 2.75rem;
 		margin-inline: auto;
 		font-family: Arial, sans-serif;
 	}
@@ -43,14 +43,14 @@
 
 	.list-nav-button {
 		display: inline-flex;
-		min-height: 2.45rem;
+		min-height: 2.75rem;
 		flex: 0 0 auto;
 		align-items: center;
 		justify-content: center;
 		gap: 0.4rem;
 		padding: 0.5rem 0.9rem;
 		color: #d6e8df;
-		background: rgb(255 255 255 / 5%);
+		background: rgb(84 128 108 / 10%);
 		border: 1px solid rgb(162 255 213 / 16%);
 		border-radius: 999px;
 		font-size: 0.86rem;
@@ -131,7 +131,7 @@
 	.list-type-dropdown-trigger {
 		display: inline-grid;
 		grid-template-columns: auto minmax(4.5rem, auto);
-		min-height: 2.45rem;
+		min-height: 2.75rem;
 		align-items: center;
 		gap: 0.35rem;
 		padding: 0.45rem 0.8rem 0.45rem 0.65rem;
@@ -159,6 +159,7 @@
 		display: grid;
 		place-items: center;
 		color: #18251f;
+		font-size: 1.15rem;
 	}
 
 	.list-type-dropdown-button {

@@ -158,7 +158,8 @@ const rateLimitDefault = {
 	// cloudflared (loopback) hop. Key the limiter on the Cloudflare-provided IP, falling
 	// back to req.ip for local dev, so a client can't forge X-Forwarded-For to dodge the
 	// auth/signup limits or push another IP over its limit.
-	keyGenerator: (req: Request) => req.get('cf-connecting-ip') ?? req.ip ?? 'unknown',
+	keyGenerator: (req: Request) =>
+		req.get('cf-connecting-ip') ?? req.ip ?? 'unknown',
 	// trust proxy is narrowed to loopback (above), so the prior Fly note no longer applies.
 	validate: { trustProxy: false },
 }
@@ -209,6 +210,7 @@ async function getBuild() {
 		? viteDevServer.ssrLoadModule('virtual:react-router/server-build')
 		: // @ts-ignore this should exist before running the server
 			// but it may not exist just yet.
+			// eslint-disable-next-line import/no-unresolved
 			await import('#build/server/index.js')
 	// not sure how to make this happy 🤷‍♂️
 	return build as unknown as ServerBuild

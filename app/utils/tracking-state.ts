@@ -113,6 +113,12 @@ function normalizeUnit(value: string) {
 	return formatted || 'item'
 }
 
+function statusImpliesCompletion(status: string) {
+	return ['complete', 'completed', 'finished', 'watched', 'read'].includes(
+		status.toLowerCase().replace(/[^a-z]/g, ''),
+	)
+}
+
 function historyProgressByUnit(
 	history: Record<string, unknown>,
 	mediaKind: string,
@@ -137,7 +143,8 @@ function historyProgressByUnit(
 
 function explicitRepeatCount(history: Record<string, unknown>) {
 	const rawValue = history.repeatCount ?? history.rewatchCount
-	if (rawValue === null || rawValue === undefined || rawValue === '') return null
+	if (rawValue === null || rawValue === undefined || rawValue === '')
+		return null
 	const value = Number(rawValue)
 	return Number.isSafeInteger(value) && value >= 0 ? value : null
 }
@@ -153,6 +160,7 @@ export function trackingStateFromEntry(
 	const history = parseHistory(entry.history)
 	const historyProgress = historyProgressByUnit(history, context.mediaKind)
 	const progress = new Map<string, TrackingProgressSnapshot>()
+	const completed = statusImpliesCompletion(context.status)
 
 	const addProgress = (unit: string, fieldValue: unknown, allowed = true) => {
 		if (!allowed) return
@@ -164,7 +172,7 @@ export function trackingStateFromEntry(
 		}
 		progress.set(unit, {
 			unit,
-			current: Math.max(0, current ?? 0),
+			current: Math.max(0, current ?? (completed ? (field?.total ?? 0) : 0)),
 			total: field?.total ?? null,
 		})
 	}

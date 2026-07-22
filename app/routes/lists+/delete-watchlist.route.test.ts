@@ -6,9 +6,9 @@
  */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import * as deleteWatchlistRoute from '#app/routes/lists+/.fetch+/delete-watchlist.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import * as deleteWatchlistRoute from '#app/routes/lists+/.fetch+/delete-watchlist.$request.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 const { action } = deleteWatchlistRoute
@@ -59,11 +59,9 @@ async function seedOwnedWatchlist() {
 	return { userId: owner.id, watchlistId: wl.id, listTypeId: wl.typeId }
 }
 
-// Mirrors what the client sends: the route reads params.request as a query string that
-// carries the watchlist id and the JSON list-type descriptor.
-function requestParamFor(watchlistId: string, listTypeId: string) {
-	const listTypeData = JSON.stringify({ header: 'LiveAction', id: listTypeId })
-	return new URLSearchParams({ id: watchlistId, listTypeData }).toString()
+// The server derives type and owner from the authenticated watchlist record.
+function requestParamFor(watchlistId: string) {
+	return new URLSearchParams({ id: watchlistId }).toString()
 }
 
 test('delete-watchlist exposes only an action (a GET is 405, not an open endpoint)', () => {
@@ -75,12 +73,12 @@ test('delete-watchlist exposes only an action (a GET is 405, not an open endpoin
 })
 
 test('the owner can delete their own watchlist', async () => {
-	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const request = await authedRequestFor(userId)
 
 	const result = await action({
 		request,
-		params: { request: requestParamFor(watchlistId, listTypeId) },
+		params: { request: requestParamFor(watchlistId) },
 	} as any)
 
 	expect(result).toBe(true)
@@ -132,7 +130,7 @@ test('deleting the current list restores a surviving private tracking status', a
 
 	await action({
 		request: await authedRequestFor(userId),
-		params: { request: requestParamFor(watchlistId, listTypeId) },
+		params: { request: requestParamFor(watchlistId) },
 	} as any)
 
 	const reconciled = await prisma.trackingState.findUniqueOrThrow({
@@ -155,13 +153,13 @@ test('deleting the current list restores a surviving private tracking status', a
 })
 
 test('a logged-in non-owner cannot delete the watchlist (404, and it survives)', async () => {
-	const { watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { watchlistId } = await seedOwnedWatchlist()
 	const other = await createUserRecord()
 	const request = await authedRequestFor(other.id)
 
 	const res = await action({
 		request,
-		params: { request: requestParamFor(watchlistId, listTypeId) },
+		params: { request: requestParamFor(watchlistId) },
 	} as any).catch(e => e)
 
 	expect(res).toBeInstanceOf(Response)
@@ -173,11 +171,11 @@ test('a logged-in non-owner cannot delete the watchlist (404, and it survives)',
 })
 
 test('an unauthenticated caller cannot delete the watchlist', async () => {
-	const { watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const { watchlistId } = await seedOwnedWatchlist()
 
 	const res = await action({
 		request: new Request(BASE_URL, { method: 'POST' }),
-		params: { request: requestParamFor(watchlistId, listTypeId) },
+		params: { request: requestParamFor(watchlistId) },
 	} as any).catch(e => e)
 
 	expect(res).toBeInstanceOf(Response)

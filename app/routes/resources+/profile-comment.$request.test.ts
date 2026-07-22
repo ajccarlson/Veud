@@ -1,8 +1,8 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import * as profileCommentRoute from '#app/routes/resources+/profile-comment.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import * as profileCommentRoute from '#app/routes/resources+/profile-comment.$request.ts'
 import { PROFILE_COMMENT_MAX_LENGTH } from '#app/utils/profile.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 

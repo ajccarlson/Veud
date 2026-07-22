@@ -82,6 +82,23 @@ test('uses the most recent history event when the display field has no numerator
 	])
 })
 
+test('counts completed totals when legacy fields have no explicit numerator', () => {
+	const anime = trackingStateFromEntry(
+		{ length: '24 eps' },
+		{ status: 'completed', mediaKind: 'anime' },
+	)
+	const manga = trackingStateFromEntry(
+		{ chapters: '120 chapters', volumes: '14 volumes' },
+		{ status: 'completed', mediaKind: 'manga' },
+	)
+
+	expect(anime.progress).toEqual([{ unit: 'episode', current: 24, total: 24 }])
+	expect(manga.progress).toEqual([
+		{ unit: 'chapter', current: 120, total: 120 },
+		{ unit: 'volume', current: 14, total: 14 },
+	])
+})
+
 test('an explicit repeat count overrides inferred legacy repeat evidence', () => {
 	const snapshot = trackingStateFromEntry(
 		{
