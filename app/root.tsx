@@ -28,6 +28,7 @@ import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
+import { SiteFooter } from './components/site-footer.tsx'
 import { SiteSearch } from './components/site-search.tsx'
 // import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
@@ -273,15 +274,6 @@ function App() {
 						</div> */}
 						<div className="root-community-links">
 							<CommunityDropdown />
-							<Link
-								className="root-credits-link"
-								prefetch="intent"
-								to="/credits"
-								aria-label="Data sources and credits"
-								title="Data sources and credits"
-							>
-								<Icon name="info-circled" aria-hidden="true" />
-							</Link>
 						</div>
 						<SiteSearch
 							aiAvailable={data.aiSearchAvailable}
@@ -331,6 +323,8 @@ function App() {
 					<Outlet />
 				</div>
 
+				<SiteFooter />
+
 				{/* <div className="container flex justify-between pb-5">
 					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
 				</div> */}
@@ -364,7 +358,7 @@ function CommunityDropdown() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button asChild variant="secondary">
+				<Button variant="secondary">
 					<div className="root-header-community-links-dropdown">
 						<span className="text-body-sm font-bold">Community</span>
 						<Icon name="triangle-down" />
