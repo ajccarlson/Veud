@@ -2,6 +2,21 @@ import { type Config } from 'tailwindcss'
 
 export const extendedTheme = {
 	colors: {
+		veud: {
+			canvas: 'rgb(var(--veud-canvas) / <alpha-value>)',
+			ink: 'rgb(var(--veud-ink) / <alpha-value>)',
+			surface: 'rgb(var(--veud-surface) / <alpha-value>)',
+			'surface-raised': 'rgb(var(--veud-surface-raised) / <alpha-value>)',
+			border: 'rgb(var(--veud-border) / <alpha-value>)',
+			cream: 'rgb(var(--veud-cream) / <alpha-value>)',
+			copy: 'rgb(var(--veud-copy) / <alpha-value>)',
+			mint: 'rgb(var(--veud-mint) / <alpha-value>)',
+			sage: 'rgb(var(--veud-sage) / <alpha-value>)',
+			amber: 'rgb(var(--veud-amber) / <alpha-value>)',
+			gold: 'rgb(var(--veud-gold) / <alpha-value>)',
+			yellow: 'rgb(var(--veud-yellow) / <alpha-value>)',
+			danger: 'rgb(var(--veud-danger) / <alpha-value>)',
+		},
 		border: 'hsl(var(--border))',
 		input: {
 			DEFAULT: 'hsl(var(--input))',
