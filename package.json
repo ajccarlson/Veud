@@ -176,7 +176,7 @@
     "@types/set-cookie-parser": "^2.4.7",
     "@types/source-map-support": "^0.5.10",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.4.19",
