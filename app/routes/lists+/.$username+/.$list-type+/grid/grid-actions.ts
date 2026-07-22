@@ -125,7 +125,6 @@ function clearDragExperience() {
 	document.querySelectorAll('.list-nav-button').forEach(button => {
 		button.classList.remove('list-nav-drag-hover', 'list-nav-drag-active')
 	})
-	columnParams?.setDragDestination?.(null)
 	document.removeEventListener('mousemove', handleGlobalDragMove)
 	activeDragEvent = null
 	hoveredDestinationWatchlistId = null
@@ -183,8 +182,6 @@ async function showDestinationPreview(event: any, watchlistId: string) {
 		dragSession.destinationPath = details.path
 		dragSession.activated = true
 		event.node.setDragging(true)
-		columnParams.setDragDestination(details.header)
-
 		document.querySelectorAll('.list-nav-button').forEach(button => {
 			button.classList.toggle(
 				'list-nav-drag-active',

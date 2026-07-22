@@ -263,8 +263,15 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 		await expect(row.locator(`[col-id="${column}"]`)).toHaveText('')
 	}
 	await expect(page.getByText('NaN', { exact: true })).toHaveCount(0)
-	await expect(page.locator('.veud-grid-filter-icon').first()).toBeVisible()
-	await expect(page.locator('.veud-grid-drag-icon').first()).toBeVisible()
+	const titleHeader = page.locator('.ag-header-cell[col-id="title"]')
+	const filterIcon = titleHeader.locator('.veud-grid-filter-icon')
+	const dragIcon = row.locator('.veud-grid-drag-icon')
+	await expect(filterIcon).toBeHidden()
+	await titleHeader.hover()
+	await expect(filterIcon).toBeVisible()
+	await expect(dragIcon).toBeHidden()
+	await row.hover()
+	await expect(dragIcon).toBeVisible()
 
 	async function expectResponsiveGrid() {
 		const metrics = await page.evaluate(() => {
@@ -511,8 +518,10 @@ test('quick-add results keep long-title actions reachable on mobile', async ({
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
 	const quickAddSearch = page.locator('.watchlist-search-inline input')
+	await expect(quickAddSearch).toBeVisible()
 	await quickAddSearch.fill('long title')
-	await quickAddSearch.press('Enter')
+	await expect(quickAddSearch).toHaveValue('long title')
+	await page.getByRole('button', { name: 'Search catalog' }).click()
 
 	const dialog = page.getByRole('dialog', { name: 'Choose a title' })
 	await expect(dialog).toBeVisible()
@@ -565,9 +574,21 @@ test('member can quick edit fields that are hidden from the grid', async ({
 	})
 
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
-	await page
-		.getByRole('button', { name: 'Quick edit Hidden edit entry' })
-		.click()
+	const entryRow = page
+		.locator('.ag-center-cols-container .ag-row')
+		.filter({ hasText: 'Hidden edit entry' })
+	const quickEdit = entryRow.locator(
+		'button[aria-label="Quick edit Hidden edit entry"]',
+	)
+	const moreActions = entryRow.locator(
+		'button[aria-label="More actions for Hidden edit entry"]',
+	)
+	await expect(quickEdit).toBeHidden()
+	await expect(moreActions).toBeHidden()
+	await entryRow.hover()
+	await expect(quickEdit).toBeVisible()
+	await expect(moreActions).toBeVisible()
+	await quickEdit.click()
 
 	const dialog = page.getByRole('dialog')
 	await expect(dialog).toBeVisible()
@@ -611,9 +632,9 @@ test('member can quick edit fields that are hidden from the grid', async ({
 			repeatCount: 2,
 		})
 
-	await page
-		.getByRole('button', { name: 'More actions for Hidden edit entry' })
-		.click()
+	await entryRow.getByLabel('Move Hidden edit entry to position').focus()
+	await expect(moreActions).toBeVisible()
+	await moreActions.click()
 	await expect(page.getByText('Row actions', { exact: true })).toBeVisible()
 	await expect(
 		page.getByRole('menuitem', { name: 'Insert 1 row above' }),
@@ -688,14 +709,15 @@ test('hovering a list tab opens it so a dragged entry can be positioned', async 
 		name: 'Drag destination',
 	})
 	await expect(destinationTab).toHaveClass(/list-nav-drop-ready/)
+	await draggedRow.hover()
+	await expect(dragHandle).toBeVisible()
 	await dragHandle.hover()
 	await page.mouse.down()
 	await draggedRow.hover({ position: { x: 80, y: 20 }, force: true })
 	await expect(page.locator('.ag-dnd-ghost')).toBeVisible()
 	await destinationTab.hover({ force: true })
-	await expect(
-		page.getByRole('status').filter({ hasText: 'Drag destination' }),
-	).toBeVisible()
+	await expect(destinationTab).toHaveClass(/list-nav-drag-active/)
+	await expect(page.getByRole('status')).toHaveCount(0)
 	const firstDestinationRow = page
 		.locator('.ag-center-cols-container .ag-row')
 		.filter({ hasText: 'Destination first' })
@@ -756,6 +778,8 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 		.filter({ hasText: 'Scroll entry 01' })
 	const dragHandle = firstRow.locator('.ag-row-drag')
 	const viewport = page.locator('.ag-body-viewport')
+	await firstRow.hover()
+	await expect(dragHandle).toBeVisible()
 	const handleBounds = await dragHandle.boundingBox()
 	const viewportBounds = await viewport.boundingBox()
 	expect(handleBounds).not.toBeNull()
@@ -850,7 +874,22 @@ test('member can save a default list sort without changing manual positions', as
 	])
 
 	const titleHeader = page.locator('.ag-header-cell[col-id="title"]')
+	const titleFilter = titleHeader.locator(
+		'.ag-header-cell-menu-button, .ag-header-cell-filter-button',
+	)
 	await expect(titleHeader).toHaveAttribute('aria-sort', 'ascending')
+	await expect(titleFilter).toBeHidden()
+	await titleHeader.hover()
+	await expect(titleFilter).toBeVisible()
+	await page.getByTestId('default-sort-status').hover()
+	await expect(titleFilter).toBeHidden()
+	await titleHeader.evaluate(element =>
+		element.classList.add('ag-header-cell-filtered'),
+	)
+	await expect(titleFilter).toBeVisible()
+	await titleHeader.evaluate(element =>
+		element.classList.remove('ag-header-cell-filtered'),
+	)
 	await titleHeader.locator('.ag-header-cell-text').click()
 	await expect(titleHeader).toHaveAttribute('aria-sort', 'descending')
 	await expect(renderedRow(0)).toContainText('Zebra default sort entry')
