@@ -777,6 +777,87 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	await page.mouse.up()
 })
 
+test('member can save a default list sort without changing manual positions', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'defaultsortlist',
+			header: 'Default sort list',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			description: 'A list used to verify saved presentation sorting.',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: watchlist.id,
+				position: 1,
+				title: 'Zebra default sort entry',
+				type: 'TV Series',
+			},
+			{
+				watchlistId: watchlist.id,
+				position: 2,
+				title: 'Alpha default sort entry',
+				type: 'TV Series',
+			},
+			{
+				watchlistId: watchlist.id,
+				position: 3,
+				title: 'Moon default sort entry',
+				type: 'TV Series',
+			},
+		],
+	})
+
+	await page.goto(`/lists/${user.username}/anime`)
+	await page
+		.getByRole('button', { name: 'Edit Default sort list list settings' })
+		.click()
+	await page.getByLabel('Default sorting').selectOption('title')
+	await page.getByLabel('Default sort direction').selectOption('asc')
+	await page.getByRole('button', { name: 'Submit' }).click()
+	await expect
+		.poll(() =>
+			prisma.watchlist
+				.findUniqueOrThrow({ where: { id: watchlist.id } })
+				.then(list => [list.defaultSortColumn, list.defaultSortDirection]),
+		)
+		.toEqual(['title', 'asc'])
+
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+	await expect(page.getByTestId('default-sort-status')).toContainText(
+		'Title · ascending',
+	)
+	const renderedRow = (index: number) =>
+		page.locator(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
+	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
+	await expect(renderedRow(1)).toContainText('Moon default sort entry')
+	await expect(renderedRow(2)).toContainText('Zebra default sort entry')
+	expect(await titlesInOrder(watchlist.id)).toEqual([
+		'1:Zebra default sort entry',
+		'2:Alpha default sort entry',
+		'3:Moon default sort entry',
+	])
+
+	const titleHeader = page.locator('.ag-header-cell[col-id="title"]')
+	await expect(titleHeader).toHaveAttribute('aria-sort', 'ascending')
+	await titleHeader.locator('.ag-header-cell-text').click()
+	await expect(titleHeader).toHaveAttribute('aria-sort', 'descending')
+	await expect(renderedRow(0)).toContainText('Zebra default sort entry')
+	await page.reload()
+	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
+})
+
 test('member can make a list private and visitors cannot open or discover it', async ({
 	page,
 	login,
