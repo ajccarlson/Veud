@@ -24,9 +24,27 @@ async function createOwner(listTypeName: 'liveaction' | 'anime' | 'manga') {
 		create: {
 			name: listTypeName,
 			header: listTypeName,
-			columns: '[]',
-			mediaType: listTypeName,
-			completionType: 'watched',
+			columns: JSON.stringify({
+				id: 'string',
+				watchlistId: 'string',
+				position: 'number',
+				thumbnail: 'string',
+				title: 'string',
+				type: 'string',
+				length: 'string',
+				chapters: 'string',
+				volumes: 'string',
+				personal: 'number',
+				startDate: 'history',
+				finishedDate: 'history',
+			}),
+			mediaType:
+				listTypeName === 'manga' ? '["chapter","volume"]' : '["episode"]',
+			completionType: JSON.stringify({
+				present: 'watch',
+				past: 'watched',
+				continuous: 'watching',
+			}),
 		},
 		select: { id: true },
 	})

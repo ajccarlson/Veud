@@ -40,6 +40,30 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	await expect(
 		page.getByRole('heading', { name: user.name ?? user.username }),
 	).toBeVisible()
+	await expect(
+		page.getByRole('heading', { name: 'No completion history yet' }),
+	).toBeVisible()
+	await prisma.entry.updateMany({
+		where: {
+			watchlistId: watchlist.id,
+			title: 'Responsive profile fixture 1',
+		},
+		data: {
+			history: JSON.stringify({
+				finished: Date.UTC(2026, 0, 3),
+				progress: {
+					1: { finishDate: [Date.UTC(2026, 0, 2)] },
+				},
+			}),
+		},
+	})
+	await page.reload()
+	await expect(
+		page.getByRole('heading', { name: 'No completion history yet' }),
+	).toHaveCount(0)
+	await expect(
+		page.locator('.user-landing-completion-history-chart svg'),
+	).toBeVisible()
 
 	const mobileMetrics = await page.evaluate(() => {
 		const tabs = document.querySelector('.user-landing-tabs')

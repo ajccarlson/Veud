@@ -1,6 +1,6 @@
 import { ResponsiveLine } from '@nivo/line'
-import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 import { getStartYear } from "#app/utils/lists/column-functions.tsx"
+import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
 
 function MyResponsiveLine(data: any) {
   return (

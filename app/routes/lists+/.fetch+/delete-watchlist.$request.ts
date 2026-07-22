@@ -14,15 +14,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	// Only the owner may delete this watchlist.
 	const { userId, watchlist } = await requireWatchlistOwner(request, id)
 
-	let typeId: unknown
-	try {
-		typeId = (
-			JSON.parse(searchParams.get('listTypeData') ?? '') as { id?: unknown }
-		)?.id
-	} catch {
-		throw new Response('Invalid listTypeData', { status: 400 })
-	}
-
 	// Delete the watchlist, remove its entries, and renumber the owner's remaining
 	// watchlists of this type — all atomically, so a mid-sequence failure can't leave a
 	// half-deleted list or gaps in the ordering.
@@ -51,7 +42,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		const remaining = await tx.watchlist.findMany({
-			where: { typeId: typeId as string, ownerId: userId },
+			where: { typeId: watchlist.typeId, ownerId: userId },
 			orderBy: { position: 'asc' },
 		})
 

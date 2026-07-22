@@ -38,67 +38,60 @@ function MyResponsiveTimeRange(data: any, startDate: any, endDate: any) {
 
 function addDate(calendarHistory: any[], finishDate: any) {
 	const formattedDate = new Date(finishDate).toISOString().split('T')[0]
+	const existing = calendarHistory.find(day => day.day === formattedDate)
+	if (existing) {
+		existing.value += 1
+		return
+	}
+	calendarHistory.push({ day: formattedDate, value: 1 })
+}
 
-	let dayWatched: any
-
-	try {
-		dayWatched = calendarHistory.find(e => e.day === formattedDate)
-
-		if (!dayWatched) {
-			throw new Error()
-		}
-	} catch (e) {
-		dayWatched = {
-			value: 0,
-			day: 0,
+function collectFinishDates(value: unknown, dates: Set<number>) {
+	if (!value || typeof value !== 'object') return
+	if (Array.isArray(value)) {
+		for (const item of value) collectFinishDates(item, dates)
+		return
+	}
+	for (const [key, child] of Object.entries(value)) {
+		if (key === 'finishDate' && Array.isArray(child)) {
+			for (const date of child) {
+				const timestamp = new Date(date as string | number | Date).getTime()
+				if (Number.isFinite(timestamp)) dates.add(timestamp)
+			}
+		} else {
+			collectFinishDates(child, dates)
 		}
 	}
-
-	dayWatched.value++
-	dayWatched.day = formattedDate
-
-	return dayWatched
 }
 
 export function renderCalendarChart(loaderData: any, chartType: string) {
 	let calendarHistory: any[] = []
 
 	if (chartType == 'completion history') {
-		Object.entries(loaderData.typedEntries).forEach(
-			([key, value]: [string, any]) => {
-				value.forEach((typedEntry: any) => {
-					try {
-						if (
-							!typedEntry.history ||
-							typedEntry.history == null ||
-							typedEntry.history == 'null'
-						) {
-							return
-						} else if (
-							typedEntry.history.progress &&
-							typedEntry.history.progress != null &&
-							typedEntry.history.progress != 'null' &&
-							Object.keys(typedEntry.history.progress).length > 1
-						) {
-							Object.entries(typedEntry.history.progress).forEach(
-								([progressKey, progressValue]: [string, any]) => {
-									progressValue.finishDate.forEach((finishDate: any) => {
-										calendarHistory.push(addDate(calendarHistory, finishDate))
-									})
-								},
-							)
-						} else if (typedEntry.history.finished) {
-							calendarHistory.push(
-								addDate(calendarHistory, typedEntry.history.finished),
-							)
-						}
-					} catch (e) {
-						return
+		Object.values(loaderData.typedEntries).forEach((value: any) => {
+			value.forEach((typedEntry: any) => {
+				try {
+					const history =
+						typeof typedEntry.history === 'string'
+							? JSON.parse(typedEntry.history)
+							: typedEntry.history
+					if (!history || typeof history !== 'object') return
+					const finishDates = new Set<number>()
+					collectFinishDates(history.progress, finishDates)
+					if (history.finished) {
+						const finished = new Date(history.finished).getTime()
+						if (Number.isFinite(finished)) finishDates.add(finished)
 					}
-				})
-			},
-		)
+					for (const finishDate of finishDates) {
+						addDate(calendarHistory, finishDate)
+					}
+				} catch (e) {
+					return
+				}
+			})
+		})
 	}
+	if (calendarHistory.length === 0) return {}
 
 	let startDate
 	let endDate = new Date()

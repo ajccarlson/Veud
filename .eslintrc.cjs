@@ -97,7 +97,7 @@ module.exports = {
 				'prettier',
 			],
 			settings: {
-				'import/ignore': ['node_modules', '\\.(css|md|svg|json)$'],
+				'import/ignore': ['node_modules', '^#build/', '\\.(css|md|svg|json)$'],
 				'import/parsers': {
 					'@typescript-eslint/parser': ['.ts', '.tsx', '.d.ts'],
 				},

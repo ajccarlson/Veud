@@ -10,33 +10,49 @@ import { scoreColumns } from './score-columns.tsx'
 import { textColumns } from './text-columns.tsx'
 
 export function columnDefs() {
-  const columns = [
-      ...positionColumn(),
+	const columns = [
+		...positionColumn(),
 
+		...infoColumns(),
 
-      ...infoColumns(),
+		...progressColumns(),
 
+		...ratingColumn(),
 
-      ...progressColumns(),
+		...dateColumns(),
 
+		...metaColumns(),
 
-      ...ratingColumn(),
+		...scoreColumns(),
 
+		...textColumns(),
+	] as Array<Record<string, any>>
 
-      ...dateColumns(),
+	const visibleColumns = columns.filter(column => !column.hide)
+	const fillerColumn =
+		visibleColumns.find(column => column.field === 'title') ??
+		[...visibleColumns]
+			.reverse()
+			.find(column => !['position', 'thumbnail'].includes(column.field)) ??
+		visibleColumns[visibleColumns.length - 1]
+	const trailingColumn = [...visibleColumns]
+		.reverse()
+		.find(column => !['position', 'thumbnail'].includes(column.field))
 
-
-      ...metaColumns(),
-
-
-      ...scoreColumns(),
-
-
-      ...textColumns()
-  ]
-
-  return columns.map(column => ({
-    ...column,
-    headerTooltip: column.headerName,
-  }))
+	return columns.map(column => {
+		const fillsGrid = column === fillerColumn || column === trailingColumn
+		return {
+			...column,
+			flex:
+				column === fillerColumn
+					? column === trailingColumn
+						? 1
+						: 4
+					: column === trailingColumn
+						? 1
+						: undefined,
+			maxWidth: fillsGrid ? undefined : column.maxWidth,
+			headerTooltip: column.headerName,
+		}
+	})
 }

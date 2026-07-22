@@ -7,10 +7,11 @@ export default defineConfig({
 	plugins: [react()],
 	css: { postcss: { plugins: [] } },
 	test: {
-		include: [
-			'./app/**/*.test.{ts,tsx}',
-			'./scripts/**/*.test.mjs',
-		],
+		// Most route tests are integration tests backed by SQLite. Running test
+		// files concurrently can starve Prisma's single-connection transactions
+		// and turn otherwise-correct tests into nondeterministic 5s timeouts.
+		fileParallelism: false,
+		include: ['./app/**/*.test.{ts,tsx}', './scripts/**/*.test.mjs'],
 		setupFiles: ['./tests/setup/setup-test-env.ts'],
 		globalSetup: ['./tests/setup/global-setup.ts'],
 		restoreMocks: true,
@@ -30,10 +31,10 @@ export default defineConfig({
 			},
 		},
 	},
-  resolve: {
-    mainFields: ["module", "browser"],
-  },
-  ssr: {
-    noExternal: [/^d3.*$/, /^@nivo.*$/],
-  },
+	resolve: {
+		mainFields: ['module', 'browser'],
+	},
+	ssr: {
+		noExternal: [/^d3.*$/, /^@nivo.*$/],
+	},
 })
