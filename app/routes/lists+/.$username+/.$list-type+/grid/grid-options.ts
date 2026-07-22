@@ -42,6 +42,7 @@ export const gridOptions = {
 	},
 	defaultColDef: {
 		editable: false,
+		sortable: true,
 		resizable: true,
 		flex: 1,
 		suppressMovable: true,
