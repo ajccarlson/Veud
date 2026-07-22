@@ -50,7 +50,6 @@ export function watchlistGrid(
 ) {
 	const [listEntries, setListEntries] = useState(() => [...listEntriesPass])
 	const [selectedSearchType, setSelectedSearchType] = useState('Type')
-	const [dragDestination, setDragDestination] = useState<string | null>(null)
 
 	if (!typedFavorites[listTypeData.id]) {
 		typedFavorites[listTypeData.id] = []
@@ -105,7 +104,6 @@ export function watchlistGrid(
 		displayedColumns,
 		VEUD_API_KEY,
 		navigate,
-		setDragDestination,
 	}
 	setColumnParams(currentColumnParams)
 
@@ -120,11 +118,6 @@ export function watchlistGrid(
 				{defaultSort ? <small>Clear sorting to reorder manually.</small> : null}
 			</div>
 			<div className="ag-theme-custom-react">
-				{dragDestination ? (
-					<div className="ag-drag-destination-banner" role="status">
-						Now viewing {dragDestination}. Drop the entry where you want it.
-					</div>
-				) : null}
 				<AgGridReact
 					key={`${watchlistId}:${defaultSort?.colId ?? 'manual'}:${defaultSort?.sort ?? 'none'}`}
 					gridOptions={gridOptions as GridOptions}
