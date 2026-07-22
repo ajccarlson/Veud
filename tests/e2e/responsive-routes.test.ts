@@ -98,10 +98,12 @@ test.describe('mobile route audit', () => {
 		login,
 	}) => {
 		const user = await login()
+		const mediaTitle =
+			'Responsive detail fixture with a deliberately long title'
 		const media = await prisma.media.create({
 			data: {
 				kind: 'movie',
-				title: 'Responsive detail fixture with a deliberately long title',
+				title: mediaTitle,
 				description:
 					'A detailed mobile fixture that exercises metadata and collection cards.',
 			},
@@ -118,7 +120,7 @@ test.describe('mobile route audit', () => {
 
 		try {
 			const routes = [
-				[`/media/${media.id}`, media.title],
+				[`/media/${media.id}`, mediaTitle],
 				[`/collections/${collection.id}`, collection.title],
 				[`/collections/${collection.id}/edit`, 'Edit collection'],
 			] as const
