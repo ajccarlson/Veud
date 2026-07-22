@@ -6,6 +6,9 @@ import { discoveryKinds, type DiscoveryQuery } from './discovery.server.ts'
 const MAX_CANDIDATES = 72
 const MAX_MATCHES = 5
 const DESCRIPTION_LENGTH = 700
+const AI_REQUEST_LIMIT = 5
+const AI_REQUEST_WINDOW_MS = 10 * 60 * 1_000
+const aiRequestHistory = new Map<string, number[]>()
 const STOP_WORDS = new Set([
 	'about',
 	'after',
@@ -71,6 +74,13 @@ export type TipOfTongueMatch = z.infer<
 export type TipOfTongueResults = {
 	matches: TipOfTongueMatch[]
 	source: 'ai' | 'catalog-match'
+	fallbackReason:
+		| 'not-configured'
+		| 'sign-in-required'
+		| 'rate-limited'
+		| 'ai-error'
+		| 'ai-empty'
+		| null
 }
 
 function memoryTerms(memory: string) {
@@ -152,7 +162,11 @@ function yearFor(candidate: Candidate) {
 	)
 }
 
-function localMatches(memory: string, candidates: Candidate[]) {
+function localMatches(
+	memory: string,
+	candidates: Candidate[],
+	limit = MAX_MATCHES,
+) {
 	const terms = memoryTerms(memory)
 	return candidates
 		.map((candidate, originalIndex) => {
@@ -179,7 +193,7 @@ function localMatches(memory: string, candidates: Candidate[]) {
 			(left, right) =>
 				right.score - left.score || left.originalIndex - right.originalIndex,
 		)
-		.slice(0, MAX_MATCHES)
+		.slice(0, limit)
 		.map(({ candidate, matchedClues }) => ({
 			mediaId: candidate.id,
 			summary:
@@ -187,6 +201,72 @@ function localMatches(memory: string, candidates: Candidate[]) {
 				`${candidate.title ?? 'This title'} is a catalog match for your description.`,
 			matchedClues: matchedClues.slice(0, 5),
 		}))
+}
+
+function clueRoot(term: string) {
+	if (term.length > 5 && term.endsWith('ing')) return term.slice(0, -3)
+	if (term.length > 4 && term.endsWith('ed')) return term.slice(0, -2)
+	if (term.length > 4 && term.endsWith('es')) return term.slice(0, -2)
+	if (term.length > 4 && term.endsWith('s')) return term.slice(0, -1)
+	return term
+}
+
+function isMemoryBackedClue(memory: string, clue: string) {
+	const memoryRoots = new Set(memoryTerms(memory).map(clueRoot))
+	const clueRoots = memoryTerms(clue).map(clueRoot)
+	return clueRoots.length > 0 && clueRoots.every(term => memoryRoots.has(term))
+}
+
+function mergeAiWithCatalogMatches(
+	memory: string,
+	ai: TipOfTongueMatch[],
+	catalog: TipOfTongueMatch[],
+) {
+	const catalogByMediaId = new Map(catalog.map(match => [match.mediaId, match]))
+	const merged: TipOfTongueMatch[] = []
+	const seen = new Set<string>()
+	for (const match of ai) {
+		if (seen.has(match.mediaId)) continue
+		seen.add(match.mediaId)
+		const groundedClues = match.matchedClues.filter(clue =>
+			isMemoryBackedClue(memory, clue),
+		)
+		merged.push({
+			...match,
+			matchedClues: groundedClues.length
+				? groundedClues
+				: (catalogByMediaId.get(match.mediaId)?.matchedClues ?? []),
+		})
+	}
+	for (const match of catalog) {
+		if (seen.has(match.mediaId)) continue
+		seen.add(match.mediaId)
+		merged.push(match)
+		if (merged.length === MAX_MATCHES) break
+	}
+	return merged.slice(0, MAX_MATCHES)
+}
+
+function consumeAiRequest(key: string, now: number) {
+	const cutoff = now - AI_REQUEST_WINDOW_MS
+	const recent = (aiRequestHistory.get(key) ?? []).filter(
+		timestamp => timestamp > cutoff,
+	)
+	if (recent.length >= AI_REQUEST_LIMIT) {
+		aiRequestHistory.set(key, recent)
+		return false
+	}
+	recent.push(now)
+	aiRequestHistory.set(key, recent)
+	if (aiRequestHistory.size > 5_000) {
+		for (const [storedKey, timestamps] of aiRequestHistory) {
+			if (!timestamps.some(timestamp => timestamp > cutoff)) {
+				aiRequestHistory.delete(storedKey)
+			}
+			if (aiRequestHistory.size <= 4_000) break
+		}
+	}
+	return true
 }
 
 function responseText(payload: unknown) {
@@ -215,9 +295,8 @@ async function aiMatches(
 	memory: string,
 	candidates: Candidate[],
 	fetchImpl: typeof fetch,
+	apiKey: string,
 ) {
-	const apiKey = process.env.OPENAI_API_KEY?.trim()
-	if (!apiKey) return null
 	const allowedIds = new Set(candidates.map(candidate => candidate.id))
 	const response = await fetchImpl('https://api.openai.com/v1/responses', {
 		method: 'POST',
@@ -226,6 +305,8 @@ async function aiMatches(
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
+			// This bounded ranking/extraction workload intentionally uses the
+			// low-latency Luna tier unless an operator overrides it.
 			model: process.env.OPENAI_TIP_OF_TONGUE_MODEL || 'gpt-5.6-luna',
 			store: false,
 			reasoning: { effort: 'low' },
@@ -288,24 +369,78 @@ async function aiMatches(
 
 export async function getTipOfTongueMatches(
 	input: { memory: string; kind: DiscoveryQuery['kind'] },
-	options: { fetchImpl?: typeof fetch } = {},
+	options: {
+		fetchImpl?: typeof fetch
+		allowAi?: boolean
+		rateLimitKey?: string
+		now?: number
+	} = {},
 ): Promise<TipOfTongueResults> {
 	const memory = input.memory.trim().slice(0, 500)
 	const kind = discoveryKinds.includes(input.kind) ? input.kind : 'all'
 	const candidates = await candidatesFor(memory, kind)
-	if (!candidates.length) return { matches: [], source: 'catalog-match' }
+	if (!candidates.length) {
+		return { matches: [], source: 'catalog-match', fallbackReason: null }
+	}
+	const rankedCatalogMatches = localMatches(memory, candidates, MAX_CANDIDATES)
+	const catalogMatches = rankedCatalogMatches.slice(0, MAX_MATCHES)
+	const apiKey = process.env.OPENAI_API_KEY?.trim()
+	if (!apiKey) {
+		return {
+			matches: catalogMatches,
+			source: 'catalog-match',
+			fallbackReason: 'not-configured',
+		}
+	}
+	if (options.allowAi !== true) {
+		return {
+			matches: catalogMatches,
+			source: 'catalog-match',
+			fallbackReason: 'sign-in-required',
+		}
+	}
+	if (
+		options.rateLimitKey &&
+		!consumeAiRequest(options.rateLimitKey, options.now ?? Date.now())
+	) {
+		return {
+			matches: catalogMatches,
+			source: 'catalog-match',
+			fallbackReason: 'rate-limited',
+		}
+	}
 	try {
 		const matches = await aiMatches(
 			memory,
 			candidates,
 			options.fetchImpl ?? fetch,
+			apiKey,
 		)
-		if (matches?.length) return { matches, source: 'ai' }
+		if (matches.length) {
+			return {
+				matches: mergeAiWithCatalogMatches(
+					memory,
+					matches,
+					rankedCatalogMatches,
+				),
+				source: 'ai',
+				fallbackReason: null,
+			}
+		}
+		return {
+			matches: catalogMatches,
+			source: 'catalog-match',
+			fallbackReason: 'ai-empty',
+		}
 	} catch (error) {
 		console.error(
 			'[tip-of-tongue] AI ranking failed; using catalog match',
 			error,
 		)
 	}
-	return { matches: localMatches(memory, candidates), source: 'catalog-match' }
+	return {
+		matches: catalogMatches,
+		source: 'catalog-match',
+		fallbackReason: 'ai-error',
+	}
 }
