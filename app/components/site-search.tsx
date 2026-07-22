@@ -1,7 +1,13 @@
 import { Form } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 
-export function SiteSearch({ aiAvailable }: { aiAvailable: boolean }) {
+export function SiteSearch({
+	aiAvailable,
+	isSignedIn,
+}: {
+	aiAvailable: boolean
+	isSignedIn: boolean
+}) {
 	return (
 		<Form action="/discover" method="get" role="search" className="site-search">
 			<label className="sr-only" htmlFor="site-search-query">
@@ -42,14 +48,15 @@ export function SiteSearch({ aiAvailable }: { aiAvailable: boolean }) {
 							type="checkbox"
 							name="mode"
 							value="memory"
-							disabled={!aiAvailable}
 						/>
 						<span>
 							<strong>Tip of My Tongue</strong>
 							<small>
 								{aiAvailable
 									? 'Describe what you remember; AI will rank five catalog matches.'
-									: 'Available when AI search is configured.'}
+									: isSignedIn
+										? 'Use local catalog matching; AI ranking is not configured.'
+										: 'Use local catalog matching, or sign in for configured AI ranking.'}
 							</small>
 						</span>
 					</label>
