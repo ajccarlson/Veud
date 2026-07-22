@@ -4,77 +4,69 @@
 
 @layer base {
 	:root {
-		/* --font-sans: here if you have one */
-		/* --font-mono: here if you got it... */
+		/* Veud's semantic palette. RGB channels also support Tailwind opacity. */
+		--veud-canvas: 46 47 43;
+		--veud-ink: 33 31 36;
+		--veud-surface: 56 48 64;
+		--veud-surface-raised: 64 53 48;
+		--veud-border: 84 128 108;
+		--veud-cream: 255 239 204;
+		--veud-copy: 198 222 210;
+		--veud-mint: 162 255 213;
+		--veud-sage: 140 169 157;
+		--veud-amber: 255 153 0;
+		--veud-gold: 255 204 102;
+		--veud-yellow: 255 255 177;
+		--veud-danger: 255 179 164;
 
-		/* prefixed with foreground because it should look good on the background */
-		--foreground-destructive: 345 82.7% 40.8%;
-
-		--background: 0 0% 100%;
-		--foreground: 222.2 84% 4.9%;
-
-		--muted: 210 40% 93%;
-		--muted-foreground: 215.4 16.3% 30%;
-
-		--popover: 0 0% 100%;
-		--popover-foreground: 222.2 84% 4.9%;
-
-		--card: 0 0% 100%;
-		--card-foreground: 222.2 84% 4.9%;
-
-		--border: 214.3 31.8% 91.4%;
-		--input: 214.3 31.8% 91.4%;
-		--input-invalid: 0 84.2% 60.2%;
-
-		--primary: 222.2 47.4% 11.2%;
-		--primary-foreground: 210 40% 98%;
-
-		--secondary: 210 20% 83%;
-		--secondary-foreground: 222.2 47.4% 11.2%;
-
-		--accent: 210 40% 90%;
-		--accent-foreground: 222.2 47.4% 11.2%;
-
-		--destructive: 0 70% 50%;
-		--destructive-foreground: 210 40% 98%;
-
-		--ring: 215 20.2% 65.1%;
-
-		--radius: 0.5rem;
+		--foreground-destructive: 10 100% 72.4%;
+		--background: 75 4.4% 17.6%;
+		--foreground: 40 100% 90%;
+		--muted: 75 4.4% 17.6%;
+		--muted-foreground: 155 14.7% 60.6%;
+		--popover: 270 14.3% 22%;
+		--popover-foreground: 40 100% 90%;
+		--card: 270 14.3% 22%;
+		--card-foreground: 40 100% 90%;
+		--border: 153 20.8% 41.6%;
+		--input: 153 20.8% 41.6%;
+		--input-invalid: 10 100% 72.4%;
+		--primary: 36 100% 50%;
+		--primary-foreground: 264 7.5% 13.1%;
+		--secondary: 270 14.3% 22%;
+		--secondary-foreground: 40 100% 90%;
+		--accent: 153 20.8% 41.6%;
+		--accent-foreground: 40 100% 90%;
+		--destructive: 10 72% 48%;
+		--destructive-foreground: 40 100% 96%;
+		--ring: 151 100% 81.8%;
+		--radius: 0.75rem;
 	}
 
 	.dark {
-		--background: 222.2 84% 4.9%;
-		--foreground: 210 40% 98%;
+		--background: 264 7.5% 13.1%;
+		--muted: 75 4.4% 17.6%;
+		--popover: 270 14.3% 22%;
+		--card: 270 14.3% 22%;
+		--accent: 153 20.8% 34%;
+	}
 
-		/* prefixed with foreground because it should look good on the background */
-		--foreground-destructive: -4 84% 60%;
+	body {
+		min-width: 20rem;
+		background-color: rgb(var(--veud-canvas));
+	}
 
-		--muted: 217.2 32.6% 12%;
-		--muted-foreground: 215 20.2% 65.1%;
+	::selection {
+		color: rgb(var(--veud-ink));
+		background: rgb(var(--veud-mint) / 0.82);
+	}
 
-		--popover: 222.2 84% 4.9%;
-		--popover-foreground: 210 40% 98%;
-
-		--card: 222.2 84% 4.9%;
-		--card-foreground: 210 40% 98%;
-
-		--border: 217.2 32.6% 17.5%;
-		--input: 217.2 32.6% 17.5%;
-		--input-invalid: 0 62.8% 30.6%;
-
-		--primary: 210 40% 98%;
-		--primary-foreground: 222.2 47.4% 11.2%;
-
-		--secondary: 217.2 20% 24%;
-		--secondary-foreground: 210 40% 98%;
-
-		--accent: 217.2 32.6% 10%;
-		--accent-foreground: 210 40% 98%;
-
-		--destructive: 0 60% 40%;
-		--destructive-foreground: 0 85.7% 97.3%;
-
-		--ring: 217.2 32.6% 60%;
+	@media (pointer: coarse) {
+		button,
+		[role='button'],
+		select,
+		input:not([type='checkbox']):not([type='radio']) {
+			min-height: 2.75rem;
+		}
 	}
 }
