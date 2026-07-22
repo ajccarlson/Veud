@@ -17,6 +17,11 @@ import {
 	getSiteIdSafe,
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
+import {
+	getSortableWatchlistColumns,
+	getWatchlistDefaultSortModel,
+	watchlistColumnLabel,
+} from '#app/utils/lists/default-sort.ts'
 import { setColumnParams } from './grid-state.ts'
 import { registerListDropZones, rowDragText } from './grid-actions.ts'
 import { gridOptions } from './grid-options.ts'
@@ -62,6 +67,15 @@ export function watchlistGrid(
 		(key: any, value: any) => ((key[value] = true), key),
 		{},
 	)
+	const sortableColumns = getSortableWatchlistColumns(listTypeData.columns)
+	const defaultSortModel = getWatchlistDefaultSortModel(
+		watchListData,
+		sortableColumns,
+	)
+	const defaultSort = defaultSortModel[0]
+	const defaultSortLabel = defaultSort
+		? `${watchlistColumnLabel(defaultSort.colId)} · ${defaultSort.sort === 'asc' ? 'ascending' : 'descending'}`
+		: 'Manual position'
 
 	useEffect(() => {
 		setListEntries([...listEntriesPass])
@@ -97,6 +111,14 @@ export function watchlistGrid(
 
 	return (
 		<div className="watchlist-grid-shell">
+			<div
+				className="watchlist-grid-sort-status"
+				data-testid="default-sort-status"
+			>
+				<span>Default sort</span>
+				<strong>{defaultSortLabel}</strong>
+				{defaultSort ? <small>Clear sorting to reorder manually.</small> : null}
+			</div>
 			<div className="ag-theme-custom-react">
 				{dragDestination ? (
 					<div className="ag-drag-destination-banner" role="status">
@@ -104,9 +126,18 @@ export function watchlistGrid(
 					</div>
 				) : null}
 				<AgGridReact
+					key={`${watchlistId}:${defaultSort?.colId ?? 'manual'}:${defaultSort?.sort ?? 'none'}`}
 					gridOptions={gridOptions as GridOptions}
 					columnDefs={columnDefs() as ColDef[]}
 					rowData={listEntries}
+					initialState={
+						defaultSort
+							? {
+									sort: { sortModel: defaultSortModel },
+									partialColumnState: true,
+								}
+							: undefined
+					}
 					getRowId={getWatchlistRowId}
 					rowDragText={rowDragText}
 				></AgGridReact>
