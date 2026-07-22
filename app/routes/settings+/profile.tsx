@@ -9,8 +9,12 @@ import {
 } from 'react-router'
 
 import { z } from 'zod'
-import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
+import {
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
@@ -54,12 +58,12 @@ export default function EditUserProfile() {
 		.filter(Boolean)
 
 	return (
-		<div className="m-auto mb-24 mt-16 max-w-3xl">
-			<div className="container">
-				<ul className="flex gap-3">
+		<VeudPage width="form" className="mb-16 sm:mb-24">
+			<nav aria-label="Profile settings breadcrumb">
+				<ul className="flex flex-wrap items-center gap-3 text-sm">
 					<li>
 						<Link
-							className="text-muted-foreground"
+							className="text-veud-mint transition hover:text-veud-cream"
 							to={`/users/${user.username}`}
 						>
 							Profile
@@ -69,18 +73,22 @@ export default function EditUserProfile() {
 						<li
 							key={i}
 							className={cn('flex items-center gap-3', {
-								'text-muted-foreground': i < arr.length - 1,
+								'text-veud-copy': i < arr.length - 1,
 							})}
 						>
 							| {breadcrumb}
 						</li>
 					))}
 				</ul>
-			</div>
-			<Spacer size="xs" />
-			<main className="mx-auto bg-muted px-6 py-8 md:container md:rounded-3xl">
+			</nav>
+			<VeudPageHeader
+				eyebrow="Account"
+				title="Edit profile"
+				description="Manage how you appear across Veud and keep your account secure."
+			/>
+			<VeudPanel className="p-5 sm:p-8">
 				<Outlet />
-			</main>
-		</div>
+			</VeudPanel>
+		</VeudPage>
 	)
 }

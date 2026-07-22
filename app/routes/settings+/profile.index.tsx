@@ -129,7 +129,7 @@ export default function EditUserProfile() {
 	return (
 		<div className="flex flex-col gap-12">
 			<div className="flex justify-center">
-				<div className="relative h-52 w-52">
+				<div className="relative h-40 w-40 sm:h-52 sm:w-52">
 					<img
 						src={getUserImgSrc(data.user.image?.id)}
 						alt={data.user.username}
@@ -182,7 +182,7 @@ export default function EditUserProfile() {
 			</div>
 			<UpdateProfile />
 
-			<div className="col-span-6 my-6 h-1 border-b-[1.5px] border-foreground" />
+			<div className="my-6 h-1 border-b-[1.5px] border-veud-border" />
 			<div className="col-span-full flex flex-col gap-6">
 				<div>
 					<Link to="change-email">
@@ -290,9 +290,9 @@ function UpdateProfile() {
 
 	return (
 		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<div className="grid grid-cols-6 gap-x-10">
+			<div className="grid grid-cols-1 gap-6 sm:grid-cols-6 sm:gap-x-10">
 				<Field
-					className="col-span-3"
+					className="sm:col-span-3"
 					labelProps={{
 						htmlFor: fields.username.id,
 						children: 'Username',
@@ -301,13 +301,13 @@ function UpdateProfile() {
 					errors={fields.username.errors}
 				/>
 				<Field
-					className="col-span-3"
+					className="sm:col-span-3"
 					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
 					inputProps={getInputProps(fields.name, { type: 'text' })}
 					errors={fields.name.errors}
 				/>
 				<TextareaField
-					className="col-span-full"
+					className="sm:col-span-full"
 					labelProps={{
 						htmlFor: fields.bio.id,
 						children: 'About (Markdown)',
@@ -329,7 +329,9 @@ function UpdateProfile() {
 					size="wide"
 					name="intent"
 					value={profileUpdateActionIntent}
-					status={fetcher.state !== 'idle' ? 'pending' : form.status ?? 'idle'}
+					status={
+						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
+					}
 				>
 					Save changes
 				</StatusButton>
@@ -376,7 +378,7 @@ function SignOutOfSessions() {
 						status={
 							fetcher.state !== 'idle'
 								? 'pending'
-								: fetcher.data?.status ?? 'idle'
+								: (fetcher.data?.status ?? 'idle')
 						}
 					>
 						<Icon name="avatar">
