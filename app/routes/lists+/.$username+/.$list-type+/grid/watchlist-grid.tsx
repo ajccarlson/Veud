@@ -26,6 +26,7 @@ import { setColumnParams } from './grid-state.ts'
 import { registerListDropZones, rowDragText } from './grid-actions.ts'
 import { gridOptions } from './grid-options.ts'
 import { columnDefs } from './columns.tsx'
+import { MobileWatchlistCards } from './mobile-watchlist-cards.tsx'
 
 ModuleRegistry.registerModules([ClientSideRowModelModule])
 
@@ -117,6 +118,12 @@ export function watchlistGrid(
 				<strong>{defaultSortLabel}</strong>
 				{defaultSort ? <small>Clear sorting to reorder manually.</small> : null}
 			</div>
+			<MobileWatchlistCards
+				entries={listEntries}
+				columnParams={currentColumnParams}
+				sortableColumns={sortableColumns}
+				defaultSort={defaultSort}
+			/>
 			<div className="ag-theme-custom-react">
 				<AgGridReact
 					key={`${watchlistId}:${defaultSort?.colId ?? 'manual'}:${defaultSort?.sort ?? 'none'}`}
