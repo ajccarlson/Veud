@@ -45,3 +45,21 @@ export function assertProductionDatabaseUrl(value) {
 	}
 	return `${url.hostname}:${url.port}${url.pathname}`
 }
+
+export function resolveSqliteDatabasePath(repoRoot, databaseUrl, databasePath) {
+	if (databasePath?.trim()) {
+		return pathFromRoot(repoRoot, databasePath.trim())
+	}
+	if (!databaseUrl?.startsWith('file:')) {
+		throw new Error('The current application environment is not using SQLite')
+	}
+
+	const pathname = databaseUrl.slice('file:'.length).split('?', 1)[0]
+	if (!pathname) throw new Error('The SQLite database URL has no path')
+	return pathFromRoot(repoRoot, decodeURIComponent(pathname))
+}
+
+function pathFromRoot(repoRoot, value) {
+	if (value.startsWith('/')) return value
+	return new URL(value, `file://${repoRoot.replace(/\/$/, '')}/`).pathname
+}
