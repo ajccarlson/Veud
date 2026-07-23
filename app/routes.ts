@@ -32,6 +32,7 @@ export default [
 	appRoute('routes/_auth+/forgot-password.tsx', {
 		path: 'forgot-password',
 	}),
+	appRoute('routes/_auth+/appeal.tsx', { path: 'appeal' }),
 	appRoute('routes/_auth+/login.tsx', { path: 'login' }),
 	appRoute('routes/_auth+/logout.tsx', { path: 'logout' }),
 	appRoute('routes/_auth+/onboarding.tsx', { path: 'onboarding' }),
@@ -156,6 +157,7 @@ export default [
 	appRoute('routes/media+/mal.ts', { path: 'media/mal' }),
 	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
+	appRoute('routes/moderation.tsx', { path: 'moderation' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/calendar[.]ics.ts', {
 		path: 'resources/calendar.ics',
@@ -186,6 +188,9 @@ export default [
 	}),
 	appRoute('routes/resources+/recommendation-feedback.ts', {
 		path: 'resources/recommendation-feedback',
+	}),
+	appRoute('routes/resources+/report-content.ts', {
+		path: 'resources/report-content',
 	}),
 	appRoute('routes/resources+/user-banners.$imageId.tsx', {
 		path: 'resources/user-banners/:imageId',

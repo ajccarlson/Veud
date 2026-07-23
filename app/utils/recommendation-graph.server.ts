@@ -278,7 +278,11 @@ export async function getRecommendationGraph(
 			take: 250,
 		}),
 		prisma.review.findMany({
-			where: { authorId: viewerId, rating: { not: null } },
+			where: {
+				authorId: viewerId,
+				rating: { not: null },
+				moderationStatus: 'visible',
+			},
 			select: {
 				rating: true,
 				media: { select: { id: true, title: true, genres: true } },
@@ -304,7 +308,10 @@ export async function getRecommendationGraph(
 		}),
 		prisma.recommendationFeedback.count({ where: { ownerId: viewerId } }),
 		prisma.reviewLike.findMany({
-			where: { userId: viewerId },
+			where: {
+				userId: viewerId,
+				review: { moderationStatus: 'visible' },
+			},
 			select: {
 				review: {
 					select: {
@@ -417,6 +424,7 @@ export async function getRecommendationGraph(
 						where: {
 							authorId: { in: followedIds },
 							rating: { gte: 8 },
+							moderationStatus: 'visible',
 							media: baseWhere,
 						},
 						select: {
@@ -433,6 +441,7 @@ export async function getRecommendationGraph(
 					media: baseWhere,
 					collection: {
 						isPublic: true,
+						moderationStatus: 'visible',
 						OR: [
 							...(followedIds.length ? [{ ownerId: { in: followedIds } }] : []),
 							{ likes: { some: { userId: viewerId } } },

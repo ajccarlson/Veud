@@ -1,15 +1,24 @@
-name: 🚀 Deploy
+name: 🧪 Manual quality gates
+
+# Hosted runners are intentionally opt-in. Codex runs the same release gates
+# locally before repository merges so routine pushes, PR updates, and Dependabot
+# branches do not consume the repository's monthly Actions allowance.
 on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request: {}
   workflow_dispatch:
     inputs:
-      staging_url:
-        description: HTTPS origin of the deployed staging release
+      suite:
+        description: Validation suite to run
         required: true
+        default: app
+        type: choice
+        options:
+          - app
+          - postgres
+          - staging
+          - all
+      staging_url:
+        description: HTTPS staging origin (required for staging or all)
+        required: false
         type: string
 
 concurrency:
@@ -20,9 +29,11 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: ⬣ ESLint
+  app-quality:
+    name: 🧪 Application release validation
+    if: inputs.suite == 'app' || inputs.suite == 'all'
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - name: ⬇️ Checkout repo
         uses: actions/checkout@v7
@@ -31,48 +42,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-
-      - name: 📥 Download deps
-        run: npm ci
-
-      - name: 🖼 Build icons
-        run: npm run build:icons
-
-      - name: 🔬 Lint
-        run: npm run lint
-
-  typecheck:
-    name: ʦ TypeScript
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v7
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        run: npm ci
-
-      - name: 🖼 Build icons
-        run: npm run build:icons
-
-      - name: 🔎 Type check
-        run: npm run typecheck --if-present
-
-  vitest:
-    name: ⚡ Vitest
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v7
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
+          cache: npm
 
       - name: 📥 Download deps
         run: npm ci
@@ -80,15 +50,31 @@ jobs:
       - name: 🏄 Copy test env vars
         run: cp .env.example .env
 
-      - name: 🖼 Build icons
-        run: npm run build:icons
+      - name: 📥 Install Chromium
+        run: npx playwright install --with-deps chromium
 
-      - name: ⚡ Run vitest
-        run: npm run test -- --coverage
+      - name: 🧪 Run local-equivalent release gates
+        run: npm run validate:release
+
+      - name: 🛡 Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: 📊 Upload browser report and visual diffs
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: browser-acceptance-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
   postgres-schema:
-    name: 🐘 PostgreSQL schema
+    name: 🐘 PostgreSQL release validation
+    if: inputs.suite == 'postgres' || inputs.suite == 'all'
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16-alpine
@@ -109,88 +95,19 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
 
       - name: 📥 Download deps
         run: npm ci
 
-      - name: 🐘 Generate PostgreSQL client
-        run: npm run prisma:generate:postgres
-
-      - name: 🧱 Apply PostgreSQL migrations
-        run: npm run db:migrate:postgres
+      - name: 🐘 Run isolated PostgreSQL release gates
+        run: npm run validate:release:postgres
         env:
           DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
-
-      - name: 🔎 Verify migration and datamodel parity
-        run: npm run db:verify:postgres
-        env:
-          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
-
-      - name: 🧪 Smoke-test PostgreSQL application queries
-        run: npm run db:smoke:postgres
-        env:
-          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
-
-      - name: 📈 Smoke-test catalog load harness
-        run:
-          npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after
-        env:
-          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
-
-  audit:
-    name: 🛡 Audit
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v7
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: 🛡 npm audit (high and above)
-        run: npm audit --audit-level=high
-
-  browser-smoke:
-    name: 🎭 Browser acceptance and quality gates
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v7
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        run: npm ci
-
-      - name: 🏄 Copy test env vars
-        run: cp .env.example .env
-
-      - name: 📥 Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: 🎭 Run critical browser workflows and quality gates
-        run: npm run test:e2e:run -- --project=chromium
-
-      - name: 📊 Upload browser report and visual diffs
-        uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: browser-acceptance-report
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14
 
   staging-canary:
     name: 🌐 Deployed staging canary
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.suite == 'staging' || inputs.suite == 'all'
     runs-on: ubuntu-22.04
     environment: staging
     steps:
@@ -201,9 +118,19 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
 
       - name: 📥 Download deps
         run: npm ci
+
+      - name: 🔐 Require an HTTPS staging origin
+        run: |
+          case "$STAGING_URL" in
+            https://*) ;;
+            *) echo "staging_url must be an HTTPS origin" >&2; exit 1 ;;
+          esac
+        env:
+          STAGING_URL: ${{ inputs.staging_url }}
 
       - name: 🔎 Check deployed staging release
         run: >-
@@ -218,27 +145,3 @@ jobs:
           name: staging-acceptance-report
           path: test-results/staging-acceptance-*.json
           retention-days: 30
-
-  build:
-    name: 🏗 Build
-    runs-on: ubuntu-22.04
-    steps:
-      - name: ⬇️ Checkout repo
-        uses: actions/checkout@v7
-
-      - name: ⎔ Setup node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: 📥 Download deps
-        run: npm ci
-
-      - name: 🏄 Copy env vars
-        run: cp .env.example .env
-
-      - name: 🏗 Build (compile smoke test)
-        run: npm run build
-
-      - name: 📦 Enforce client bundle budgets
-        run: npm run bundle:check

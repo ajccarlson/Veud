@@ -13,6 +13,7 @@ import {
 	ProfileEmptyState,
 	ProfilePageHeader,
 } from '#app/components/profile-ui.tsx'
+import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
@@ -46,7 +47,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 	const comments = (
 		await prisma.profileComment.findMany({
-			where: { profileId: profile.id },
+			where: { profileId: profile.id, moderationStatus: 'visible' },
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: PROFILE_COMMENT_PAGE_SIZE,
 			select: {
@@ -142,6 +143,12 @@ function CommentRow({
 									? 'Confirm'
 									: 'Delete'}
 						</Button>
+					) : currentUserId && currentUserId !== comment.author.id ? (
+						<ReportContentButton
+							targetType="profile_comment"
+							targetId={comment.id}
+							label="profile comment"
+						/>
 					) : null}
 				</div>
 				<p className="user-landing-social-comment-text">{comment.body}</p>

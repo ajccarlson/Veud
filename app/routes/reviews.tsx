@@ -11,6 +11,7 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -68,6 +69,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	return json({
 		...(await getReviewDiscoveryResults(filters, viewerId)),
 		isSignedIn: Boolean(viewerId),
+		viewerId,
 	})
 }
 
@@ -363,6 +365,14 @@ export default function ReviewsRoute() {
 											>
 												Read and discuss
 											</Link>
+											{data.viewerId &&
+											data.viewerId !== review.author.id ? (
+												<ReportContentButton
+													targetType="review"
+													targetId={review.id}
+													label={`review of ${review.media.title}`}
+												/>
+											) : null}
 										</footer>
 										{review.containsSpoilers ? null : (
 											<details className="rounded-lg border border-[#54806c]/60 bg-[#2e2f2b] p-3">

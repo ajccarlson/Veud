@@ -2,10 +2,10 @@
 
 Last updated: 2026-07-21
 
-Veud's staging gate has two layers: deterministic release checks in CI and a
-read-only canary against the deployed HTTPS origin. Authenticated acceptance is
-deliberately manual because it uses a disposable member and mutates only the
-isolated staging database.
+Veud's staging gate has two layers: deterministic release checks run locally
+before promotion and a read-only canary against the deployed HTTPS origin.
+Authenticated acceptance is deliberately manual because it uses a disposable
+member and mutates only the isolated staging database.
 
 ## Environment boundary
 
@@ -31,11 +31,18 @@ process may use the same release command under an independently named process
 manager entry, but it must use a different `PORT`, database, cache, and backup
 configuration.
 
-## Automated release gate
+## Local release gate
 
-Pushes and pull requests run lint, typecheck, unit coverage, PostgreSQL schema
-and query smoke checks, a blocking dependency audit, the production build, and
-critical Playwright workflows. Pushes now watch `develop` and `main`.
+Before every candidate is committed or promoted, run the complete deterministic
+gate documented in [local-release-validation.md](./local-release-validation.md).
+It covers lint, typecheck, unit coverage, the production build, client bundle
+budgets, critical Playwright workflows, dependency auditing, and the isolated
+PostgreSQL schema/query/load gate.
+
+GitHub Actions is intentionally manual-only to conserve the repository's hosted
+Actions allowance. The `Release operations` workflow can be started through
+**Run workflow** when an off-machine recheck or deployment is useful; pushes and
+pull requests do not consume hosted minutes automatically.
 
 After deploying the candidate, preview the canary configuration:
 

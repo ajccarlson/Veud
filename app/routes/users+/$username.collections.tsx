@@ -25,7 +25,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	invariantResponse(user, 'User not found', { status: 404 })
 	const isOwner = viewerId === user.id
 	const collections = await prisma.mediaCollection.findMany({
-		where: { ownerId: user.id, ...(isOwner ? {} : { isPublic: true }) },
+		where: {
+			ownerId: user.id,
+			...(isOwner
+				? {}
+				: { isPublic: true, moderationStatus: 'visible' }),
+		},
 		orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
 		select: {
 			id: true,
@@ -35,7 +40,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			featuredAt: true,
 			updatedAt: true,
 			owner: { select: { username: true, name: true } },
-			_count: { select: { items: true, likes: true, comments: true } },
+			_count: {
+				select: {
+					items: true,
+					likes: true,
+					comments: { where: { moderationStatus: 'visible' } },
+				},
+			},
 			tags: {
 				orderBy: { tag: { name: 'asc' } },
 				select: { tag: { select: { name: true, slug: true } } },

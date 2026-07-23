@@ -39,7 +39,13 @@ const collectionCardSelect = {
 	featuredAt: true,
 	updatedAt: true,
 	owner: { select: { username: true, name: true } },
-	_count: { select: { items: true, likes: true, comments: true } },
+	_count: {
+		select: {
+			items: true,
+			likes: true,
+			comments: { where: { moderationStatus: 'visible' } },
+		},
+	},
 	tags: {
 		orderBy: { tag: { name: 'asc' as const } },
 		select: { tag: { select: { name: true, slug: true } } },
@@ -114,8 +120,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				: 'recent'
 	const requestedPage = parsePage(url.searchParams.get('page'))
 	const visibility: Prisma.MediaCollectionWhereInput = viewerId
-		? { OR: [{ isPublic: true }, { ownerId: viewerId }] }
-		: { isPublic: true }
+		? {
+				OR: [
+					{ isPublic: true, moderationStatus: 'visible' },
+					{ ownerId: viewerId },
+				],
+			}
+		: { isPublic: true, moderationStatus: 'visible' }
 	const where = {
 		AND: [
 			visibility,
@@ -168,7 +179,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				: null,
 			requestedPage === 1 && !query && !tagSlug
 				? prisma.mediaCollection.findMany({
-						where: { isPublic: true, featuredAt: { not: null } },
+						where: {
+							isPublic: true,
+							moderationStatus: 'visible',
+							featuredAt: { not: null },
+						},
 						orderBy: [{ featuredAt: 'desc' }, { id: 'desc' }],
 						take: 3,
 						select: collectionCardSelect,

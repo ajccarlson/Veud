@@ -201,6 +201,28 @@ test('private collections are owner-only while public collections are discoverab
 		params: { collectionId: collection.id },
 	} as any)
 	expect(publicView.data.collection.id).toBe(collection.id)
+	await prisma.mediaCollection.update({
+		where: { id: collection.id },
+		data: { moderationStatus: 'hidden' },
+	})
+	const moderatedPublicView = await detailLoader({
+		request: new Request(`${BASE_URL}/collections/${collection.id}`),
+		params: { collectionId: collection.id },
+	} as any).catch(error => error)
+	expect(moderatedPublicView).toBeInstanceOf(Response)
+	expect((moderatedPublicView as Response).status).toBe(404)
+	const moderatedIndex = await indexLoader({
+		request: new Request(`${BASE_URL}/collections`),
+		params: {},
+	} as any)
+	expect(moderatedIndex.data.collections).toEqual([])
+	const moderatedOwnerView = await detailLoader({
+		request: new Request(`${BASE_URL}/collections/${collection.id}`, {
+			headers: { cookie: ownerCookie },
+		}),
+		params: { collectionId: collection.id },
+	} as any)
+	expect(moderatedOwnerView.data.collection.id).toBe(collection.id)
 })
 
 test('owners can add, reorder, and remove canonical media without duplicates', async () => {

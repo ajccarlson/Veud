@@ -21,6 +21,7 @@ function escapeHtml(value: string) {
 
 function itemCopy(item: {
 	type: string
+	message: string | null
 	actor: { username: string; name: string | null } | null
 	review: { id: string; media: { id: string; title: string | null } } | null
 	collection: { id: string; title: string } | null
@@ -28,6 +29,12 @@ function itemCopy(item: {
 		media: { id: string; title: string | null; kind: string }
 	} | null
 }) {
+	if (item.type === 'moderation_notice' && item.message) {
+		return {
+			copy: `Moderation notice: ${item.message}`,
+			path: '/settings/profile',
+		}
+	}
 	if (item.releaseReminder) {
 		const media = item.releaseReminder.media
 		return {
@@ -116,6 +123,7 @@ export async function processDueNotificationDigests({
 				take: 20,
 				select: {
 					type: true,
+					message: true,
 					actor: { select: { username: true, name: true } },
 					review: {
 						select: {
