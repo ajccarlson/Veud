@@ -1,0 +1,12 @@
+[Unit]
+Description=Veud staging MAL catalog hydration
+Wants=network-online.target
+After=network-online.target veud-staging-postgres.service
+Requires=veud-staging-postgres.service
+
+[Service]
+Type=simple
+ExecStart=%h/Programs/Veud/ops/local-staging/run-mal-hydration.sh
+Restart=on-failure
+RestartSec=60
+TimeoutStopSec=90
