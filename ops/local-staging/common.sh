@@ -78,3 +78,13 @@ verify_node_22() {
 	[[ -x "$NODE_BIN" && -x "$NPM_BIN" ]] || die 'Pinned Node.js 22 runtime is unavailable'
 	[[ "$($NODE_BIN --version)" == v22.* ]] || die 'Staging requires Node.js 22'
 }
+
+postgres_cli_url() {
+	[[ -n "${DATABASE_URL:-}" ]] || die 'DATABASE_URL is not configured'
+	verify_node_22
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" -e '
+		const url = new URL(process.env.DATABASE_URL)
+		url.searchParams.delete("schema")
+		process.stdout.write(url.toString())
+	'
+}

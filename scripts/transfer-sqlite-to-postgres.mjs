@@ -9,6 +9,7 @@ import { listRequiredMigrations } from './backup-utils.mjs'
 import {
 	assertPostgresDatabaseUrl,
 	buildModelTransferPlan,
+	containsOnlyMigrationSeededReferenceRows,
 	convertSqliteRow,
 	postgresTargetIdentity,
 	sortRowsForSelfRelations,
@@ -283,7 +284,9 @@ async function main() {
 				checkpoint.version !== 1 ||
 				!Array.isArray(checkpoint.completedTables)
 			) {
-				throw new Error('Resume checkpoint has an unsupported or invalid format')
+				throw new Error(
+					'Resume checkpoint has an unsupported or invalid format',
+				)
 			}
 			if (
 				checkpoint.sourceSha256 !== sourceFingerprint ||
@@ -322,7 +325,24 @@ async function main() {
 		const client = new PrismaClient()
 		try {
 			const before = await targetCounts(client, models)
-			const occupied = [...before].filter(([, count]) => count > 0)
+			let occupied = [...before].filter(([, count]) => count > 0)
+			if (
+				occupied.length &&
+				!resume &&
+				containsOnlyMigrationSeededReferenceRows(before)
+			) {
+				console.log(
+					'Target contains only migration-seeded reference rows; replacing them with the snapshot values.',
+				)
+				await client.$transaction([
+					client.$executeRaw`DELETE FROM "_PermissionToRole"`,
+					client.listType.deleteMany(),
+					client.permission.deleteMany(),
+					client.role.deleteMany(),
+				])
+				const afterReferenceCleanup = await targetCounts(client, models)
+				occupied = [...afterReferenceCleanup].filter(([, count]) => count > 0)
+			}
 			if (occupied.length && !resume) {
 				throw new Error(
 					`PostgreSQL target is not empty (${occupied
