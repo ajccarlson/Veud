@@ -159,3 +159,7 @@ export function renderChordChart(loaderData: any, listType: any) {
 
   return MyResponsiveChord(chordMatrix, chordIndices)
 }
+
+export function ChordChart({ data, listType }: any) {
+  return renderChordChart(data, listType)
+}

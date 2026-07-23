@@ -5,7 +5,7 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	page,
 	login,
 }) => {
-	test.setTimeout(30_000)
+	test.setTimeout(45_000)
 	const user = await login()
 	await prisma.user.update({
 		where: { id: user.id },
@@ -34,7 +34,16 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	})
 
 	const pageErrors: string[] = []
+	const assetRequests: string[] = []
 	page.on('pageerror', error => pageErrors.push(error.message))
+	page.on('request', request => {
+		const pathname = new URL(request.url()).pathname
+		if (pathname.startsWith('/assets/')) assetRequests.push(pathname)
+	})
+	const requestedAsset = (prefix: string) =>
+		assetRequests.some(pathname =>
+			pathname.startsWith(`/assets/${prefix}-`),
+		)
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/users/${user.username}`)
 	await expect(
@@ -43,6 +52,8 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	await expect(
 		page.getByRole('heading', { name: 'No completion history yet' }),
 	).toBeVisible()
+	expect(requestedAsset('calendar')).toBe(false)
+	expect(requestedAsset('nivo-theme')).toBe(false)
 	await prisma.entry.updateMany({
 		where: {
 			watchlistId: watchlist.id,
@@ -64,6 +75,8 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	await expect(
 		page.locator('.user-landing-completion-history-chart svg'),
 	).toBeVisible()
+	expect(requestedAsset('calendar')).toBe(true)
+	expect(requestedAsset('nivo-theme')).toBe(true)
 
 	const mobileMetrics = await page.evaluate(() => {
 		const tabs = document.querySelector('.user-landing-tabs')
@@ -112,6 +125,39 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 			await expect(
 				page.locator('.user-landing-stats-waffle-chart-text-right'),
 			).toContainText('Mean Score: 7.00')
+			expect(requestedAsset('watchlist')).toBe(true)
+			for (const chartAsset of [
+				'bar',
+				'box_plot',
+				'chord',
+				'pie',
+				'radial_bar',
+			]) {
+				expect(
+					requestedAsset(chartAsset),
+					`unexpected ${chartAsset} request: ${assetRequests.join(', ')}`,
+				).toBe(false)
+			}
+
+			await page.locator('.user-landing-dropdown-trigger').click()
+			await page
+				.getByRole('menuitem', { name: 'Score Distribution', exact: true })
+				.click()
+			await expect(
+				page.locator('.user-landing-stats-bar-chart svg'),
+			).toBeVisible()
+			expect(requestedAsset('bar')).toBe(true)
+			for (const chartAsset of [
+				'box_plot',
+				'chord',
+				'pie',
+				'radial_bar',
+			]) {
+				expect(
+					requestedAsset(chartAsset),
+					`unexpected ${chartAsset} request: ${assetRequests.join(', ')}`,
+				).toBe(false)
+			}
 		}
 	}
 

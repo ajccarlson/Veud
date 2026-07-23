@@ -1,19 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ProfileEmptyState } from '#app/components/profile-ui.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
-import { renderBarChart } from '#app/routes/users+/$username_/stats_/bar.tsx'
-import { renderBoxPlotChart } from '#app/routes/users+/$username_/stats_/box_plot.tsx'
-import { renderChordChart } from '#app/routes/users+/$username_/stats_/chord.tsx'
-import { renderLineChart } from '#app/routes/users+/$username_/stats_/line.tsx'
-import { renderPieChart } from '#app/routes/users+/$username_/stats_/pie.tsx'
-import { renderRadialBar } from '#app/routes/users+/$username_/stats_/radial_bar.tsx'
-import { watchlistOverview } from '#app/routes/users+/$username_/stats_/watchlist.tsx'
+import {
+	ProfileChart,
+	type ProfileChartKey,
+} from '#app/routes/users+/$username_/stats_/chart-loader.tsx'
 import {
 	type ProfileAnalyticsData,
 	type ProfileShellData,
 } from '#app/utils/profile.ts'
 
-const PROFILE_CHARTS = [
+const PROFILE_CHARTS: Array<{
+	key: ProfileChartKey
+	header: string
+	typed: boolean
+}> = [
 	{ key: 'watchlist', header: 'Watchlist Overview', typed: true },
 	{
 		key: 'listTypeDistribution',
@@ -30,7 +31,7 @@ const PROFILE_CHARTS = [
 	{ key: 'watched', header: 'Watch Date Distribution', typed: false },
 	{ key: 'genreChords', header: 'Genre Overlap', typed: true },
 	{ key: 'type', header: 'Media Type Distribution', typed: false },
-] as const
+]
 
 export function StatsData({
 	data: loaderData,
@@ -42,27 +43,6 @@ export function StatsData({
 	const selectedType =
 		loaderData.listTypes[typeIndex] ?? loaderData.listTypes[0]
 	const selectedChart = PROFILE_CHARTS[chartIndex] ?? PROFILE_CHARTS[0]
-	const chart = useMemo(() => {
-		if (!selectedType) return null
-		switch (selectedChart.key) {
-			case 'watchlist':
-				return watchlistOverview(loaderData, selectedType)
-			case 'listTypeDistribution':
-				return renderPieChart(loaderData)
-			case 'score':
-				return renderBarChart(loaderData, 'score', selectedType)
-			case 'objectiveScores':
-				return renderBoxPlotChart(loaderData, 'objective scores', selectedType)
-			case 'release':
-				return renderLineChart(loaderData, 'release')
-			case 'watched':
-				return renderLineChart(loaderData, 'watched')
-			case 'genreChords':
-				return renderChordChart(loaderData, selectedType)
-			case 'type':
-				return renderRadialBar(loaderData, 'type')
-		}
-	}, [loaderData, selectedChart.key, selectedType])
 	const hasEntries = Object.values(loaderData.typedEntries ?? {}).some(
 		entries => entries.length > 0,
 	)
@@ -100,7 +80,14 @@ export function StatsData({
 							</div>
 						) : null}
 					</div>
-					<div className="user-landing-chart-stage">{chart}</div>
+					<div className="user-landing-chart-stage">
+						<ProfileChart
+							chartKey={selectedChart.key}
+							label={selectedChart.header}
+							data={loaderData}
+							listType={selectedType}
+						/>
+					</div>
 				</>
 			) : (
 				<ProfileEmptyState
