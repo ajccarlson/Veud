@@ -173,6 +173,10 @@ install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-hydration.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-hydration.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-inventory.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-inventory.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.timer" "$unit_dir/"
 systemctl --user daemon-reload
