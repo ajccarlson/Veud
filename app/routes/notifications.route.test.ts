@@ -143,6 +143,48 @@ test('mark all read affects only the signed-in recipient', async () => {
 	).toBe(0)
 })
 
+test('inbox preferences filter delivery and bulk-read only visible categories', async () => {
+	const recipient = await createUser('filtered_recipient')
+	await prisma.notificationPreference.create({
+		data: {
+			ownerId: recipient.id,
+			inAppSocial: false,
+			inAppReleases: true,
+		},
+	})
+	const [social, release] = await Promise.all([
+		prisma.notification.create({
+			data: { type: 'review_like', recipientId: recipient.id },
+		}),
+		prisma.notification.create({
+			data: { type: 'release_reminder', recipientId: recipient.id },
+		}),
+	])
+	const cookie = await cookieFor(recipient.id)
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/notifications`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(result.data.notifications.map(notification => notification.id)).toEqual([
+		release.id,
+	])
+	expect(result.data.unreadCount).toBe(1)
+
+	await action({
+		request: actionRequest(cookie, { intent: 'read-all' }),
+		params: {},
+	} as any)
+	expect(
+		await prisma.notification.findUniqueOrThrow({ where: { id: release.id } }),
+	).toMatchObject({ readAt: expect.any(Date) })
+	expect(
+		await prisma.notification.findUniqueOrThrow({ where: { id: social.id } }),
+	).toMatchObject({ readAt: null })
+})
+
 test('collection discussion notifications open the source comment', async () => {
 	const [recipient, actor] = await Promise.all([
 		createUser('collection_recipient'),

@@ -53,6 +53,8 @@ model User {
   catalogMergeEvents      CatalogMediaMergeEvent[]
   recommendationFeedback  RecommendationFeedback[]
   homeDashboardPreference HomeDashboardPreference?
+  notificationPreference  NotificationPreference?
+  notificationDigests     NotificationDigest[]
 }
 
 model ListType {
@@ -553,6 +555,49 @@ model HomeDashboardPreference {
   ownerId String @unique
 
   @@index([updatedAt])
+}
+
+/// Private delivery controls for durable notification events.
+model NotificationPreference {
+  id              String    @id @default(cuid())
+  inAppSocial     Boolean   @default(true)
+  inAppReleases   Boolean   @default(true)
+  emailSocial     Boolean   @default(false)
+  emailReleases   Boolean   @default(false)
+  digestFrequency String    @default("off")
+  digestHour      Int       @default(9)
+  digestWeekday   Int       @default(1)
+  timeZone        String    @default("UTC")
+  nextDigestAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String @unique
+
+  @@index([nextDigestAt])
+}
+
+/// One idempotent email-digest delivery window for a member.
+model NotificationDigest {
+  id                String    @id @default(cuid())
+  frequency         String
+  windowStart       DateTime
+  windowEnd         DateTime
+  status            String    @default("pending")
+  itemCount         Int       @default(0)
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  @@unique([ownerId, windowStart, windowEnd])
+  @@index([status, createdAt])
+  @@index([ownerId, createdAt])
 }
 
 /// An immutable, user-visible change to tracking state. Application code only

@@ -10,14 +10,25 @@ import {
 import { Button } from '#app/components/ui/button.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	getNotificationPreferences,
+	notificationInboxWhere,
+} from '#app/utils/notification-preferences.server.ts'
 import { syncReleaseRemindersForUser } from '#app/utils/release-reminders.server.ts'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
 	const now = new Date()
-	await syncReleaseRemindersForUser(prisma, userId, now)
+	const [, preferences] = await Promise.all([
+		syncReleaseRemindersForUser(prisma, userId, now),
+		getNotificationPreferences(userId),
+	])
 	const notifications = await prisma.notification.findMany({
-		where: { recipientId: userId, availableAt: { lte: now } },
+		where: {
+			recipientId: userId,
+			availableAt: { lte: now },
+			...notificationInboxWhere(preferences),
+		},
 		orderBy: [{ availableAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
 		take: 50,
 		select: {
@@ -58,11 +69,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	if (intent === 'read-all') {
 		const now = new Date()
+		const preferences = await getNotificationPreferences(userId)
 		await prisma.notification.updateMany({
 			where: {
 				recipientId: userId,
 				readAt: null,
 				availableAt: { lte: now },
+				...notificationInboxWhere(preferences),
 			},
 			data: { readAt: now },
 		})
@@ -74,11 +87,13 @@ export async function action({ request }: ActionFunctionArgs) {
 		if (typeof notificationId !== 'string' || !notificationId) {
 			throw new Response('Missing notification', { status: 400 })
 		}
+		const preferences = await getNotificationPreferences(userId)
 		const notification = await prisma.notification.findFirst({
 			where: {
 				id: notificationId,
 				recipientId: userId,
 				availableAt: { lte: new Date() },
+				...notificationInboxWhere(preferences),
 			},
 			select: {
 				id: true,
@@ -146,14 +161,19 @@ export default function NotificationsRoute() {
 						Release reminders, likes, and discussion on your activity.
 					</p>
 				</div>
-				{data.unreadCount ? (
-					<Form method="post">
-						<input type="hidden" name="intent" value="read-all" />
-						<Button type="submit" variant="outline" size="sm">
-							Mark all read
-						</Button>
-					</Form>
-				) : null}
+				<div className="flex flex-wrap gap-2">
+					<Button asChild variant="ghost" size="sm">
+						<Link to="/settings/profile/notifications">Preferences</Link>
+					</Button>
+					{data.unreadCount ? (
+						<Form method="post">
+							<input type="hidden" name="intent" value="read-all" />
+							<Button type="submit" variant="outline" size="sm">
+								Mark all read
+							</Button>
+						</Form>
+					) : null}
+				</div>
 			</header>
 
 			{data.notifications.length ? (
