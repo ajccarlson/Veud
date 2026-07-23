@@ -9,7 +9,15 @@ async function cleanupCatalogOperationsFixtures() {
 		where: { leaseOwner: 'browser-test-worker' },
 	})
 	await prisma.media.deleteMany({
-		where: { title: 'Catalog Operations Fixture' },
+		where: {
+			title: {
+				in: [
+					'Catalog Operations Fixture',
+					'Catalog Merge Fixture Source',
+					'Catalog Merge Fixture Target',
+				],
+			},
+		},
 	})
 }
 
@@ -17,7 +25,7 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 	page,
 	login,
 }) => {
-	test.setTimeout(30_000)
+	test.setTimeout(60_000)
 	await cleanupCatalogOperationsFixtures()
 	const admin = await login()
 	await prisma.user.update({
@@ -40,7 +48,7 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 			},
 		},
 	})
-	await prisma.catalogQualityIssue.create({
+	const fixtureIssue = await prisma.catalogQualityIssue.create({
 		data: {
 			fingerprint: `browser-quality-${fixtureMedia.id}`,
 			issueType: 'missing_image',
@@ -50,6 +58,35 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 				'Catalog Operations Fixture is hydrated but has no poster image.',
 			evidence: JSON.stringify({ source: 'browser-fixture' }),
 			primaryMediaId: fixtureMedia.id,
+		},
+	})
+	await prisma.media.createMany({
+		data: [
+			{
+				id: 'browser-merge-source',
+				kind: 'anime',
+				title: 'Catalog Merge Fixture Source',
+				description: 'Metadata preserved by the journal.',
+			},
+			{
+				id: 'browser-merge-target',
+				kind: 'anime',
+				title: 'Catalog Merge Fixture Target',
+			},
+		],
+	})
+	await prisma.catalogQualityIssue.create({
+		data: {
+			id: 'browser-merge-issue',
+			fingerprint: 'browser-merge-fingerprint',
+			issueType: 'possible_duplicate',
+			status: 'confirmed',
+			severity: 'warning',
+			confidence: 0.9,
+			summary: 'Catalog Merge Fixture records are a reviewed duplicate.',
+			primaryMediaId: 'browser-merge-source',
+			secondaryMediaId: 'browser-merge-target',
+			reviewedById: admin.id,
 		},
 	})
 	await prisma.catalogSyncRun.create({
@@ -94,15 +131,57 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 				'Catalog Operations Fixture is hydrated but has no poster image.',
 			),
 		).toBeVisible()
-		await page.getByRole('button', { name: 'Queue provider repair' }).click()
-		await expect(page.getByRole('status')).toContainText('Saved as queued')
-		await page.getByRole('button', { name: 'Reopen review' }).click()
-		await expect(page.getByRole('status')).toContainText('Saved as open')
+		const qualityCard = page.getByTestId(`quality-issue-${fixtureIssue.id}`)
+		await qualityCard
+			.getByRole('button', { name: 'Queue provider repair' })
+			.click()
+		await expect(qualityCard.getByRole('status')).toContainText(
+			'Saved as queued',
+		)
+		await qualityCard.getByRole('button', { name: 'Reopen review' }).click()
+		await expect(qualityCard.getByRole('status')).toContainText('Saved as open')
 		expect(
 			await prisma.catalogQualityEvent.count({
 				where: { issue: { primaryMediaId: fixtureMedia.id } },
 			}),
 		).toBe(2)
+
+		const mergeCard = page.getByTestId('quality-issue-browser-merge-issue')
+		await mergeCard
+			.getByRole('button', { name: 'Keep Catalog Merge Fixture Target' })
+			.click()
+		await expect(mergeCard.getByText('Preflight safe')).toBeVisible()
+		await mergeCard
+			.locator('input[name="confirmation"]')
+			.fill('MERGE browser-merge-source INTO browser-merge-target')
+		await mergeCard
+			.getByRole('button', { name: 'Apply journaled merge' })
+			.click()
+		await expect(mergeCard.getByRole('status')).toContainText(
+			'Saved as applied',
+		)
+		expect(
+			await prisma.media.findUnique({ where: { id: 'browser-merge-source' } }),
+		).toBeNull()
+		const merge = await prisma.catalogMediaMerge.findUniqueOrThrow({
+			where: { issueId: 'browser-merge-issue' },
+		})
+		await mergeCard
+			.locator('input[name="confirmation"]')
+			.fill(`REVERT ${merge.id}`)
+		await mergeCard
+			.getByRole('button', { name: 'Reverse from journal' })
+			.click()
+		await expect(mergeCard.getByRole('status')).toContainText(
+			'Saved as reverted',
+		)
+		expect(
+			await prisma.media.findUnique({ where: { id: 'browser-merge-source' } }),
+		).toEqual(
+			expect.objectContaining({
+				description: 'Metadata preserved by the journal.',
+			}),
+		)
 
 		await page.setViewportSize({ width: 390, height: 844 })
 		await page.reload()

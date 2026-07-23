@@ -69,12 +69,12 @@ user preserves the issue and event while nulling the former actor reference.
 
 ## Merge boundary
 
-Confirmed duplicates are not safe to merge until a separate transaction planner
-can account for uniqueness conflicts in tracking states, reviews, collections,
-favorites, reminders, feed rows, and provider relations. That future planner
-must emit a complete preflight, preserve a reversal journal, and refuse any move
-whose member-owned semantics are ambiguous. Direct media deletion or ad hoc
-foreign-key rewrites are not an approved review action.
+Confirmed duplicates can enter the separately documented
+[reversible merge workflow](catalog-duplicate-merge.md). It inventories every
+direct media relation, refuses ambiguous member-owned collisions, requires a
+fresh hashed preflight and typed confirmation, and preserves a versioned
+reversal journal. Direct media deletion or ad hoc foreign-key rewrites remain
+unapproved review actions.
 
 ## Staging evidence
 
