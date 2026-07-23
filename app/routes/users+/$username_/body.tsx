@@ -11,6 +11,7 @@ import {
 	timeSince,
 	getThumbnailInfo,
 } from '#app/utils/lists/column-functions.tsx'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	type FavoriteItem,
 	type ProfileActivityData,
@@ -162,11 +163,7 @@ export function FavoritesData({
 		.sort((a, b) => a.position - b.position)
 
 	async function removeFavorite(id: string) {
-		await fetch(
-			'/lists/fetch/remove-favorite/' +
-				encodeURIComponent(new URLSearchParams({ id }).toString()),
-			{ method: 'POST' },
-		)
+		await mutateList('remove-favorite', { favoriteId: id })
 		revalidator.revalidate()
 	}
 
@@ -182,13 +179,7 @@ export function FavoritesData({
 			id: favorite.id,
 			position: position + 1,
 		}))
-		await fetch(
-			'/lists/fetch/reorder-favorite/' +
-				encodeURIComponent(
-					new URLSearchParams({ order: JSON.stringify(order) }).toString(),
-				),
-			{ method: 'POST' },
-		)
+		await mutateList('reorder-favorites', { order })
 		revalidator.revalidate()
 	}
 

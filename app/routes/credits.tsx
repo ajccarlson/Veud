@@ -1,12 +1,10 @@
 import { type MetaFunction } from 'react-router'
+import tmdbLogo from '#app/components/ui/icons/tmdb-long.svg'
 import {
 	VeudPage,
 	VeudPageHeader,
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
-
-const tmdbLogo =
-	'https://www.themoviedb.org/assets/2/v4/logos/v2/blue_long_2-9665a76b1ae401a510ec1e0ca40ddcb3b0cfe45f1d51b77a308fea0845885648.svg'
 
 export const meta: MetaFunction = () => [
 	{ title: 'Data sources & credits | Veud' },
@@ -65,7 +63,6 @@ export default function CreditsRoute() {
 						alt="The Movie Database (TMDB)"
 						className="h-auto w-52 max-w-full"
 						loading="lazy"
-						referrerPolicy="no-referrer"
 						src={tmdbLogo}
 					/>
 				</a>

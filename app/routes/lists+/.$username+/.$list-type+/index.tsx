@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	timeSince,
 	getStartYear,
@@ -29,13 +30,14 @@ async function createNewList(listParams: any) {
 		lastPosition = listParams.sameType.slice(-1)[0].watchlist.position + 1
 	}
 
-	const emptyList = {
-		position: { value: lastPosition, type: 'int' },
-		name: { value: ' ', type: 'string' },
-		header: { value: ' ', type: 'string' },
-		typeId: { value: typeId, type: 'string' },
-		displayedColumns: {
-			value: Object.keys(
+	const addData = await mutateList<'create-watchlist', any>(
+		'create-watchlist',
+		{
+			position: lastPosition,
+			name: ' ',
+			header: ' ',
+			typeId,
+			displayedColumns: Object.keys(
 				JSON.parse(listParams.listTypeData.columns) as Record<string, unknown>,
 			)
 				.filter(
@@ -43,24 +45,9 @@ async function createNewList(listParams: any) {
 						entry !== 'id' && entry !== 'watchlistId' && entry !== 'watchlist',
 				)
 				.join(', '),
-			type: 'string',
+			description: ' ',
 		},
-		createdAt: { value: Date.now(), type: 'date' },
-		updatedAt: { value: Date.now(), type: 'date' },
-		ownerId: { value: listParams.listOwner.id, type: 'string' },
-		description: { value: ' ', type: 'string' },
-	}
-
-	const addResponse = await fetch(
-		'/lists/fetch/create-watchlist/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					list: JSON.stringify(emptyList),
-				}).toString(),
-			),
-		{ method: 'POST' },
 	)
-	const addData: any = await addResponse.json()
 
 	listParams.setWatchListData((current: any[]) => [
 		...current,

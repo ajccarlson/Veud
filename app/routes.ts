@@ -169,6 +169,12 @@ export default [
 	appRoute('routes/resources+/healthcheck.tsx', {
 		path: 'resources/healthcheck',
 	}),
+	appRoute('routes/resources+/lists.v1.ts', {
+		path: 'resources/lists/v1',
+	}),
+	appRoute('routes/resources+/lists.v1.entries.ts', {
+		path: 'resources/lists/v1/entries',
+	}),
 	appRoute('routes/resources+/profile-comment.$request.ts', {
 		path: 'resources/profile-comment/:request',
 	}),
