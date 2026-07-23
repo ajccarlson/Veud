@@ -1,9 +1,12 @@
 import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
+	Form,
 	Link,
+	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
+	useFetcher,
 	useLoaderData,
 } from 'react-router'
 import {
@@ -12,6 +15,12 @@ import {
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
 import { getCatalogOperationsSnapshot } from '#app/utils/catalog-operations.server.ts'
+import {
+	catalogQualityActions,
+	getCatalogQualitySnapshot,
+	transitionCatalogQualityIssue,
+	type CatalogQualityAction,
+} from '#app/utils/catalog-quality.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
@@ -30,10 +39,60 @@ export const meta: MetaFunction = () => [
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	await requireUserWithRole(request, 'admin', { url })
-	const snapshot = await getCatalogOperationsSnapshot(prisma)
-	return json(snapshot, {
-		headers: { 'Cache-Control': 'private, no-store' },
-	})
+	const [snapshot, quality] = await Promise.all([
+		getCatalogOperationsSnapshot(prisma),
+		getCatalogQualitySnapshot(prisma),
+	])
+	return json(
+		{ ...snapshot, quality },
+		{
+			headers: { 'Cache-Control': 'private, no-store' },
+		},
+	)
+}
+
+export async function action({ request, url }: ActionFunctionArgs) {
+	const actorId = await requireUserWithRole(request, 'admin', { url })
+	const formData = await request.formData()
+	const issueId = formData.get('issueId')
+	const requestedAction = formData.get('action')
+	const note = formData.get('note')
+	if (typeof issueId !== 'string' || !issueId) {
+		return json(
+			{ ok: false as const, error: 'A quality issue is required.' },
+			400,
+		)
+	}
+	if (
+		typeof requestedAction !== 'string' ||
+		!catalogQualityActions.includes(requestedAction as CatalogQualityAction)
+	) {
+		return json(
+			{ ok: false as const, error: 'Unsupported quality action.' },
+			400,
+		)
+	}
+	try {
+		const result = await transitionCatalogQualityIssue(prisma, {
+			issueId,
+			action: requestedAction as CatalogQualityAction,
+			actorId,
+			note: typeof note === 'string' ? note : null,
+		})
+		return json({
+			ok: true as const,
+			status: result.issue.status,
+			queuedSources: result.queuedSources,
+		})
+	} catch (error) {
+		return json(
+			{
+				ok: false as const,
+				error: error instanceof Error ? error.message : 'Review action failed.',
+			},
+			400,
+		)
+	}
 }
 
 const healthTone = {
@@ -89,6 +148,172 @@ function StatusPill({ status }: { status: string }) {
 		>
 			{normalized}
 		</span>
+	)
+}
+
+function QualityReviewCard({
+	issue,
+}: {
+	issue: Awaited<ReturnType<typeof loader>>['data']['quality']['issues'][number]
+}) {
+	const fetcher = useFetcher<typeof action>()
+	const isOpen = issue.status === 'open'
+	const isActionable = ['open', 'queued', 'confirmed'].includes(issue.status)
+	const repairable = [
+		'title_conflict',
+		'missing_image',
+		'invalid_image',
+	].includes(issue.issueType)
+	const activeAction = fetcher.formData?.get('action')
+	const media = [issue.primaryMedia, issue.secondaryMedia].filter(
+		(value): value is NonNullable<typeof value> => Boolean(value),
+	)
+
+	return (
+		<li className="rounded-2xl border border-veud-border bg-black/15 p-4 sm:p-5">
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="min-w-0">
+					<p className="text-xs font-black uppercase tracking-[0.16em] text-veud-mint">
+						{issue.issueType.replaceAll('_', ' ')}
+					</p>
+					<h3 className="mt-1 text-base font-black leading-6 text-veud-cream">
+						{issue.summary}
+					</h3>
+				</div>
+				<div className="flex items-center gap-2">
+					<StatusPill status={issue.status} />
+					{issue.confidence !== null ? (
+						<span className="rounded-full border border-veud-border px-2.5 py-1 text-xs font-black text-veud-copy">
+							{Math.round(issue.confidence * 100)}%
+						</span>
+					) : null}
+				</div>
+			</div>
+
+			<ul className="mt-4 grid gap-2 sm:grid-cols-2">
+				{media.map(item => (
+					<li
+						key={item.id}
+						className="rounded-xl border border-veud-border/70 bg-veud-canvas/70 p-3"
+					>
+						<Link
+							to={`/media/${item.id}`}
+							className="font-black text-veud-cream underline-offset-4 hover:text-veud-mint hover:underline"
+						>
+							{item.title || `Untitled ${item.kind}`}
+						</Link>
+						<p className="mt-1 text-xs text-veud-copy">
+							{item.kind}
+							{item.releaseStart
+								? ` · ${new Date(item.releaseStart).getUTCFullYear()}`
+								: ''}
+						</p>
+						<p className="mt-1 truncate text-xs text-veud-mint">
+							{item.externalIds
+								.map(
+									source =>
+										`${source.provider}/${source.kind}:${source.externalId}`,
+								)
+								.join(' · ') || 'No active provider identity'}
+						</p>
+					</li>
+				))}
+			</ul>
+
+			<fetcher.Form method="post" className="mt-4 space-y-3">
+				<input type="hidden" name="issueId" value={issue.id} />
+				<label className="block">
+					<span className="text-xs font-black uppercase tracking-wide text-veud-copy">
+						Review note
+					</span>
+					<input
+						name="note"
+						maxLength={500}
+						placeholder="Optional context for the audit trail"
+						className="mt-1 min-h-11 w-full rounded-xl border border-veud-border bg-black/20 px-3 text-sm text-veud-cream placeholder:text-veud-copy/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-veud-mint"
+					/>
+				</label>
+				<div className="flex flex-wrap gap-2">
+					{isOpen && issue.issueType === 'possible_duplicate' ? (
+						<button
+							type="submit"
+							name="action"
+							value="confirm"
+							disabled={fetcher.state !== 'idle'}
+							className="min-h-11 rounded-xl border border-amber-300/50 bg-amber-950/30 px-3 text-sm font-black text-amber-100 transition hover:border-amber-200 disabled:opacity-60"
+						>
+							{activeAction === 'confirm' ? 'Confirming…' : 'Confirm candidate'}
+						</button>
+					) : null}
+					{isOpen && repairable ? (
+						<button
+							type="submit"
+							name="action"
+							value="queue-repair"
+							disabled={fetcher.state !== 'idle'}
+							className="min-h-11 rounded-xl border border-sky-300/50 bg-sky-950/30 px-3 text-sm font-black text-sky-100 transition hover:border-sky-200 disabled:opacity-60"
+						>
+							{activeAction === 'queue-repair'
+								? 'Queueing…'
+								: 'Queue provider repair'}
+						</button>
+					) : null}
+					{isActionable ? (
+						<>
+							<button
+								type="submit"
+								name="action"
+								value="resolve"
+								disabled={fetcher.state !== 'idle'}
+								className="min-h-11 rounded-xl border border-emerald-300/40 bg-emerald-950/30 px-3 text-sm font-black text-emerald-100 transition hover:border-emerald-200 disabled:opacity-60"
+							>
+								{activeAction === 'resolve' ? 'Resolving…' : 'Mark resolved'}
+							</button>
+							<button
+								type="submit"
+								name="action"
+								value="dismiss"
+								disabled={fetcher.state !== 'idle'}
+								className="min-h-11 rounded-xl border border-veud-border bg-veud-canvas px-3 text-sm font-black text-veud-copy transition hover:border-veud-copy disabled:opacity-60"
+							>
+								{activeAction === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
+							</button>
+						</>
+					) : (
+						<button
+							type="submit"
+							name="action"
+							value="reopen"
+							disabled={fetcher.state !== 'idle'}
+							className="min-h-11 rounded-xl border border-veud-mint/50 bg-veud-canvas px-3 text-sm font-black text-veud-mint transition hover:border-veud-mint disabled:opacity-60"
+						>
+							{activeAction === 'reopen' ? 'Reopening…' : 'Reopen review'}
+						</button>
+					)}
+				</div>
+				{fetcher.data && !fetcher.data.ok ? (
+					<p role="alert" className="text-sm font-bold text-red-200">
+						{fetcher.data.error}
+					</p>
+				) : fetcher.data?.ok ? (
+					<p role="status" className="text-sm font-bold text-emerald-200">
+						Saved as {fetcher.data.status}
+						{fetcher.data.queuedSources
+							? `; queued ${fetcher.data.queuedSources} provider source${fetcher.data.queuedSources === 1 ? '' : 's'}`
+							: ''}
+						.
+					</p>
+				) : null}
+			</fetcher.Form>
+
+			{issue.events.length ? (
+				<p className="mt-3 text-xs text-veud-copy">
+					Last decision: {issue.events[0]?.action.replaceAll('-', ' ')} by{' '}
+					{issue.events[0]?.actor?.username ?? 'deleted administrator'} ·{' '}
+					{formatDate(issue.events[0]?.createdAt ?? null)}
+				</p>
+			) : null}
+		</li>
 	)
 }
 
@@ -192,6 +417,62 @@ export default function CatalogAdminRoute() {
 						</p>
 					</VeudPanel>
 				))}
+			</section>
+
+			<section aria-labelledby="quality-heading" className="space-y-4">
+				<div className="flex flex-wrap items-end justify-between gap-3">
+					<div>
+						<h2
+							id="quality-heading"
+							className="text-2xl font-black text-veud-amber"
+						>
+							Catalog quality review
+						</h2>
+						<p className="mt-1 max-w-3xl text-sm leading-6 text-veud-copy">
+							Scanner findings are candidates, not automatic merges. Every
+							administrator decision is append-only and can be reopened.
+						</p>
+					</div>
+					<Form method="get">
+						<button
+							type="submit"
+							className="min-h-11 rounded-xl border border-veud-border bg-veud-canvas px-4 text-sm font-black text-veud-copy transition hover:border-veud-mint hover:text-veud-mint"
+						>
+							Refresh reviews
+						</button>
+					</Form>
+				</div>
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					{['open', 'confirmed', 'queued', 'resolved'].map(status => {
+						const count = snapshot.quality.counts
+							.filter(item => item.status === status)
+							.reduce((sum, item) => sum + item.count, 0)
+						return (
+							<VeudPanel key={status} className="min-w-0">
+								<p className="text-xs font-black uppercase tracking-[0.14em] text-veud-mint">
+									{status}
+								</p>
+								<p className="mt-2 text-2xl font-black text-veud-cream">
+									{formatNumber(count)}
+								</p>
+							</VeudPanel>
+						)
+					})}
+				</div>
+				{snapshot.quality.issues.length ? (
+					<ul className="grid gap-4 xl:grid-cols-2">
+						{snapshot.quality.issues.map(issue => (
+							<QualityReviewCard key={issue.id} issue={issue} />
+						))}
+					</ul>
+				) : (
+					<VeudPanel>
+						<p className="text-sm text-veud-copy">
+							No durable quality findings exist yet. Run the dry-run scanner,
+							review its output, then opt into commit mode.
+						</p>
+					</VeudPanel>
+				)}
 			</section>
 
 			<section aria-labelledby="coverage-heading" className="space-y-4">

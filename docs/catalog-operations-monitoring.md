@@ -78,3 +78,9 @@ ops/local-staging/status.sh
 That command also checks PostgreSQL, the application health endpoint, catalog
 timers, and both physical storage filesystems. Provider secrets and database
 credentials are never included in the snapshot.
+
+Catalog identity and asset findings use the separate
+[catalog quality review runbook](catalog-quality-operations.md). The same admin
+page displays those findings, but health monitoring remains read-only: quality
+scans run from an explicit dry-run-by-default CLI, and administrator decisions
+append audit events rather than silently rewriting catalog identities.

@@ -24,7 +24,7 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 		where: { id: admin.id },
 		data: { roles: { connect: { name: 'admin' } } },
 	})
-	await prisma.media.create({
+	const fixtureMedia = await prisma.media.create({
 		data: {
 			kind: 'anime',
 			title: 'Catalog Operations Fixture',
@@ -33,10 +33,23 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 					provider: 'mal',
 					kind: 'anime',
 					externalId: 'catalog-operations-fixture',
-					fetchStatus: 'pending',
+					fetchStatus: 'fresh',
 					hydrationPriority: 10_000,
+					lastFetchedAt: new Date(),
 				},
 			},
+		},
+	})
+	await prisma.catalogQualityIssue.create({
+		data: {
+			fingerprint: `browser-quality-${fixtureMedia.id}`,
+			issueType: 'missing_image',
+			severity: 'info',
+			confidence: 1,
+			summary:
+				'Catalog Operations Fixture is hydrated but has no poster image.',
+			evidence: JSON.stringify({ source: 'browser-fixture' }),
+			primaryMediaId: fixtureMedia.id,
 		},
 	})
 	await prisma.catalogSyncRun.create({
@@ -64,15 +77,32 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 	try {
 		await page.goto('/admin/catalog')
 		await expect(
-			page.getByRole('heading', { name: 'Catalog operations' }),
+			page.getByRole('heading', { name: 'Catalog operations', exact: true }),
 		).toBeVisible()
 		await expect(
 			page.getByText('Catalog sync telemetry is within'),
 		).toBeVisible()
 		const anime = page.getByRole('region', { name: 'MAL anime' })
-		await expect(anime).toContainText('0 / 1')
+		await expect(anime).toContainText('1 / 1')
 		await expect(anime).toContainText('Eligible')
 		await expect(page.getByText('browser-test-worker')).toBeHidden()
+		await expect(
+			page.getByRole('heading', { name: 'Catalog quality review' }),
+		).toBeVisible()
+		await expect(
+			page.getByText(
+				'Catalog Operations Fixture is hydrated but has no poster image.',
+			),
+		).toBeVisible()
+		await page.getByRole('button', { name: 'Queue provider repair' }).click()
+		await expect(page.getByRole('status')).toContainText('Saved as queued')
+		await page.getByRole('button', { name: 'Reopen review' }).click()
+		await expect(page.getByRole('status')).toContainText('Saved as open')
+		expect(
+			await prisma.catalogQualityEvent.count({
+				where: { issue: { primaryMediaId: fixtureMedia.id } },
+			}),
+		).toBe(2)
 
 		await page.setViewportSize({ width: 390, height: 844 })
 		await page.reload()
