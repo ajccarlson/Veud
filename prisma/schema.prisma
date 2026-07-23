@@ -17,44 +17,53 @@ model User {
   name     String?
   bio      String?
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  lastActiveAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  lastActiveAt        DateTime?
+  accountStatus       String    @default("active")
+  suspensionEndsAt    DateTime?
+  accountStatusReason String?
 
-  image                   UserImage?
-  banner                  UserBanner?
-  password                Password?
-  watchlists              Watchlist[]
-  userFavorites           UserFavorite[]
-  roles                   Role[]
-  sessions                Session[]
-  connections             Connection[]
-  following               Follow[]                 @relation("UserFollowing")
-  followers               Follow[]                 @relation("UserFollowers")
-  commentsAuthored        ProfileComment[]         @relation("ProfileCommentAuthor")
-  profileComments         ProfileComment[]         @relation("ProfileCommentProfile")
-  trackingStates          TrackingState[]
-  activityEvents          ActivityEvent[]
-  reviews                 Review[]
-  diaryEntries            DiaryEntry[]
-  reviewLikes             ReviewLike[]
-  reviewComments          ReviewComment[]
-  notificationsReceived   Notification[]           @relation("NotificationRecipient")
-  notificationsSent       Notification[]           @relation("NotificationActor")
-  mediaCollections        MediaCollection[]
-  collectionLikes         CollectionLike[]
-  collectionComments      CollectionComment[]
-  releaseReminders        ReleaseReminder[]
-  catalogQualityReviews   CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
-  catalogQualityEvents    CatalogQualityEvent[]    @relation("CatalogQualityActor")
-  catalogMergesPrepared   CatalogMediaMerge[]      @relation("CatalogMergePreparer")
-  catalogMergesApplied    CatalogMediaMerge[]      @relation("CatalogMergeApplier")
-  catalogMergesReverted   CatalogMediaMerge[]      @relation("CatalogMergeReverter")
-  catalogMergeEvents      CatalogMediaMergeEvent[]
-  recommendationFeedback  RecommendationFeedback[]
-  homeDashboardPreference HomeDashboardPreference?
-  notificationPreference  NotificationPreference?
-  notificationDigests     NotificationDigest[]
+  image                      UserImage?
+  banner                     UserBanner?
+  password                   Password?
+  watchlists                 Watchlist[]
+  userFavorites              UserFavorite[]
+  roles                      Role[]
+  sessions                   Session[]
+  connections                Connection[]
+  following                  Follow[]                 @relation("UserFollowing")
+  followers                  Follow[]                 @relation("UserFollowers")
+  commentsAuthored           ProfileComment[]         @relation("ProfileCommentAuthor")
+  profileComments            ProfileComment[]         @relation("ProfileCommentProfile")
+  trackingStates             TrackingState[]
+  activityEvents             ActivityEvent[]
+  reviews                    Review[]
+  diaryEntries               DiaryEntry[]
+  reviewLikes                ReviewLike[]
+  reviewComments             ReviewComment[]
+  notificationsReceived      Notification[]           @relation("NotificationRecipient")
+  notificationsSent          Notification[]           @relation("NotificationActor")
+  mediaCollections           MediaCollection[]
+  collectionLikes            CollectionLike[]
+  collectionComments         CollectionComment[]
+  releaseReminders           ReleaseReminder[]
+  catalogQualityReviews      CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
+  catalogQualityEvents       CatalogQualityEvent[]    @relation("CatalogQualityActor")
+  catalogMergesPrepared      CatalogMediaMerge[]      @relation("CatalogMergePreparer")
+  catalogMergesApplied       CatalogMediaMerge[]      @relation("CatalogMergeApplier")
+  catalogMergesReverted      CatalogMediaMerge[]      @relation("CatalogMergeReverter")
+  catalogMergeEvents         CatalogMediaMergeEvent[]
+  recommendationFeedback     RecommendationFeedback[]
+  homeDashboardPreference    HomeDashboardPreference?
+  notificationPreference     NotificationPreference?
+  notificationDigests        NotificationDigest[]
+  moderationReportsSubmitted ModerationReport[]       @relation("ModerationReporter")
+  moderationReportsAssigned  ModerationReport[]       @relation("ModerationAssignee")
+  moderationReportsSubject   ModerationReport[]       @relation("ModerationSubject")
+  moderationActionsPerformed ModerationAction[]       @relation("ModerationActor")
+  moderationActionsSubject   ModerationAction[]       @relation("ModerationActionSubject")
+  moderationAppealDrafts     ModerationAppealDraft[]
 }
 
 model ListType {
@@ -643,12 +652,15 @@ model ActivityEvent {
 /// per member and work makes edits stable while preserving the original publish
 /// time separately from the latest edit time.
 model Review {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   body             String
-  containsSpoilers Boolean  @default(false)
+  containsSpoilers Boolean   @default(false)
   rating           Decimal?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  moderationStatus String    @default("visible")
+  moderationReason String?
+  moderatedAt      DateTime?
 
   author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   authorId      String
@@ -661,6 +673,7 @@ model Review {
   @@unique([authorId, mediaId])
   @@index([authorId, createdAt])
   @@index([mediaId, createdAt])
+  @@index([moderationStatus, createdAt])
 }
 
 /// A member can like a review once. The unique pair also makes toggling likes
@@ -681,10 +694,13 @@ model ReviewLike {
 
 /// Review discussion supports replies while remaining bounded to one review.
 model ReviewComment {
-  id        String   @id @default(cuid())
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  body             String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  moderationStatus String    @default("visible")
+  moderationReason String?
+  moderatedAt      DateTime?
 
   author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   authorId     String
@@ -698,6 +714,7 @@ model ReviewComment {
   @@index([reviewId, createdAt])
   @@index([authorId, createdAt])
   @@index([parentId])
+  @@index([moderationStatus, createdAt])
 }
 
 /// A member's opt-in notification schedule for one canonical title.
@@ -724,6 +741,7 @@ model ReleaseReminder {
 model Notification {
   id          String    @id @default(cuid())
   type        String
+  message     String?
   readAt      DateTime?
   availableAt DateTime  @default(now())
   releaseAt   DateTime?
@@ -779,13 +797,16 @@ model DiaryEntry {
 /// distinct from status watchlists: a collection expresses a theme or opinion,
 /// while TrackingState represents consumption progress.
 model MediaCollection {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  isPublic    Boolean   @default(true)
-  featuredAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  title            String
+  description      String?
+  isPublic         Boolean   @default(true)
+  featuredAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  moderationStatus String    @default("visible")
+  moderationReason String?
+  moderatedAt      DateTime?
 
   owner         User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   ownerId       String
@@ -798,6 +819,7 @@ model MediaCollection {
   @@index([ownerId, updatedAt])
   @@index([isPublic, updatedAt])
   @@index([featuredAt])
+  @@index([moderationStatus, updatedAt])
 }
 
 /// One ordered title in a curated collection. Position is indexed rather than
@@ -860,10 +882,13 @@ model CollectionLike {
 /// Flat collection discussion. Owners can moderate comments on their lists;
 /// authors can always remove their own comments.
 model CollectionComment {
-  id        String   @id @default(cuid())
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  body             String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  moderationStatus String    @default("visible")
+  moderationReason String?
+  moderatedAt      DateTime?
 
   author       User            @relation(fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   authorId     String
@@ -873,6 +898,7 @@ model CollectionComment {
 
   @@index([collectionId, createdAt])
   @@index([authorId, createdAt])
+  @@index([moderationStatus, createdAt])
 }
 
 model UserFavorite {
@@ -972,6 +998,86 @@ model Role {
   permissions Permission[]
 }
 
+/// A member-submitted flag for community content or account behavior. Targets
+/// are polymorphic so one queue can cover reviews, discussions, collections,
+/// profile comments, and member accounts without destructive content copies.
+model ModerationReport {
+  id             String    @id @default(cuid())
+  targetType     String
+  targetId       String
+  reasonCategory String
+  details        String    @default("")
+  status         String    @default("open")
+  priority       String    @default("normal")
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  resolvedAt     DateTime?
+
+  reporter         User               @relation("ModerationReporter", fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reporterId       String
+  subject          User?              @relation("ModerationSubject", fields: [subjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subjectId        String?
+  assignedTo       User?              @relation("ModerationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  assignedToId     String?
+  appealOfAction   ModerationAction?  @relation("ModerationAppeal", fields: [appealOfActionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  appealOfActionId String?            @unique
+  actions          ModerationAction[] @relation("ModerationReportActions")
+
+  @@index([status, priority, createdAt])
+  @@index([targetType, targetId])
+  @@index([reporterId, createdAt])
+  @@index([subjectId, createdAt])
+  @@index([assignedToId, status])
+}
+
+/// Immutable staff activity. Content state remains reversible, while this
+/// record preserves who changed it, why, and the before/after state.
+model ModerationAction {
+  id             String   @id @default(cuid())
+  action         String
+  targetType     String
+  targetId       String
+  reason         String
+  details        String   @default("")
+  previousStatus String?
+  nextStatus     String?
+  createdAt      DateTime @default(now())
+
+  actor        User?                   @relation("ModerationActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorId      String?
+  subject      User?                   @relation("ModerationActionSubject", fields: [subjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subjectId    String?
+  report       ModerationReport?       @relation("ModerationReportActions", fields: [reportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reportId     String?
+  appeal       ModerationReport?       @relation("ModerationAppeal")
+  appealDrafts ModerationAppealDraft[]
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([subjectId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([reportId, createdAt])
+}
+
+/// A short-lived, email-verified suspension appeal draft. The report enters the
+/// staff queue only after the account owner proves control of the stored email.
+model ModerationAppealDraft {
+  id        String   @id @default(cuid())
+  details   String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId   String
+  action   ModerationAction @relation(fields: [actionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actionId String
+
+  @@index([userId, createdAt])
+  @@index([actionId, createdAt])
+  @@index([expiresAt])
+}
+
 model Verification {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -1035,10 +1141,13 @@ model Follow {
 }
 
 model ProfileComment {
-  id        String   @id @default(cuid())
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  body             String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  moderationStatus String    @default("visible")
+  moderationReason String?
+  moderatedAt      DateTime?
 
   author   User   @relation("ProfileCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   authorId String
@@ -1048,4 +1157,5 @@ model ProfileComment {
 
   @@index([authorId])
   @@index([profileId, createdAt])
+  @@index([moderationStatus, createdAt])
 }

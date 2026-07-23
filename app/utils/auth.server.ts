@@ -21,6 +21,35 @@ export const sessionKey = 'sessionId'
 
 export const authenticator = new Authenticator<ProviderUser>()
 
+async function restoreExpiredSuspension(userId: string, now: Date) {
+	await prisma.$transaction(async tx => {
+		const restored = await tx.user.updateMany({
+			where: {
+				id: userId,
+				accountStatus: 'suspended',
+				suspensionEndsAt: { lte: now },
+			},
+			data: {
+				accountStatus: 'active',
+				suspensionEndsAt: null,
+				accountStatusReason: null,
+			},
+		})
+		if (!restored.count) return
+		await tx.moderationAction.create({
+			data: {
+				subjectId: userId,
+				action: 'account_suspension_expired',
+				targetType: 'account',
+				targetId: userId,
+				reason: 'Timed suspension expired automatically.',
+				previousStatus: 'suspended',
+				nextStatus: 'active',
+			},
+		})
+	})
+}
+
 for (const [providerName, provider] of Object.entries(providers)) {
 	authenticator.use(provider.getAuthStrategy(), providerName)
 }
@@ -32,7 +61,16 @@ export async function getUserId(request: Request) {
 	const sessionId = authSession.get(sessionKey)
 	if (!sessionId) return null
 	const session = await prisma.session.findUnique({
-		select: { user: { select: { id: true, lastActiveAt: true } } },
+		select: {
+			user: {
+				select: {
+					id: true,
+					lastActiveAt: true,
+					accountStatus: true,
+					suspensionEndsAt: true,
+				},
+			},
+		},
 		where: { id: sessionId, expirationDate: { gt: new Date() } },
 	})
 	if (!session?.user) {
@@ -44,6 +82,20 @@ export async function getUserId(request: Request) {
 	}
 
 	const now = new Date()
+	if (
+		session.user.accountStatus === 'suspended' &&
+		session.user.suspensionEndsAt &&
+		session.user.suspensionEndsAt <= now
+	) {
+		await restoreExpiredSuspension(session.user.id, now)
+	} else if (session.user.accountStatus === 'suspended') {
+		await prisma.session.deleteMany({ where: { userId: session.user.id } })
+		throw redirect('/login?account=suspended', {
+			headers: {
+				'set-cookie': await authSessionStorage.destroySession(authSession),
+			},
+		})
+	}
 	if (shouldTouchLastActiveAt(session.user.lastActiveAt, now)) {
 		const staleBefore = new Date(now.getTime() - LAST_ACTIVE_TOUCH_INTERVAL_MS)
 		await prisma.user.updateMany({
@@ -118,14 +170,14 @@ export async function resetUserPassword({
 	const hashedPassword = await getPasswordHash(password)
 	return prisma.$transaction(async transaction => {
 		const user = await transaction.user.findUniqueOrThrow({
-		where: { username },
+			where: { username },
 			select: { id: true, username: true },
 		})
 		await transaction.password.upsert({
 			where: { userId: user.id },
 			create: { userId: user.id, hash: hashedPassword },
 			update: { hash: hashedPassword },
-	})
+		})
 		await transaction.session.deleteMany({ where: { userId: user.id } })
 		return user
 	})
@@ -268,7 +320,12 @@ export async function verifyUserPassword(
 ) {
 	const userWithPassword = await prisma.user.findUnique({
 		where,
-		select: { id: true, password: { select: { hash: true } } },
+		select: {
+			id: true,
+			accountStatus: true,
+			suspensionEndsAt: true,
+			password: { select: { hash: true } },
+		},
 	})
 
 	if (!userWithPassword || !userWithPassword.password) {
@@ -279,6 +336,20 @@ export async function verifyUserPassword(
 
 	if (!isValid) {
 		return null
+	}
+	if (
+		userWithPassword.accountStatus === 'suspended' &&
+		(!userWithPassword.suspensionEndsAt ||
+			userWithPassword.suspensionEndsAt > new Date())
+	) {
+		return null
+	}
+	if (
+		userWithPassword.accountStatus === 'suspended' &&
+		userWithPassword.suspensionEndsAt &&
+		userWithPassword.suspensionEndsAt <= new Date()
+	) {
+		await restoreExpiredSuspension(userWithPassword.id, new Date())
 	}
 
 	return { id: userWithPassword.id }

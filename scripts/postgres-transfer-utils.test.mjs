@@ -105,9 +105,9 @@ test('distinguishes migration-seeded reference rows from occupied targets', () =
 			new Map([
 				['User', 0],
 				['ListType', 3],
-				['Permission', 16],
-				['Role', 2],
-				['_PermissionToRole', 16],
+				['Permission', 22],
+				['Role', 4],
+				['_PermissionToRole', 34],
 			]),
 		),
 	).toBe(true)

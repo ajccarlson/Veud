@@ -57,7 +57,16 @@ export function notificationInboxWhere(
 ): Prisma.NotificationWhereInput {
 	const config = preferences ?? DEFAULT_NOTIFICATION_PREFERENCES
 	if (config.inAppSocial && config.inAppReleases) return {}
-	if (config.inAppReleases) return { type: 'release_reminder' }
-	if (config.inAppSocial) return { type: { not: 'release_reminder' } }
-	return { id: { in: [] } }
+	if (config.inAppReleases) {
+		return { type: { in: ['release_reminder', 'moderation_notice'] } }
+	}
+	if (config.inAppSocial) {
+		return {
+			OR: [
+				{ type: { not: 'release_reminder' } },
+				{ type: 'moderation_notice' },
+			],
+		}
+	}
+	return { type: 'moderation_notice' }
 }

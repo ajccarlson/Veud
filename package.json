@@ -32,6 +32,7 @@
     "db:verify-backup:postgres": "node scripts/verify-postgres-backup.mjs",
     "db:verify-backup:sqlite": "node scripts/verify-backup.mjs",
     "media:backfill": "tsx scripts/backfill-media-identities.ts",
+    "moderation:bootstrap-owner": "tsx scripts/bootstrap-community-owner.ts",
     "notifications:digests": "tsx scripts/send-notification-digests.ts",
     "prisma:generate:postgres": "npm run prisma:postgres:check && cross-env DATABASE_URL=postgresql://schema-generation:unused@localhost:5432/veud prisma generate --schema=prisma/postgresql/schema.prisma",
     "prisma:generate:sqlite": "prisma generate --schema=prisma/schema.prisma",
@@ -68,7 +69,13 @@
     "test:e2e:gates": "cross-env CI=true playwright test tests/e2e/accessibility.test.ts tests/e2e/visual-regression.test.ts --project=chromium",
     "test:e2e:install": "npx playwright install --with-deps chromium",
     "typecheck": "react-router typegen && tsc",
-    "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run"
+    "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
+    "validate:release": "run-s validate:release:static validate:release:unit validate:release:build validate:release:browser",
+    "validate:release:static": "npm run build:icons && npm run lint && npm run typecheck",
+    "validate:release:unit": "npm run test -- --run --coverage",
+    "validate:release:build": "npm run build && npm run bundle:check",
+    "validate:release:browser": "cross-env CI=true PORT=4122 playwright test --project=chromium",
+    "validate:release:postgres": "npm run prisma:generate:postgres && npm run db:migrate:postgres && npm run db:verify:postgres && npm run db:smoke:postgres && npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after"
   },
   "eslintIgnore": [
     "/node_modules",

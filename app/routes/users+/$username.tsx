@@ -11,6 +11,7 @@ import {
 	useRevalidator,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
@@ -143,16 +144,23 @@ export default function ProfileRoute() {
 							</Button>
 						) : null}
 						{loggedInUser && !isLoggedInUser ? (
-							<Button
-								variant={loaderData.isFollowing ? 'outline' : 'default'}
-								onClick={toggleFollow}
-							>
-								<Icon
-									name={loaderData.isFollowing ? 'check' : 'plus'}
-									aria-hidden="true"
+							<>
+								<Button
+									variant={loaderData.isFollowing ? 'outline' : 'default'}
+									onClick={toggleFollow}
+								>
+									<Icon
+										name={loaderData.isFollowing ? 'check' : 'plus'}
+										aria-hidden="true"
+									/>
+									{loaderData.isFollowing ? 'Unfollow' : 'Follow'}
+								</Button>
+								<ReportContentButton
+									targetType="account"
+									targetId={user.id}
+									label={`@${user.username}`}
 								/>
-								{loaderData.isFollowing ? 'Unfollow' : 'Follow'}
-							</Button>
+							</>
 						) : null}
 						<Button
 							asChild

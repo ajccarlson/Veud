@@ -601,6 +601,16 @@ test('members can publish and edit one spoiler-aware review per title', async ()
 			author: expect.objectContaining({ id: tracker.id }),
 		}),
 	])
+	await prisma.review.update({
+		where: { id: original.id },
+		data: { moderationStatus: 'hidden' },
+	})
+	const moderatedResult = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`),
+		params: { mediaId: media.id },
+	} as any)
+	expect(moderatedResult.data.community.reviews).toBe(0)
+	expect(moderatedResult.data.reviews).toEqual([])
 
 	const otherSession = await prisma.session.create({
 		data: {
@@ -787,6 +797,10 @@ test('review likes, threaded comments, and notifications stay synchronized', asy
 	const reply = await prisma.reviewComment.findFirstOrThrow({
 		where: { parentId: parent.id },
 	})
+	await prisma.reviewComment.update({
+		where: { id: parent.id },
+		data: { moderationStatus: 'hidden' },
+	})
 	expect(
 		await prisma.notification.findUnique({
 			where: { reviewCommentId: reply.id },
@@ -809,7 +823,12 @@ test('review likes, threaded comments, and notifications stay synchronized', asy
 			viewerLiked: true,
 			_count: { likes: 1, comments: 2 },
 			comments: [
-				expect.objectContaining({ id: parent.id, parentId: null }),
+				expect.objectContaining({
+					id: parent.id,
+					parentId: null,
+					body: '[Removed by moderation]',
+					isRemoved: true,
+				}),
 				expect.objectContaining({ id: reply.id, parentId: parent.id }),
 			],
 		}),

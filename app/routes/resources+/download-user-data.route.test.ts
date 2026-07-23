@@ -30,6 +30,24 @@ test('account export includes private recommendation feedback but omits password
 			sourceLane: 'taste',
 		},
 	})
+	const moderationReport = await prisma.moderationReport.create({
+		data: {
+			reporterId: user.id,
+			targetType: 'account',
+			targetId: 'reported-account-id',
+			reasonCategory: 'harassment',
+			details: 'Exported report context.',
+		},
+	})
+	const moderationAction = await prisma.moderationAction.create({
+		data: {
+			subjectId: user.id,
+			action: 'account_warn',
+			targetType: 'account',
+			targetId: user.id,
+			reason: 'Exported enforcement reason.',
+		},
+	})
 	await prisma.homeDashboardPreference.create({
 		data: {
 			ownerId: user.id,
@@ -87,6 +105,8 @@ test('account export includes private recommendation feedback but omits password
 				emailSocial: boolean
 				digestFrequency: string
 			}
+			moderationReportsSubmitted: Array<{ id: string; details: string }>
+			moderationActionsSubject: Array<{ id: string; reason: string }>
 		}
 	}
 
@@ -112,5 +132,17 @@ test('account export includes private recommendation feedback but omits password
 			digestFrequency: 'weekly',
 		}),
 	)
+	expect(exported.user.moderationReportsSubmitted).toEqual([
+		expect.objectContaining({
+			id: moderationReport.id,
+			details: 'Exported report context.',
+		}),
+	])
+	expect(exported.user.moderationActionsSubject).toEqual([
+		expect.objectContaining({
+			id: moderationAction.id,
+			reason: 'Exported enforcement reason.',
+		}),
+	])
 	expect(response.headers.get('cache-control')).toBe('private, no-store')
 })

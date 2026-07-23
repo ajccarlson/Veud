@@ -21,6 +21,7 @@ export async function createReviewComment(
 	const review = await tx.review.findFirst({
 		where: {
 			id: input.reviewId,
+			moderationStatus: 'visible',
 			...(input.mediaId ? { mediaId: input.mediaId } : {}),
 		},
 		select: { id: true, authorId: true },
@@ -29,7 +30,11 @@ export async function createReviewComment(
 
 	const parent = input.parentId
 		? await tx.reviewComment.findFirst({
-				where: { id: input.parentId, reviewId: review.id },
+				where: {
+					id: input.parentId,
+					reviewId: review.id,
+					moderationStatus: 'visible',
+				},
 				select: { id: true, authorId: true },
 			})
 		: null
@@ -69,6 +74,7 @@ export async function toggleReviewLike(
 	const review = await tx.review.findFirst({
 		where: {
 			id: input.reviewId,
+			moderationStatus: 'visible',
 			...(input.mediaId ? { mediaId: input.mediaId } : {}),
 		},
 		select: { id: true, authorId: true },
