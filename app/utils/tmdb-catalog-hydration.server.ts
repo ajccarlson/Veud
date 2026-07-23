@@ -83,12 +83,14 @@ type HydrateTmdbCatalogOptions = {
 	commit?: boolean
 	limit?: number
 	concurrency?: number
+	requestDelayMs?: number
 	refreshDays?: number
 	seedPriorities?: boolean
 	feeds?: TmdbHydrationFeed[]
 	leaseOwner?: string
 	leaseDurationMs?: number
 	fetchImpl?: typeof fetch
+	sleep?: (milliseconds: number) => Promise<void>
 	now?: () => Date
 	onCheckpoint?: (summary: TmdbHydrationSummary) => void | Promise<void>
 }
@@ -109,6 +111,39 @@ function requirePositiveInteger(value: number, label: string) {
 		throw new Error(`${label} must be a positive safe integer`)
 	}
 	return value
+}
+
+function requireNonNegativeInteger(value: number, label: string) {
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`${label} must be a non-negative safe integer`)
+	}
+	return value
+}
+
+function createRequestPacer(
+	requestDelayMs: number,
+	sleep: (milliseconds: number) => Promise<void>,
+) {
+	let nextStart = Promise.resolve()
+	return async <Result>(request: () => Promise<Result>) => {
+		const start = nextStart
+		let releaseNextStart = () => {}
+		nextStart = new Promise<void>(resolve => {
+			releaseNextStart = resolve
+		})
+		await start
+		let result: Promise<Result>
+		try {
+			result = request()
+		} finally {
+			if (requestDelayMs === 0) {
+				releaseNextStart()
+			} else {
+				void sleep(requestDelayMs).then(releaseNextStart, releaseNextStart)
+			}
+		}
+		return result
+	}
 }
 
 function optionalString(value: unknown) {
@@ -240,7 +275,8 @@ function normalizedTmdbNextRelease(
 	if (kind === 'movie') return null
 	const value = payload.next_episode_to_air
 	if (value === null || value === undefined) return null
-	if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+	if (!value || typeof value !== 'object' || Array.isArray(value))
+		return undefined
 	const episode = value as Record<string, unknown>
 	const releaseDate = optionalString(episode.air_date)
 	if (!releaseDate || !optionalDate(releaseDate)) return undefined
@@ -254,8 +290,7 @@ function normalizedTmdbNextRelease(
 		name: optionalString(episode.name),
 		overview: optionalString(episode.overview),
 		releaseDate,
-		episode:
-			episodeNumber !== null && episodeNumber > 0 ? episodeNumber : null,
+		episode: episodeNumber !== null && episodeNumber > 0 ? episodeNumber : null,
 		season: seasonNumber !== null && seasonNumber > 0 ? seasonNumber : null,
 		runtime: optionalNumber(episode.runtime),
 		image: stillPath
@@ -700,6 +735,10 @@ export async function hydrateTmdbCatalog(
 	if (concurrency > MAX_CONCURRENCY) {
 		throw new Error(`concurrency cannot exceed ${MAX_CONCURRENCY}`)
 	}
+	const requestDelayMs = requireNonNegativeInteger(
+		options.requestDelayMs ?? 0,
+		'requestDelayMs',
+	)
 	const refreshDays = requirePositiveInteger(
 		options.refreshDays ?? DEFAULT_REFRESH_DAYS,
 		'refreshDays',
@@ -710,6 +749,11 @@ export async function hydrateTmdbCatalog(
 	)
 	const clock = options.now ?? (() => new Date())
 	const fetchImpl = options.fetchImpl ?? fetch
+	const sleep =
+		options.sleep ??
+		((milliseconds: number) =>
+			new Promise(resolve => setTimeout(resolve, milliseconds)))
+	const pacedRequest = createRequestPacer(requestDelayMs, sleep)
 	const now = clock()
 	const queueBefore = await options.prisma.mediaExternalId.count({
 		where: eligibleHydrationWhere(options.kind, now),
@@ -836,12 +880,14 @@ export async function hydrateTmdbCatalog(
 			}
 			const settled = await Promise.allSettled(
 				feeds.map(feed =>
-					fetchTmdbJson({
-						url: tmdbPriorityFeedUrl(options.kind, feed),
-						apiToken,
-						fetchImpl,
-						now,
-					}).then(payload => prioritySignals(payload, options.kind, feed)),
+					pacedRequest(() =>
+						fetchTmdbJson({
+							url: tmdbPriorityFeedUrl(options.kind, feed),
+							apiToken,
+							fetchImpl,
+							now,
+						}),
+					).then(payload => prioritySignals(payload, options.kind, feed)),
 				),
 			)
 			requestsMade += feeds.length
@@ -920,12 +966,14 @@ export async function hydrateTmdbCatalog(
 			const batchNow = clock()
 			const results = await Promise.all(
 				batch.map(candidate =>
-					fetchDetails(candidate, {
-						kind: options.kind,
-						apiToken,
-						fetchImpl,
-						now: batchNow,
-					}),
+					pacedRequest(() =>
+						fetchDetails(candidate, {
+							kind: options.kind,
+							apiToken,
+							fetchImpl,
+							now: batchNow,
+						}),
+					),
 				),
 			)
 			requestsMade += batch.length

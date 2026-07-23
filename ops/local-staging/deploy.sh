@@ -46,6 +46,10 @@ if [[ -n "${MAL_CLIENT_ID:-}" && -n "${MAL_CATALOG_POLICY_APPROVAL_REF:-}" ]]; t
 	systemctl --user enable --now veud-staging-mal-hydration.timer
 	systemctl --user enable --now veud-staging-mal-inventory.timer
 fi
+if [[ -n "${TMDB_API_KEY:-}" ]]; then
+	systemctl --user enable --now veud-staging-tmdb-hydration.timer
+	systemctl --user enable --now veud-staging-tmdb-inventory.timer
+fi
 systemctl --user enable --now veud-staging-catalog-backup.timer
 
 for _ in {1..60}; do
