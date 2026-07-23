@@ -258,7 +258,17 @@ function runDragScroll() {
 
 export function gridReady(e: any) {
 	setGridAPI(e.api)
-	requestAnimationFrame(registerListDropZones)
+	requestAnimationFrame(() => {
+		registerListDropZones()
+		document
+			.querySelectorAll<HTMLElement>('.ag-header-viewport')
+			.forEach(viewport => {
+				const firstHeader = viewport.querySelector<HTMLElement>(
+					'[role="columnheader"]',
+				)
+				if (firstHeader) firstHeader.tabIndex = 0
+			})
+	})
 }
 
 export function registerListDropZones() {

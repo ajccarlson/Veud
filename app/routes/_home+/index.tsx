@@ -98,6 +98,9 @@ export default function Index() {
 	return (
 		<div className="home">
 			<main className="home-main">
+				<h1 className="sr-only">
+					Track movies, television, anime, and manga with Veud
+				</h1>
 				<div className="home-container">
 					<TrendingData
 						rails={data.trendingRails}
