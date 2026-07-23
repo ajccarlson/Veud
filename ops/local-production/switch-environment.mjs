@@ -7,6 +7,7 @@ import { parse } from 'dotenv'
 import {
 	assertProductionDatabaseUrl,
 	replaceEnvironmentValues,
+	resolveSqliteDatabasePath,
 } from '../../scripts/production-environment-utils.mjs'
 
 const repoRoot = path.resolve(import.meta.dirname, '../..')
@@ -60,8 +61,11 @@ const replacements = Object.fromEntries(
 	}),
 )
 
-const sqlitePathValue = current.DATABASE_URL.slice('file:'.length)
-const sqlitePath = path.resolve(repoRoot, sqlitePathValue)
+const sqlitePath = resolveSqliteDatabasePath(
+	repoRoot,
+	current.DATABASE_URL,
+	current.DATABASE_PATH,
+)
 const sqlite = new Database(sqlitePath, { readonly: true, fileMustExist: true })
 try {
 	const identity = sqlite
