@@ -475,7 +475,7 @@ function MobileNavigation() {
 function Logo() {
 	return (
 		<Link to="/" className="group grid leading-snug">
-			<img src={logo} alt="Logo" width="100rem" />
+			<img src={logo} alt="Veud" width="100" />
 		</Link>
 	)
 }

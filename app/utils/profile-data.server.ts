@@ -133,7 +133,6 @@ export async function loadProfileShell(
 				where: { username },
 				select: {
 					id: true,
-					name: true,
 					username: true,
 					bio: true,
 					createdAt: true,
@@ -180,7 +179,6 @@ export async function loadProfileShell(
 	return {
 		user: {
 			id: user.id,
-			name: user.name,
 			username: user.username,
 			bio: user.bio,
 			createdAt: user.createdAt,

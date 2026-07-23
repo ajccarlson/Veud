@@ -1,21 +1,21 @@
 .user-landing {
 	/* Shared profile palette, layout primitives, and responsive tab presentation. */
-	--veud-bg: #292b28;
-	--veud-surface: #3a3342;
-	--veud-surface-alt: #211f24;
-	--veud-surface-soft: #312e33;
-	--veud-control: #686b68;
-	--veud-control-hover: #86a396;
-	--veud-teal: #54806c;
-	--veud-teal-hover: #416756;
-	--veud-teal-accent: #507b68;
-	--veud-mint: #a2ffd5;
-	--veud-mint-hover: rgb(116, 222, 174);
-	--veud-amber: #ff9900;
+	--veud-bg: #111614;
+	--veud-surface: #28222e;
+	--veud-surface-alt: #141817;
+	--veud-surface-soft: #201d23;
+	--veud-control: #4e5a54;
+	--veud-control-hover: #708f80;
+	--veud-teal: #4e806a;
+	--veud-teal-hover: #416f5b;
+	--veud-teal-accent: #578a73;
+	--veud-mint: #8febbe;
+	--veud-mint-hover: #74dcae;
+	--veud-amber: #f19e4c;
 	--veud-orange: #ff4200;
-	--veud-cream: #ffefcc;
-	--veud-highlight: #ffffb1;
-	--veud-mint-text: #dbffcc;
+	--veud-cream: #f4ebd8;
+	--veud-highlight: #f7eca1;
+	--veud-mint-text: #d9f5df;
 	--veud-bronze: #66563d;
 	--veud-border: rgba(162, 255, 213, 0.16);
 	--veud-border-strong: rgba(162, 255, 213, 0.34);
@@ -67,8 +67,15 @@
 		height: clamp(14rem, 24vw, 19rem);
 		overflow: hidden;
 		border: 1px solid var(--veud-border);
-		border-radius: 1.5rem;
-		background-image: linear-gradient(125deg, #315b4a, #332d3b 68%, #252427);
+		border-radius: 0.4rem 1.5rem 1.5rem 1.5rem;
+		background-image:
+			linear-gradient(
+				125deg,
+				rgb(49 91 74 / 0.92),
+				rgb(51 45 59 / 0.96) 68%,
+				#191d1b
+			),
+			linear-gradient(90deg, transparent 0 97%, rgb(241 158 76 / 0.4) 97%);
 		background-size: cover;
 		background-position: center;
 		box-shadow: var(--veud-shadow);
@@ -97,8 +104,8 @@
 		align-items: center;
 		gap: 1.25rem;
 		border: 1px solid var(--veud-border);
-		border-radius: 1.25rem;
-		background: rgba(47, 46, 48, 0.92);
+		border-radius: 0.35rem 1.15rem 1.15rem 1.15rem;
+		background: rgb(20 24 23 / 0.92);
 		box-shadow: 0 1rem 2.5rem rgba(10, 12, 11, 0.24);
 		backdrop-filter: blur(1rem);
 	}
@@ -128,6 +135,9 @@
 		line-height: 1.1;
 		text-overflow: ellipsis;
 		color: var(--veud-highlight);
+		font-family: var(--veud-font-display);
+		font-weight: 700;
+		letter-spacing: -0.025em;
 	}
 
 	.user-landing-hero-username {

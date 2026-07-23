@@ -56,7 +56,7 @@ export function SiteSearch({
 			</button>
 			<details
 				className="site-search-advanced"
-				open={isMemoryMode || undefined}
+				data-active={isMemoryMode || undefined}
 			>
 				<summary aria-label="Advanced search settings" title="Advanced search">
 					<Icon name="magic-wand" aria-hidden="true" />
@@ -75,10 +75,10 @@ export function SiteSearch({
 							<strong>Tip of My Tongue</strong>
 							<small>
 								{aiAvailable
-									? 'Describe what you remember; AI will rank five catalog matches.'
+									? 'AI expands your clues; Veud privately retrieves and ranks five local catalog matches.'
 									: isSignedIn
-										? 'Use local catalog matching; AI ranking is not configured.'
-										: 'Use local catalog matching, or sign in for configured AI ranking.'}
+										? 'Use local catalog matching; AI clue expansion is not configured.'
+										: 'Use local catalog matching, or sign in for configured AI clue expansion.'}
 							</small>
 						</span>
 					</label>

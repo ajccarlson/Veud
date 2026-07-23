@@ -393,7 +393,7 @@ export default function CollectionDetail() {
 								className="font-bold underline"
 								to={`/users/${data.collection.owner.username}/collections`}
 							>
-								{data.collection.owner.name ?? data.collection.owner.username}
+								{data.collection.owner.username}
 							</Link>
 						</p>
 					</div>
@@ -764,7 +764,7 @@ export default function CollectionDetail() {
 											to={`/users/${comment.author.username}`}
 											className="font-bold text-[#ffffb1] hover:underline"
 										>
-											{comment.author.name ?? comment.author.username}
+											{comment.author.username}
 										</Link>
 										<time className="ml-2 text-xs text-[#8ca99d]">
 											{displayDateTime(comment.createdAt)}

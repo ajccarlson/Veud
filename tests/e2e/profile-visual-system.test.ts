@@ -53,7 +53,7 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/users/${user.username}`)
 	await expect(
-		page.getByRole('heading', { name: user.name ?? user.username }),
+		page.getByRole('heading', { name: user.username }),
 	).toBeVisible()
 	await expect(
 		page.getByRole('heading', { name: 'No completion history yet' }),

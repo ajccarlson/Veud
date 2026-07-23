@@ -33,7 +33,10 @@ import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
+import {
+	OptionalNameSchema,
+	UsernameSchema,
+} from '#app/utils/user-validation.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { onboardingEmailSessionKey } from './onboarding'
 
@@ -44,7 +47,7 @@ export const prefilledProfileKey = 'prefilledProfile'
 const SignupFormSchema = z.object({
 	imageUrl: z.string().optional(),
 	username: UsernameSchema,
-	name: NameSchema,
+	name: OptionalNameSchema,
 	agreeToTermsOfServiceAndPrivacyPolicy: z.boolean({
 		required_error: 'You must agree to the terms of service and privacy policy',
 	}),
@@ -132,6 +135,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}).transform(async data => {
 			const session = await signupWithConnection({
 				...data,
+				name: data.name ?? null,
 				email,
 				providerId,
 				providerName,
@@ -232,10 +236,14 @@ export default function SignupRoute() {
 						errors={fields.username.errors}
 					/>
 					<Field
-						labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
+						labelProps={{
+							htmlFor: fields.name.id,
+							children: 'Full name (private and optional)',
+						}}
 						inputProps={{
 							...getInputProps(fields.name, { type: 'text' }),
 							autoComplete: 'name',
+							placeholder: 'Never shown on your public profile',
 						}}
 						errors={fields.name.errors}
 					/>

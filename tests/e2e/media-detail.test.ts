@@ -138,11 +138,11 @@ test('member can open a canonical media page and change status', async ({
 		await expect(page.getByText('8.40', { exact: true })).toBeVisible()
 		await expect(
 			page.getByRole('link', {
-				name: new RegExp(watchingMember.name ?? watchingMember.username),
+				name: new RegExp(watchingMember.username),
 			}),
 		).toBeVisible()
 		await expect(
-			page.getByText(plannedMember.name ?? plannedMember.username, {
+			page.getByText(plannedMember.username, {
 				exact: true,
 			}),
 		).toHaveCount(0)
