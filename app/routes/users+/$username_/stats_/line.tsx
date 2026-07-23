@@ -212,3 +212,13 @@ export function renderLineChart(loaderData: any, chartType: string) {
 
   return (MyResponsiveLine(typedLines))
 }
+
+export function LineChart({
+  data,
+  mode = 'release',
+}: {
+  data: any
+  mode?: 'release' | 'watched'
+}) {
+  return renderLineChart(data, mode)
+}

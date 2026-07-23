@@ -214,3 +214,7 @@ export function watchlistOverview(loaderData: any, listType: any) {
     </div>
   )
 }
+
+export function WatchlistChart({ data, listType }: any) {
+  return watchlistOverview(data, listType)
+}

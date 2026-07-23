@@ -162,3 +162,7 @@ export function renderBarChart(loaderData: any, chartType: string, listType: any
     return MyResponsiveBar(scoredBars, barKeys)
   }
 }
+
+export function BarChart({ data, listType }: any) {
+  return renderBarChart(data, 'score', listType)
+}

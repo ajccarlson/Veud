@@ -123,3 +123,7 @@ export function renderPieChart(loaderData: any) {
 
   return (MyResponsivePie(pieData, fill))
 }
+
+export function PieChart({ data }: any) {
+  return renderPieChart(data)
+}
