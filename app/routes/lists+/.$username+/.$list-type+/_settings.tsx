@@ -6,6 +6,7 @@ import {
 } from '#app/utils/lists/default-sort.ts'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 
 function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
 	let checkedColumns: any[] = []
@@ -128,46 +129,36 @@ async function handleSubmit(
 			[watchlist.id]: null,
 		})
 
-		const updateSettingsResponse = await fetch(
-			'/lists/fetch/update-settings/' +
-				encodeURIComponent(
-					new URLSearchParams({
-						settings: JSON.stringify(
-							Object.keys(settingsObject).map(key => [
-								key,
-								settingsObject[key],
-							]),
-						),
-						listId: watchlist.id,
-					} as any).toString(),
+		try {
+			const updateSettingsData = await mutateList<
+				'update-watchlist-settings',
+				Array<any>
+			>('update-watchlist-settings', {
+				watchlistId: watchlist.id,
+				settings: settingsObject,
+			})
+
+			await mutateList('touch-watchlist', { watchlistId: watchlist.id })
+
+			const updatedWatchlist = updateSettingsData.slice(-1)[0]
+			listParams.setWatchListData((current: any[]) =>
+				current.map(item =>
+					item.watchlist.id === watchlist.id
+						? { ...item, watchlist: updatedWatchlist }
+						: item,
 				),
-			{ method: 'POST' },
-		)
-		const updateSettingsData =
-			(await updateSettingsResponse.json()) as Array<any>
+			)
 
-		await fetch(
-			'/lists/fetch/now-updated/' +
-				encodeURIComponent(
-					new URLSearchParams({
-						watchlistId: watchlist.id,
-					} as any).toString(),
-				),
-			{ method: 'POST' },
-		)
-
-		const updatedWatchlist = updateSettingsData.slice(-1)[0]
-		listParams.setWatchListData((current: any[]) =>
-			current.map(item =>
-				item.watchlist.id === watchlist.id
-					? { ...item, watchlist: updatedWatchlist }
-					: item,
-			),
-		)
-
-		listParams.setShownSettings((oldValues: any) => {
-			return oldValues.filter((setting: any) => setting !== watchlist.id)
-		})
+			listParams.setShownSettings((oldValues: any) => {
+				return oldValues.filter((setting: any) => setting !== watchlist.id)
+			})
+		} catch (error) {
+			console.error('[watchlist] failed to save settings', error)
+			listParams.setSettingsErrors({
+				...listParams.settingsErrors,
+				[watchlist.id]: ['request'],
+			})
+		}
 	}
 }
 
@@ -301,25 +292,34 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
 										<em>Must display at least one column</em>
 									) : null}
 								</div>
+								{listParams.settingsErrors[entryData.watchlist.id]?.includes(
+									'request',
+								) ? (
+									<p role="alert">
+										Settings could not be saved. Your previous settings are
+										still active.
+									</p>
+								) : null}
 								<button
 									type="button"
 									className="list-landing-settings-delete-button"
 									onClick={async () => {
-										await fetch(
-											'/lists/fetch/delete-watchlist/' +
-												encodeURIComponent(
-													new URLSearchParams({
-														id: entryData.watchlist.id,
-													} as any).toString(),
+										try {
+											await mutateList('delete-watchlist', {
+												watchlistId: entryData.watchlist.id,
+											})
+											listParams.setWatchListData((current: any[]) =>
+												current.filter(
+													item => item.watchlist.id !== entryData.watchlist.id,
 												),
-											{ method: 'POST' },
-										)
-
-										listParams.setWatchListData((current: any[]) =>
-											current.filter(
-												item => item.watchlist.id !== entryData.watchlist.id,
-											),
-										)
+											)
+										} catch (error) {
+											console.error('[watchlist] failed to delete list', error)
+											listParams.setSettingsErrors({
+												...listParams.settingsErrors,
+												[entryData.watchlist.id]: ['request'],
+											})
+										}
 									}}
 								>
 									<div className="list-landing-settings-delete-icon">

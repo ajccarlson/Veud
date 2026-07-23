@@ -21,13 +21,81 @@
 // (Note: `gridAPI` here is this app's own shared handle to ag-grid's API object; it is
 // unrelated to ag-grid's built-in grid *state* feature.)
 
-export let gridAPI: any
-export let columnParams: any
+import type { GridApi } from '@ag-grid-community/core'
+import type { Dispatch, SetStateAction } from 'react'
 
-export function setGridAPI(api: any) {
-  gridAPI = api
+export type WatchlistRow = Record<string, unknown> & {
+	id?: string
+	watchlistId: string
+	position: number
+	title?: string | null
+	type?: string | null
+	thumbnail?: string | null
 }
 
-export function setColumnParams(params: any) {
-  columnParams = params
+export type WatchlistSummary = {
+	id: string
+	typeId: string
+	name: string
+	header: string
+	position: number
+	displayedColumns?: string | null
+	defaultSortColumn?: string | null
+	defaultSortDirection?: string | null
+}
+
+export type ListTypeSummary = {
+	id: string
+	name: string
+	header: string
+	columns: string
+	mediaType: string
+}
+
+export type FavoriteSummary = {
+	id: string
+	typeId: string
+	thumbnail: string | null
+}
+
+export type GridUser = {
+	id: string
+	username: string
+}
+
+export type TrackingSummary = {
+	mediaId: string
+	watchlistId: string | null
+	statusLabel: string | null
+}
+
+export type WatchlistColumnParams = {
+	listEntries: WatchlistRow[]
+	setListEntries: Dispatch<SetStateAction<WatchlistRow[]>>
+	selectedSearchType: string
+	setSelectedSearchType: Dispatch<SetStateAction<string>>
+	favoriteIds: Array<string | undefined>
+	setFavoriteIds: Dispatch<SetStateAction<Array<string | undefined>>>
+	watchListData: WatchlistSummary
+	listTypeData: ListTypeSummary
+	watchlistId: string
+	typedWatchlists: Record<string, WatchlistSummary[]>
+	typedFavorites: Record<string, FavoriteSummary[]>
+	trackingByIdentity: Record<string, TrackingSummary>
+	listOwner: GridUser
+	currentUser: GridUser | null | undefined
+	currentUserId: string | null
+	displayedColumns: Record<string, boolean>
+	navigate: (path: string) => void
+}
+
+export let gridAPI: GridApi<WatchlistRow>
+export let columnParams: WatchlistColumnParams
+
+export function setGridAPI(api: GridApi<WatchlistRow>) {
+	gridAPI = api
+}
+
+export function setColumnParams(params: WatchlistColumnParams) {
+	columnParams = params
 }
