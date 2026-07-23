@@ -92,6 +92,32 @@ npm run catalog:tmdb-inventory -- \
 npm run catalog:tmdb-inventory -- --help
 ```
 
+## Isolated staging schedule
+
+Local staging installs `veud-staging-tmdb-inventory.timer`, which runs the
+official movie and TV inventory daily after the export publication window. The
+wrapper:
+
+- refuses to run without the qualified staging drive and active release;
+- targets `STAGING_LOAD_DATABASE_URL`, never the separate public application
+  database;
+- shares `tmdb-provider.lock` with detail hydration so inventory and API
+  requests cannot overlap; and
+- keeps reconciliation guards enabled for completed daily scans.
+
+Use `ops/local-staging/status.sh` for timer and catalog health, or inspect the
+unit directly with:
+
+```sh
+systemctl --user status veud-staging-tmdb-inventory.timer
+systemctl --user status veud-staging-tmdb-inventory.service
+```
+
+The first isolated staging baseline completed on 2026-07-23 from TMDB's
+2026-07-22 exports. It committed 1,223,658 movies and 227,440 TV series with
+zero failed records and zero tombstones. Both streams resumed after bounded
+500-record canaries, demonstrating the durable cursor path before the full scan.
+
 ## Failure and recovery
 
 Malformed records, decompression/download failures, expired leases, suspicious

@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Veud staging TMDB ID inventory daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=veud-staging-tmdb-inventory.service
+
+[Install]
+WantedBy=timers.target
