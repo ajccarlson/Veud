@@ -1,20 +1,68 @@
-import {
-	MediaSearchBar,
-	MediaTypeDropdown,
-} from '#app/components/search-add-watchlist-entry.tsx'
+import { lazy, Suspense, useState } from 'react'
+import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { refreshGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/grid-actions.ts'
-import {
-	searchMAL,
-	getAnimeInfo,
-	getMangaInfo,
-} from '#app/routes/media+/mal.ts'
-import { searchTMDB, getTMDBInfo } from '#app/routes/media+/tmdb.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
 	mediaIdentityForTmdb,
 } from '#app/utils/media-identity.ts'
 import { serializeNextRelease } from '#app/utils/release-schedule.ts'
+
+const DeferredMediaSearch = lazy(() =>
+	import('#app/components/search-add-watchlist-entry.tsx').then(module => ({
+		default: module.MediaSearchBar,
+	})),
+)
+const DeferredMediaType = lazy(() =>
+	import('#app/components/search-add-watchlist-entry.tsx').then(module => ({
+		default: module.MediaTypeDropdown,
+	})),
+)
+
+function QuickAddLoading({ compact }: { compact: boolean }) {
+	return compact ? (
+		<Button
+			type="button"
+			variant="outline"
+			size="sm"
+			className="watchlist-open-quick-add"
+			disabled
+			aria-busy="true"
+		>
+			<Icon name="plus" aria-hidden="true" />
+			Loading…
+		</Button>
+	) : (
+		<span role="status">Loading catalog search…</span>
+	)
+}
+
+export function DeferredMediaSearchBar(params: any) {
+	const compact = Boolean(params.compactTrigger)
+	const [requested, setRequested] = useState(!compact)
+
+	if (!requested) {
+		return (
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className="watchlist-open-quick-add"
+				onClick={() => setRequested(true)}
+			>
+				<Icon name="plus" aria-hidden="true" />
+				Add title
+			</Button>
+		)
+	}
+
+	return (
+		<Suspense fallback={<QuickAddLoading compact={compact} />}>
+			<DeferredMediaSearch {...params} openOnMount={compact} />
+		</Suspense>
+	)
+}
 
 export function dateFormatter(params: any) {
 	try {
@@ -332,7 +380,7 @@ export function titleCellRenderer(params: any, columnParams: any) {
 		return (
 			<div className="w-full min-w-0">
 				<div className="ml-auto w-full max-w-sm">
-					<MediaSearchBar params={params} columnParams={columnParams} />
+					<DeferredMediaSearchBar params={params} columnParams={columnParams} />
 				</div>
 			</div>
 		)
@@ -348,7 +396,11 @@ export function typeCellRenderer(params: any, columnParams: any) {
 				columnParams.currentUserId == columnParams.listOwner.id)) &&
 		columnParams.listTypeData.id == 'yducsgix'
 	) {
-		return <MediaTypeDropdown columnParams={columnParams} />
+		return (
+			<Suspense fallback={<span role="status">Loading media types…</span>}>
+				<DeferredMediaType columnParams={columnParams} />
+			</Suspense>
+		)
 	} else {
 		return params.value
 	}
@@ -364,18 +416,21 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 		entryInfo = getSiteID(entryUrl)
 	} catch {
 		if (columnParams.listTypeData.name == 'liveaction') {
+			const { searchTMDB } = await import('#app/routes/media+/tmdb.ts')
 			rawInfo = await searchTMDB(params.data.title, params.data.type, 5)
 			entryInfo = {
 				site: 'tmdb',
 				id: rawInfo[0].id,
 			}
 		} else if (columnParams.listTypeData.name == 'anime') {
+			const { searchMAL } = await import('#app/routes/media+/mal.ts')
 			rawInfo = await searchMAL(params.data.title, 'anime', 5)
 			entryInfo = {
 				site: 'mal',
 				id: rawInfo[0].id,
 			}
 		} else if (columnParams.listTypeData.name == 'manga') {
+			const { searchMAL } = await import('#app/routes/media+/mal.ts')
 			rawInfo = await searchMAL(params.data.title, 'manga', 5)
 			entryInfo = {
 				site: 'mal',
@@ -385,6 +440,7 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 	}
 
 	if (columnParams.listTypeData.name == 'liveaction') {
+		const { getTMDBInfo } = await import('#app/routes/media+/tmdb.ts')
 		resultInfo = await getTMDBInfo(entryInfo.id, params.data.type)
 		updateRow = {
 			/*id: " ", */ mediaIdentity: mediaIdentityForTmdb(
@@ -420,6 +476,7 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 			notes: params.data.notes,
 		}
 	} else if (columnParams.listTypeData.name == 'anime') {
+		const { getAnimeInfo } = await import('#app/routes/media+/mal.ts')
 		resultInfo = await getAnimeInfo(entryInfo.id)
 		updateRow = {
 			/*id: " ", */ mediaIdentity: mediaIdentityForMal(entryInfo.id, 'anime'),
@@ -453,6 +510,7 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 			notes: params.data.notes,
 		}
 	} else if (columnParams.listTypeData.name == 'manga') {
+		const { getMangaInfo } = await import('#app/routes/media+/mal.ts')
 		resultInfo = await getMangaInfo(entryInfo.id)
 		updateRow = {
 			/*id: " ", */ mediaIdentity: mediaIdentityForMal(entryInfo.id, 'manga'),

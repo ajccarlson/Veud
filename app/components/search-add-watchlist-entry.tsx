@@ -280,6 +280,12 @@ export function MediaSearchBar(params: any) {
 		setTrackingByIdentity(params.columnParams.trackingByIdentity ?? {})
 	}, [params.columnParams.trackingByIdentity])
 
+	useEffect(() => {
+		if (params.openOnMount && !dialogRef.current?.open) {
+			dialogRef.current?.showModal()
+		}
+	}, [params.openOnMount])
+
 	async function search(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault()
 		const query = searchQuery.trim()
