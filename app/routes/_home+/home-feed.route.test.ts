@@ -182,3 +182,86 @@ test('new members receive discovery suggestions that exclude themselves', async 
 	).toBe(false)
 	expect(result.data.upcomingCalendar).toMatchObject({ total: 0 })
 })
+
+test('collapsed dashboard modules preserve their order without loading personalized data', async () => {
+	const viewer = await createUser('collapsed_viewer')
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Collapsed Home Fixture',
+			releaseStart: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+		},
+	})
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: media.id,
+				status: 'watching',
+			},
+		}),
+		prisma.homeDashboardPreference.create({
+			data: {
+				ownerId: viewer.id,
+				density: 'compact',
+				moduleOrder: JSON.stringify([
+					'continue',
+					'recommendations',
+					'trending',
+					'following',
+					'library',
+					'upcoming',
+				]),
+				collapsedModules: JSON.stringify([
+					'trending',
+					'continue',
+					'recommendations',
+					'following',
+					'library',
+					'upcoming',
+				]),
+			},
+		}),
+	])
+	const session = await prisma.session.create({
+		data: {
+			userId: viewer.id,
+			expirationDate: getSessionExpirationDate(),
+		},
+	})
+	const cookie = await getSessionCookieHeader(session)
+
+	const result = await loader({
+		request: new Request(BASE_URL, { headers: { cookie } }),
+		params: {},
+	} as any)
+
+	expect(result.data.dashboardConfig).toEqual({
+		density: 'compact',
+		moduleOrder: [
+			'continue',
+			'recommendations',
+			'trending',
+			'following',
+			'library',
+			'upcoming',
+		],
+		collapsedModules: [
+			'trending',
+			'continue',
+			'recommendations',
+			'following',
+			'library',
+			'upcoming',
+		],
+	})
+	expect(result.data.trendingRails).toEqual([])
+	expect(result.data.continuationQueue).toEqual([])
+	expect(result.data.recommendationGraph).toBeNull()
+	expect(result.data.followingFeed).toEqual([])
+	expect(result.data.suggestedMembers).toEqual([])
+	expect(result.data.followingCount).toBe(0)
+	expect(result.data.librarySummary).toBeNull()
+	expect(result.data.upcomingCalendar).toBeNull()
+	expect(result.data.watchlists).toEqual([])
+})

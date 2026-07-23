@@ -46,6 +46,19 @@ test('signed-in settings and profile meet automated WCAG checks', async ({
 	}
 })
 
+test('configurable member home dashboard meets automated WCAG checks', async ({
+	page,
+	login,
+}) => {
+	await login()
+	await page.goto('/')
+	await expect(
+		page.getByRole('region', { name: 'Personal home dashboard' }),
+	).toBeVisible()
+	await page.getByText('Customize home', { exact: true }).click()
+	await expectNoAccessibilityViolations(page)
+})
+
 test('explainable recommendation lanes meet automated WCAG checks', async ({
 	page,
 	login,

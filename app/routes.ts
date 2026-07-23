@@ -181,6 +181,9 @@ export default [
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
 	}),
+	appRoute('routes/resources+/home-dashboard-preferences.ts', {
+		path: 'resources/home-dashboard-preferences',
+	}),
 	appRoute('routes/resources+/recommendation-feedback.ts', {
 		path: 'resources/recommendation-feedback',
 	}),
