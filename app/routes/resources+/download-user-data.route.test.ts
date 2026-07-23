@@ -30,6 +30,21 @@ test('account export includes private recommendation feedback but omits password
 			sourceLane: 'taste',
 		},
 	})
+	await prisma.homeDashboardPreference.create({
+		data: {
+			ownerId: user.id,
+			density: 'compact',
+			moduleOrder: JSON.stringify([
+				'library',
+				'trending',
+				'continue',
+				'recommendations',
+				'following',
+				'upcoming',
+			]),
+			collapsedModules: JSON.stringify(['following']),
+		},
+	})
 	const session = await prisma.session.create({
 		data: {
 			userId: user.id,
@@ -54,6 +69,11 @@ test('account export includes private recommendation feedback but omits password
 				feedbackType: string
 				sourceLane: string | null
 			}>
+			homeDashboardPreference: {
+				density: string
+				moduleOrder: string
+				collapsedModules: string
+			}
 		}
 	}
 
@@ -66,5 +86,11 @@ test('account export includes private recommendation feedback but omits password
 			sourceLane: 'taste',
 		}),
 	])
+	expect(exported.user.homeDashboardPreference).toEqual(
+		expect.objectContaining({
+			density: 'compact',
+			collapsedModules: JSON.stringify(['following']),
+		}),
+	)
 	expect(response.headers.get('cache-control')).toBe('private, no-store')
 })

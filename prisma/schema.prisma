@@ -21,37 +21,38 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastActiveAt DateTime?
 
-  image                  UserImage?
-  banner                 UserBanner?
-  password               Password?
-  watchlists             Watchlist[]
-  userFavorites          UserFavorite[]
-  roles                  Role[]
-  sessions               Session[]
-  connections            Connection[]
-  following              Follow[]                 @relation("UserFollowing")
-  followers              Follow[]                 @relation("UserFollowers")
-  commentsAuthored       ProfileComment[]         @relation("ProfileCommentAuthor")
-  profileComments        ProfileComment[]         @relation("ProfileCommentProfile")
-  trackingStates         TrackingState[]
-  activityEvents         ActivityEvent[]
-  reviews                Review[]
-  diaryEntries           DiaryEntry[]
-  reviewLikes            ReviewLike[]
-  reviewComments         ReviewComment[]
-  notificationsReceived  Notification[]           @relation("NotificationRecipient")
-  notificationsSent      Notification[]           @relation("NotificationActor")
-  mediaCollections       MediaCollection[]
-  collectionLikes        CollectionLike[]
-  collectionComments     CollectionComment[]
-  releaseReminders       ReleaseReminder[]
-  catalogQualityReviews  CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
-  catalogQualityEvents   CatalogQualityEvent[]    @relation("CatalogQualityActor")
-  catalogMergesPrepared  CatalogMediaMerge[]      @relation("CatalogMergePreparer")
-  catalogMergesApplied   CatalogMediaMerge[]      @relation("CatalogMergeApplier")
-  catalogMergesReverted  CatalogMediaMerge[]      @relation("CatalogMergeReverter")
-  catalogMergeEvents     CatalogMediaMergeEvent[]
-  recommendationFeedback RecommendationFeedback[]
+  image                   UserImage?
+  banner                  UserBanner?
+  password                Password?
+  watchlists              Watchlist[]
+  userFavorites           UserFavorite[]
+  roles                   Role[]
+  sessions                Session[]
+  connections             Connection[]
+  following               Follow[]                 @relation("UserFollowing")
+  followers               Follow[]                 @relation("UserFollowers")
+  commentsAuthored        ProfileComment[]         @relation("ProfileCommentAuthor")
+  profileComments         ProfileComment[]         @relation("ProfileCommentProfile")
+  trackingStates          TrackingState[]
+  activityEvents          ActivityEvent[]
+  reviews                 Review[]
+  diaryEntries            DiaryEntry[]
+  reviewLikes             ReviewLike[]
+  reviewComments          ReviewComment[]
+  notificationsReceived   Notification[]           @relation("NotificationRecipient")
+  notificationsSent       Notification[]           @relation("NotificationActor")
+  mediaCollections        MediaCollection[]
+  collectionLikes         CollectionLike[]
+  collectionComments      CollectionComment[]
+  releaseReminders        ReleaseReminder[]
+  catalogQualityReviews   CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
+  catalogQualityEvents    CatalogQualityEvent[]    @relation("CatalogQualityActor")
+  catalogMergesPrepared   CatalogMediaMerge[]      @relation("CatalogMergePreparer")
+  catalogMergesApplied    CatalogMediaMerge[]      @relation("CatalogMergeApplier")
+  catalogMergesReverted   CatalogMediaMerge[]      @relation("CatalogMergeReverter")
+  catalogMergeEvents      CatalogMediaMergeEvent[]
+  recommendationFeedback  RecommendationFeedback[]
+  homeDashboardPreference HomeDashboardPreference?
 }
 
 model ListType {
@@ -537,6 +538,21 @@ model RecommendationFeedback {
   @@unique([ownerId, mediaId])
   @@index([ownerId, feedbackType, updatedAt])
   @@index([mediaId])
+}
+
+/// Cross-device presentation preferences for the signed-in home dashboard.
+model HomeDashboardPreference {
+  id               String   @id @default(cuid())
+  density          String   @default("comfortable")
+  moduleOrder      String
+  collapsedModules String   @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String @unique
+
+  @@index([updatedAt])
 }
 
 /// An immutable, user-visible change to tracking state. Application code only
