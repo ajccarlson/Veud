@@ -39,20 +39,22 @@ export async function sendEmail({
 		...(react ? await renderReactEmail(react) : null),
 	}
 
-	// feel free to remove this condition once you've set up resend
 	if (!process.env.RESEND_API_KEY && !process.env.MOCKS) {
-		console.error(`RESEND_API_KEY not set and we're not in mocks mode.`)
-		console.error(
-			`To send emails, set the RESEND_API_KEY environment variable.`,
-		)
-		console.error(`Would have sent the following email:`, JSON.stringify(email))
+		console.error('Email delivery is unavailable: RESEND_API_KEY is not set.')
 		return {
-			status: 'success',
-			data: { id: 'mocked' },
+			status: 'error',
+			error: {
+				name: 'ConfigurationError',
+				message: 'Email delivery is temporarily unavailable.',
+				statusCode: 503,
+			},
 		} as const
 	}
 
-	const response = await fetch('https://api.resend.com/emails', {
+	let response: Response
+	let data: unknown
+	try {
+		response = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		body: JSON.stringify(email),
 		headers: {
@@ -60,7 +62,17 @@ export async function sendEmail({
 			'Content-Type': 'application/json',
 		},
 	})
-	const data = await response.json()
+		data = await response.json()
+	} catch {
+		return {
+			status: 'error',
+			error: {
+				name: 'TransportError',
+				message: 'Email delivery is temporarily unavailable.',
+				statusCode: 503,
+			},
+		} as const
+	}
 	const parsedData = resendSuccessSchema.safeParse(data)
 
 	if (response.ok && parsedData.success) {

@@ -28,28 +28,7 @@ const ForgotPasswordSchema = z.object({
 export async function action({ request }: ActionFunctionArgs) {
 	const formData = await request.formData()
 	await checkHoneypot(formData)
-	const submission = await parseWithZod(formData, {
-		schema: ForgotPasswordSchema.superRefine(async (data, ctx) => {
-			const user = await prisma.user.findFirst({
-				where: {
-					OR: [
-						{ email: data.usernameOrEmail },
-						{ username: data.usernameOrEmail },
-					],
-				},
-				select: { id: true },
-			})
-			if (!user) {
-				ctx.addIssue({
-					path: ['usernameOrEmail'],
-					code: z.ZodIssueCode.custom,
-					message: 'No user exists with this username or email',
-				})
-				return
-			}
-		}),
-		async: true,
-	})
+	const submission = parseWithZod(formData, { schema: ForgotPasswordSchema })
 	if (submission.status !== 'success') {
 		return json(
 			{ result: submission.reply() },
@@ -58,9 +37,9 @@ export async function action({ request }: ActionFunctionArgs) {
 	}
 	const { usernameOrEmail } = submission.value
 
-	const user = await prisma.user.findFirstOrThrow({
+	const user = await prisma.user.findFirst({
 		where: { OR: [{ email: usernameOrEmail }, { username: usernameOrEmail }] },
-		select: { email: true, username: true },
+		select: { email: true },
 	})
 
 	const { verifyUrl, redirectTo, otp } = await prepareVerification({
@@ -70,6 +49,10 @@ export async function action({ request }: ActionFunctionArgs) {
 		target: usernameOrEmail,
 	})
 
+	if (!user) {
+		return redirect(redirectTo.toString())
+	}
+
 	const response = await sendEmail({
 		to: user.email,
 		subject: `Veud Password Reset`,
@@ -78,14 +61,13 @@ export async function action({ request }: ActionFunctionArgs) {
 		),
 	})
 
-	if (response.status === 'success') {
-		return redirect(redirectTo.toString())
-	} else {
+	if (response.status !== 'success') {
 		return json(
 			{ result: submission.reply({ formErrors: [response.error.message] }) },
 			{ status: 500 },
 		)
 	}
+	return redirect(redirectTo.toString())
 }
 
 function ForgotPasswordEmail({
@@ -165,7 +147,7 @@ export default function ForgotPasswordRoute() {
 								status={
 									forgotPassword.state === 'submitting'
 										? 'pending'
-										: form.status ?? 'idle'
+										: (form.status ?? 'idle')
 								}
 								type="submit"
 								disabled={forgotPassword.state !== 'idle'}

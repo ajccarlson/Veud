@@ -3,8 +3,8 @@ import { type LoaderFunctionArgs } from 'react-router'
 import { cache, cachified } from '#app/utils/cache.server.ts'
 
 /**
- * Server-side fetch proxy for third-party media APIs
- * (TMDB, MyAnimeList, AniList, Trakt).
+ * Server-side fetch proxy for the narrow public catalog requests still made by
+ * the browser (TMDB, MyAnimeList, and one AniList schedule query).
  *
  * SECURITY NOTE
  * -------------
@@ -18,10 +18,12 @@ import { cache, cachified } from '#app/utils/cache.server.ts'
  *      that host.
  *
  * It now:
- *   - only fetches HTTPS URLs whose host is in ALLOWED_HOSTS (closes the SSRF),
+ *   - only fetches HTTPS URLs and path/method combinations Veud uses,
  *   - derives which credential to attach from the validated destination host, never
  *     from a client parameter, so a secret can only ever be sent to the host it
  *     belongs to (closes the credential theft),
+ *   - reconstructs the sole allowed AniList query from a validated numeric MAL id,
+ *   - never exposes Trakt access tokens through this public route,
  *   - ignores any client-supplied throttle value (closes a timer-based DoS),
  *   - returns generic errors and logs details server-side (no internal leakage).
  *
@@ -41,10 +43,73 @@ const ALLOWED_HOSTS = new Set([
 	'api.themoviedb.org',
 	'api.myanimelist.net',
 	'graphql.anilist.co',
-	'api.trakt.tv',
 ])
 
-const ALLOWED_METHODS = new Set(['GET', 'POST'])
+const MAX_URL_LENGTH = 2_048
+const MAX_BODY_LENGTH = 10_000
+const ANILIST_SCHEDULE_QUERY = `
+	query ($id: Int) {
+		Media (idMal: $id, type: ANIME) {
+			nextAiringEpisode { airingAt episode mediaId }
+			streamingEpisodes { title thumbnail url site }
+			duration
+			coverImage { extraLarge large medium color }
+		}
+	}
+`
+
+function permittedPath(target: URL, method: string) {
+	if (target.hostname === 'graphql.anilist.co') {
+		return method === 'POST' && target.pathname === '/'
+	}
+	if (method !== 'GET') return false
+	if (target.hostname === 'api.themoviedb.org') {
+		return [
+			/^\/3\/search\/(movie|tv|person|multi)$/,
+			/^\/3\/collection\/\d+$/,
+			/^\/3\/(movie|tv|person)\/\d+$/,
+			/^\/3\/tv\/\d+\/content_ratings$/,
+			/^\/3\/movie\/\d+\/release_dates$/,
+			/^\/3\/find\/[a-z0-9_-]+$/i,
+			/^\/3\/trending\/(movie|tv|person|all)\/(day|week)$/,
+		].some(pattern => pattern.test(target.pathname))
+	}
+	if (target.hostname === 'api.myanimelist.net') {
+		return [
+			/^\/v2\/(anime|manga)$/,
+			/^\/v2\/(anime|manga)\/\d+$/,
+			/^\/v2\/(anime|manga)\/ranking$/,
+			/^\/v2\/anime\/season\/\d{4}\/(winter|spring|summer|fall)$/,
+		].some(pattern => pattern.test(target.pathname))
+	}
+	return false
+}
+
+function boundedProviderQuery(target: URL) {
+	const limit = target.searchParams.get('limit')
+	const page = target.searchParams.get('page')
+	if (limit && (!/^\d{1,3}$/.test(limit) || Number(limit) > 100)) return false
+	if (page && (!/^\d{1,3}$/.test(page) || Number(page) > 500)) return false
+	return true
+}
+
+function sanitizedBody(host: string, rawBody: string | null) {
+	if (host !== 'graphql.anilist.co') return undefined
+	if (!rawBody || rawBody.length > MAX_BODY_LENGTH) return null
+	try {
+		const payload = JSON.parse(rawBody) as {
+			variables?: { id?: unknown }
+		}
+		const id = payload.variables?.id
+		if (!Number.isSafeInteger(id) || Number(id) <= 0) return null
+		return JSON.stringify({
+			query: ANILIST_SCHEDULE_QUERY,
+			variables: { id },
+		})
+	} catch {
+		return null
+	}
+}
 
 // Per-host, server-side rate limiting toward upstream APIs, using each provider's published
 // limits. A token bucket is acquired only on a cache MISS (inside getFreshValue below), so
@@ -89,7 +154,6 @@ const RATE_LIMITERS: Record<string, TokenBucket | null> = {
 	'api.themoviedb.org': null,
 	'api.myanimelist.net': new TokenBucket(1, 5),
 	'graphql.anilist.co': new TokenBucket(1.5, 10),
-	'api.trakt.tv': new TokenBucket(3, 30),
 }
 
 const HOUR = 1000 * 60 * 60
@@ -137,7 +201,7 @@ function hashKey(input: string): string {
  * Build the outgoing headers for a validated host. Secrets are read here, keyed by host,
  * so a given credential is only ever attached to requests going to its own provider.
  */
-function buildHeadersForHost(host: string, searchParams: URLSearchParams) {
+function buildHeadersForHost(host: string) {
 	const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
 	switch (host) {
@@ -155,22 +219,6 @@ function buildHeadersForHost(host: string, searchParams: URLSearchParams) {
 			// AniList's public GraphQL endpoint needs no credentials.
 			break
 		}
-		case 'api.trakt.tv': {
-			const traktKey = process.env.TRAKT_API_KEY
-			if (traktKey) {
-				headers['trakt-api-version'] = '2'
-				headers['trakt-api-key'] = traktKey
-			}
-			// main vs. backup token selection is safe here because the host is already
-			// validated as Trakt — the token can only be sent to Trakt either way.
-			const useBackup =
-				(searchParams.get('traktToken') ?? '').toLowerCase() === 'backup'
-			const token = useBackup
-				? process.env.TRAKT_ACCESS_TOKEN_BACKUP
-				: process.env.TRAKT_ACCESS_TOKEN_MAIN
-			if (token) headers['Authorization'] = `Bearer ${token}`
-			break
-		}
 	}
 
 	return headers
@@ -183,6 +231,9 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	const rawUrl = searchParams.get('url')
 	if (!rawUrl) {
 		throw new Response('Missing url', { status: 400 })
+	}
+	if (rawUrl.length > MAX_URL_LENGTH) {
+		throw new Response('URL not permitted', { status: 400 })
 	}
 
 	let target
@@ -197,18 +248,24 @@ export async function loader({ params }: LoaderFunctionArgs) {
 		throw new Response('URL not permitted', { status: 400 })
 	}
 
-	// 2) Validate the HTTP method.
+	// 2) Validate the HTTP method and provider-specific path.
 	const method = (searchParams.get('fetchMethod') ?? 'GET').toUpperCase()
-	if (!ALLOWED_METHODS.has(method)) {
-		throw new Response('Method not permitted', { status: 400 })
+	if (!permittedPath(target, method) || !boundedProviderQuery(target)) {
+		throw new Response('Provider request not permitted', { status: 400 })
 	}
 
 	// 3) Credentials are derived from the validated host, never from a client param.
-	const headers = buildHeadersForHost(target.hostname, searchParams)
+	const headers = buildHeadersForHost(target.hostname)
 
-	const options: RequestInit = { method, headers }
-	const fetchBody = searchParams.get('fetchBody')
-	if (method === 'POST' && fetchBody && fetchBody !== 'undefined') {
+	const options: RequestInit = { method, headers, redirect: 'error' }
+	const fetchBody = sanitizedBody(
+		target.hostname,
+		searchParams.get('fetchBody'),
+	)
+	if (method === 'POST') {
+		if (!fetchBody) {
+			throw new Response('Provider request not permitted', { status: 400 })
+		}
 		options.body = fetchBody
 	}
 

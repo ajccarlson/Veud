@@ -17,7 +17,6 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  actions: write
   contents: read
 
 jobs:
@@ -34,7 +33,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🖼 Build icons
         run: npm run build:icons
@@ -55,7 +54,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🖼 Build icons
         run: npm run build:icons
@@ -76,7 +75,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🏄 Copy test env vars
         run: cp .env.example .env
@@ -112,7 +111,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🐘 Generate PostgreSQL client
         run: npm run prisma:generate:postgres
@@ -167,7 +166,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🏄 Copy test env vars
         run: cp .env.example .env
@@ -176,14 +175,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: 🎭 Run critical browser workflows and quality gates
-        run: >-
-          npx playwright test tests/e2e/navigation.test.ts
-          tests/e2e/responsive-routes.test.ts tests/e2e/calendar.test.ts
-          tests/e2e/discover.test.ts tests/e2e/home-feed.test.ts
-          tests/e2e/list-reliability.test.ts
-          tests/e2e/profile-visual-system.test.ts
-          tests/e2e/accessibility.test.ts tests/e2e/visual-regression.test.ts
-          --project=chromium
+        run: npm run test:e2e:run -- --project=chromium
 
       - name: 📊 Upload browser report and visual diffs
         uses: actions/upload-artifact@v7
@@ -211,7 +203,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🔎 Check deployed staging release
         run: >-
@@ -240,7 +232,7 @@ jobs:
           node-version: 22
 
       - name: 📥 Download deps
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: 🏄 Copy env vars
         run: cp .env.example .env
