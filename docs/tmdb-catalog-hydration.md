@@ -27,18 +27,20 @@ Priority-feed ranks are durable and idempotent. A successful detail write clears
 the priority request. A failed write keeps its priority but becomes ineligible
 until its retry deadline.
 
-Each successful priority-feed refresh also replaces its ranked
-`CatalogFeedItem` snapshot in the same transaction. The homepage uses fresh
-weekly-trending ranks directly and treats snapshots older than eight days as
-stale, falling back to canonical catalog popularity without making an
-interactive provider request.
+Each successful priority-feed refresh also replaces its ranked `CatalogFeedItem`
+snapshot in the same transaction. The homepage uses fresh weekly-trending ranks
+directly and treats snapshots older than eight days as stale, falling back to
+canonical catalog popularity without making an interactive provider request.
 
 ## Safety model
 
 - The command is a read-only queue preview unless `--commit` is explicit.
 - Cooperative movie/TV hydration leases prevent two workers from processing the
   same kind concurrently.
-- Detail requests use bounded concurrency with a hard maximum of ten.
+- Detail and priority-feed requests use bounded concurrency with a hard maximum
+  of ten. The command also spaces request starts by 100 milliseconds by default,
+  enforcing the staging target of at most ten request starts per second even
+  when responses are fast.
 - Each response batch, normalized media update, title replacement, source
   freshness update, and run checkpoint commit in one database transaction.
 - HTTP `429` honors `Retry-After` when present, checkpoints other successful
@@ -79,7 +81,8 @@ npm run catalog:tmdb-hydrate -- \
   --seed-priorities \
   --commit \
   --limit 100 \
-  --concurrency 4
+  --concurrency 4 \
+  --delay-ms 100
 ```
 
 Hydrate a long-tail batch without spending requests on priority feeds again:
@@ -125,3 +128,10 @@ earlier will not issue upstream requests.
 For an initial scheduled deployment, seed priority feeds daily, run small
 bounded long-tail batches, and alert on rising queue depth, falling freshness,
 repeated `429` events, or a cluster of authentication/systemic failures.
+
+Local isolated staging installs `veud-staging-tmdb-hydration.timer`. Its worker
+targets `STAGING_LOAD_DATABASE_URL`, shares `tmdb-provider.lock` with inventory,
+seeds priority feeds, and hydrates at most 100,000 records per kind per daily
+pass. It defaults to four concurrent responses and at least 100 milliseconds
+between all provider request starts. A failed process restarts after one minute;
+a successful bounded pass resumes on the next timer activation.
