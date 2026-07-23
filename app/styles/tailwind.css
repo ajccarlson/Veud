@@ -40,7 +40,7 @@
 		--secondary-foreground: 40 100% 90%;
 		--accent: 153 20.8% 41.6%;
 		--accent-foreground: 40 100% 90%;
-		--destructive: 10 72% 48%;
+		--destructive: 10 67% 38%;
 		--destructive-foreground: 40 100% 96%;
 		--ring: 151 100% 81.8%;
 		--radius: 0.75rem;
@@ -71,6 +71,21 @@
 		select,
 		input:not([type='checkbox']):not([type='radio']) {
 			min-height: 2.75rem;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html:focus-within {
+			scroll-behavior: auto;
+		}
+
+		*,
+		*::before,
+		*::after {
+			scroll-behavior: auto !important;
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
 		}
 	}
 }

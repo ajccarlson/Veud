@@ -244,6 +244,9 @@ function Document({
 				<Links />
 			</head>
 			<body className="min-h-screen bg-background text-foreground">
+				<a className="skip-link" href="#main-content">
+					Skip to main content
+				</a>
 				{children}
 				<script
 					nonce={nonce}
@@ -335,7 +338,7 @@ function App() {
 					</nav>
 				</header>
 
-				<div className="root-content">
+				<div id="main-content" tabIndex={-1} className="root-content">
 					<Outlet />
 				</div>
 
@@ -522,6 +525,7 @@ function ListsDropdown() {
 						className="root-user-lists"
 						prefetch="intent"
 						to={`/lists/${user.username}`}
+						aria-label="My lists"
 					>
 						<Icon name="list-bullet"></Icon>
 					</Link>
