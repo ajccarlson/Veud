@@ -39,6 +39,10 @@ trap - EXIT
 ln -sfn "$release" "$STAGING_ROOT/app/current.next"
 mv -Tf "$STAGING_ROOT/app/current.next" "$STAGING_ROOT/app/current"
 
+unit_dir="$HOME/.config/systemd/user"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-notification-digests.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-notification-digests.timer" "$unit_dir/"
+systemctl --user daemon-reload
 systemctl --user enable --now veud-staging-app.service
 systemctl --user restart veud-staging-app.service
 systemctl --user enable --now veud-staging-backup.timer
@@ -51,6 +55,11 @@ if [[ -n "${TMDB_API_KEY:-}" ]]; then
 	systemctl --user enable --now veud-staging-tmdb-inventory.timer
 fi
 systemctl --user enable --now veud-staging-catalog-backup.timer
+if [[ -n "${RESEND_API_KEY:-}" ]]; then
+	systemctl --user enable --now veud-staging-notification-digests.timer
+else
+	systemctl --user disable --now veud-staging-notification-digests.timer || true
+fi
 
 for _ in {1..60}; do
 	curl --fail --silent --show-error "http://127.0.0.1:4022/resources/healthcheck" >/dev/null 2>&1 && break

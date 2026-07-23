@@ -88,6 +88,7 @@ test.describe('mobile route audit', () => {
 		const routes = [
 			['/notifications', /Notifications/i],
 			['/settings/profile', /Edit profile/i],
+			['/settings/profile/notifications', /Edit profile/i],
 			['/settings/profile/photo', /Edit profile/i],
 			['/settings/profile/banner', /Edit profile/i],
 			['/settings/profile/change-email', /Edit profile/i],

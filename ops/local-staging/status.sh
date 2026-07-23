@@ -9,6 +9,7 @@ systemctl --user --no-pager status \
 	veud-staging-app.service \
 	veud-staging-backup.timer \
 	veud-staging-catalog-backup.timer \
+	veud-staging-notification-digests.timer \
 	veud-staging-mal-inventory.timer \
 	veud-staging-mal-hydration.timer \
 	veud-staging-tmdb-inventory.timer \

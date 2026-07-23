@@ -45,6 +45,14 @@ test('account export includes private recommendation feedback but omits password
 			collapsedModules: JSON.stringify(['following']),
 		},
 	})
+	await prisma.notificationPreference.create({
+		data: {
+			ownerId: user.id,
+			inAppSocial: false,
+			emailSocial: true,
+			digestFrequency: 'weekly',
+		},
+	})
 	const session = await prisma.session.create({
 		data: {
 			userId: user.id,
@@ -74,6 +82,11 @@ test('account export includes private recommendation feedback but omits password
 				moduleOrder: string
 				collapsedModules: string
 			}
+			notificationPreference: {
+				inAppSocial: boolean
+				emailSocial: boolean
+				digestFrequency: string
+			}
 		}
 	}
 
@@ -90,6 +103,13 @@ test('account export includes private recommendation feedback but omits password
 		expect.objectContaining({
 			density: 'compact',
 			collapsedModules: JSON.stringify(['following']),
+		}),
+	)
+	expect(exported.user.notificationPreference).toEqual(
+		expect.objectContaining({
+			inAppSocial: false,
+			emailSocial: true,
+			digestFrequency: 'weekly',
 		}),
 	)
 	expect(response.headers.get('cache-control')).toBe('private, no-store')

@@ -56,6 +56,7 @@ SESSION_SECRET="$session_secret"
 HONEYPOT_SECRET="$honeypot_secret"
 INTERNAL_COMMAND_TOKEN="$internal_token"
 RESEND_API_KEY=""
+VEUD_ORIGIN="https://staging.veud.net"
 SENTRY_DSN=""
 TMDB_API_KEY=""
 TRAKT_API_KEY=""
@@ -179,6 +180,8 @@ install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-inventory
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-inventory.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-notification-digests.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-notification-digests.timer" "$unit_dir/"
 systemctl --user daemon-reload
 systemctl --user enable --now veud-staging-postgres.service
 
