@@ -55,6 +55,7 @@ export default [
 	appRoute('routes/_seo+/robots[.]txt.ts', { path: 'robots.txt' }),
 	appRoute('routes/_seo+/sitemap[.]xml.ts', { path: 'sitemap.xml' }),
 	appRoute('routes/admin+/cache.tsx', { path: 'admin/cache' }),
+	appRoute('routes/admin+/catalog.tsx', { path: 'admin/catalog' }),
 	appRoute('routes/admin+/cache_.lru.$cacheKey.ts', {
 		path: 'admin/cache/lru/:cacheKey',
 	}),
