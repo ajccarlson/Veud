@@ -1,6 +1,6 @@
 # PostgreSQL cutover evidence and canary gate
 
-Last rehearsed: 2026-07-20 with PostgreSQL 16
+Last rehearsed: 2026-07-23 on isolated production-like PostgreSQL 16 staging
 
 This runbook turns the snapshot transfer, representative load test, native
 backup/restore drill, and application canary into one target-bound evidence
@@ -253,6 +253,30 @@ gate. The same chain must still run on production-like staging with protected
 artifacts, named release ownership, approved real-environment budgets, live
 worker contention, cold-cache and maintenance-window observation, and the
 documented forward-repair/rollback decision before writes can move.
+
+## Measured production-like staging gate
+
+On 2026-07-23, the deployment owner approved the staging target and budgets, and
+the complete target-bound gate passed on isolated PostgreSQL 16.14:
+
+- a fresh 24.69 MB SQLite snapshot transferred all 39 model/join tables with
+  exact counts, including 9 users, 35 watchlists, 5,484 entries, and 5,377
+  media;
+- the 1,564,333-identity representative load deliberately interrupted at 20,000
+  rows and resumed, inserted at 11,118.15 rows/second, peaked at 17/100
+  connections with zero waiting locks, and removed every synthetic row;
+- the slowest isolated query was the 190.519 ms popularity page, while
+  canonical-title search took 59.522 ms;
+- the 6.34 MB native archive restored into the distinct disposable database with
+  matching core counts, four migrations, and the expected identity; and
+- the one-process HTTPS canary passed 40/40 requests at 182.604 ms p95.
+
+The protected manifest is
+`/media/sdd/veud-staging-backups/evidence/postgres-cutover-20260723.json`. It
+binds every artifact and the ignored owner policy by SHA-256. The staging
+application was restored to its normal database after the read-only canary. This
+closes the production-like evidence gate; it still does not open production
+writes or resolve the post-write rollback boundary.
 
 ## Open writes or roll back
 
