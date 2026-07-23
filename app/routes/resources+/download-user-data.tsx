@@ -35,6 +35,8 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				},
 			},
 			homeDashboardPreference: true,
+			notificationPreference: true,
+			notificationDigests: true,
 		},
 	})
 

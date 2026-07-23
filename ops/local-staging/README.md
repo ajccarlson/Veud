@@ -22,6 +22,7 @@ systemctl --user start veud-staging-backup.service
 systemctl --user start veud-staging-catalog-backup.service
 systemctl --user start veud-staging-mal-hydration.service
 systemctl --user start veud-staging-tmdb-hydration.service
+systemctl --user start veud-staging-notification-digests.service
 ```
 
 Secrets live only under `/media/sde/veud-staging-postgres/config` with mode
@@ -44,6 +45,12 @@ TMDB workers share `$STAGING_ROOT/run/tmdb-provider.lock`; detail and priority
 requests default to four concurrent requests with at least 100 milliseconds
 between starts, while each daily pass processes at most 100,000 records per
 kind.
+
+When `RESEND_API_KEY` is configured, deployment enables the notification digest
+timer. It checks due opt-in accounts every 15 minutes, sends at most one durable
+daily or weekly delivery window per member, and does not affect security or
+account-verification mail. The command remains a read-only preview unless
+`--commit` is explicit.
 
 `ops/local-staging/status.sh` runs the read-only catalog health evaluator
 against `STAGING_LOAD_DATABASE_URL`, not the separate public application
