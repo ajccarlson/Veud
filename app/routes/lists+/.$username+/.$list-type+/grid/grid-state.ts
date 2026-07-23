@@ -69,6 +69,21 @@ export type TrackingSummary = {
 	statusLabel: string | null
 }
 
+export type WatchlistViewProps = {
+	listEntries: WatchlistRow[]
+	setListEntries?: Dispatch<SetStateAction<WatchlistRow[]>>
+	watchListData: WatchlistSummary
+	listTypeData: ListTypeSummary
+	watchlistId: string
+	typedWatchlists: Record<string, WatchlistSummary[]>
+	typedFavorites: Record<string, FavoriteSummary[]>
+	trackingByIdentity: Record<string, TrackingSummary>
+	listOwner: GridUser
+	currentUser: GridUser | null | undefined
+	currentUserId: string | null
+	navigate: (path: string) => void
+}
+
 export type WatchlistColumnParams = {
 	listEntries: WatchlistRow[]
 	setListEntries: Dispatch<SetStateAction<WatchlistRow[]>>
