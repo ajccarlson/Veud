@@ -19,6 +19,8 @@ ops/local-staging/provision.sh
 ops/local-staging/deploy.sh <commit>
 ops/local-staging/status.sh
 systemctl --user start veud-staging-backup.service
+systemctl --user start veud-staging-catalog-backup.service
+systemctl --user start veud-staging-mal-hydration.service
 ```
 
 Secrets live only under `/media/sde/veud-staging-postgres/config` with mode
@@ -27,6 +29,13 @@ remain in `operations.env`, and the PostgreSQL administrator credential remains
 in `postgres-admin.env`. Add staging-only provider keys to `application.env`
 without copying it into the repository. Generated PostgreSQL URLs must not be
 printed or placed in shell history.
+
+When the staging MAL client ID and policy reference are configured, deployment
+enables serialized daily inventory refresh and resumable detail hydration
+against the qualified catalog database. A separate daily native backup restores
+and verifies that catalog database before copying it to the backup drive. MAL
+workers share `$STAGING_ROOT/run/mal-provider.lock`, so inventory and hydration
+never issue provider requests concurrently.
 
 For restart-on-boot before an interactive login, an administrator must run the
 one-time command `sudo loginctl enable-linger acarl`. This is optional for an

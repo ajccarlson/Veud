@@ -104,11 +104,24 @@ without printing secret values:
   content, profiles, lists, and other user-originated content remain excluded.
   The decision also prohibits sending MAL-sourced metadata to external AI.
 - `MAL_CATALOG_POLICY_APPROVAL_REF` is configured with that non-secret reference
-  on staging. No committed MAL inventory or hydration run has yet been
-  attempted.
+  on staging.
+- The 2026-07-23 committed inventory completed the provider-reported ranking
+  pages for both kinds: 30,245 anime and 84,465 manga were committed with zero
+  failed requests and zero `429` responses. The isolated catalog database
+  retained 30,246 active anime and 84,465 active manga identities, including one
+  pre-existing anime identity.
+- Initial detail batches hydrated 24 of 25 anime candidates and all 25 manga
+  candidates with zero `429` responses. The sole anime miss was a pre-existing
+  malformed external ID that returned `404`; its normal 30-day retry deferral
+  remains intact instead of being force-cleared.
+- Release `6de3b8a` enables serialized systemd inventory, hydration, and
+  restore-tested catalog-backup timers. The resumable hydration worker started
+  successfully on 2026-07-23 and continued at the one-request-per-second limit
+  with no early failures or rate limits. Inventory and hydration share a
+  provider lock, and the database has pre- and post-inventory restore-tested
+  backups on separate physical filesystems.
 
-All staging evidence inputs now exist and the protected manifest passed. Proceed
-with a small committed MAL inventory batch on staging, inspect the audited sync
-run and provider metrics, then increase bounded batches only while failures and
-`429` events remain within the runbook. Production-wide ingestion still requires
-explicit production cutover and monitoring ownership.
+The staging gate and initial provider execution are complete. Continue
+monitoring hydration coverage, failures, request volume, `429` events, and daily
+backup receipts while the backlog drains. Production-wide ingestion still
+requires explicit production datasource/write cutover and monitoring ownership.

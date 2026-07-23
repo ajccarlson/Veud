@@ -110,3 +110,26 @@ freshness, success/failure state, and run checkpoint share one transaction. If
 that transaction fails, the candidate stays eligible. Correct systemic errors
 before running deferred repairs; do not clear cooldowns or failure deadlines to
 force a tight retry loop.
+
+## Staging execution
+
+On 2026-07-23 the first approved committed batches hydrated 24 of 25 anime
+candidates and all 25 manga candidates. They issued 50 requests in total with
+zero `429` responses. The anime miss was the pre-existing malformed external ID
+`3269688222`, which correctly returned `404` and was deferred for 30 days; it
+does not indicate a systemic provider or worker failure.
+
+Release `6de3b8a` installed `veud-staging-mal-hydration.service` and its timer
+against the isolated PostgreSQL catalog database. The service:
+
+- resumes both eligible queues at one request per second;
+- uses a host-level provider lock shared with daily inventory;
+- restarts after process-level failures while retaining database checkpoints,
+  cooldowns, and per-record backoff;
+- becomes eligible again daily after a completed pass; and
+- leaves interactive staging on its separately qualified application database.
+
+The first automated run started successfully and its initial progress exceeded
+80 additional anime records with zero failures or rate limits. At the current
+conservative pacing, draining the initial roughly 114,000-record queue is a
+multi-day background operation rather than a deployment-blocking request.
