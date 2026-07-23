@@ -117,6 +117,25 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	expect(result.data.isSignedIn).toBe(true)
 	expect(result.data.preferredGenres).toEqual(['Fantasy'])
 	expect(result.data.items.map(item => item.id)).toEqual([unseen.id])
+
+	await prisma.recommendationFeedback.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: unseen.id,
+			feedbackType: 'not_interested',
+			sourceLane: 'taste',
+		},
+	})
+	const afterFeedback = await loader({
+		request: new Request(`${BASE_URL}/discover?sort=for-you`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(afterFeedback.data.items).toEqual([])
+	expect(afterFeedback.data.recommendationGraph?.hiddenItems).toEqual([
+		expect.objectContaining({ id: unseen.id }),
+	])
 })
 
 test('anonymous memory search stays catalog-local even when AI is configured', async () => {

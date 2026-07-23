@@ -9,6 +9,7 @@ import {
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
+import { RecommendationLanes } from '#app/components/recommendation-lanes.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -28,6 +29,7 @@ import {
 	type DiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 
 const kindLabels: Record<DiscoveryQuery['kind'], string> = {
@@ -55,6 +57,19 @@ const providerLabels: Record<DiscoveryQuery['provider'], string> = {
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const filters = parseDiscoveryQuery(new URL(request.url).searchParams)
+	const recommendationGraphPromise =
+		viewerId &&
+		filters.mode === 'standard' &&
+		!filters.q &&
+		filters.kind === 'all' &&
+		!filters.genre &&
+		filters.year === null &&
+		!filters.status &&
+		filters.provider === 'all' &&
+		filters.sort === 'for-you' &&
+		filters.page === 1
+			? getRecommendationGraph(viewerId)
+			: Promise.resolve(null)
 	const memoryQueryTooShort = filters.mode === 'memory' && filters.q.length < 3
 	const genresPromise = getDiscoveryGenres()
 	const statusesPromise = getDiscoveryStatuses()
@@ -90,18 +105,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						fallbackReason: null,
 					}
 				: null
-	const [discovery, genres, statuses, watchlists] = await Promise.all([
-		memorySearch
-			? getDiscoveryResultsForMediaIds(
-					filters,
-					viewerId,
-					memorySearch.matches.map(match => match.mediaId),
-				)
-			: getDiscoveryResults(filters, viewerId),
-		genresPromise,
-		statusesPromise,
-		watchlistsPromise,
-	])
+	const [discovery, genres, statuses, watchlists, recommendationGraph] =
+		await Promise.all([
+			memorySearch
+				? getDiscoveryResultsForMediaIds(
+						filters,
+						viewerId,
+						memorySearch.matches.map(match => match.mediaId),
+					)
+				: getDiscoveryResults(filters, viewerId),
+			genresPromise,
+			statusesPromise,
+			watchlistsPromise,
+			recommendationGraphPromise,
+		])
 	if (memorySearch) {
 		const matchByMediaId = new Map(
 			memorySearch.matches.map(match => [match.mediaId, match]),
@@ -125,6 +142,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		genres,
 		statuses,
 		watchlists,
+		recommendationGraph,
 		isSignedIn: Boolean(viewerId),
 	})
 }
@@ -392,245 +410,257 @@ export default function DiscoverRoute() {
 				</div>
 			</Form>
 
-			<section
-				className="space-y-4"
-				aria-labelledby="discovery-results-heading"
-			>
-				<header className="flex flex-wrap items-end justify-between gap-3">
-					<div>
-						<h2
-							id="discovery-results-heading"
-							className="text-2xl font-black text-[#ffffb1]"
-						>
-							{data.filters.mode === 'memory'
-								? 'Closest matches'
-								: sortLabels[data.filters.sort]}
-						</h2>
-						{data.filters.sort === 'for-you' ? (
-							<p className="mt-1 text-sm text-[#a2ffd5]">
-								{data.preferredGenres.length
-									? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
-									: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
-							</p>
-						) : null}
-					</div>
-					<p className="text-sm text-[#a2ffd5]">
-						{data.filters.mode === 'memory'
-							? `${data.total} of 5 possible matches · ${memorySearchStatus(data)}`
-							: resultSummary(data.total, data.filters)}
-					</p>
-				</header>
+			{data.recommendationGraph ? (
+				<RecommendationLanes
+					graph={data.recommendationGraph}
+					watchlists={data.watchlists}
+					loginRedirectTo={loginRedirectTo}
+				/>
+			) : null}
 
-				{data.items.length ? (
-					<div
-						className={`grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${data.filters.mode === 'memory' ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}
-					>
-						{data.items.map(item => {
-							const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
-							return (
-								<article
-									key={item.id}
-									className="group flex flex-col overflow-hidden rounded-2xl border border-[#54806c] bg-[#383040] transition hover:-translate-y-1 hover:border-[#a2ffd5] hover:shadow-xl"
-								>
-									<Link to={`/media/${item.id}`} className="block flex-1">
-										<div className="aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
-											{poster ? (
-												<img
-													src={poster}
-													alt=""
-													loading="lazy"
-													className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-												/>
-											) : (
-												<div className="flex h-full items-center justify-center px-6 text-center text-sm font-semibold text-[#8ca99d]">
-													No poster available
-												</div>
-											)}
-										</div>
-										<div className="space-y-3 p-4">
-											<div>
-												<div className="flex flex-wrap gap-2 text-[0.7rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
-													<span>
-														{item.type ||
-															kindLabels[item.kind as DiscoveryQuery['kind']] ||
-															item.kind}
-													</span>
-													{item.year ? <span>· {item.year}</span> : null}
-													{item.releaseStatus ? (
-														<span>· {item.releaseStatus}</span>
-													) : null}
-												</div>
-												<h3 className="mt-1 text-lg font-black leading-6 text-[#ffffb1] group-hover:underline">
-													{item.title}
-												</h3>
-												{item.matchedTitle ? (
-													<p className="mt-1 text-xs text-[#a2ffd5]">
-														Also known as {item.matchedTitle}
-													</p>
-												) : null}
-												{item.providers.length ? (
-													<div className="mt-2 flex flex-wrap gap-1.5">
-														{item.providers.map(provider => (
-															<span
-																key={provider}
-																className="rounded bg-[#2e2f2b] px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-[#ffcc66]"
-															>
-																{provider}
-															</span>
-														))}
-													</div>
-												) : null}
-											</div>
-											{item.genres.length ? (
-												<div className="flex flex-wrap gap-1.5">
-													{item.genres.slice(0, 3).map(genre => (
-														<span
-															key={genre}
-															className="rounded-full bg-[#2e2f2b] px-2 py-1 text-xs text-[#c6ded2]"
-														>
-															{genre}
-														</span>
-													))}
-												</div>
-											) : null}
-											{item.memoryMatch ? (
-												<div
-													className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]"
-													aria-label="Memory match explanation"
-												>
-													<HighlightedMemorySummary
-														summary={item.memoryMatch.summary}
-														clues={item.memoryMatch.matchedClues}
+			{data.recommendationGraph ? null : (
+				<section
+					className="space-y-4"
+					aria-labelledby="discovery-results-heading"
+				>
+					<header className="flex flex-wrap items-end justify-between gap-3">
+						<div>
+							<h2
+								id="discovery-results-heading"
+								className="text-2xl font-black text-[#ffffb1]"
+							>
+								{data.filters.mode === 'memory'
+									? 'Closest matches'
+									: sortLabels[data.filters.sort]}
+							</h2>
+							{data.filters.sort === 'for-you' ? (
+								<p className="mt-1 text-sm text-[#a2ffd5]">
+									{data.preferredGenres.length
+										? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
+										: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
+								</p>
+							) : null}
+						</div>
+						<p className="text-sm text-[#a2ffd5]">
+							{data.filters.mode === 'memory'
+								? `${data.total} of 5 possible matches · ${memorySearchStatus(data)}`
+								: resultSummary(data.total, data.filters)}
+						</p>
+					</header>
+
+					{data.items.length ? (
+						<div
+							className={`grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${data.filters.mode === 'memory' ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}
+						>
+							{data.items.map(item => {
+								const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
+								return (
+									<article
+										key={item.id}
+										className="group flex flex-col overflow-hidden rounded-2xl border border-[#54806c] bg-[#383040] transition hover:-translate-y-1 hover:border-[#a2ffd5] hover:shadow-xl"
+									>
+										<Link to={`/media/${item.id}`} className="block flex-1">
+											<div className="aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+												{poster ? (
+													<img
+														src={poster}
+														alt=""
+														loading="lazy"
+														className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
 													/>
-													{item.memoryMatch.matchedClues.length ? (
-														<div
-															className="mt-2 flex flex-wrap items-center gap-1.5"
-															aria-label="Details matching your description"
-														>
-															<span className="mr-1 text-[0.68rem] font-bold uppercase tracking-wide text-[#8ca99d]">
-																Matches
-															</span>
-															{item.memoryMatch.matchedClues.map(clue => (
-																<mark
-																	key={clue}
-																	className="rounded-full bg-[#a2ffd5] px-2 py-0.5 text-xs font-bold text-[#222]"
+												) : (
+													<div className="flex h-full items-center justify-center px-6 text-center text-sm font-semibold text-[#8ca99d]">
+														No poster available
+													</div>
+												)}
+											</div>
+											<div className="space-y-3 p-4">
+												<div>
+													<div className="flex flex-wrap gap-2 text-[0.7rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+														<span>
+															{item.type ||
+																kindLabels[
+																	item.kind as DiscoveryQuery['kind']
+																] ||
+																item.kind}
+														</span>
+														{item.year ? <span>· {item.year}</span> : null}
+														{item.releaseStatus ? (
+															<span>· {item.releaseStatus}</span>
+														) : null}
+													</div>
+													<h3 className="mt-1 text-lg font-black leading-6 text-[#ffffb1] group-hover:underline">
+														{item.title}
+													</h3>
+													{item.matchedTitle ? (
+														<p className="mt-1 text-xs text-[#a2ffd5]">
+															Also known as {item.matchedTitle}
+														</p>
+													) : null}
+													{item.providers.length ? (
+														<div className="mt-2 flex flex-wrap gap-1.5">
+															{item.providers.map(provider => (
+																<span
+																	key={provider}
+																	className="rounded bg-[#2e2f2b] px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-[#ffcc66]"
 																>
-																	{clue}
-																</mark>
+																	{provider}
+																</span>
 															))}
 														</div>
 													) : null}
 												</div>
-											) : null}
-											{item.description ? (
-												<p className="line-clamp-3 text-sm leading-5 text-[#c6ded2]">
-													{item.description}
-												</p>
-											) : null}
-											<div className="border-t border-[#54806c]/60 pt-3 text-xs text-[#a2ffd5]">
-												{item.communityScore !== null ? (
-													<span className="font-bold text-[#ffcc66]">
-														★ {item.communityScore.toFixed(1)} (
-														{item.ratingCount})
-													</span>
-												) : (
-													<span>
-														{item.providerScore !== null
-															? `Provider ★ ${item.providerScore.toFixed(1)}`
-															: 'Not yet rated'}
-													</span>
-												)}
-												<span className="mx-2">·</span>
-												<span>{item.trackerCount} tracking</span>
-												{item.reviewCount ? (
-													<>
-														<span className="mx-2">·</span>
-														<span>
-															{item.reviewCount}{' '}
-															{item.reviewCount === 1 ? 'review' : 'reviews'}
-														</span>
-													</>
+												{item.genres.length ? (
+													<div className="flex flex-wrap gap-1.5">
+														{item.genres.slice(0, 3).map(genre => (
+															<span
+																key={genre}
+																className="rounded-full bg-[#2e2f2b] px-2 py-1 text-xs text-[#c6ded2]"
+															>
+																{genre}
+															</span>
+														))}
+													</div>
 												) : null}
-												{item.diaryCount ? (
-													<>
-														<span className="mx-2">·</span>
-														<span>
-															{item.diaryCount}{' '}
-															{item.diaryCount === 1
-																? 'diary log'
-																: 'diary logs'}
-														</span>
-													</>
+												{item.memoryMatch ? (
+													<div
+														className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]"
+														aria-label="Memory match explanation"
+													>
+														<HighlightedMemorySummary
+															summary={item.memoryMatch.summary}
+															clues={item.memoryMatch.matchedClues}
+														/>
+														{item.memoryMatch.matchedClues.length ? (
+															<div
+																className="mt-2 flex flex-wrap items-center gap-1.5"
+																aria-label="Details matching your description"
+															>
+																<span className="mr-1 text-[0.68rem] font-bold uppercase tracking-wide text-[#8ca99d]">
+																	Matches
+																</span>
+																{item.memoryMatch.matchedClues.map(clue => (
+																	<mark
+																		key={clue}
+																		className="rounded-full bg-[#a2ffd5] px-2 py-0.5 text-xs font-bold text-[#222]"
+																	>
+																		{clue}
+																	</mark>
+																))}
+															</div>
+														) : null}
+													</div>
 												) : null}
+												{item.description ? (
+													<p className="line-clamp-3 text-sm leading-5 text-[#c6ded2]">
+														{item.description}
+													</p>
+												) : null}
+												<div className="border-t border-[#54806c]/60 pt-3 text-xs text-[#a2ffd5]">
+													{item.communityScore !== null ? (
+														<span className="font-bold text-[#ffcc66]">
+															★ {item.communityScore.toFixed(1)} (
+															{item.ratingCount})
+														</span>
+													) : (
+														<span>
+															{item.providerScore !== null
+																? `Provider ★ ${item.providerScore.toFixed(1)}`
+																: 'Not yet rated'}
+														</span>
+													)}
+													<span className="mx-2">·</span>
+													<span>{item.trackerCount} tracking</span>
+													{item.reviewCount ? (
+														<>
+															<span className="mx-2">·</span>
+															<span>
+																{item.reviewCount}{' '}
+																{item.reviewCount === 1 ? 'review' : 'reviews'}
+															</span>
+														</>
+													) : null}
+													{item.diaryCount ? (
+														<>
+															<span className="mx-2">·</span>
+															<span>
+																{item.diaryCount}{' '}
+																{item.diaryCount === 1
+																	? 'diary log'
+																	: 'diary logs'}
+															</span>
+														</>
+													) : null}
+												</div>
 											</div>
+										</Link>
+										<div className="border-t border-[#54806c]/60 p-3">
+											<QuickTrackControl
+												item={item}
+												watchlists={data.watchlists}
+												isSignedIn={data.isSignedIn}
+												loginRedirectTo={loginRedirectTo}
+											/>
 										</div>
-									</Link>
-									<div className="border-t border-[#54806c]/60 p-3">
-										<QuickTrackControl
-											item={item}
-											watchlists={data.watchlists}
-											isSignedIn={data.isSignedIn}
-											loginRedirectTo={loginRedirectTo}
-										/>
-									</div>
-								</article>
-							)
-						})}
-					</div>
-				) : (
-					<VeudEmptyState
-						title={
-							data.filters.mode === 'memory'
-								? 'No close matches yet'
-								: 'No titles found'
-						}
-						action={
-							<Button asChild variant="outline">
-								<Link to="/discover">Clear filters</Link>
-							</Button>
-						}
-					>
-						<p>
-							{data.memoryQueryTooShort
-								? 'Describe at least three characters of what you remember.'
-								: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
-						</p>
-					</VeudEmptyState>
-				)}
+									</article>
+								)
+							})}
+						</div>
+					) : (
+						<VeudEmptyState
+							title={
+								data.filters.mode === 'memory'
+									? 'No close matches yet'
+									: 'No titles found'
+							}
+							action={
+								<Button asChild variant="outline">
+									<Link to="/discover">Clear filters</Link>
+								</Button>
+							}
+						>
+							<p>
+								{data.memoryQueryTooShort
+									? 'Describe at least three characters of what you remember.'
+									: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
+							</p>
+						</VeudEmptyState>
+					)}
 
-				{data.pageCount > 1 ? (
-					<nav
-						aria-label="Discovery pages"
-						className="flex items-center justify-center gap-4 pt-3"
-					>
-						{data.filters.page > 1 ? (
-							<Button asChild variant="outline">
-								<Link to={discoveryHref(data.filters, data.filters.page - 1)}>
+					{data.pageCount > 1 ? (
+						<nav
+							aria-label="Discovery pages"
+							className="flex items-center justify-center gap-4 pt-3"
+						>
+							{data.filters.page > 1 ? (
+								<Button asChild variant="outline">
+									<Link to={discoveryHref(data.filters, data.filters.page - 1)}>
+										Previous
+									</Link>
+								</Button>
+							) : (
+								<Button type="button" variant="outline" disabled>
 									Previous
-								</Link>
-							</Button>
-						) : (
-							<Button type="button" variant="outline" disabled>
-								Previous
-							</Button>
-						)}
-						<span className="text-sm font-semibold text-[#a2ffd5]">
-							Page {data.filters.page} of {data.pageCount}
-						</span>
-						{data.filters.page < data.pageCount ? (
-							<Button asChild variant="outline">
-								<Link to={discoveryHref(data.filters, data.filters.page + 1)}>
+								</Button>
+							)}
+							<span className="text-sm font-semibold text-[#a2ffd5]">
+								Page {data.filters.page} of {data.pageCount}
+							</span>
+							{data.filters.page < data.pageCount ? (
+								<Button asChild variant="outline">
+									<Link to={discoveryHref(data.filters, data.filters.page + 1)}>
+										Next
+									</Link>
+								</Button>
+							) : (
+								<Button type="button" variant="outline" disabled>
 									Next
-								</Link>
-							</Button>
-						) : (
-							<Button type="button" variant="outline" disabled>
-								Next
-							</Button>
-						)}
-					</nav>
-				) : null}
-			</section>
+								</Button>
+							)}
+						</nav>
+					) : null}
+				</section>
+			)}
 		</VeudPage>
 	)
 }
