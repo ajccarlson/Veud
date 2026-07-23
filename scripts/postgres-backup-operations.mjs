@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { execa } from 'execa'
-import { listRequiredMigrations } from './backup-utils.mjs'
 import {
 	assertSafeRestoreTarget,
 	parsePostgresConnection,
@@ -35,6 +34,42 @@ function verificationQuery(expectedUsername) {
 	`
 }
 
+async function listAppliedMigrations(psql, connection) {
+	const result = await run(
+		psql,
+		[
+			'--set',
+			'ON_ERROR_STOP=1',
+			'--tuples-only',
+			'--no-align',
+			'--command',
+			`SELECT migration_name FROM "_prisma_migrations"
+			 WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+			 ORDER BY migration_name;`,
+		],
+		connection,
+		true,
+	)
+	return result.stdout.split(/\r?\n/).filter(Boolean)
+}
+
+export function assertMigrationParity(sourceMigrations, restoredMigrations) {
+	const source = new Set(sourceMigrations)
+	const restored = new Set(restoredMigrations)
+	const missing = [...source].filter(migration => !restored.has(migration))
+	const unexpected = [...restored].filter(migration => !source.has(migration))
+	if (!missing.length && !unexpected.length) return
+	const details = [
+		missing.length ? `missing from restore: ${missing.join(', ')}` : '',
+		unexpected.length ? `not present in source: ${unexpected.join(', ')}` : '',
+	]
+		.filter(Boolean)
+		.join('; ')
+	throw new Error(
+		`Restored PostgreSQL migration history differs from source: ${details}`,
+	)
+}
+
 export async function verifyPostgresBackup({
 	backupPath,
 	sourceUrl,
@@ -52,6 +87,7 @@ export async function verifyPostgresBackup({
 	await inspectPostgresBackup({ backupPath, connectionUrl: verifyUrl })
 	const pgRestore = command('PG_RESTORE_BIN', 'pg_restore')
 	const psql = command('PSQL_BIN', 'psql')
+	const sourceMigrations = await listAppliedMigrations(psql, source)
 
 	await run(
 		psql,
@@ -76,35 +112,8 @@ export async function verifyPostgresBackup({
 		verify,
 	)
 
-	const requiredMigrations = listRequiredMigrations(
-		'prisma/postgresql/migrations',
-	)
-	const migrationResult = await run(
-		psql,
-		[
-			'--set',
-			'ON_ERROR_STOP=1',
-			'--tuples-only',
-			'--no-align',
-			'--command',
-			`SELECT migration_name FROM "_prisma_migrations"
-			 WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-			 ORDER BY migration_name;`,
-		],
-		verify,
-		true,
-	)
-	const appliedMigrations = new Set(
-		migrationResult.stdout.split(/\r?\n/).filter(Boolean),
-	)
-	const missingMigrations = requiredMigrations.filter(
-		migration => !appliedMigrations.has(migration),
-	)
-	if (missingMigrations.length) {
-		throw new Error(
-			`Restored PostgreSQL backup is missing migrations: ${missingMigrations.join(', ')}`,
-		)
-	}
+	const restoredMigrations = await listAppliedMigrations(psql, verify)
+	assertMigrationParity(sourceMigrations, restoredMigrations)
 
 	const result = await run(
 		psql,
