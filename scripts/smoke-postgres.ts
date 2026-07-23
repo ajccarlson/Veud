@@ -52,7 +52,13 @@ async function main() {
 			prisma.role.findMany({
 				where: {
 					name: {
-						in: ['admin', 'user', 'moderator', 'community-admin'],
+						in: [
+							'admin',
+							'user',
+							'moderator',
+							'community-admin',
+							'site-operator',
+						],
 					},
 				},
 				select: {
@@ -84,15 +90,18 @@ async function main() {
 						permission.access === access,
 				) ?? false
 		if (
-			permissions !== 22 ||
-			roles.length !== 4 ||
+			permissions !== 24 ||
+			roles.length !== 5 ||
 			rolePermissions.get('user')?.length !== 9 ||
-			rolePermissions.get('admin')?.length !== 14 ||
+			rolePermissions.get('admin')?.length !== 16 ||
 			rolePermissions.get('moderator')?.length !== 5 ||
 			rolePermissions.get('community-admin')?.length !== 6 ||
+			rolePermissions.get('site-operator')?.length !== 2 ||
 			!hasPermission('user', 'create', 'report', 'own') ||
 			!hasPermission('moderator', 'moderate', 'content', 'any') ||
-			!hasPermission('community-admin', 'assign', 'role', 'any')
+			!hasPermission('community-admin', 'assign', 'role', 'any') ||
+			!hasPermission('site-operator', 'read', 'operations', 'any') ||
+			!hasPermission('site-operator', 'update', 'operations', 'any')
 		) {
 			throw new Error(
 				'Authorization reference data is incomplete; account creation is unsafe',

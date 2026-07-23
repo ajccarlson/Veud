@@ -16,6 +16,14 @@ import {
 	type serverBuildContext as ServerBuildContext,
 } from '../app/env.ts'
 import { canonicalOriginFromEnvironment } from '../app/utils/canonical-origin.ts'
+import {
+	beginObservedRequest,
+	createRequestId,
+	expressErrorStatus,
+	recordOperationalError,
+	safeRequestPath,
+	writeStructuredLog,
+} from '../app/utils/operations-observability.server.ts'
 import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
 
 type ServerContextModule = {
@@ -43,6 +51,50 @@ const getHost = (req: { get: (key: string) => string | undefined }) =>
 // to trust is loopback. Trusting all proxies ('true') would let a client set
 // X-Forwarded-For and thereby control req.ip.
 app.set('trust proxy', 'loopback')
+
+app.use((req, res, next) => {
+	const requestId = createRequestId()
+	const finish = beginObservedRequest()
+	const path = safeRequestPath(req.originalUrl)
+	res.locals.requestId = requestId
+	res.set('X-Request-ID', requestId)
+	let finalized = false
+
+	const finalize = (aborted: boolean) => {
+		if (finalized) return
+		finalized = true
+		const status = aborted && res.statusCode < 400 ? 499 : res.statusCode
+		const durationMs = finish(status)
+		const quietSuccess =
+			status < 400 &&
+			(path === '/resources/healthcheck' ||
+				path.startsWith('/assets/') ||
+				path.startsWith('/favicons/') ||
+				path.startsWith('/img/'))
+		if (
+			MODE === 'production' &&
+			!process.env.MOCKS &&
+			!process.env.PLAYWRIGHT_TEST_BASE_URL &&
+			!quietSuccess
+		) {
+			writeStructuredLog(
+				status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info',
+				'request.completed',
+				{
+					requestId,
+					method: req.method,
+					path,
+					status,
+					durationMs,
+					aborted,
+				},
+			)
+		}
+	}
+	res.once('finish', () => finalize(false))
+	res.once('close', () => finalize(!res.writableEnded))
+	next()
+})
 
 // ensure HTTPS only (X-Forwarded-Proto comes from Cloudflare Tunnel)
 app.use((req, res, next) => {
@@ -104,15 +156,17 @@ morgan.token('url', req => {
 		return req.url ?? ''
 	}
 })
-app.use(
-	morgan('tiny', {
-		skip: (req, res) =>
-			res.statusCode === 200 &&
-			(req.url?.startsWith('/resources/note-images') ||
-				req.url?.startsWith('/resources/user-images') ||
-				req.url?.startsWith('/resources/healthcheck')),
-	}),
-)
+if (MODE !== 'production') {
+	app.use(
+		morgan('tiny', {
+			skip: (req, res) =>
+				res.statusCode === 200 &&
+				(req.url?.startsWith('/resources/note-images') ||
+					req.url?.startsWith('/resources/user-images') ||
+					req.url?.startsWith('/resources/healthcheck')),
+		}),
+	)
+}
 
 app.use((_, res, next) => {
 	res.locals.cspNonce = crypto.randomBytes(16).toString('hex')
@@ -249,6 +303,44 @@ app.all(
 )
 
 Sentry.setupExpressErrorHandler(app)
+
+app.use(
+	(
+		error: unknown,
+		req: express.Request,
+		res: express.Response,
+		next: express.NextFunction,
+	) => {
+		if (res.headersSent) {
+			next(error)
+			return
+		}
+		const requestId =
+			typeof res.locals.requestId === 'string'
+				? res.locals.requestId
+				: createRequestId()
+		const status = expressErrorStatus(error)
+		const event = recordOperationalError({
+			requestId,
+			method: req.method,
+			path: req.originalUrl,
+			status,
+			error,
+		})
+		writeStructuredLog(status >= 500 ? 'error' : 'warn', 'request.error', {
+			requestId,
+			method: req.method,
+			path: event.path,
+			status,
+			errorName: event.name,
+			errorMessage: event.message,
+		})
+		res
+			.status(status)
+			.type('text/plain')
+			.send(status === 400 ? 'Bad request' : 'Internal server error')
+	},
+)
 
 const desiredPort = Number(process.env.PORT || 4021)
 const desiredHost = process.env.HOST?.trim() || undefined

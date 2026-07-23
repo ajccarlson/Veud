@@ -27,18 +27,12 @@ export function useUser() {
 	return maybeUser
 }
 
-type Action =
-	| 'create'
-	| 'read'
-	| 'update'
-	| 'delete'
-	| 'moderate'
-	| 'assign'
-type Entity = 'user' | 'watchlist' | 'report' | 'content' | 'role'
+type Action = 'create' | 'read' | 'update' | 'delete' | 'moderate' | 'assign'
+type Entity =
+	'user' | 'watchlist' | 'report' | 'content' | 'role' | 'operations'
 type Access = 'own' | 'any' | 'own,any' | 'any,own'
 export type PermissionString =
-	| `${Action}:${Entity}`
-	| `${Action}:${Entity}:${Access}`
+	`${Action}:${Entity}` | `${Action}:${Entity}:${Access}`
 
 export function parsePermissionString(permissionString: PermissionString) {
 	const [action, entity, access] = permissionString.split(':') as [

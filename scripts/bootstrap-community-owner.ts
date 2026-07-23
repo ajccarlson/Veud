@@ -9,7 +9,7 @@ const usage = `Usage:
     --expected-database <database> \\
     [--commit]
 
-The command grants the moderator and community-admin roles to one existing
+The command grants the moderator, community-admin, and site-operator roles to one existing
 deployment owner. It is a dry run unless --commit is supplied. DATABASE_URL
 must be PostgreSQL and its database name must exactly match --expected-database.`
 
@@ -60,13 +60,19 @@ async function main() {
 				},
 			}),
 			prisma.role.findMany({
-				where: { name: { in: ['moderator', 'community-admin'] } },
+				where: {
+					name: { in: ['moderator', 'community-admin', 'site-operator'] },
+				},
 				select: { name: true },
 			}),
 		])
 		if (!user) throw new Error(`User @${username} was not found.`)
 		const availableRoles = new Set(roles.map(role => role.name))
-		for (const requiredRole of ['moderator', 'community-admin']) {
+		for (const requiredRole of [
+			'moderator',
+			'community-admin',
+			'site-operator',
+		]) {
 			if (!availableRoles.has(requiredRole)) {
 				throw new Error(
 					`Required role “${requiredRole}” is missing; deploy moderation migrations first.`,
@@ -74,11 +80,13 @@ async function main() {
 			}
 		}
 		const currentRoles = new Set(user.roles.map(role => role.name))
-		const missingRoles = ['moderator', 'community-admin'].filter(
-			role => !currentRoles.has(role),
-		)
+		const missingRoles = [
+			'moderator',
+			'community-admin',
+			'site-operator',
+		].filter(role => !currentRoles.has(role))
 		if (!missingRoles.length) {
-			console.log(`@${username} already has both community owner roles.`)
+			console.log(`@${username} already has all community owner roles.`)
 			return
 		}
 		if (!commit) {
