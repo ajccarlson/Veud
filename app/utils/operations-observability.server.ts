@@ -102,7 +102,22 @@ export function expressErrorStatus(error: unknown) {
 			: 'statusCode' in error && typeof error.statusCode === 'number'
 				? error.statusCode
 				: null
-	return candidate && candidate >= 400 && candidate <= 599 ? candidate : 500
+	if (candidate && candidate >= 400 && candidate <= 599) return candidate
+
+	// Undici throws a plain TypeError when Request.formData() receives a body
+	// with an unsupported or missing content type. That is an invalid client
+	// request, not an application failure. Classifying the narrow, stable parser
+	// messages here keeps malformed probes out of the 5xx error budget while
+	// preserving 500 for unrelated TypeErrors and programmer mistakes.
+	const message = error instanceof Error ? error.message : ''
+	if (
+		error instanceof TypeError &&
+		(/Content-Type was not one of/i.test(message) ||
+			/Could not parse content as FormData/i.test(message))
+	) {
+		return 400
+	}
+	return 500
 }
 
 export function beginObservedRequest() {

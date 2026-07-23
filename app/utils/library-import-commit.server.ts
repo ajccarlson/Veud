@@ -39,6 +39,11 @@ type EntrySnapshot = {
 	trackingStateId: string | null
 	personal: number | null
 	history: string | null
+	// Optional for backward compatibility with journals created by the first
+	// import release, before legacy counters were included in exact rollback.
+	length?: string | null
+	chapters?: string | null
+	volumes?: string | null
 }
 
 type MemberMediaSnapshot = {
@@ -163,6 +168,9 @@ async function memberMediaSnapshot(
 				trackingStateId: true,
 				personal: true,
 				history: true,
+				length: true,
+				chapters: true,
+				volumes: true,
 			},
 		}),
 	])
@@ -184,6 +192,28 @@ async function memberMediaSnapshot(
 
 function stableSnapshot(value: MemberMediaSnapshot) {
 	return JSON.stringify(value)
+}
+
+function snapshotMatches(
+	current: MemberMediaSnapshot,
+	expected: MemberMediaSnapshot,
+) {
+	const projected: MemberMediaSnapshot = {
+		tracking: current.tracking,
+		entries: current.entries.map(entry => {
+			const expectedEntry = expected.entries.find(
+				candidate => candidate.id === entry.id,
+			)
+			if (!expectedEntry) return entry
+			return Object.fromEntries(
+				Object.keys(expectedEntry).map(key => [
+					key,
+					entry[key as keyof EntrySnapshot],
+				]),
+			) as EntrySnapshot
+		}),
+	}
+	return stableSnapshot(projected) === stableSnapshot(expected)
 }
 
 async function ensureStatusWatchlist(
@@ -248,8 +278,16 @@ function mergedProgress(
 	incoming: ImportProgress[],
 	choice: LibraryImportResolutionChoice,
 ) {
-	if (choice !== 'merge') return incoming
 	const merged = new Map(current.map(progress => [progress.unit, progress]))
+	if (choice !== 'merge') {
+		return incoming.map(progress => ({
+			...progress,
+			// Provider exports contain current progress, while Veud's catalog row
+			// often already knows the total. Replacing member details must not
+			// discard that catalog-owned denominator.
+			total: merged.get(progress.unit)?.total ?? progress.total,
+		}))
+	}
 	for (const progress of incoming) {
 		const previous = merged.get(progress.unit)
 		merged.set(progress.unit, {
@@ -323,28 +361,52 @@ async function applyImportedValues(
 		})
 	}
 	const now = Date.now()
-	const primaryProgress =
-		progress.find(value => value.unit === 'episode') ??
-		progress.find(value => value.unit === 'chapter') ??
-		progress[0]
-	await tx.entry.updateMany({
+	const counterData: {
+		length?: string
+		chapters?: string
+		volumes?: string
+	} = {}
+	for (const value of progress) {
+		const counter = value.total
+			? `${value.current} / ${value.total}`
+			: String(value.current)
+		if (value.unit === 'episode') counterData.length = `${counter} eps`
+		if (value.unit === 'chapter') counterData.chapters = counter
+		if (value.unit === 'volume') counterData.volumes = counter
+	}
+	const entries = await tx.entry.findMany({
 		where: {
 			mediaId: input.mediaId,
 			watchlist: { ownerId: input.ownerId },
 		},
-		data: {
-			trackingStateId: input.trackingStateId,
-			personal: score,
-			history: JSON.stringify({
-				added: now,
-				started: startedAt?.getTime() ?? null,
-				finished: completedAt?.getTime() ?? null,
-				progress: primaryProgress?.current ?? null,
-				repeatCount,
-				lastUpdated: now,
-			}),
-		},
+		select: { id: true, history: true },
 	})
+	for (const entry of entries) {
+		const previous = parsedJson<Record<string, unknown>>(
+			entry.history ?? '',
+			{},
+		)
+		const history: Record<string, unknown> =
+			input.choice === 'merge'
+				? { ...previous }
+				: {
+						added: typeof previous.added === 'number' ? previous.added : now,
+						progress: {},
+					}
+		history.started = startedAt?.getTime() ?? null
+		history.finished = completedAt?.getTime() ?? null
+		history.repeatCount = repeatCount
+		history.lastUpdated = now
+		await tx.entry.update({
+			where: { id: entry.id },
+			data: {
+				trackingStateId: input.trackingStateId,
+				personal: score,
+				...counterData,
+				history: JSON.stringify(history),
+			},
+		})
+	}
 }
 
 export async function applyLibraryImportBatch(
@@ -526,6 +588,9 @@ async function restoreSnapshot(
 				trackingStateId: null,
 				personal: entry.personal,
 				history: entry.history,
+				...(entry.length !== undefined ? { length: entry.length } : {}),
+				...(entry.chapters !== undefined ? { chapters: entry.chapters } : {}),
+				...(entry.volumes !== undefined ? { volumes: entry.volumes } : {}),
 			},
 		})
 	}
@@ -652,7 +717,7 @@ export async function rollbackLibraryImportBatch(
 	// member changes.
 	for (const { item, journal } of journals) {
 		const current = await memberMediaSnapshot(tx, input.ownerId, item.mediaId!)
-		if (stableSnapshot(current) !== stableSnapshot(journal!.after)) {
+		if (!snapshotMatches(current, journal!.after)) {
 			throw new LibraryImportError(
 				'This import cannot be rolled back because one or more items were edited afterward.',
 				409,

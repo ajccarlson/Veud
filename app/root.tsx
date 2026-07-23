@@ -236,6 +236,13 @@ const ThemeFormSchema = z.object({
 })
 
 export async function action({ request }: ActionFunctionArgs) {
+	const contentType = request.headers.get('content-type')?.toLowerCase() ?? ''
+	if (
+		!contentType.includes('application/x-www-form-urlencoded') &&
+		!contentType.includes('multipart/form-data')
+	) {
+		throw new Response('Bad request', { status: 400 })
+	}
 	const formData = await request.formData()
 	const submission = parseWithZod(formData, {
 		schema: ThemeFormSchema,
