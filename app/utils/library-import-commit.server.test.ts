@@ -125,6 +125,18 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 		}),
 	)
 	expect(Number(applied.score)).toBe(9)
+	const importedEntry = await prisma.entry.findFirstOrThrow({
+		where: { mediaId: work.id, watchlist: { ownerId: member.id } },
+	})
+	expect(importedEntry.length).toBe('12 eps')
+	expect(JSON.parse(importedEntry.history ?? '{}')).toEqual(
+		expect.objectContaining({
+			progress: {},
+			repeatCount: 1,
+			started: new Date('2024-01-01T00:00:00.000Z').getTime(),
+			finished: new Date('2024-01-02T00:00:00.000Z').getTime(),
+		}),
+	)
 	expect(
 		await prisma.activityEvent.findMany({
 			where: { actorId: member.id, mediaId: work.id },
@@ -141,6 +153,25 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 	).rejects.toEqual(
 		expect.objectContaining<Partial<LibraryImportError>>({ status: 409 }),
 	)
+
+	const storedItem = await prisma.libraryImportItem.findFirstOrThrow({
+		where: { batchId: importBatch.id },
+	})
+	const legacyJournal = JSON.parse(storedItem.journal ?? '{}') as {
+		before: { entries: Array<Record<string, unknown>> }
+		after: { entries: Array<Record<string, unknown>> }
+	}
+	for (const snapshot of [legacyJournal.before, legacyJournal.after]) {
+		for (const journalEntry of snapshot.entries) {
+			delete journalEntry.length
+			delete journalEntry.chapters
+			delete journalEntry.volumes
+		}
+	}
+	await prisma.libraryImportItem.update({
+		where: { id: storedItem.id },
+		data: { journal: JSON.stringify(legacyJournal) },
+	})
 
 	await prisma.$transaction(tx =>
 		rollbackLibraryImportBatch(tx, {
@@ -235,6 +266,14 @@ test('merge preserves stronger progress and rollback restores prior state', asyn
 	expect(merged.progress[0]).toEqual(
 		expect.objectContaining({ current: 18, total: 24 }),
 	)
+	expect(
+		await prisma.entry.findUniqueOrThrow({ where: { id: entry.id } }),
+	).toEqual(
+		expect.objectContaining({
+			length: '18 / 24 eps',
+			history: expect.stringContaining('"fixture":"before"'),
+		}),
+	)
 
 	await prisma.$transaction(tx =>
 		rollbackLibraryImportBatch(tx, {
@@ -256,6 +295,7 @@ test('merge preserves stronger progress and rollback restores prior state', asyn
 		expect.objectContaining({
 			watchlistId: watching.id,
 			position: 1,
+			length: null,
 			history: '{"fixture":"before"}',
 		}),
 	)

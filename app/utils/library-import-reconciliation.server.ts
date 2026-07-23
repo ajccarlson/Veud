@@ -60,6 +60,19 @@ function titleKey(kind: string, title: string) {
 	return `${kind}\u0000${normalizeCatalogTitle(title)}`
 }
 
+function sortCandidates(
+	matches: Array<{
+		id: string
+		catalogPopularity: number | null
+	}>,
+) {
+	matches.sort(
+		(a, b) =>
+			(b.catalogPopularity ?? -1) - (a.catalogPopularity ?? -1) ||
+			a.id.localeCompare(b.id),
+	)
+}
+
 export async function reconcileLibraryImport(
 	prisma: Pick<PrismaClient, 'media' | 'trackingState'>,
 	ownerId: string,
@@ -121,6 +134,7 @@ export async function reconcileLibraryImport(
 			}
 		}
 	}
+	for (const matches of externalMatches.values()) sortCandidates(matches)
 
 	const titleMatches = new Map<
 		string,
@@ -186,13 +200,7 @@ export async function reconcileLibraryImport(
 			}
 		}
 	}
-	for (const matches of titleMatches.values()) {
-		matches.sort(
-			(a, b) =>
-				(b.catalogPopularity ?? -1) - (a.catalogPopularity ?? -1) ||
-				a.id.localeCompare(b.id),
-		)
-	}
+	for (const matches of titleMatches.values()) sortCandidates(matches)
 
 	const matchedMediaIds = new Set<string>()
 	const preliminary = items.map(item => {
