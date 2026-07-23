@@ -237,11 +237,16 @@ app.all(
 Sentry.setupExpressErrorHandler(app)
 
 const desiredPort = Number(process.env.PORT || 4021)
+const desiredHost = process.env.HOST?.trim() || undefined
 const portToUse = await getPort({
 	port: portNumbers(desiredPort, desiredPort + 100),
 })
 
-const server = app.listen(portToUse, () => {
+const server = desiredHost
+	? app.listen(portToUse, desiredHost, handleListening)
+	: app.listen(portToUse, handleListening)
+
+function handleListening() {
 	const addy = server.address()
 	const portUsed =
 		desiredPort === portToUse
@@ -258,6 +263,7 @@ const server = app.listen(portToUse, () => {
 		)
 	}
 	console.log(`🚀  We have liftoff!`)
+	if (desiredHost) console.log(`   Bound to ${desiredHost}:${portUsed}`)
 	const localUrl = `http://localhost:${portUsed}`
 	let lanUrl: string | null = null
 	const localIp = ipAddress() ?? 'Unknown'
@@ -275,7 +281,7 @@ ${lanUrl ? `${chalk.bold('On Your Network:')}  ${chalk.cyan(lanUrl)}` : ''}
 ${chalk.bold('Press Ctrl+C to stop')}
 		`.trim(),
 	)
-})
+}
 
 closeWithGrace(async () => {
 	await new Promise((resolve, reject) => {

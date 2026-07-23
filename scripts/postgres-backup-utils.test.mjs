@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import {
+	assertIndependentBackupMount,
 	assertSafeRestoreTarget,
 	findLatestPostgresBackup,
 	parsePostgresConnection,
@@ -90,4 +91,34 @@ test('finds and prunes only PostgreSQL custom-format archives', () => {
 	expect(prunePostgresBackups(tempDir, 1)).toEqual(['postgres-old.dump'])
 	expect(fs.existsSync(`${oldBackup}.restore-verified.json`)).toBe(false)
 	expect(fs.existsSync(path.join(tempDir, 'data-ignore.db'))).toBe(true)
+})
+
+test('requires the offsite directory to be on a distinct mounted filesystem', () => {
+	const mountPoint = path.join(tempDir, 'drive')
+	const offsiteDir = path.join(mountPoint, 'backups')
+	fs.mkdirSync(offsiteDir, { recursive: true })
+	expect(() =>
+		assertIndependentBackupMount(offsiteDir, mountPoint, 0, {
+			realpath: value => value,
+			stat: () => ({ dev: 1 }),
+			statfs: () => ({ bavail: 100, bsize: 1 }),
+		}),
+	).toThrow('not a distinct mounted filesystem')
+})
+
+test('requires adequate free space on a verified offsite mount', () => {
+	const mountPoint = path.join(tempDir, 'drive')
+	const offsiteDir = path.join(mountPoint, 'backups')
+	fs.mkdirSync(offsiteDir, { recursive: true })
+	const operations = {
+		realpath: value => value,
+		stat: value => ({ dev: value === mountPoint ? 2 : 1 }),
+		statfs: () => ({ bavail: 9, bsize: 10 }),
+	}
+	expect(() =>
+		assertIndependentBackupMount(offsiteDir, mountPoint, 100, operations),
+	).toThrow('90 bytes available; 100 required')
+	expect(() =>
+		assertIndependentBackupMount(offsiteDir, mountPoint, 90, operations),
+	).not.toThrow()
 })
