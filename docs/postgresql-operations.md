@@ -83,11 +83,16 @@ path when `DATABASE_URL` uses `postgresql://`. A PostgreSQL backup succeeds only
 after its custom-format archive is restored into the dedicated verification
 database and passes:
 
-- required PostgreSQL migration checks;
+- exact migration-history parity with the source database;
 - core user, watchlist, entry, and media counts;
 - foreign-key validation state;
 - `pg_trgm` presence; and
 - optional `BACKUP_VERIFY_USERNAME` identity validation.
+
+Comparing with the source database, rather than the source checkout, allows a
+restore-verified rollback backup immediately before a release migration without
+mistaking the intentionally older source for a corrupt archive. Release currency
+and datamodel drift remain separately enforced by `npm run db:verify:postgres`.
 
 Each successful PostgreSQL restore drill also writes a private, credential-free
 receipt beside the archive. It binds the archive SHA-256 and size to the source
@@ -146,7 +151,8 @@ Before the real maintenance window:
    activity, reviews, collections, notifications, and catalog workers before
    ending maintenance.
 
-Use the [PostgreSQL cutover evidence and canary gate](postgresql-cutover-readiness.md)
+Use the
+[PostgreSQL cutover evidence and canary gate](postgresql-cutover-readiness.md)
 to bind steps 1–6 to the approved target, budgets, hashes, and freshness windows
 before opening general traffic.
 
