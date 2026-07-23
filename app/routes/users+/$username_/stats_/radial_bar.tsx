@@ -108,3 +108,7 @@ export function renderRadialBar(loaderData: any, chartType: string) {
 
   return (MyResponsiveRadialBar(typedBars))
 }
+
+export function RadialBarChart({ data }: any) {
+  return renderRadialBar(data, 'type')
+}
