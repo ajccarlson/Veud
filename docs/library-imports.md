@@ -20,6 +20,12 @@ fallback; multiple candidates remain ambiguous until the member chooses one.
 Reconciliation is bulk-loaded in bounded chunks and previews are limited to
 2,000 normalized rows.
 
+Trakt watchlist rows map to Planning rather than Completed. Its episode-history
+rows are consolidated by show and distinct season/episode identity, producing a
+safe watched-episode count without incorrectly treating every episode as a full
+show rewatch. Provider-controlled titles, identifiers, counters, nesting, and
+scores are bounded before they reach indexed database fields.
+
 ## Privacy and retention
 
 - The uploaded file exists only for the request that parses it. Veud does not
@@ -41,6 +47,11 @@ Reconciliation is bulk-loaded in bounded chunks and previews are limited to
   count authoritative.
 - **Skip** makes no change.
 
+Existing-item conflicts can be assigned Merge, Replace, or Skip in bulk, while
+ambiguous matches remain explicit per-title decisions. Candidate labels identify
+titles already present in the member's library, and Add is not offered for a
+known conflict.
+
 Provider statuses map to Veud's compatible Watching/Reading, Completed,
 Planning, On hold, and Dropped lists. Media/list compatibility is checked again
 by the existing server-owned tracking boundary during apply.
@@ -56,9 +67,14 @@ fingerprint.
 Import audit events are private, so restoring an old library never floods the
 community feed.
 
+Normalized progress is mirrored into the legacy episode/chapter/volume counters
+still used by list views. Merge preserves detailed existing history; Replace
+resets imported member details without discarding catalog-owned progress totals.
+
 Rollback first validates every post-apply fingerprint. If any title has been
 edited since the import, the complete rollback is rejected instead of
 overwriting newer work. Otherwise it restores the batch in reverse order,
 normalizes affected list positions, removes empty lists created by the import,
 and appends private `import_rollback` activity rather than erasing audit
-history.
+history. Journals created by the first release remain rollback-compatible after
+the later counter fields were added.

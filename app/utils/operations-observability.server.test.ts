@@ -64,6 +64,13 @@ test('uses explicit release metadata and produces UUID request identifiers', () 
 	expect(
 		expressErrorStatus(Object.assign(new Error('bad body'), { status: 400 })),
 	).toBe(400)
+	expect(
+		expressErrorStatus(
+			new TypeError(
+				'Content-Type was not one of "multipart/form-data" or "application/x-www-form-urlencoded".',
+			),
+		),
+	).toBe(400)
 	expect(expressErrorStatus(new TypeError('programmer error'))).toBe(500)
 })
 
