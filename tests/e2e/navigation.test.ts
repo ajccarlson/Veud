@@ -35,7 +35,7 @@ test('shared visual foundations stay on-brand and overflow-free on mobile', asyn
 	).toBeVisible()
 	await expect(page.locator('body')).toHaveCSS(
 		'background-color',
-		'rgb(46, 47, 43)',
+		'rgb(18, 23, 21)',
 	)
 	await expect(page.getByRole('button', { name: /Community/ })).toBeHidden()
 	await page.getByLabel('Open site navigation').click()

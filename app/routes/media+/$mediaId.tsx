@@ -685,7 +685,7 @@ function ReviewCommentThread({
 							to={`/users/${comment.author.username}`}
 							className="font-semibold hover:underline"
 						>
-							{comment.author.name ?? comment.author.username}
+							{comment.author.username}
 						</Link>
 						<time className="text-muted-foreground">
 							{displayDate(comment.createdAt)}
@@ -1405,7 +1405,7 @@ export default function MediaDetailRoute() {
 												/>
 												<div className="min-w-0 flex-1">
 													<div className="truncate text-sm font-semibold">
-														{item.member.name ?? item.member.username}
+														{item.member.username}
 													</div>
 													<div className="truncate text-xs text-muted-foreground">
 														{item.statusLabel}
@@ -1994,7 +1994,7 @@ export default function MediaDetailRoute() {
 													to={`/users/${review.author.username}`}
 													className="font-semibold hover:underline"
 												>
-													{review.author.name ?? review.author.username}
+													{review.author.username}
 												</Link>
 												{review.rating !== null ? (
 													<span className="ml-2 text-sm font-semibold">
@@ -2003,8 +2003,7 @@ export default function MediaDetailRoute() {
 												) : null}
 											</div>
 											<div className="flex items-center gap-2">
-												{data.viewer &&
-												data.viewer.id !== review.author.id ? (
+												{data.viewer && data.viewer.id !== review.author.id ? (
 													<ReportContentButton
 														targetType="review"
 														targetId={review.id}
@@ -2115,7 +2114,7 @@ export default function MediaDetailRoute() {
 												to={`/users/${event.actor.username}`}
 												className="font-semibold hover:underline"
 											>
-												{event.actor.name ?? event.actor.username}
+												{event.actor.username}
 											</Link>{' '}
 											<span className="text-muted-foreground">
 												{event.action.toLowerCase()}

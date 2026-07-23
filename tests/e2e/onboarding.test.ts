@@ -81,7 +81,9 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 		.getByRole('textbox', { name: /^username/i })
 		.fill(onboardingData.username)
 
-	await page.getByRole('textbox', { name: /^name/i }).fill(onboardingData.name)
+	await page
+		.getByRole('textbox', { name: 'Full name (private and optional)' })
+		.fill(onboardingData.name)
 
 	await page.getByRole('textbox', { name: 'Password', exact: true }).fill(
 		onboardingData.password,
@@ -102,8 +104,9 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 
 	await expect(page).toHaveURL(`/users/${onboardingData.username}`)
 	await expect(
-		page.getByRole('heading', { name: onboardingData.name, exact: true }),
+		page.getByRole('heading', { name: onboardingData.username, exact: true }),
 	).toBeVisible()
+	await expect(page.getByText(onboardingData.name, { exact: true })).toHaveCount(0)
 	await expect(page.getByRole('progressbar')).toHaveCount(0)
 
 	await page.getByRole('button', { name: /account menu/i }).click()

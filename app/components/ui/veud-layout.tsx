@@ -59,7 +59,7 @@ export function VeudPageHeader({
 						{eyebrow}
 					</p>
 				) : null}
-				<h1 className="text-3xl font-black leading-tight text-veud-amber sm:text-4xl">
+				<h1 className="text-3xl font-[var(--veud-font-display)] font-bold leading-tight tracking-[-0.025em] text-veud-cream sm:text-4xl">
 					{title}
 				</h1>
 				{description ? (

@@ -87,7 +87,7 @@ test('community administrators can triage reports and manage moderator access', 
 			`/moderation?view=team&q=${encodeURIComponent(offender.username)}`,
 		)
 		await expect(
-			page.getByRole('heading', { name: 'Moderation browser member' }),
+			page.getByRole('heading', { name: offender.username }),
 		).toBeVisible()
 		const grantForm = page
 			.getByRole('button', { name: 'Grant moderator' })

@@ -31,6 +31,7 @@ import {
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
+import '#app/styles/discover.scss'
 
 const kindLabels: Record<DiscoveryQuery['kind'], string> = {
 	all: 'All media',
@@ -155,21 +156,18 @@ function memorySearchStatus(data: {
 		| 'rate-limited'
 		| 'ai-error'
 		| 'ai-empty'
-		| 'provider-restricted'
 		| null
 }) {
-	if (data.memorySearchSource === 'ai') return 'AI ranked'
+	if (data.memorySearchSource === 'ai') return 'AI-assisted catalog match'
 	switch (data.memorySearchFallbackReason) {
 		case 'sign-in-required':
-			return 'Catalog matched · sign in for AI ranking'
+			return 'Catalog matched · sign in for AI clue expansion'
 		case 'rate-limited':
 			return 'Catalog matched · AI limit reached'
 		case 'ai-error':
 			return 'Catalog matched · AI temporarily unavailable'
 		case 'ai-empty':
-			return 'Catalog matched · AI returned no usable matches'
-		case 'provider-restricted':
-			return 'Catalog matched · provider terms limit AI ranking'
+			return 'Catalog matched · AI returned no usable clues'
 		case 'not-configured':
 			return 'Catalog matched · AI not configured'
 		default:
@@ -264,24 +262,76 @@ export default function DiscoverRoute() {
 				}
 			/>
 
+			<nav className="discover-mode-switch" aria-label="Search mode">
+				<Button
+					asChild
+					variant={data.filters.mode === 'standard' ? 'default' : 'outline'}
+				>
+					<Link to="/discover">Catalog search</Link>
+				</Button>
+				<Button
+					asChild
+					variant={data.filters.mode === 'memory' ? 'default' : 'outline'}
+				>
+					<Link to="/discover?mode=memory">Tip of My Tongue</Link>
+				</Button>
+			</nav>
+
 			<Form
 				key={filterKey}
 				method="get"
-				className="grid gap-4 rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:p-5 md:grid-cols-2 xl:grid-cols-4 xl:items-end"
+				className={`discover-search-panel ${data.filters.mode === 'memory' ? 'discover-search-panel--memory' : ''}`}
 			>
-				<div className="space-y-2">
-					<Label htmlFor="discover-query">Title or keyword</Label>
-					<Input
-						id="discover-query"
-						name="q"
-						defaultValue={data.filters.q}
-						placeholder={
-							data.filters.mode === 'memory'
-								? 'Describe scenes, characters, era, tone, or plot details'
-								: 'Canonical or alternate title'
-						}
-						maxLength={data.filters.mode === 'memory' ? 500 : 100}
-					/>
+				{data.filters.mode === 'memory' ? (
+					<input type="hidden" name="mode" value="memory" />
+				) : null}
+				<div
+					className={`space-y-2 ${data.filters.mode === 'memory' ? 'discover-memory-prompt' : ''}`}
+				>
+					<Label htmlFor="discover-query">
+						{data.filters.mode === 'memory'
+							? 'What do you remember?'
+							: 'Title or keyword'}
+					</Label>
+					{data.filters.mode === 'memory' ? (
+						<textarea
+							id="discover-query"
+							name="q"
+							defaultValue={data.filters.q}
+							placeholder="A hand-drawn movie where a girl follows a white rabbit into a city that changes shape…"
+							minLength={3}
+							maxLength={500}
+							rows={5}
+							autoFocus
+						/>
+					) : (
+						<Input
+							id="discover-query"
+							name="q"
+							defaultValue={data.filters.q}
+							placeholder="Canonical or alternate title"
+							maxLength={100}
+						/>
+					)}
+					{data.filters.mode === 'memory' ? (
+						<div className="discover-memory-guidance">
+							<p>
+								Include any scene, object, character, setting, era, art style,
+								or line fragment you remember—even if details may be wrong.
+							</p>
+							<div aria-label="Example memory searches">
+								<Link to="/discover?mode=memory&q=a+red+balloon+following+a+child+through+Paris">
+									Red balloon in Paris
+								</Link>
+								<Link to="/discover?mode=memory&q=friends+find+a+clock+that+repeats+the+same+summer+day">
+									Repeating summer day
+								</Link>
+								<Link to="/discover?mode=memory&q=a+lantern+guides+someone+through+a+mirrored+forest">
+									Mirrored forest
+								</Link>
+							</div>
+						</div>
+					) : null}
 				</div>
 				<div className="space-y-2">
 					<Label htmlFor="discover-kind">Media type</Label>
@@ -298,114 +348,118 @@ export default function DiscoverRoute() {
 						))}
 					</select>
 				</div>
-				<div className="space-y-2">
-					<Label htmlFor="discover-genre">Genre</Label>
-					<select
-						id="discover-genre"
-						name="genre"
-						defaultValue={data.filters.genre}
-						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<option value="">All genres</option>
-						{data.genres.map(genre => (
-							<option key={genre} value={genre}>
-								{genre}
-							</option>
-						))}
-					</select>
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="discover-year">Release year</Label>
-					<Input
-						id="discover-year"
-						name="year"
-						type="number"
-						min={1870}
-						max={2200}
-						defaultValue={data.filters.year ?? ''}
-						placeholder="Any year"
-					/>
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="discover-status">Release status</Label>
-					<select
-						id="discover-status"
-						name="status"
-						defaultValue={data.filters.status}
-						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						<option value="">Any status</option>
-						{data.statuses.map(status => (
-							<option key={status} value={status}>
-								{status}
-							</option>
-						))}
-					</select>
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="discover-provider">Provider</Label>
-					<select
-						id="discover-provider"
-						name="provider"
-						defaultValue={data.filters.provider}
-						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						{Object.entries(providerLabels).map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</select>
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="discover-sort">Rank by</Label>
-					<select
-						id="discover-sort"
-						name="sort"
-						defaultValue={data.filters.sort}
-						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					>
-						{Object.entries(sortLabels).map(([value, label]) =>
-							value !== 'for-you' || data.isSignedIn ? (
-								<option key={value} value={value}>
-									{label}
-								</option>
-							) : null,
-						)}
-					</select>
-				</div>
-				<label
-					htmlFor="discover-memory-mode"
-					className="flex gap-3 rounded-xl border border-[#54806c]/70 bg-[#2e2f2b] p-3 md:col-span-2 xl:col-span-4"
-				>
-					<span className="sr-only">Enable Tip of My Tongue search</span>
-					<input
-						id="discover-memory-mode"
-						type="checkbox"
-						name="mode"
-						value="memory"
-						defaultChecked={data.filters.mode === 'memory'}
-						className="mt-1 h-4 w-4 shrink-0 accent-[#a2ffd5]"
-					/>
-					<span>
-						<strong className="block text-sm text-[#ffffb1]">
-							Tip of My Tongue
-						</strong>
-						<span className="mt-1 block text-xs leading-5 text-[#a2ffd5]">
+				{data.filters.mode === 'standard' ? (
+					<>
+						<div className="space-y-2">
+							<Label htmlFor="discover-genre">Genre</Label>
+							<select
+								id="discover-genre"
+								name="genre"
+								defaultValue={data.filters.genre}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							>
+								<option value="">All genres</option>
+								{data.genres.map(genre => (
+									<option key={genre} value={genre}>
+										{genre}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="discover-year">Release year</Label>
+							<Input
+								id="discover-year"
+								name="year"
+								type="number"
+								min={1870}
+								max={2200}
+								defaultValue={data.filters.year ?? ''}
+								placeholder="Any year"
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="discover-status">Release status</Label>
+							<select
+								id="discover-status"
+								name="status"
+								defaultValue={data.filters.status}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							>
+								<option value="">Any status</option>
+								{data.statuses.map(status => (
+									<option key={status} value={status}>
+										{status}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="discover-provider">Provider</Label>
+							<select
+								id="discover-provider"
+								name="provider"
+								defaultValue={data.filters.provider}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							>
+								{Object.entries(providerLabels).map(([value, label]) => (
+									<option key={value} value={value}>
+										{label}
+									</option>
+								))}
+							</select>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="discover-sort">Rank by</Label>
+							<select
+								id="discover-sort"
+								name="sort"
+								defaultValue={data.filters.sort}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							>
+								{Object.entries(sortLabels).map(([value, label]) =>
+									value !== 'for-you' || data.isSignedIn ? (
+										<option key={value} value={value}>
+											{label}
+										</option>
+									) : null,
+								)}
+							</select>
+						</div>
+					</>
+				) : (
+					<div className="discover-memory-privacy">
+						<strong>
 							{data.aiSearchAvailable
-								? 'Describe whatever you remember. AI will rank five catalog-backed matches; your description is sent to OpenAI with response storage disabled. Do not include personal information.'
+								? 'AI clue expansion is ready'
+								: 'Local catalog matching is ready'}
+						</strong>
+						<p>
+							{data.aiSearchAvailable
+								? 'Only the memory you type is sent to OpenAI, with response storage disabled. Catalog records, provider metadata, and your account data stay inside Veud; the final five matches are retrieved and ranked locally.'
 								: data.isSignedIn
-									? 'Describe whatever you remember. Veud will return five local catalog matches; AI ranking is not configured on this server.'
-									: 'Describe whatever you remember for local catalog matching. Sign in to use AI ranking when it is configured.'}
-						</span>
-					</span>
-				</label>
-				<div className="flex gap-2 xl:col-span-4 xl:justify-end">
+									? 'AI expansion is not configured on this server, so Veud will search its local catalog without sending your description anywhere.'
+									: 'Veud will search its local catalog. Sign in to use AI clue expansion when it is available.'}
+						</p>
+						<small>Do not include personal or sensitive information.</small>
+					</div>
+				)}
+				<div className="discover-search-actions">
 					<Button type="submit" className="flex-1 lg:flex-none">
-						Discover
+						{data.filters.mode === 'memory'
+							? 'Find my five closest matches'
+							: 'Search catalog'}
 					</Button>
 					<Button asChild type="button" variant="ghost">
-						<Link to="/discover">Clear</Link>
+						<Link
+							to={
+								data.filters.mode === 'memory'
+									? '/discover?mode=memory'
+									: '/discover'
+							}
+						>
+							Clear
+						</Link>
 					</Button>
 				</div>
 			</Form>

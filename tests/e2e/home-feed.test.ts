@@ -56,9 +56,6 @@ test('member dashboard preferences persist across reloads and stay calm on mobil
 		await page
 			.getByRole('button', { name: 'Collapse Following activity' })
 			.click()
-		await page
-			.getByRole('button', { name: 'Move Recommendations earlier' })
-			.click()
 		await expect(
 			page.getByRole('region', { name: 'Following activity' }),
 		).toBeVisible()
@@ -171,9 +168,7 @@ test('home shows a unified activity feed from followed members', async ({
 		await expect(library.getByText('1', { exact: true }).first()).toBeVisible()
 		await expect(library.getByText('Anime')).toBeVisible()
 		await expect(
-			page
-				.getByText(followed.name ?? followed.username, { exact: true })
-				.first(),
+			page.getByText(followed.username, { exact: true }).first(),
 		).toBeVisible()
 		await expect(page.getByText('published a review')).toBeVisible()
 		await expect(page.getByText('logged a rewatch')).toBeVisible()

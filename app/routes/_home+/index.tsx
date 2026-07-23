@@ -1,10 +1,12 @@
 import '#app/styles/home.scss'
 import {
 	data as json,
+	Link,
 	type LoaderFunctionArgs,
 	useLoaderData,
 } from 'react-router'
 import { HomeDashboard } from '#app/components/home-dashboard.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { HomeContinuation } from '#app/routes/_home+/_continuation.tsx'
 import { FollowingFeed } from '#app/routes/_home+/_following.tsx'
 import { HomeLibrary } from '#app/routes/_home+/_library.tsx'
@@ -39,26 +41,25 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		!userId || expanded('trending')
 			? getHomeTrending(userId)
 			: Promise.resolve([])
-	const librarySummaryPromise = userId && expanded('library')
-		? getHomeLibrarySummary(userId)
-		: Promise.resolve(null)
+	const librarySummaryPromise =
+		userId && expanded('library')
+			? getHomeLibrarySummary(userId)
+			: Promise.resolve(null)
 	const watchlistsPromise =
 		userId &&
-		(expanded('trending') ||
-			expanded('recommendations') ||
-			expanded('library'))
-		? prisma.watchlist.findMany({
-				where: { ownerId: userId },
-				select: {
-					id: true,
-					name: true,
-					header: true,
-					position: true,
-					type: { select: { name: true } },
-				},
-				orderBy: [{ position: 'asc' }, { header: 'asc' }],
-			})
-		: Promise.resolve([])
+		(expanded('trending') || expanded('recommendations') || expanded('library'))
+			? prisma.watchlist.findMany({
+					where: { ownerId: userId },
+					select: {
+						id: true,
+						name: true,
+						header: true,
+						position: true,
+						type: { select: { name: true } },
+					},
+					orderBy: [{ position: 'asc' }, { header: 'asc' }],
+				})
+			: Promise.resolve([])
 	const [
 		followingRows,
 		upcomingCalendar,
@@ -83,7 +84,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 							timeZone,
 						)
 					: Promise.resolve(null),
-				expanded('continue') ? getContinuationQueue(userId) : Promise.resolve([]),
+				expanded('continue')
+					? getContinuationQueue(userId)
+					: Promise.resolve([]),
 				expanded('recommendations')
 					? getRecommendationGraph(userId)
 					: Promise.resolve(null),
@@ -141,6 +144,27 @@ export default function Index() {
 					Track movies, television, anime, and manga with Veud
 				</h1>
 				<div className="home-container">
+					<section
+						className="home-intro-strip"
+						aria-labelledby="home-intro-title"
+					>
+						<div>
+							<p>One archive · every medium</p>
+							<h2 id="home-intro-title">
+								Your films, series, anime, and manga—kept in context.
+							</h2>
+						</div>
+						<Link to="/discover?mode=memory" className="home-memory-cta">
+							<Icon name="magic-wand" aria-hidden="true" />
+							<span>
+								<strong>Can’t remember the title?</strong>
+								<small>
+									Describe a scene. Veud will find five close matches.
+								</small>
+							</span>
+							<span aria-hidden="true">→</span>
+						</Link>
+					</section>
 					{currentUser ? (
 						<HomeDashboard
 							initialConfig={data.dashboardConfig}
@@ -152,9 +176,7 @@ export default function Index() {
 										isSignedIn
 									/>
 								),
-								continue: (
-									<HomeContinuation items={data.continuationQueue} />
-								),
+								continue: <HomeContinuation items={data.continuationQueue} />,
 								recommendations: (
 									<HomeRecommendations
 										graph={data.recommendationGraph}
@@ -175,9 +197,7 @@ export default function Index() {
 										destinationCount={data.watchlists.length}
 									/>
 								) : null,
-								upcoming: (
-									<UpcomingData calendar={data.upcomingCalendar} />
-								),
+								upcoming: <UpcomingData calendar={data.upcomingCalendar} />,
 							}}
 						/>
 					) : (

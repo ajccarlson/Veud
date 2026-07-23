@@ -4,42 +4,44 @@
 
 @layer base {
 	:root {
-		/* Veud's semantic palette. RGB channels also support Tailwind opacity. */
-		--veud-canvas: 46 47 43;
-		--veud-ink: 33 31 36;
-		--veud-surface: 56 48 64;
-		--veud-surface-raised: 64 53 48;
-		--veud-border: 84 128 108;
-		--veud-cream: 255 239 204;
-		--veud-copy: 198 222 210;
-		--veud-mint: 162 255 213;
-		--veud-sage: 140 169 157;
-		--veud-amber: 255 153 0;
-		--veud-gold: 255 204 102;
-		--veud-yellow: 255 255 177;
+		/* Veud Archive: forest ink, aged paper, violet, and signal amber. */
+		--veud-canvas: 17 22 20;
+		--veud-ink: 20 24 23;
+		--veud-surface: 40 34 46;
+		--veud-surface-raised: 50 39 34;
+		--veud-border: 78 128 106;
+		--veud-cream: 244 235 216;
+		--veud-copy: 198 217 208;
+		--veud-mint: 143 235 190;
+		--veud-sage: 132 163 149;
+		--veud-amber: 241 158 76;
+		--veud-gold: 242 201 111;
+		--veud-yellow: 247 236 161;
 		--veud-danger: 255 179 164;
 		--veud-font-sans:
 			Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 			'Segoe UI', sans-serif;
+		--veud-font-display:
+			Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia, serif;
 
 		--foreground-destructive: 10 100% 72.4%;
-		--background: 75 4.4% 17.6%;
-		--foreground: 40 100% 90%;
-		--muted: 75 4.4% 17.6%;
-		--muted-foreground: 155 14.7% 60.6%;
-		--popover: 270 14.3% 22%;
-		--popover-foreground: 40 100% 90%;
-		--card: 270 14.3% 22%;
-		--card-foreground: 40 100% 90%;
-		--border: 153 20.8% 41.6%;
-		--input: 153 20.8% 41.6%;
+		--background: 160 12% 8%;
+		--foreground: 40 42% 90%;
+		--muted: 154 10% 13%;
+		--muted-foreground: 153 14% 65%;
+		--popover: 280 15% 16%;
+		--popover-foreground: 40 42% 90%;
+		--card: 280 15% 16%;
+		--card-foreground: 40 42% 90%;
+		--border: 153 24% 40%;
+		--input: 153 24% 40%;
 		--input-invalid: 10 100% 72.4%;
-		--primary: 36 100% 50%;
-		--primary-foreground: 264 7.5% 13.1%;
-		--secondary: 270 14.3% 22%;
-		--secondary-foreground: 40 100% 90%;
-		--accent: 153 20.8% 41.6%;
-		--accent-foreground: 40 100% 90%;
+		--primary: 29 85% 62%;
+		--primary-foreground: 155 16% 8%;
+		--secondary: 280 15% 16%;
+		--secondary-foreground: 40 42% 90%;
+		--accent: 153 24% 40%;
+		--accent-foreground: 40 42% 90%;
 		--destructive: 10 67% 38%;
 		--destructive-foreground: 40 100% 96%;
 		--ring: 151 100% 81.8%;
@@ -47,16 +49,21 @@
 	}
 
 	.dark {
-		--background: 264 7.5% 13.1%;
-		--muted: 75 4.4% 17.6%;
-		--popover: 270 14.3% 22%;
-		--card: 270 14.3% 22%;
-		--accent: 153 20.8% 34%;
+		--background: 160 12% 8%;
+		--muted: 154 10% 13%;
+		--popover: 280 15% 16%;
+		--card: 280 15% 16%;
+		--accent: 153 24% 34%;
 	}
 
 	body {
 		min-width: 20rem;
-		background-color: rgb(var(--veud-canvas));
+		background:
+			linear-gradient(rgb(255 255 255 / 0.012) 1px, transparent 1px),
+			linear-gradient(90deg, rgb(255 255 255 / 0.012) 1px, transparent 1px),
+			rgb(var(--veud-canvas));
+		background-size: 2rem 2rem;
+		color: rgb(var(--veud-cream));
 		font-family: var(--veud-font-sans);
 	}
 
