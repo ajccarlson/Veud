@@ -112,3 +112,24 @@ The canary refuses remote hosts and database names that do not contain
 `restore`, `verify`, or `drill`. It creates synthetic rows, prepares and applies
 a merge, verifies the journaled moves and scalar fill, reverses the operation,
 verifies exact ownership restoration, and removes the fixture.
+
+## Staging evidence
+
+Commit `c56c15dea4f266f9f014a26338c96699b7a7ab87` was deployed on 2026-07-23.
+The release:
+
+- installed from the lockfile with an npm audit result of zero vulnerabilities;
+- built the production client and server;
+- applied the migration to both `veud_staging` and `veud_staging_load`;
+- reported no Prisma migration or schema drift;
+- passed the PostgreSQL schema/write/search smoke test;
+- passed the guarded PostgreSQL prepare/apply/journal/revert canary on the
+  isolated restore database;
+- passed all 83 unit-test files and 378 tests, plus the focused catalog browser
+  workflow;
+- passed lint and TypeScript checks; and
+- passed all 16 HTTPS acceptance requests with a 426.403 ms p95.
+
+The protected catalog route returned the expected anonymous `302`, the deployed
+release symlink resolved to the exact commit, and both new audit tables were
+empty before any human-reviewed merge.
