@@ -60,7 +60,11 @@ import { useRequestInfo } from './utils/request-info.ts'
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
 import { getToast } from './utils/toast.server.ts'
-import { useOptionalUser, useUser } from './utils/user.ts'
+import {
+	useOptionalUser,
+	useUser,
+	userHasPermission,
+} from './utils/user.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -430,6 +434,12 @@ function MobileNavigation() {
 							<Icon name="gear" aria-hidden="true" />
 							Account settings
 						</Link>
+						{userHasPermission(user, 'read:report:any') ? (
+							<Link to="/moderation" prefetch="intent">
+								<Icon name="speaker-moderate" aria-hidden="true" />
+								Moderation
+							</Link>
+						) : null}
 						<Form action="/logout" method="POST">
 							<button type="submit">
 								<Icon name="exit" aria-hidden="true" />
@@ -618,6 +628,15 @@ function UserDropdown() {
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
+					{userHasPermission(user, 'read:report:any') ? (
+						<DropdownMenuItem asChild>
+							<Link to="/moderation" prefetch="intent">
+								<Icon className="text-body-md" name="speaker-moderate">
+									Moderation
+								</Icon>
+							</Link>
+						</DropdownMenuItem>
+					) : null}
 					<DropdownMenuItem
 						onSelect={() => {
 							void submit(null, { action: '/logout', method: 'post' })

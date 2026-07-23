@@ -322,7 +322,7 @@ export async function loadProfileActivity(
 				select: { createdAt: true },
 			}),
 			prisma.review.findMany({
-				where: { authorId: user.id },
+				where: { authorId: user.id, moderationStatus: 'visible' },
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take: 100,
 				select: {
@@ -450,7 +450,7 @@ export async function loadProfileReviews(
 		Promise.all([
 			prisma.listType.findMany({ select: { id: true, name: true } }),
 			prisma.review.findMany({
-				where: { authorId: user.id },
+				where: { authorId: user.id, moderationStatus: 'visible' },
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take: 100,
 				select: {
