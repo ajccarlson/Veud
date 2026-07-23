@@ -5,9 +5,9 @@ Last updated: 2026-07-23
 This audit closes the implementation roadmap with a repository-wide review of
 Veud's application, data, operations, and release boundaries. It supplements
 the feature-specific evidence in `ROADMAP.md` and the documents in this
-directory. The source candidate is the
-`final-roadmap-comprehensive-audit` branch based on `develop` commit
-`251003b619f1`.
+directory. The current source candidate is the
+`platform-observability-and-incident-readiness` branch based on the promoted
+`develop` release line.
 
 ## Reviewed surfaces
 
@@ -94,25 +94,35 @@ directory. The source candidate is the
   menu closes.
 - The compact header remains usable at narrow widths, and the intentional
   mobile screenshot baseline was refreshed.
-- CI uses `npm ci`, least-privilege workflow permissions, PostgreSQL checks, and
-  the complete browser suite. Browser email links are forced to the disposable
-  local origin so production-mode tests can never target the live site.
+- Hosted GitHub Actions are manual-only while the monthly allowance is
+  constrained. Equivalent application, PostgreSQL, and staging gates are
+  exposed as local `validate:release:*` commands and run before promotion.
+  Browser email links are forced to the disposable local origin so
+  production-mode tests can never target the live site.
 - The SQLite and PostgreSQL schemas include the same watchlist revision
   migration. Disposable browser databases apply every migration from an empty
   database.
+- Every response now carries a generated request ID. Production request logs
+  are structured, exclude query strings, client addresses, and bodies, and
+  redact secret-like error values. Health responses identify the release and
+  environment.
+- A least-privilege `site-operator` role can inspect bounded process, request,
+  integration, and database readiness at `/admin/operations`. Operators can
+  publish append-only incident updates to `/status` without unrelated
+  administrator access.
 
 ## Release evidence
 
 The final local candidate passed:
 
 - ESLint and TypeScript/React Router type generation.
-- 106 Vitest files and 445 unit/integration tests.
-- All 33 SQLite migrations from an empty database and an up-to-date migration
+- 116 Vitest files and 476 unit/integration tests.
+- All 35 SQLite migrations from an empty database and an up-to-date migration
   status check.
 - PostgreSQL schema synchronization and Prisma validation.
 - Production client and server builds.
 - Every checked raw and gzip client-bundle budget.
-- 76 of 76 Chromium end-to-end tests in one clean full-suite run, including
+- 79 of 79 Chromium end-to-end tests in one clean full-suite run, including
   authentication, two-factor login, account deletion, settings, social
   actions, list reliability, responsive routes, accessibility, reduced motion,
   and screenshot baselines.
@@ -128,13 +138,13 @@ clients do not load that desktop-only module.
 
 ## Operational acceptance
 
-Exact application commit `f47ca9622bbf7715035ba319febfd9b4bd919976`
-passed the isolated local PostgreSQL staging deployment on 2026-07-23:
+The production line through `main` commit `99dc545` passed isolated PostgreSQL
+staging and production acceptance on 2026-07-23:
 
 - The archived commit installed 1,431 packages with zero vulnerabilities,
   generated its PostgreSQL client, and built successfully.
-- Migration `20260723210000_add_watchlist_mutation_version` applied to both
-  `veud_staging` and `veud_staging_load`. Both databases reported migration 10,
+- Community moderation and backup-resilience migrations applied to both
+  `veud_staging` and `veud_staging_load`. Both databases reported migration 11,
   no pending migrations, and no schema drift.
 - PostgreSQL schema, `pg_trgm` indexes, model writes, and portable searches
   passed the production smoke probe.
@@ -147,7 +157,7 @@ passed the isolated local PostgreSQL staging deployment on 2026-07-23:
   and all enabled MAL/TMDB inventory and hydration workers were healthy.
   Catalog telemetry reported zero provider rate-limit responses.
 - Fresh application and catalog backups were written, restored into the
-  verification database, checked at migration 10, and copied to the physically
+  verification database, checked at migration 11, and copied to the physically
   separate backup drive. The catalog receipt covered 1,565,817 media rows.
 
 MAL and TMDB hydration are intentionally resumable operational processes, not
@@ -163,21 +173,14 @@ completed roadmap:
    virtualized list workspace. A shared typed command layer could power desktop
    table, mobile cards, bulk edits, undo/redo, and collaborative conflict
    resolution without shipping the full grid framework.
-2. Introduce OpenTelemetry traces, structured audit events, error aggregation,
-   database/query dashboards, provider health SLOs, and user-visible incident
-   status. Release canaries would then enforce latency and error budgets rather
-   than only point-in-time health.
-3. Add first-class imports and reconciliation for MAL, AniList, Trakt, and
+2. Add first-class imports and reconciliation for MAL, AniList, Trakt, and
    Letterboxd exports. A previewable conflict resolver should preserve history,
    ratings, rewatch counts, and source provenance without treating an import as
    a destructive replacement.
-4. Build a moderation and support console for reports, appeals, review/comment
-   actions, privacy requests, catalog corrections, and immutable operator audit
-   trails before broad public growth.
-5. Move recommendations toward offline candidate generation plus incremental
+3. Move recommendations toward offline candidate generation plus incremental
    personalization, with diversity controls, cold-start onboarding, explicit
    explanations, evaluation datasets, and opt-out controls. Keep MAL metadata
    outside external AI systems.
-6. After a restore rehearsal and explicit production approval, perform the
-   PostgreSQL production cutover with a written rollback window, row-count and
-   checksum comparison, session validation, and post-cutover backup restore.
+4. Replace process-local telemetry with OpenTelemetry export and durable
+   time-series SLOs when Veud moves beyond its single-host deployment. The
+   current bounded dashboard deliberately avoids that dependency early.

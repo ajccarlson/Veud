@@ -11,7 +11,8 @@ if (
 ) {
 	Sentry.init({
 		dsn,
-		environment: process.env.NODE_ENV,
+		environment: process.env.VEUD_ENVIRONMENT || process.env.NODE_ENV,
+		release: process.env.VEUD_RELEASE,
 		integrations: [
 			Sentry.prismaIntegration(),
 			nodeProfilingIntegration(),

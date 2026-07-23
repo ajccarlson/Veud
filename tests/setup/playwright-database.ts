@@ -126,7 +126,13 @@ export async function preparePlaywrightDatabase() {
 				prisma.role.findMany({
 					where: {
 						name: {
-							in: ['admin', 'user', 'moderator', 'community-admin'],
+							in: [
+								'admin',
+								'user',
+								'moderator',
+								'community-admin',
+								'site-operator',
+							],
 						},
 					},
 					select: {
@@ -150,6 +156,7 @@ export async function preparePlaywrightDatabase() {
 			const adminPermissions = rolePermissions.get('admin')
 			const moderatorPermissions = rolePermissions.get('moderator')
 			const communityAdminPermissions = rolePermissions.get('community-admin')
+			const siteOperatorPermissions = rolePermissions.get('site-operator')
 			const hasPermission = (
 				permissions: NonNullable<typeof userPermissions>,
 				action: string,
@@ -163,13 +170,13 @@ export async function preparePlaywrightDatabase() {
 						permission.access === access,
 				)
 			if (
-				permissionCount !== 22 ||
-				roles.length !== 4 ||
+				permissionCount !== 24 ||
+				roles.length !== 5 ||
 				!userPermissions ||
 				userPermissions.length !== 9 ||
 				!hasPermission(userPermissions, 'create', 'report', 'own') ||
 				!adminPermissions ||
-				adminPermissions.length !== 14 ||
+				adminPermissions.length !== 16 ||
 				!moderatorPermissions ||
 				moderatorPermissions.length !== 5 ||
 				!hasPermission(moderatorPermissions, 'moderate', 'content', 'any') ||
@@ -179,6 +186,20 @@ export async function preparePlaywrightDatabase() {
 					communityAdminPermissions,
 					'assign',
 					'role',
+					'any',
+				) ||
+				!siteOperatorPermissions ||
+				siteOperatorPermissions.length !== 2 ||
+				!hasPermission(
+					siteOperatorPermissions,
+					'read',
+					'operations',
+					'any',
+				) ||
+				!hasPermission(
+					siteOperatorPermissions,
+					'update',
+					'operations',
 					'any',
 				)
 			) {
