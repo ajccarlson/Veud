@@ -32,6 +32,7 @@ const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 const MAX_IMPORT_ITEMS = 2_000
 const ProviderSchema = z.enum(libraryImportProviders)
 const ChoiceSchema = z.enum(libraryImportResolutions)
+const BulkConflictChoiceSchema = z.enum(['merge', 'replace', 'skip'])
 
 function entriesLabel(count: number) {
 	return `${count.toLocaleString()} ${count === 1 ? 'entry' : 'entries'}`
@@ -116,6 +117,33 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				},
 			})
 		: null
+	const parsedCandidates = selected
+		? new Map(
+				selected.items.map(item => [item.id, candidates(item.candidates)]),
+			)
+		: new Map<string, ReturnType<typeof candidates>>()
+	const candidateMediaIds = selected
+		? [
+				...new Set(
+					selected.items.flatMap(item => [
+						...(item.mediaId ? [item.mediaId] : []),
+						...(parsedCandidates.get(item.id) ?? []).map(
+							candidate => candidate.mediaId,
+						),
+					]),
+				),
+			]
+		: []
+	const trackedCandidateIds = candidateMediaIds.length
+		? new Set(
+				(
+					await prisma.trackingState.findMany({
+						where: { ownerId, mediaId: { in: candidateMediaIds } },
+						select: { mediaId: true },
+					})
+				).map(state => state.mediaId),
+			)
+		: new Set<string>()
 	return json({
 		recent,
 		selected: selected
@@ -126,8 +154,15 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 						source: parseStoredLibraryImportItem(item.payload),
 						matchState: item.matchState,
 						matchMethod: item.matchMethod,
-						hasConflict: item.hasConflict,
-						candidates: candidates(item.candidates),
+						hasConflict: item.mediaId
+							? trackedCandidateIds.has(item.mediaId)
+							: item.hasConflict,
+						candidates: (parsedCandidates.get(item.id) ?? []).map(
+							candidate => ({
+								...candidate,
+								hasConflict: trackedCandidateIds.has(candidate.mediaId),
+							}),
+						),
 						resolution: item.resolution,
 						mediaId: item.mediaId,
 						mediaTitle: item.media?.title ?? null,
@@ -237,6 +272,16 @@ async function previewImport(ownerId: string, request: Request) {
 	})
 }
 
+async function refreshConflictCount(ownerId: string, batchId: string) {
+	const conflictCount = await prisma.libraryImportItem.count({
+		where: { batchId, hasConflict: true },
+	})
+	await prisma.libraryImportBatch.updateMany({
+		where: { id: batchId, ownerId, status: 'previewed' },
+		data: { conflictCount },
+	})
+}
+
 async function updateChoice(ownerId: string, formData: FormData) {
 	const input = z
 		.object({
@@ -274,6 +319,34 @@ async function updateChoice(ownerId: string, formData: FormData) {
 	) {
 		throw new LibraryImportError('Choose one of the matched catalog items.')
 	}
+	const hasConflict = selectedMediaId
+		? Boolean(
+				await prisma.trackingState.findUnique({
+					where: {
+						ownerId_mediaId: { ownerId, mediaId: selectedMediaId },
+					},
+					select: { id: true },
+				}),
+			)
+		: false
+	if (input.data.resolution === 'add' && hasConflict) {
+		await prisma.libraryImportItem.updateMany({
+			where: {
+				id: item.id,
+				batch: { ownerId, status: 'previewed' },
+			},
+			data: {
+				mediaId: selectedMediaId,
+				hasConflict: true,
+				resolution: 'skip',
+			},
+		})
+		await refreshConflictCount(ownerId, input.data.batchId)
+		throw new LibraryImportError(
+			'That catalog item is already tracked. Choose merge, replace, or skip.',
+			409,
+		)
+	}
 	const updated = await prisma.libraryImportItem.updateMany({
 		where: {
 			id: item.id,
@@ -281,6 +354,7 @@ async function updateChoice(ownerId: string, formData: FormData) {
 		},
 		data: {
 			resolution: input.data.resolution,
+			hasConflict,
 			mediaId:
 				input.data.resolution === 'skip' ? selectedMediaId : selectedMediaId!,
 		},
@@ -290,6 +364,47 @@ async function updateChoice(ownerId: string, formData: FormData) {
 			'This import preview is no longer editable.',
 			409,
 		)
+	}
+	await refreshConflictCount(ownerId, input.data.batchId)
+	return redirect(
+		`/settings/profile/import?batch=${input.data.batchId}&page=${input.data.page}`,
+	)
+}
+
+async function updateConflictChoices(ownerId: string, formData: FormData) {
+	const input = z
+		.object({
+			batchId: z.string().min(1).max(100),
+			resolution: BulkConflictChoiceSchema,
+			page: z.coerce.number().int().min(1).max(20).default(1),
+		})
+		.safeParse(Object.fromEntries(formData))
+	if (!input.success)
+		throw new LibraryImportError('The bulk conflict choice is invalid.')
+	const updated = await prisma.libraryImportItem.updateMany({
+		where: {
+			batchId: input.data.batchId,
+			batch: { ownerId, status: 'previewed' },
+			hasConflict: true,
+			mediaId: { not: null },
+		},
+		data: { resolution: input.data.resolution },
+	})
+	if (!updated.count) {
+		const batch = await prisma.libraryImportBatch.findFirst({
+			where: {
+				id: input.data.batchId,
+				ownerId,
+				status: 'previewed',
+			},
+			select: { id: true },
+		})
+		if (!batch) {
+			throw new LibraryImportError(
+				'This import preview is no longer editable.',
+				409,
+			)
+		}
 	}
 	return redirect(
 		`/settings/profile/import?batch=${input.data.batchId}&page=${input.data.page}`,
@@ -304,7 +419,12 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		}
 		const formData = await request.formData()
 		const intent = String(formData.get('intent') ?? 'preview')
-		if (intent === 'update-choice') return updateChoice(ownerId, formData)
+		if (intent === 'update-choice') {
+			return await updateChoice(ownerId, formData)
+		}
+		if (intent === 'bulk-conflicts') {
+			return await updateConflictChoices(ownerId, formData)
+		}
 		const batchId = z
 			.string()
 			.min(1)
@@ -469,6 +589,35 @@ export default function ProfileImportRoute() {
 						<div className="flex flex-wrap gap-2">
 							{selected.status === 'previewed' ? (
 								<>
+									{selected.conflictCount ? (
+										<Form
+											method="post"
+											className="flex flex-wrap items-end gap-2"
+										>
+											<input
+												type="hidden"
+												name="intent"
+												value="bulk-conflicts"
+											/>
+											<input type="hidden" name="batchId" value={selected.id} />
+											<input type="hidden" name="page" value={selected.page} />
+											<label className="grid gap-1 text-xs font-black text-veud-copy">
+												All existing items
+												<select
+													name="resolution"
+													defaultValue="merge"
+													className="min-h-10 rounded-lg border border-veud-border bg-veud-canvas px-2 text-veud-cream"
+												>
+													<option value="merge">Merge progress</option>
+													<option value="replace">Replace Veud details</option>
+													<option value="skip">Skip</option>
+												</select>
+											</label>
+											<Button type="submit" variant="outline">
+												Set conflicts
+											</Button>
+										</Form>
+									) : null}
 									<Form method="post">
 										<input type="hidden" name="intent" value="apply" />
 										<input type="hidden" name="batchId" value={selected.id} />
@@ -587,6 +736,9 @@ export default function ProfileImportRoute() {
 																value={candidate.mediaId}
 															>
 																{candidate.title}
+																{candidate.hasConflict
+																	? ' (already on your list)'
+																	: ''}
 															</option>
 														))}
 													</select>
@@ -599,14 +751,15 @@ export default function ProfileImportRoute() {
 													defaultValue={item.resolution}
 													className="min-h-10 rounded-lg border border-veud-border bg-veud-canvas px-2 text-veud-cream"
 												>
-													{item.mediaId ? (
+													{item.mediaId && item.hasConflict ? (
 														<>
-															<option value="add">Add</option>
 															<option value="merge">Merge progress</option>
 															<option value="replace">
 																Replace Veud details
 															</option>
 														</>
+													) : item.mediaId ? (
+														<option value="add">Add</option>
 													) : item.candidates.length ? (
 														<>
 															<option value="add">Add</option>
