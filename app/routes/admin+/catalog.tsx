@@ -14,6 +14,17 @@ import {
 	VeudPageHeader,
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
+import {
+	applyCatalogMediaMerge,
+	prepareCatalogMediaMerge,
+	revertCatalogMediaMerge,
+} from '#app/utils/catalog-media-merge.server.ts'
+import {
+	expectedCatalogMergeConfirmation,
+	expectedCatalogMergeReversal,
+	parseCatalogMediaMergePreflight,
+	type CatalogMediaMergePreflight,
+} from '#app/utils/catalog-media-merge.ts'
 import { getCatalogOperationsSnapshot } from '#app/utils/catalog-operations.server.ts'
 import {
 	catalogQualityActions,
@@ -57,6 +68,90 @@ export async function action({ request, url }: ActionFunctionArgs) {
 	const issueId = formData.get('issueId')
 	const requestedAction = formData.get('action')
 	const note = formData.get('note')
+	if (
+		requestedAction === 'prepare-merge' &&
+		typeof issueId === 'string' &&
+		issueId
+	) {
+		const targetMediaId = formData.get('targetMediaId')
+		if (typeof targetMediaId !== 'string' || !targetMediaId) {
+			return json(
+				{ ok: false as const, error: 'A merge target is required.' },
+				400,
+			)
+		}
+		try {
+			const result = await prepareCatalogMediaMerge(prisma, {
+				issueId,
+				targetMediaId,
+				actorId,
+			})
+			return json({
+				ok: true as const,
+				status: result.merge.status,
+				safe: result.preflight.safe,
+				queuedSources: 0,
+			})
+		} catch (error) {
+			return json(
+				{
+					ok: false as const,
+					error:
+						error instanceof Error
+							? error.message
+							: 'Merge preparation failed.',
+				},
+				400,
+			)
+		}
+	}
+	if (requestedAction === 'apply-merge' || requestedAction === 'revert-merge') {
+		const mergeId = formData.get('mergeId')
+		const confirmation = formData.get('confirmation')
+		if (
+			typeof mergeId !== 'string' ||
+			!mergeId ||
+			typeof confirmation !== 'string'
+		) {
+			return json(
+				{ ok: false as const, error: 'Merge confirmation is incomplete.' },
+				400,
+			)
+		}
+		try {
+			if (requestedAction === 'apply-merge') {
+				const result = await applyCatalogMediaMerge(prisma, {
+					mergeId,
+					actorId,
+					confirmation,
+				})
+				return json({
+					ok: true as const,
+					status: result.merge.status,
+					queuedSources: 0,
+				})
+			}
+			const result = await revertCatalogMediaMerge(prisma, {
+				mergeId,
+				actorId,
+				confirmation,
+			})
+			return json({
+				ok: true as const,
+				status: result.status,
+				queuedSources: 0,
+			})
+		} catch (error) {
+			return json(
+				{
+					ok: false as const,
+					error:
+						error instanceof Error ? error.message : 'Merge action failed.',
+				},
+				400,
+			)
+		}
+	}
 	if (typeof issueId !== 'string' || !issueId) {
 		return json(
 			{ ok: false as const, error: 'A quality issue is required.' },
@@ -151,6 +246,182 @@ function StatusPill({ status }: { status: string }) {
 	)
 }
 
+function parsedPreflight(value: string | null | undefined) {
+	if (!value) return null
+	try {
+		return parseCatalogMediaMergePreflight(value)
+	} catch {
+		return null
+	}
+}
+
+function MergePlan({
+	issue,
+	fetcher,
+}: {
+	issue: Awaited<ReturnType<typeof loader>>['data']['quality']['issues'][number]
+	fetcher: ReturnType<typeof useFetcher<typeof action>>
+}) {
+	const merge = issue.merge
+	const preflight: CatalogMediaMergePreflight | null = parsedPreflight(
+		merge?.preflight,
+	)
+	const pair = [issue.primaryMedia, issue.secondaryMedia].filter(
+		(value): value is NonNullable<typeof value> => Boolean(value),
+	)
+	const canPrepare = issue.status === 'confirmed' && merge?.status !== 'applied'
+	if (!merge && issue.status !== 'confirmed') return null
+
+	return (
+		<section className="mt-4 rounded-xl border border-amber-300/30 bg-amber-950/15 p-3">
+			<h4 className="text-sm font-black text-amber-100">
+				Reversible canonical merge
+			</h4>
+			<p className="mt-1 text-xs leading-5 text-veud-copy">
+				Choose the record that survives. Preparation writes only a hashed
+				preflight; apply refuses changed inventories and ambiguous member data.
+			</p>
+
+			{canPrepare ? (
+				<div className="mt-3 flex flex-wrap gap-2">
+					{pair.map(media => (
+						<fetcher.Form key={media.id} method="post">
+							<input type="hidden" name="issueId" value={issue.id} />
+							<input type="hidden" name="targetMediaId" value={media.id} />
+							<button
+								type="submit"
+								name="action"
+								value="prepare-merge"
+								disabled={fetcher.state !== 'idle'}
+								className="min-h-11 rounded-xl border border-amber-300/40 bg-black/20 px-3 text-left text-xs font-black text-amber-100 transition hover:border-amber-200 disabled:opacity-60"
+							>
+								Keep {media.title || media.id}
+							</button>
+						</fetcher.Form>
+					))}
+				</div>
+			) : null}
+
+			{merge && preflight ? (
+				<div className="mt-3 space-y-3">
+					<div className="flex flex-wrap items-center gap-2 text-xs">
+						<StatusPill status={merge.status} />
+						<span
+							className={cn(
+								'rounded-full border px-2.5 py-1 font-black',
+								preflight.safe
+									? 'border-emerald-300/40 text-emerald-200'
+									: 'border-red-300/40 text-red-200',
+							)}
+						>
+							{preflight.safe ? 'Preflight safe' : 'Blocked'}
+						</span>
+						<span className="text-veud-copy">
+							{preflight.source.title || preflight.source.id} →{' '}
+							{preflight.target.title || preflight.target.id}
+						</span>
+					</div>
+					{preflight.blockers.length ? (
+						<ul className="space-y-1 text-xs text-red-100">
+							{preflight.blockers.map(blocker => (
+								<li key={blocker.code}>
+									<span className="font-black">
+										{blocker.code.replaceAll('-', ' ')}:
+									</span>{' '}
+									{blocker.message}
+								</li>
+							))}
+						</ul>
+					) : null}
+					{preflight.warnings.length ? (
+						<ul className="space-y-1 text-xs text-amber-100">
+							{preflight.warnings.map(warning => (
+								<li key={warning}>{warning}</li>
+							))}
+						</ul>
+					) : null}
+					<p className="text-xs leading-5 text-veud-copy">
+						Moves{' '}
+						{Object.entries(preflight.moves)
+							.filter(([, count]) => count)
+							.map(([name, count]) => `${name} ${count}`)
+							.join(' · ') || 'no relation rows'}
+						{Object.values(preflight.prunes).some(Boolean)
+							? ` · journals ${Object.values(preflight.prunes).reduce((sum, count) => sum + count, 0)} pruned catalog rows`
+							: ''}
+					</p>
+
+					{merge.status === 'planned' && preflight.safe ? (
+						<fetcher.Form method="post" className="space-y-2">
+							<input type="hidden" name="issueId" value={issue.id} />
+							<input type="hidden" name="mergeId" value={merge.id} />
+							<label className="block">
+								<span className="text-xs font-black text-veud-copy">
+									Type{' '}
+									<code className="select-all text-amber-100">
+										{expectedCatalogMergeConfirmation(
+											merge.sourceMediaId,
+											merge.targetMediaId,
+										)}
+									</code>
+								</span>
+								<input
+									name="confirmation"
+									autoComplete="off"
+									className="mt-1 min-h-11 w-full rounded-xl border border-amber-300/30 bg-black/25 px-3 text-sm text-veud-cream"
+								/>
+							</label>
+							<button
+								type="submit"
+								name="action"
+								value="apply-merge"
+								disabled={fetcher.state !== 'idle'}
+								className="min-h-11 rounded-xl border border-red-300/50 bg-red-950/30 px-3 text-sm font-black text-red-100 transition hover:border-red-200 disabled:opacity-60"
+							>
+								Apply journaled merge
+							</button>
+						</fetcher.Form>
+					) : null}
+
+					{merge.status === 'applied' ? (
+						<fetcher.Form method="post" className="space-y-2">
+							<input type="hidden" name="issueId" value={issue.id} />
+							<input type="hidden" name="mergeId" value={merge.id} />
+							<label className="block">
+								<span className="text-xs font-black text-veud-copy">
+									Type{' '}
+									<code className="select-all text-amber-100">
+										{expectedCatalogMergeReversal(merge.id)}
+									</code>
+								</span>
+								<input
+									name="confirmation"
+									autoComplete="off"
+									className="mt-1 min-h-11 w-full rounded-xl border border-amber-300/30 bg-black/25 px-3 text-sm text-veud-cream"
+								/>
+							</label>
+							<button
+								type="submit"
+								name="action"
+								value="revert-merge"
+								disabled={fetcher.state !== 'idle'}
+								className="min-h-11 rounded-xl border border-amber-300/50 bg-amber-950/30 px-3 text-sm font-black text-amber-100 transition hover:border-amber-200 disabled:opacity-60"
+							>
+								Reverse from journal
+							</button>
+						</fetcher.Form>
+					) : null}
+				</div>
+			) : merge ? (
+				<p role="alert" className="mt-3 text-xs font-bold text-red-200">
+					The stored merge preflight is unreadable. Prepare it again before any
+					write.
+				</p>
+			) : null}
+		</section>
+	)
+}
+
 function QualityReviewCard({
 	issue,
 }: {
@@ -158,7 +429,9 @@ function QualityReviewCard({
 }) {
 	const fetcher = useFetcher<typeof action>()
 	const isOpen = issue.status === 'open'
-	const isActionable = ['open', 'queued', 'confirmed'].includes(issue.status)
+	const mergeApplied = issue.merge?.status === 'applied'
+	const isActionable =
+		!mergeApplied && ['open', 'queued', 'confirmed'].includes(issue.status)
 	const repairable = [
 		'title_conflict',
 		'missing_image',
@@ -170,7 +443,10 @@ function QualityReviewCard({
 	)
 
 	return (
-		<li className="rounded-2xl border border-veud-border bg-black/15 p-4 sm:p-5">
+		<li
+			data-testid={`quality-issue-${issue.id}`}
+			className="rounded-2xl border border-veud-border bg-black/15 p-4 sm:p-5"
+		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
 					<p className="text-xs font-black uppercase tracking-[0.16em] text-veud-mint">
@@ -279,7 +555,8 @@ function QualityReviewCard({
 								{activeAction === 'dismiss' ? 'Dismissing…' : 'Dismiss'}
 							</button>
 						</>
-					) : (
+					) : null}
+					{!isOpen && !mergeApplied ? (
 						<button
 							type="submit"
 							name="action"
@@ -289,7 +566,7 @@ function QualityReviewCard({
 						>
 							{activeAction === 'reopen' ? 'Reopening…' : 'Reopen review'}
 						</button>
-					)}
+					) : null}
 				</div>
 				{fetcher.data && !fetcher.data.ok ? (
 					<p role="alert" className="text-sm font-bold text-red-200">
@@ -305,6 +582,10 @@ function QualityReviewCard({
 					</p>
 				) : null}
 			</fetcher.Form>
+
+			{issue.issueType === 'possible_duplicate' ? (
+				<MergePlan issue={issue} fetcher={fetcher} />
+			) : null}
 
 			{issue.events.length ? (
 				<p className="mt-3 text-xs text-veud-copy">

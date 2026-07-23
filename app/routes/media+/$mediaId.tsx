@@ -4,6 +4,7 @@ import {
 	data as json,
 	Form,
 	Link,
+	redirect,
 	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
@@ -279,6 +280,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			entries: { select: catalogEntrySelect },
 		},
 	})
+	if (!media) {
+		const appliedMerge = await prisma.catalogMediaMerge.findFirst({
+			where: { sourceMediaId: mediaId, status: 'applied' },
+			select: { targetMediaId: true },
+		})
+		if (appliedMerge) {
+			throw redirect(`/media/${appliedMerge.targetMediaId}`, 301)
+		}
+	}
 	invariantResponse(media, 'Media not found', { status: 404 })
 
 	const catalog = resolveMediaCatalog(media, representativeEntry(media.entries))
@@ -806,7 +816,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				entries: { select: catalogEntrySelect },
 			},
 		})
-		if (!media) throw new Response('Media not found', { status: 404 })
+		if (!media) {
+			const appliedMerge = await tx.catalogMediaMerge.findFirst({
+				where: { sourceMediaId: mediaId, status: 'applied' },
+				select: { targetMediaId: true },
+			})
+			if (appliedMerge) {
+				throw redirect(`/media/${appliedMerge.targetMediaId}`, 303)
+			}
+			throw new Response('Media not found', { status: 404 })
+		}
 
 		if (parsed.data.intent === 'review-save') {
 			const review = await tx.review.upsert({
