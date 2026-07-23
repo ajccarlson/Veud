@@ -102,7 +102,7 @@ export function watchlistOverview(loaderData: any, listType: any) {
             try {
               seriesLength = Math.max(Number([...typedEntry[iterType].matchAll(/\d+/g)].slice(-1)[0][0]), seriesLength)
             }
-            catch(e) {}
+            catch {}
           }
         }
   

@@ -67,7 +67,7 @@ export function mediaProgressParser(
 		let mediaTotal: any
 		try {
 			mediaTotal = [...oldValue.matchAll(/\d+/g)]
-		} catch (e) {
+		} catch {
 			mediaTotal = 0
 		}
 
@@ -112,14 +112,14 @@ export function mediaProgressParser(
 				)
 
 				mediaProgress = lastWatched.entry
-			} catch (e) {
+			} catch {
 				mediaProgress = 0
 			}
 		}
 
 		try {
 			matchResult = mediaTotal.slice(-1)[0][0]
-		} catch (e) {
+		} catch {
 			return {
 				progress: 0,
 				total: oldValue,
@@ -209,7 +209,7 @@ export function getStartYear(entry: any, passedType: any, listTypes: any[]) {
 		} else {
 			return false
 		}
-	} catch (e) {}
+	} catch {}
 }
 
 export function getThumbnailInfo(thumbnail: string | null | undefined) {
@@ -249,7 +249,7 @@ export function hyperlinkRenderer(
 		}
 
 		return hyperlinkArray
-	} catch (e) {
+	} catch {
 		if (!params || (params.replace(/\W/g, '') == '' && type == 'thumbnail')) {
 			content = '/favicons/favicon.png'
 			url = '/discover'
@@ -318,7 +318,7 @@ export function getSiteID(url: string) {
 export function getSiteIdSafe(url: string) {
 	try {
 		return getSiteID(url)
-	} catch (e) {
+	} catch {
 		return null
 	}
 }
@@ -361,7 +361,7 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 		const entryUrl = params.data.thumbnail.slice(separatorIndex + 1)
 
 		entryInfo = getSiteID(entryUrl)
-	} catch (e) {
+	} catch {
 		if (columnParams.listTypeData.name == 'liveaction') {
 			rawInfo = await searchTMDB(params.data.title, params.data.type, 5)
 			entryInfo = {
