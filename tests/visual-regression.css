@@ -1,0 +1,8 @@
+* {
+	caret-color: transparent !important;
+}
+
+[data-sonner-toaster],
+[role='progressbar'] {
+	visibility: hidden !important;
+}
