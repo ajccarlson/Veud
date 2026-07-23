@@ -15,9 +15,14 @@ import { PasswordRequirements } from '#app/components/password-requirements.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { getPasswordHash, requireUserId } from '#app/utils/auth.server.ts'
+import {
+	changeUserPassword,
+	requireUserId,
+	sessionKey,
+} from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
+import { authSessionStorage } from '#app/utils/session.server.ts'
 import { PasswordAndConfirmPasswordSchema } from '#app/utils/user-validation.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 
@@ -65,16 +70,17 @@ export async function action({ request, url }: ActionFunctionArgs) {
 
 	const { password } = submission.value
 
-	await prisma.user.update({
-		select: { username: true },
-		where: { id: userId },
-		data: {
-			password: {
-				create: {
-					hash: await getPasswordHash(password),
-				},
-			},
-		},
+	const authSession = await authSessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const currentSessionId = authSession.get(sessionKey)
+	if (typeof currentSessionId !== 'string' || !currentSessionId) {
+		throw new Response('Authentication session not found', { status: 401 })
+	}
+	await changeUserPassword({
+		userId,
+		password,
+		preserveSessionId: currentSessionId,
 	})
 
 	return redirect(`/settings/profile`, { status: 302 })
@@ -91,7 +97,8 @@ export default function CreatePasswordRoute() {
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: CreatePasswordForm })
 		},
-		shouldRevalidate: 'onBlur',
+		shouldValidate: 'onSubmit',
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
@@ -122,7 +129,7 @@ export default function CreatePasswordRoute() {
 				</Button>
 				<StatusButton
 					type="submit"
-					status={isPending ? 'pending' : form.status ?? 'idle'}
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
 				>
 					Create Password
 				</StatusButton>

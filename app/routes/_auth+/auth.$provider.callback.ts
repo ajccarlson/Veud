@@ -39,7 +39,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		)
 
 	if (!authResult.success) {
-		console.error(authResult.error)
+		console.error('[oauth] provider authentication failed', {
+			providerName,
+			errorName:
+				authResult.error instanceof Error
+					? authResult.error.name
+					: typeof authResult.error,
+		})
 		throw await redirectWithToast(
 			'/login',
 			{

@@ -35,15 +35,21 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 
 	const pageErrors: string[] = []
 	const assetRequests: string[] = []
+	const rootDataRevalidations: string[] = []
 	page.on('pageerror', error => pageErrors.push(error.message))
 	page.on('request', request => {
-		const pathname = new URL(request.url()).pathname
+		const url = new URL(request.url())
+		const pathname = url.pathname
 		if (pathname.startsWith('/assets/')) assetRequests.push(pathname)
+		if (
+			pathname.endsWith('.data') &&
+			url.searchParams.get('_routes')?.split(',').includes('root')
+		) {
+			rootDataRevalidations.push(request.url())
+		}
 	})
 	const requestedAsset = (prefix: string) =>
-		assetRequests.some(pathname =>
-			pathname.startsWith(`/assets/${prefix}-`),
-		)
+		assetRequests.some(pathname => pathname.startsWith(`/assets/${prefix}-`))
 	await page.setViewportSize({ width: 390, height: 844 })
 	await page.goto(`/users/${user.username}`)
 	await expect(
@@ -147,12 +153,7 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 				page.locator('.user-landing-stats-bar-chart svg'),
 			).toBeVisible()
 			expect(requestedAsset('bar')).toBe(true)
-			for (const chartAsset of [
-				'box_plot',
-				'chord',
-				'pie',
-				'radial_bar',
-			]) {
+			for (const chartAsset of ['box_plot', 'chord', 'pie', 'radial_bar']) {
 				expect(
 					requestedAsset(chartAsset),
 					`unexpected ${chartAsset} request: ${assetRequests.join(', ')}`,
@@ -180,4 +181,5 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 	expect(
 		pageErrors.filter(error => error !== 'WebSocket closed without opened.'),
 	).toEqual([])
+	expect(rootDataRevalidations).toEqual([])
 })

@@ -92,6 +92,7 @@ test('removes only the empty rows and keeps the real one', async () => {
 	})
 	expect(remaining.length).toBe(1)
 	expect(remaining[0]?.title).toBe('Kept Movie')
+	expect(remaining[0]?.position).toBe(1)
 })
 
 test('a logged-in non-owner cannot delete rows (404, nothing removed)', async () => {

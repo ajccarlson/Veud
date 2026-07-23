@@ -59,7 +59,51 @@ function toTitleCase(input: string) {
 
 function parseEntryHistory(history: string | null): ParsedEntryHistory {
 	if (!history || history === 'null') return emptyEntryHistory()
-	return JSON.parse(history) as ParsedEntryHistory
+	try {
+		const parsed = JSON.parse(history)
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+			? (parsed as ParsedEntryHistory)
+			: emptyEntryHistory()
+	} catch {
+		return emptyEntryHistory()
+	}
+}
+
+function parseMediaTypes(value: string) {
+	try {
+		const parsed = JSON.parse(value)
+		return Array.isArray(parsed)
+			? parsed.filter(
+					(mediaType): mediaType is string =>
+						typeof mediaType === 'string' && mediaType.length > 0,
+				)
+			: []
+	} catch {
+		return []
+	}
+}
+
+function parseCompletionPast(value: string) {
+	try {
+		const parsed = JSON.parse(value)
+		const completion =
+			parsed && typeof parsed === 'object'
+				? (parsed as Record<string, unknown>)
+				: null
+		return parsed &&
+			completion &&
+			typeof completion.past === 'string' &&
+			completion.past.length > 0
+			? completion.past
+			: 'completed'
+	} catch {
+		return 'completed'
+	}
+}
+
+function dateOrNull(value: unknown) {
+	const date = new Date(value as string | number | Date)
+	return Number.isFinite(date.getTime()) ? date : null
 }
 
 /**
@@ -88,9 +132,7 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 
 	for (const listType of listTypes) {
 		const entriesForType = entries
-			.filter(
-				entry => typeByWatchlist.get(entry.watchlistId) === listType.id,
-			)
+			.filter(entry => typeByWatchlist.get(entry.watchlistId) === listType.id)
 			.map(entry => ({
 				...entry,
 				history: parseEntryHistory(entry.history),
@@ -105,18 +147,15 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 				if (historyKey === 'lastUpdated') continue
 
 				if (historyKey === 'progress') {
-					const mediaTypes = JSON.parse(listType.mediaType) as string[]
-					const completionType = JSON.parse(listType.completionType) as {
-						past: string
-					}
+					const mediaTypes = parseMediaTypes(listType.mediaType)
+					const completionPast = parseCompletionPast(listType.completionType)
 
 					for (const mediaType of mediaTypes) {
 						const progressByMedia = historyValue as Record<string, unknown>
 						const progressObject = listType.columns.includes('length')
 							? progressByMedia
 							: (progressByMedia[mediaType] as
-									| Record<string, unknown>
-									| undefined)
+									Record<string, unknown> | undefined)
 
 						if (!progressObject) continue
 
@@ -133,7 +172,8 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 							if (!finishDates) continue
 
 							for (const dateCompleted of finishDates as unknown[]) {
-								const date = new Date(dateCompleted as string | number | Date)
+								const date = dateOrNull(dateCompleted)
+								if (!date) continue
 								const dayKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
 								const dayGroup = (dayGroups[dayKey] ??= [])
 								const duplicate = dayGroup.find(
@@ -142,8 +182,8 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 
 								// Match the existing history semantics: for a later repeat of
 								// the same unit on a day, retain its latest timestamp.
-								if (duplicate && duplicate.date < date) {
-									duplicate.date = date
+								if (duplicate) {
+									if (duplicate.date < date) duplicate.date = date
 									continue
 								}
 
@@ -161,7 +201,7 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 								)
 
 								typedHistory[listType.id].push({
-									type: `${toTitleCase(completionType.past)} ${toTitleCase(mediaType)}s ${oldest.progressKey} - ${latest.progressKey}`,
+									type: `${toTitleCase(completionPast)} ${toTitleCase(mediaType)}s ${oldest.progressKey} - ${latest.progressKey}`,
 									time: new Date(latest.date),
 									index,
 								})
@@ -170,7 +210,7 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 								if (!completion) continue
 
 								typedHistory[listType.id].push({
-									type: `${toTitleCase(completionType.past)} ${toTitleCase(mediaType)} ${completion.progressKey}`,
+									type: `${toTitleCase(completionPast)} ${toTitleCase(mediaType)} ${completion.progressKey}`,
 									time: new Date(completion.date),
 									index,
 								})
@@ -182,12 +222,14 @@ export function buildProfileHistory<TEntry extends HistorySourceEntry>({
 				}
 
 				const watchlist = watchlistById.get(entry.watchlistId)
+				const eventTime = dateOrNull(historyValue)
+				if (!eventTime) continue
 				typedHistory[listType.id].push({
 					type:
 						historyKey === 'added'
 							? `Added to ${watchlist?.header ?? ''}`
 							: toTitleCase(historyKey),
-					time: new Date(historyValue as string | number | Date),
+					time: eventTime,
 					index,
 				})
 			}

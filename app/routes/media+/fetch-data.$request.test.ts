@@ -41,8 +41,6 @@ beforeEach(() => {
 	// each one only ever reaches its own provider.
 	vi.stubEnv('TMDB_API_KEY', 'tmdb-secret')
 	vi.stubEnv('MAL_CLIENT_ID', 'mal-client-id')
-	vi.stubEnv('TRAKT_API_KEY', 'trakt-key')
-	vi.stubEnv('TRAKT_ACCESS_TOKEN_MAIN', 'trakt-main-token')
 	fetchMock = vi
 		.spyOn(globalThis, 'fetch')
 		.mockResolvedValue(jsonResponse({ ok: true }))
@@ -113,14 +111,12 @@ test('attaches the destination host\u2019s own credentials and ignores a client 
 	expect(headers['trakt-api-version']).toBeUndefined()
 })
 
-test('sends Trakt-only credentials to Trakt (per-host isolation)', async () => {
-	await callLoader('url=' + encodeURIComponent('https://api.trakt.tv/users/me'))
-	const [, init] = fetchMock.mock.calls[0]
-	const headers = (init?.headers ?? {}) as Record<string, string>
-	expect(headers['trakt-api-key']).toBe('trakt-key')
-	expect(headers['Authorization']).toBe('Bearer trakt-main-token')
-	// The TMDB secret must not ride along to Trakt.
-	expect(headers['Authorization']).not.toBe('Bearer tmdb-secret')
+test('never exposes Trakt through the public media relay', async () => {
+	const res = await callAndCatch(
+		'url=' + encodeURIComponent('https://api.trakt.tv/users/me'),
+	)
+	expect((res as Response).status).toBe(400)
+	expect(fetchMock).not.toHaveBeenCalled()
 })
 
 test('sends the MAL client-id header to MyAnimeList', async () => {
@@ -130,6 +126,61 @@ test('sends the MAL client-id header to MyAnimeList', async () => {
 	const [, init] = fetchMock.mock.calls[0]
 	const headers = (init?.headers ?? {}) as Record<string, string>
 	expect(headers['X-MAL-CLIENT-ID']).toBe('mal-client-id')
+})
+
+test('rejects unused provider paths, mutations, and oversized result requests', async () => {
+	for (const request of [
+		'url=' +
+			encodeURIComponent(
+				'https://api.themoviedb.org/3/authentication/token/new',
+			),
+		'url=' + encodeURIComponent('https://api.myanimelist.net/v2/users/@me'),
+		'url=' +
+			encodeURIComponent(
+				'https://api.myanimelist.net/v2/anime/ranking?limit=500',
+			),
+		'url=' +
+			encodeURIComponent('https://api.themoviedb.org/3/movie/1') +
+			'&fetchMethod=POST',
+	]) {
+		const res = await callAndCatch(request)
+		expect((res as Response).status).toBe(400)
+	}
+	expect(fetchMock).not.toHaveBeenCalled()
+})
+
+test('reconstructs the only allowed AniList schedule query from a numeric MAL id', async () => {
+	await callLoader(
+		'url=' +
+			encodeURIComponent('https://graphql.anilist.co') +
+			'&fetchMethod=POST&fetchBody=' +
+			encodeURIComponent(
+				JSON.stringify({
+					query: 'mutation { DeleteUser { deleted } }',
+					variables: { id: 123 },
+				}),
+			),
+	)
+	const [calledUrl, init] = fetchMock.mock.calls[0]
+	expect(calledUrl).toBe('https://graphql.anilist.co/')
+	const body = JSON.parse(String(init?.body)) as {
+		query: string
+		variables: { id: number }
+	}
+	expect(body.variables).toEqual({ id: 123 })
+	expect(body.query).toContain('nextAiringEpisode')
+	expect(body.query).not.toContain('DeleteUser')
+})
+
+test('rejects an AniList request without a safe numeric MAL id', async () => {
+	const res = await callAndCatch(
+		'url=' +
+			encodeURIComponent('https://graphql.anilist.co') +
+			'&fetchMethod=POST&fetchBody=' +
+			encodeURIComponent(JSON.stringify({ variables: { id: '../secret' } })),
+	)
+	expect((res as Response).status).toBe(400)
+	expect(fetchMock).not.toHaveBeenCalled()
 })
 
 test('returns the upstream observation time in the proxy metadata slot', async () => {

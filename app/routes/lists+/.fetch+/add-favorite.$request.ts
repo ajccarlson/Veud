@@ -46,6 +46,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			'mediaIdentity',
 			'owner',
 			'ownerId',
+			'type',
 		]),
 		ownerId: userId,
 	}

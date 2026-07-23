@@ -84,6 +84,7 @@ model Watchlist {
   isPublic             Boolean  @default(true)
   defaultSortColumn    String?
   defaultSortDirection String   @default("asc")
+  mutationVersion      Int      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -12,6 +12,7 @@ import {
 import { parseMediaRelationCandidates } from '#app/utils/media-relations.ts'
 import { syncMediaRelations } from '#app/utils/media-relations.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
+import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 
 export async function action({ request, params }: ActionFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
@@ -107,10 +108,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const entry = await tx.entry.create({
 			data: { ...data, position, mediaId, trackingStateId } as any,
 		})
-		await tx.watchlist.update({
-			where: { id: watchlist.id },
-			data: { updatedAt: new Date() },
-		})
+		await claimWatchlistRevisions(tx, [watchlist])
 		return entry
 	})
 }

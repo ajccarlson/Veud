@@ -58,6 +58,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		'trackingStateId',
 		'watchlist',
 		'watchlistId',
+		'position',
 	])
 
 	return await prisma.$transaction(async tx => {

@@ -74,7 +74,11 @@ async function requireData({
 		})
 		.safeParse({ email, providerName, providerId })
 	if (!result.success) {
-		console.error(result.error)
+		console.error('[oauth] onboarding connection failed', {
+			providerName,
+			errorName:
+				result.error instanceof Error ? result.error.name : typeof result.error,
+		})
 		throw redirect('/signup')
 	}
 	if (result.data.providerName !== params.provider) throw redirect('/signup')
@@ -266,7 +270,7 @@ export default function SignupRoute() {
 					<div className="flex items-center justify-between gap-6">
 						<StatusButton
 							className="w-full"
-							status={isPending ? 'pending' : form.status ?? 'idle'}
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
 							type="submit"
 							disabled={isPending}
 						>

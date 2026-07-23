@@ -2,11 +2,14 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import {
+	changeUserPassword,
 	getPasswordHash,
 	getSessionExpirationDate,
 	getUserId,
 	login,
 	requireUserId,
+	resetUserPassword,
+	verifyUserPassword,
 } from './auth.server.ts'
 import { prisma } from './db.server.ts'
 
@@ -111,4 +114,71 @@ test('login accepts either a username or an email address', async () => {
 			password: 'incorrect-password',
 		}),
 	).toBeNull()
+})
+
+test('password recovery creates a missing credential and revokes every session', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const user = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `oauth_${suffix}`,
+			sessions: {
+				create: [
+					{ expirationDate: getSessionExpirationDate() },
+					{ expirationDate: getSessionExpirationDate() },
+				],
+			},
+		},
+		select: { id: true, username: true },
+	})
+
+	await resetUserPassword({
+		username: user.username,
+		password: 'Recovered-password-123!',
+	})
+
+	expect(
+		await verifyUserPassword({ id: user.id }, 'Recovered-password-123!'),
+	).toEqual({ id: user.id })
+	expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0)
+})
+
+test('authenticated password changes retain only the current session', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const user = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `password_${suffix}`,
+			password: {
+				create: { hash: await getPasswordHash('Old-password-123!') },
+			},
+			sessions: {
+				create: [
+					{ expirationDate: getSessionExpirationDate() },
+					{ expirationDate: getSessionExpirationDate() },
+				],
+			},
+		},
+		select: {
+			id: true,
+			sessions: { orderBy: { id: 'asc' }, select: { id: true } },
+		},
+	})
+	const currentSessionId = user.sessions[0]!.id
+
+	await changeUserPassword({
+		userId: user.id,
+		password: 'New-password-123!',
+		preserveSessionId: currentSessionId,
+	})
+
+	expect(
+		await prisma.session.findMany({
+			where: { userId: user.id },
+			select: { id: true },
+		}),
+	).toEqual([{ id: currentSessionId }])
+	expect(
+		await verifyUserPassword({ id: user.id }, 'New-password-123!'),
+	).toEqual({ id: user.id })
 })
