@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
@@ -69,21 +69,19 @@ function legacyTotal(data: any, unit: string) {
 	return null
 }
 
-export function openAdvancedEntryEditor(entryId: string) {
-	const dialog = document.getElementById(
-		`advanced-entry-editor-${entryId}`,
-	) as HTMLDialogElement | null
-	dialog?.showModal()
-}
-
 export function AdvancedEntryEditor({
 	params,
 	idPrefix = '',
+	openRequest = 0,
+	showTrigger = true,
 }: {
 	params: any
 	idPrefix?: string
+	openRequest?: number
+	showTrigger?: boolean
 }) {
 	const dialogRef = useRef<HTMLDialogElement>(null)
+	const dialogTitleId = useId()
 	const [saving, setSaving] = useState(false)
 	const [error, setError] = useState('')
 	const data = params.data
@@ -118,6 +116,12 @@ export function AdvancedEntryEditor({
 				first.position - second.position ||
 				first.header.localeCompare(second.header),
 		)
+
+	useEffect(() => {
+		if (openRequest > 0 && !dialogRef.current?.open) {
+			dialogRef.current?.showModal()
+		}
+	}, [openRequest])
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -178,30 +182,33 @@ export function AdvancedEntryEditor({
 
 	return (
 		<>
-			<button
-				type="button"
-				className="ag-row-action-button"
-				aria-label={`Quick edit ${data.title || 'entry'}`}
-				title="Quick edit"
-				onClick={() => {
-					setError('')
-					dialogRef.current?.showModal()
-				}}
-			>
-				<Icon name="pencil-1" aria-hidden="true" />
-			</button>
+			{showTrigger ? (
+				<button
+					type="button"
+					className="ag-row-action-button"
+					aria-label={`Quick edit ${data.title || 'entry'}`}
+					title="Quick edit"
+					onClick={() => {
+						setError('')
+						dialogRef.current?.showModal()
+					}}
+				>
+					<Icon name="pencil-1" aria-hidden="true" />
+				</button>
+			) : null}
 
 			<dialog
 				id={`advanced-entry-editor-${idPrefix}${data.id}`}
 				ref={dialogRef}
 				className="ag-advanced-edit-dialog"
+				aria-labelledby={dialogTitleId}
 				onCancel={() => setError('')}
 			>
 				<form onSubmit={handleSubmit} className="ag-advanced-edit-form">
 					<header className="ag-advanced-edit-header">
 						<div>
 							<p className="ag-advanced-edit-eyebrow">Quick edit</p>
-							<h2>{data.title || 'List entry'}</h2>
+							<h2 id={dialogTitleId}>{data.title || 'List entry'}</h2>
 						</div>
 						<button
 							type="button"

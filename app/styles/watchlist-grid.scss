@@ -1,0 +1,16 @@
+@use '@ag-grid-community/styles' as ag;
+
+@include ag.grid-styles(
+	(
+		theme: custom-react,
+		extend-theme: alpine-dark,
+		--ag-font-family: var(--veud-font-sans),
+		--ag-font-size: 16px,
+		--ag-header-background-color: #121212,
+		--ag-background-color: #222222,
+		--ag-odd-row-background-color: #2e2f2b,
+		--ag-row-border-width: 0px,
+		--ag-alpine-active-color: #ff9900,
+		--ag-header-cell-hover-background-color: #2e2f2b,
+	)
+);
