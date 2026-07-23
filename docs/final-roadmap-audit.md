@@ -138,27 +138,31 @@ clients do not load that desktop-only module.
 
 ## Operational acceptance
 
-The production line through `main` commit `99dc545` passed isolated PostgreSQL
+The production line through `main` commit `6a0d1c3` passed isolated PostgreSQL
 staging and production acceptance on 2026-07-23:
 
 - The archived commit installed 1,431 packages with zero vulnerabilities,
   generated its PostgreSQL client, and built successfully.
-- Community moderation and backup-resilience migrations applied to both
-  `veud_staging` and `veud_staging_load`. Both databases reported migration 11,
+- Community moderation, backup-resilience, and service-incident migrations
+  applied to both `veud_staging` and `veud_staging_load`. Both databases
+  reported migration 12,
   no pending migrations, and no schema drift.
 - PostgreSQL schema, `pg_trgm` indexes, model writes, and portable searches
   passed the production smoke probe.
 - The application restarted on Node 22, returned a healthy database-backed
   response, and remained reachable through the Cloudflare HTTPS boundary.
-- The public matrix passed 192 of 192 requests across eight routes with a
-  67.034 ms p95, including security-header, origin, status, content, and
-  latency checks.
+- The staging matrix passed 24 of 24 HTTPS requests at 146.18 ms p95. After
+  promotion, the production matrix passed 192 of 192 requests across eight
+  routes at 518.089 ms p95, including security-header, origin, status, content,
+  and latency checks. Health responses identified the exact release and
+  environment.
 - PostgreSQL 16.14, the application, daily backup timers, digest delivery,
   and all enabled MAL/TMDB inventory and hydration workers were healthy.
   Catalog telemetry reported zero provider rate-limit responses.
-- Fresh application and catalog backups were written, restored into the
-  verification database, checked at migration 11, and copied to the physically
-  separate backup drive. The catalog receipt covered 1,565,817 media rows.
+- Fresh pre- and post-migration backups were written, restored into the
+  verification database, checked at migrations 11 and 12 respectively, and
+  copied to the physically separate backup drive. The final receipt covered
+  9 users, 35 watchlists, 5,484 entries, and 1,565,817 media rows.
 
 MAL and TMDB hydration are intentionally resumable operational processes, not
 release blockers while their queues continue to drain without errors. External

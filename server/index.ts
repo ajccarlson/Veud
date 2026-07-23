@@ -124,7 +124,25 @@ app.get('*', (req, res, next) => {
 	}
 })
 
-app.use(compression())
+app.use(
+	compression({
+		filter: (req, res) => {
+			const contentType = res.getHeader('Content-Type')
+			// React Router streams HTML and legitimately registers more than ten
+			// backpressure listeners before headers are committed. compression
+			// transfers all of them to one Brotli stream, which produces a false
+			// MaxListenersExceededWarning under burst traffic. Cloudflare already
+			// compresses public HTML; retain origin compression for assets and APIs.
+			if (
+				typeof contentType === 'string' &&
+				contentType.toLowerCase().startsWith('text/html')
+			) {
+				return false
+			}
+			return compression.filter(req, res)
+		},
+	}),
+)
 
 // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
 app.disable('x-powered-by')

@@ -213,6 +213,9 @@ export default [
 				path: 'connections',
 			}),
 			appRoute('routes/settings+/profile.index.tsx', { index: true }),
+			appRoute('routes/settings+/profile.import.tsx', {
+				path: 'import',
+			}),
 			appRoute('routes/settings+/profile.notifications.tsx', {
 				path: 'notifications',
 			}),
