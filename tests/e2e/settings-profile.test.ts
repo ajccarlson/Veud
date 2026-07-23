@@ -33,7 +33,7 @@ test('Users can update their basic info', async ({ page, login }) => {
 
 test('Users can update their password', async ({ page, login }) => {
 	const oldPassword = faker.internet.password()
-	const newPassword = faker.internet.password()
+	const newPassword = `Aa1!${faker.string.alphanumeric(16)}`
 	const user = await login({ password: oldPassword })
 	await page.goto('/settings/profile')
 
