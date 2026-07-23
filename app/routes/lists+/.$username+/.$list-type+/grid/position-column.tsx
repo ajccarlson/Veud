@@ -17,9 +17,9 @@ import {
 	DropdownMenuSubTrigger,
 } from '#app/components/ui/dropdown-menu.tsx'
 import {
-	AdvancedEntryEditor,
+	AdvancedEntryEditorTrigger,
 	openAdvancedEntryEditor,
-} from './advanced-entry-editor.tsx'
+} from './advanced-entry-editor-trigger.tsx'
 import { gridAPI, columnParams } from './grid-state.ts'
 import { createNewRow, refreshGrid, moveEntry } from './grid-actions.ts'
 import {
@@ -96,7 +96,7 @@ export function positionColumn() {
 									/>
 								</Form>
 								{params.data.id ? (
-									<AdvancedEntryEditor params={params} />
+									<AdvancedEntryEditorTrigger params={params} />
 								) : null}
 								{params.data.id ? (
 									<DropdownMenu>

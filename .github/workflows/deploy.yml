@@ -247,3 +247,6 @@ jobs:
 
       - name: 🏗 Build (compile smoke test)
         run: npm run build
+
+      - name: 📦 Enforce client bundle budgets
+        run: npm run bundle:check
