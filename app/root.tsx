@@ -51,6 +51,10 @@ import { getEnv } from './utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
 import { combineHeaders, getDomainUrl, getUserImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
+import {
+	getNotificationPreferences,
+	notificationInboxWhere,
+} from './utils/notification-preferences.server.ts'
 import { syncReleaseRemindersForUser } from './utils/release-reminders.server.ts'
 import { useRequestInfo } from './utils/request-info.ts'
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
@@ -132,12 +136,16 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		? await time(
 				async () => {
 					const now = new Date()
-					await syncReleaseRemindersForUser(prisma, userId, now)
+					const [, preferences] = await Promise.all([
+						syncReleaseRemindersForUser(prisma, userId, now),
+						getNotificationPreferences(userId),
+					])
 					return prisma.notification.count({
 						where: {
 							recipientId: userId,
 							readAt: null,
 							availableAt: { lte: now },
+							...notificationInboxWhere(preferences),
 						},
 					})
 				},

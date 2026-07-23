@@ -1,0 +1,11 @@
+[Unit]
+Description=Deliver due Veud staging notification email digests
+
+[Timer]
+OnCalendar=*:0/15
+RandomizedDelaySec=2m
+Persistent=true
+Unit=veud-staging-notification-digests.service
+
+[Install]
+WantedBy=timers.target
