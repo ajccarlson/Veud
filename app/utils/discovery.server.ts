@@ -471,6 +471,11 @@ function discoveryWhere(
 				? [
 						{ trackingStates: { none: { ownerId: viewerId } } },
 						{ favorites: { none: { ownerId: viewerId } } },
+						{
+							recommendationFeedback: {
+								none: { ownerId: viewerId },
+							},
+						},
 					]
 				: []),
 		],
