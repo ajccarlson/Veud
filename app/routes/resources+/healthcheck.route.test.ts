@@ -8,5 +8,7 @@ test('healthcheck verifies the database without fetching a caller-controlled hos
 	expect(response.status).toBe(200)
 	expect(await response.text()).toBe('OK')
 	expect(response.headers.get('cache-control')).toBe('no-store')
+	expect(response.headers.get('x-veud-release')).toBeTruthy()
+	expect(response.headers.get('x-veud-environment')).toBeTruthy()
 	expect(fetchSpy).not.toHaveBeenCalled()
 })

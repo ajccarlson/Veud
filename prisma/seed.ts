@@ -84,6 +84,18 @@ async function seed() {
 			access: 'any',
 			description: 'Grant and revoke moderator access',
 		},
+		{
+			action: 'read',
+			entity: 'operations',
+			access: 'any',
+			description: 'View private site operations telemetry',
+		},
+		{
+			action: 'update',
+			entity: 'operations',
+			access: 'any',
+			description: 'Publish and update public service incidents',
+		},
 	] as const
 	await prisma.permission.createMany({ data: [...moderationPermissions] })
 	console.timeEnd('🔑 Created permissions...')
@@ -161,6 +173,18 @@ async function seed() {
 							{ action: 'assign', entity: 'role', access: 'any' },
 						],
 					},
+				}),
+			},
+		},
+	})
+	await prisma.role.create({
+		data: {
+			name: 'site-operator',
+			description: 'Site reliability and incident operator',
+			permissions: {
+				connect: await prisma.permission.findMany({
+					select: { id: true },
+					where: { entity: 'operations', access: 'any' },
 				}),
 			},
 		},
