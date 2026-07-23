@@ -19,8 +19,15 @@ it no longer serializes every profile feature on every request.
 - Profile tab links use intent prefetching, so the destination child loader can
   start while a pointer or keyboard focus rests on the tab.
 
-Stats renders only the selected chart. Switching chart types no longer builds
-all eight Nivo chart trees or scans the analytics entries for hidden charts.
+Stats renders and downloads only the selected chart. Switching chart types no
+longer builds all eight Nivo chart trees, scans analytics entries for hidden
+charts, or includes every Nivo renderer in the Stats route bootstrap.
+
+The Overview completion-history aggregation is a small framework-independent
+utility. Its Nivo calendar renderer is imported only when the profile has a
+valid month to display. Empty profiles therefore avoid the calendar and shared
+Nivo payload entirely. Every deferred visualization has a consistent loading
+state and a recoverable error boundary.
 
 ## Measurement
 
@@ -58,3 +65,47 @@ Profile loader responses expose `Server-Timing` entries for the total loader,
 database phases, and server-side aggregation. Runtime latency varies by storage,
 hardware, and deployment load, so the checked-in budgets focus on query shape,
 payload size, and navigation behavior rather than a flaky wall-clock assertion.
+
+## Client visualization boundaries
+
+The production client build before visualization splitting reported a
+255.18 KiB raw / 74.17 KiB gzip Stats route. The split build reports:
+
+| Asset | Raw | Gzip | Loaded initially |
+| --- | ---: | ---: | --- |
+| Profile Stats route | 4.4 KiB | 1.8 KiB | On Stats |
+| Profile Overview route | 118.9 KiB | 36.0 KiB | On Overview |
+| Watchlist overview chart | 22.7 KiB | 7.3 KiB | Default Stats chart only |
+| Score distribution chart | 29.3 KiB | 9.7 KiB | When selected |
+| Completion-history calendar | 25.1 KiB | 8.0 KiB | Only with completion data |
+| Shared Nivo theme/runtime | 176.4 KiB | 60.5 KiB | With the first Nivo chart |
+
+Other Stats visualizations are isolated in their own 16.2–53.3 KiB raw
+chunks. Shared Nivo internals remain separate and are cached across chart
+changes.
+
+`npm run bundle:check` enforces raw and gzip budgets for both profile routes,
+each visualization boundary, and the shared Nivo chunk. The production-browser
+profile test also observes actual asset requests: an empty Overview must not
+download Nivo, the populated calendar must load on demand, default Stats must
+not fetch unselected chart modules, and choosing Score Distribution must fetch
+only that newly selected visualization.
+
+## Visualization-splitting release evidence
+
+Commit `4781651ce323db2d0af66af20472c23f27c013af` was deployed as an
+immutable release to isolated PostgreSQL staging on 2026-07-23.
+
+- A fresh `npm ci` audited 1,431 packages with zero vulnerabilities.
+- PostgreSQL source/schema parity, migrations, drift checks, and application
+  query smoke tests passed for both the application and catalog-load databases.
+- The active staging symlink resolved to the exact commit; the PostgreSQL,
+  application, application-backup, catalog-backup, and catalog-ingestion units
+  were active and enabled.
+- The HTTPS acceptance gate passed 192 of 192 requests across eight public
+  routes, including production security headers, with p95 latency of
+  146.272 ms.
+- Local release gates passed ESLint, TypeScript, all 85 Vitest files and 386
+  tests, the focused production-browser network regression, the 16-test
+  accessibility/visual gate, the production build, and all client bundle
+  budgets.
