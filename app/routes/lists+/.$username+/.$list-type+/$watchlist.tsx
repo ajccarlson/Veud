@@ -6,7 +6,7 @@ import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
-import { watchlistGrid } from '#app/routes/lists+/.$username+/.$list-type+/grid/watchlist-grid.tsx'
+import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
@@ -178,19 +178,19 @@ export default function WatchList() {
 				{loaderData.watchListData.header} · {loaderData.listTypeData.header}{' '}
 				list for {loaderData.listOwner.username}
 			</h1>
-			{watchlistGrid(
-				loaderData.listEntries,
-				loaderData.watchListData,
-				loaderData.listTypeData,
-				loaderData.watchlistId,
-				loaderData.typedWatchlists,
-				loaderData.typedFavorites,
-				loaderData.trackingByIdentity,
-				loaderData.listOwner,
-				currentUser,
-				currentUserId,
-				navigate,
-			)}
+			<ResponsiveWatchlist
+				listEntries={loaderData.listEntries}
+				watchListData={loaderData.watchListData}
+				listTypeData={loaderData.listTypeData}
+				watchlistId={loaderData.watchlistId}
+				typedWatchlists={loaderData.typedWatchlists}
+				typedFavorites={loaderData.typedFavorites}
+				trackingByIdentity={loaderData.trackingByIdentity}
+				listOwner={loaderData.listOwner}
+				currentUser={currentUser}
+				currentUserId={currentUserId}
+				navigate={navigate}
+			/>
 			{listNavButtons(
 				loaderData.typedWatchlists,
 				loaderData.username,

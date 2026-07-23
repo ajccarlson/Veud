@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "run-s build:*",
+    "bundle:check": "node scripts/check-client-bundle-budgets.mjs",
     "build:icons": "tsx ./other/build-icons.ts",
     "build:react-router": "react-router build",
     "build:server": "tsx ./other/build-server.ts",

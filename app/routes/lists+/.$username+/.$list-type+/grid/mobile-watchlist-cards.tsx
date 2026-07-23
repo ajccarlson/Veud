@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { MediaSearchBar } from '#app/components/search-add-watchlist-entry.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
-import { getThumbnailInfo } from '#app/utils/lists/column-functions.tsx'
+import {
+	DeferredMediaSearchBar,
+	getThumbnailInfo,
+} from '#app/utils/lists/column-functions.tsx'
 import {
 	averageScores,
 	providedScore,
@@ -10,8 +12,10 @@ import {
 	scoreDifference,
 } from '#app/utils/lists/score-formatters.ts'
 import { watchlistColumnLabel } from '#app/utils/lists/default-sort.ts'
-import { AdvancedEntryEditor } from './advanced-entry-editor.tsx'
+import { AdvancedEntryEditorTrigger } from './advanced-entry-editor-trigger.tsx'
 import { moveEntry, refreshGrid } from './grid-actions.ts'
+import { type WatchlistViewProps } from './grid-state.ts'
+import { useWatchlistState } from './use-watchlist-state.ts'
 
 type MobileSort = {
 	colId: string
@@ -121,6 +125,19 @@ export function filterAndSortMobileEntries(
 		})
 }
 
+export function MobileWatchlistView(props: WatchlistViewProps) {
+	const { columnParams, defaultSort, listEntries, sortableColumns } =
+		useWatchlistState(props)
+	return (
+		<MobileWatchlistCards
+			entries={listEntries}
+			columnParams={columnParams}
+			sortableColumns={sortableColumns}
+			defaultSort={defaultSort}
+		/>
+	)
+}
+
 function entryScore(entry: any) {
 	return (
 		providedScore(entry.personal) ??
@@ -194,7 +211,7 @@ export function MobileWatchlistCards({
 					<span>{visibleEntries.length === 1 ? 'title' : 'titles'}</span>
 				</div>
 				{isOwner ? (
-					<MediaSearchBar compactTrigger columnParams={columnParams} />
+					<DeferredMediaSearchBar compactTrigger columnParams={columnParams} />
 				) : null}
 				<details className="mobile-list-tools">
 					<summary>
@@ -274,9 +291,7 @@ export function MobileWatchlistCards({
 									aria-label={`Open ${entry.title}`}
 								>
 									<img
-										src={
-											thumbnail.content || '/favicons/favicon.png'
-										}
+										src={thumbnail.content || '/favicons/favicon.png'}
 										alt=""
 										loading="lazy"
 									/>
@@ -321,7 +336,7 @@ export function MobileWatchlistCards({
 													/>
 												</label>
 											</form>
-											<AdvancedEntryEditor
+											<AdvancedEntryEditorTrigger
 												params={{ data: entry }}
 												idPrefix="mobile-"
 											/>
