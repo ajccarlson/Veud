@@ -304,6 +304,11 @@ export default function EditUserProfile() {
 					</Link>
 				</div> */}
 				<div>
+					<Link to="import">
+						<Icon name="upload">Import another library</Icon>
+					</Link>
+				</div>
+				<div>
 					<Link
 						reloadDocument
 						download="my-epic-notes-data.json"

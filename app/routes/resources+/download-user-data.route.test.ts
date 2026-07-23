@@ -48,6 +48,26 @@ test('account export includes private recommendation feedback but omits password
 			reason: 'Exported enforcement reason.',
 		},
 	})
+	const importBatch = await prisma.libraryImportBatch.create({
+		data: {
+			ownerId: user.id,
+			provider: 'letterboxd',
+			fileName: 'watched.csv',
+			itemCount: 1,
+			matchedCount: 0,
+			ambiguousCount: 0,
+			unmatchedCount: 1,
+			conflictCount: 0,
+			items: {
+				create: {
+					sourceKey: 'letterboxd:movie:arrival',
+					payload: '{"title":"Arrival"}',
+					matchState: 'unmatched',
+				},
+			},
+		},
+		include: { items: true },
+	})
 	await prisma.homeDashboardPreference.create({
 		data: {
 			ownerId: user.id,
@@ -105,6 +125,11 @@ test('account export includes private recommendation feedback but omits password
 				emailSocial: boolean
 				digestFrequency: string
 			}
+			libraryImportBatches: Array<{
+				id: string
+				provider: string
+				items: Array<{ sourceKey: string }>
+			}>
 			moderationReportsSubmitted: Array<{ id: string; details: string }>
 			moderationActionsSubject: Array<{ id: string; reason: string }>
 		}
@@ -132,6 +157,17 @@ test('account export includes private recommendation feedback but omits password
 			digestFrequency: 'weekly',
 		}),
 	)
+	expect(exported.user.libraryImportBatches).toEqual([
+		expect.objectContaining({
+			id: importBatch.id,
+			provider: 'letterboxd',
+			items: [
+				expect.objectContaining({
+					sourceKey: 'letterboxd:movie:arrival',
+				}),
+			],
+		}),
+	])
 	expect(exported.user.moderationReportsSubmitted).toEqual([
 		expect.objectContaining({
 			id: moderationReport.id,
