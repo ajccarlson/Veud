@@ -29,22 +29,24 @@ model User {
   roles                 Role[]
   sessions              Session[]
   connections           Connection[]
-  following             Follow[]            @relation("UserFollowing")
-  followers             Follow[]            @relation("UserFollowers")
-  commentsAuthored      ProfileComment[]    @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[]    @relation("ProfileCommentProfile")
+  following             Follow[]              @relation("UserFollowing")
+  followers             Follow[]              @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]      @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]      @relation("ProfileCommentProfile")
   trackingStates        TrackingState[]
   activityEvents        ActivityEvent[]
   reviews               Review[]
   diaryEntries          DiaryEntry[]
   reviewLikes           ReviewLike[]
   reviewComments        ReviewComment[]
-  notificationsReceived Notification[]      @relation("NotificationRecipient")
-  notificationsSent     Notification[]      @relation("NotificationActor")
+  notificationsReceived Notification[]        @relation("NotificationRecipient")
+  notificationsSent     Notification[]        @relation("NotificationActor")
   mediaCollections      MediaCollection[]
   collectionLikes       CollectionLike[]
   collectionComments    CollectionComment[]
   releaseReminders      ReleaseReminder[]
+  catalogQualityReviews CatalogQualityIssue[] @relation("CatalogQualityReviewer")
+  catalogQualityEvents  CatalogQualityEvent[] @relation("CatalogQualityActor")
 }
 
 model ListType {
@@ -129,19 +131,21 @@ model Media {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  externalIds       MediaExternalId[]
-  titles            MediaTitle[]
-  outgoingRelations MediaRelation[]       @relation("MediaRelationSource")
-  incomingRelations MediaRelation[]       @relation("MediaRelationTarget")
-  entries           Entry[]
-  favorites         UserFavorite[]
-  trackingStates    TrackingState[]
-  activityEvents    ActivityEvent[]
-  reviews           Review[]
-  diaryEntries      DiaryEntry[]
-  collectionItems   MediaCollectionItem[]
-  releaseReminders  ReleaseReminder[]
-  catalogFeedItems  CatalogFeedItem[]
+  externalIds            MediaExternalId[]
+  titles                 MediaTitle[]
+  outgoingRelations      MediaRelation[]       @relation("MediaRelationSource")
+  incomingRelations      MediaRelation[]       @relation("MediaRelationTarget")
+  entries                Entry[]
+  favorites              UserFavorite[]
+  trackingStates         TrackingState[]
+  activityEvents         ActivityEvent[]
+  reviews                Review[]
+  diaryEntries           DiaryEntry[]
+  collectionItems        MediaCollectionItem[]
+  releaseReminders       ReleaseReminder[]
+  catalogFeedItems       CatalogFeedItem[]
+  primaryQualityIssues   CatalogQualityIssue[] @relation("CatalogQualityPrimaryMedia")
+  secondaryQualityIssues CatalogQualityIssue[] @relation("CatalogQualitySecondaryMedia")
 
   @@index([kind])
   @@index([catalogPopularity])
@@ -294,6 +298,60 @@ model CatalogSyncCursor {
 
   @@unique([provider, kind, mode])
   @@index([leaseExpiresAt])
+}
+
+/// A durable, non-destructive catalog-quality finding. Fingerprints make scans
+/// idempotent; review state is explicit so candidates never become merges merely
+/// because a detector found them.
+model CatalogQualityIssue {
+  id          String  @id @default(cuid())
+  fingerprint String  @unique
+  issueType   String
+  status      String  @default("open")
+  severity    String  @default("warning")
+  confidence  Float?
+  summary     String
+  evidence    String?
+
+  detectedAt DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  reviewedAt DateTime?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  primaryMedia     Media                 @relation("CatalogQualityPrimaryMedia", fields: [primaryMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  primaryMediaId   String
+  secondaryMedia   Media?                @relation("CatalogQualitySecondaryMedia", fields: [secondaryMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  secondaryMediaId String?
+  reviewedBy       User?                 @relation("CatalogQualityReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reviewedById     String?
+  events           CatalogQualityEvent[]
+
+  @@index([status, issueType, lastSeenAt])
+  @@index([primaryMediaId])
+  @@index([secondaryMediaId])
+  @@index([reviewedById])
+}
+
+/// Append-only administrator decisions for a quality issue. Reopening an issue
+/// creates another event rather than erasing the prior judgment.
+model CatalogQualityEvent {
+  id             String   @id @default(cuid())
+  action         String
+  previousStatus String
+  nextStatus     String
+  note           String?
+  details        String?
+  createdAt      DateTime @default(now())
+
+  issue   CatalogQualityIssue @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  issueId String
+  actor   User?               @relation("CatalogQualityActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorId String?
+
+  @@index([issueId, createdAt])
+  @@index([actorId])
 }
 
 model Entry {
