@@ -5,6 +5,7 @@ test('member can filter the catalog and discover an unseen personalized title', 
 	page,
 	login,
 }) => {
+	test.setTimeout(30_000)
 	const viewer = await login()
 	const listType = await prisma.listType.upsert({
 		where: { name: 'anime' },
@@ -106,13 +107,44 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		await expect(page).toHaveURL(/sort=for-you/)
 		await expect(page.getByText('Browser Fantasy Match')).toBeVisible()
 		await expect(page.getByText('Browser Discovery Seed')).not.toBeVisible()
-		await expect(page.getByText(/Built from your interest in/)).toContainText(
-			'Fantasy',
-		)
+		await expect(
+			page.getByRole('heading', { name: 'Recommendations for you' }),
+		).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Matches your taste' }),
+		).toBeVisible()
+		await page.setViewportSize({ width: 390, height: 844 })
 
-		const recommendation = page
+		let recommendation = page
 			.getByRole('article')
 			.filter({ hasText: 'Browser Fantasy Match' })
+		await expect(
+			recommendation.getByLabel('Why Browser Fantasy Match was recommended'),
+		).toContainText('Fantasy')
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth,
+			),
+		).toBe(true)
+		await recommendation
+			.getByRole('button', {
+				name: 'Show fewer titles like Browser Fantasy Match',
+			})
+			.click()
+		await expect(recommendation).not.toBeVisible()
+		const hiddenRecommendations = page.getByText(
+			/Review recent hidden recommendations \(1 of 1\)/,
+		)
+		await hiddenRecommendations.click()
+		await page
+			.getByRole('button', {
+				name: 'Restore Browser Fantasy Match to recommendations',
+			})
+			.click()
+		recommendation = page
+			.getByRole('article')
+			.filter({ hasText: 'Browser Fantasy Match' })
+		await expect(recommendation).toBeVisible()
 		await expect(
 			recommendation.getByLabel('Tracking status for Browser Fantasy Match'),
 		).toHaveValue(completed.id)

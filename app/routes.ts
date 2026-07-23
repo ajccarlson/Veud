@@ -181,6 +181,9 @@ export default [
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
 	}),
+	appRoute('routes/resources+/recommendation-feedback.ts', {
+		path: 'resources/recommendation-feedback',
+	}),
 	appRoute('routes/resources+/user-banners.$imageId.tsx', {
 		path: 'resources/user-banners/:imageId',
 	}),
