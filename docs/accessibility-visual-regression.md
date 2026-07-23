@@ -73,3 +73,19 @@ Then:
 Prefer stable, representative pages over broad screenshot coverage. Data-heavy,
 time-dependent, or personalized pages should first receive deterministic
 fixtures and explicit masking before becoming visual baselines.
+
+## 2026-07-23 release evidence
+
+Application commit `12ffe844b49ba46d1b77186af9565ffee7988494` passed:
+
+- ESLint and TypeScript;
+- 83 unit files containing 378 tests;
+- the exact 47-test CI browser acceptance command;
+- all 16 focused accessibility and visual-regression contracts;
+- a clean production build and npm audit with zero vulnerabilities;
+- PostgreSQL app/load migration and drift verification plus the PostgreSQL smoke
+  suite; and
+- 24 of 24 HTTPS staging canary requests, with 213.308 ms p95 latency.
+
+The staging app, PostgreSQL service, and backup timer remained active, and the
+current staging release symlink resolved to the exact application commit above.
