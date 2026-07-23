@@ -49,3 +49,27 @@ The desktop module remains intentionally large because it contains AG Grid.
 Replacing that dependency or creating a smaller desktop table is a separate
 product decision; this boundary keeps its cost off mobile clients in the
 meantime.
+
+## Release evidence
+
+Commit `e4f0cb5bd87de64cbcf5f748ae340acd67dd8227` was deployed as an immutable
+release to isolated PostgreSQL staging on 2026-07-23.
+
+- A fresh `npm ci` audited 1,431 packages with zero vulnerabilities.
+- PostgreSQL source/schema parity, migrations, drift checks, and application
+  query smoke tests passed for both the application and catalog-load databases.
+- The active staging symlink resolved to the exact commit, and the PostgreSQL,
+  application, application-backup, and catalog-backup units were active and
+  enabled.
+- The HTTPS acceptance gate passed 192 of 192 requests across eight public
+  routes, including production security headers, with p95 latency of 170.631 ms.
+- Local release gates passed ESLint, TypeScript, all 84 Vitest files and 384
+  tests, all 12 list-reliability browser tests, and the exact 48-test CI
+  browser/accessibility/visual command.
+- The production bundle budget passed after the browser build, including the
+  network-level mobile boundary regression.
+
+GitHub Actions is not affirmative evidence for this release. The repository's
+known owner-side `startup_failure` condition occurs before jobs are created, so
+the locally reproducible and deployed-staging gates above remain the release
+evidence until that external condition is corrected.
