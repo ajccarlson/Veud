@@ -12,7 +12,10 @@ import {
 	sha256File,
 	writePostgresBackupReceipt,
 } from './postgres-backup-receipt.mjs'
-import { prunePostgresBackups } from './postgres-backup-utils.mjs'
+import {
+	assertIndependentBackupMount,
+	prunePostgresBackups,
+} from './postgres-backup-utils.mjs'
 
 const sourceUrl = process.env.DATABASE_URL
 const verifyUrl = process.env.POSTGRES_BACKUP_VERIFY_URL
@@ -31,6 +34,13 @@ const offsiteKeep = parsePositiveInteger(
 )
 const expectedUsername = process.env.BACKUP_VERIFY_USERNAME?.trim() || undefined
 fs.mkdirSync(backupDir, { recursive: true })
+if (offsiteDir) {
+	assertIndependentBackupMount(
+		offsiteDir,
+		process.env.BACKUP_OFFSITE_MOUNTPOINT?.trim(),
+		Number(process.env.BACKUP_OFFSITE_MIN_FREE_BYTES || 0),
+	)
+}
 const stamp = new Date().toISOString().replace(/[:.]/g, '-')
 const outputPath = path.join(backupDir, `postgres-${stamp}.dump`)
 const partial = `${outputPath}.partial-${process.pid}`

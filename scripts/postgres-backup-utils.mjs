@@ -94,3 +94,48 @@ export function prunePostgresBackups(backupDir, keep) {
 	}
 	return removed
 }
+
+export function assertIndependentBackupMount(
+	offsiteDir,
+	mountPoint,
+	minimumFreeBytes = 0,
+	operations = {},
+) {
+	const realpath = operations.realpath ?? fs.realpathSync
+	const stat = operations.stat ?? fs.statSync
+	const statfs = operations.statfs ?? fs.statfsSync
+	if (!mountPoint) return
+	if (!fs.existsSync(offsiteDir) || !fs.statSync(offsiteDir).isDirectory()) {
+		throw new Error(
+			'BACKUP_OFFSITE_DIR must already exist and be mounted/synced',
+		)
+	}
+	if (!fs.existsSync(mountPoint) || !fs.statSync(mountPoint).isDirectory()) {
+		throw new Error('BACKUP_OFFSITE_MOUNTPOINT must be an existing directory')
+	}
+	const resolvedDirectory = realpath(offsiteDir)
+	const resolvedMount = realpath(mountPoint)
+	const relative = path.relative(resolvedMount, resolvedDirectory)
+	if (relative.startsWith('..') || path.isAbsolute(relative)) {
+		throw new Error(
+			'BACKUP_OFFSITE_DIR must be inside BACKUP_OFFSITE_MOUNTPOINT',
+		)
+	}
+	if (stat(resolvedMount).dev === stat(path.dirname(resolvedMount)).dev) {
+		throw new Error(
+			'BACKUP_OFFSITE_MOUNTPOINT is not a distinct mounted filesystem',
+		)
+	}
+	if (!Number.isSafeInteger(minimumFreeBytes) || minimumFreeBytes < 0) {
+		throw new Error(
+			'BACKUP_OFFSITE_MIN_FREE_BYTES must be a non-negative integer',
+		)
+	}
+	const filesystem = statfs(resolvedDirectory)
+	const availableBytes = Number(filesystem.bavail) * Number(filesystem.bsize)
+	if (availableBytes < minimumFreeBytes) {
+		throw new Error(
+			`BACKUP_OFFSITE_DIR has ${availableBytes} bytes available; ${minimumFreeBytes} required`,
+		)
+	}
+}
