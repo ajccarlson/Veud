@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'

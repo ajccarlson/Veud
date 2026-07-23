@@ -1,0 +1,11 @@
+[Unit]
+Description=Resume Veud staging TMDB catalog hydration daily
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=1d
+Persistent=true
+Unit=veud-staging-tmdb-hydration.service
+
+[Install]
+WantedBy=timers.target

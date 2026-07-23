@@ -21,6 +21,7 @@ ops/local-staging/status.sh
 systemctl --user start veud-staging-backup.service
 systemctl --user start veud-staging-catalog-backup.service
 systemctl --user start veud-staging-mal-hydration.service
+systemctl --user start veud-staging-tmdb-hydration.service
 ```
 
 Secrets live only under `/media/sde/veud-staging-postgres/config` with mode
@@ -36,6 +37,13 @@ against the qualified catalog database. A separate daily native backup restores
 and verifies that catalog database before copying it to the backup drive. MAL
 workers share `$STAGING_ROOT/run/mal-provider.lock`, so inventory and hydration
 never issue provider requests concurrently.
+
+When `TMDB_API_KEY` is configured, deployment also enables a daily official-ID
+inventory and a resumable detail worker against the qualified catalog database.
+TMDB workers share `$STAGING_ROOT/run/tmdb-provider.lock`; detail and priority
+requests default to four concurrent requests with at least 100 milliseconds
+between starts, while each daily pass processes at most 100,000 records per
+kind.
 
 `ops/local-staging/status.sh` runs the read-only catalog health evaluator
 against `STAGING_LOAD_DATABASE_URL`, not the separate public application
