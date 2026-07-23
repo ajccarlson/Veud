@@ -1,6 +1,11 @@
 #!/usr/bin/env -S npx tsx
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import {
+	applyLibraryImportBatch,
+	rollbackLibraryImportBatch,
+} from '#app/utils/library-import-commit.server.ts'
+import { type LibraryImportItem } from '#app/utils/library-import.ts'
 import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
 
 const requiredIndexes = new Set([
@@ -157,8 +162,70 @@ async function main() {
 			throw new Error('Normalized PostgreSQL catalog search returned no rows')
 		}
 
+		const sourceKey = `postgres-smoke:${suffix}`
+		const importItem = {
+			sourceKey,
+			provider: 'trakt',
+			mediaKind: 'movie',
+			title: media.title!,
+			externalId: null,
+			status: 'completed',
+			score: 8,
+			progress: {},
+			repeatCount: 0,
+			startedAt: null,
+			completedAt: null,
+		} satisfies LibraryImportItem
+		const importBatch = await prisma.libraryImportBatch.create({
+			data: {
+				ownerId: user.id,
+				provider: 'trakt',
+				fileName: 'postgres-smoke.json',
+				itemCount: 1,
+				matchedCount: 1,
+				ambiguousCount: 0,
+				unmatchedCount: 0,
+				conflictCount: 0,
+				items: {
+					create: {
+						sourceKey,
+						payload: JSON.stringify(importItem),
+						matchState: 'matched',
+						matchMethod: 'exact-title',
+						resolution: 'add',
+						mediaId: media.id,
+					},
+				},
+			},
+		})
+		await prisma.$transaction(tx =>
+			applyLibraryImportBatch(tx, {
+				ownerId: user.id,
+				batchId: importBatch.id,
+			}),
+		)
+		const imported = await prisma.trackingState.findUnique({
+			where: { ownerId_mediaId: { ownerId: user.id, mediaId: media.id } },
+		})
+		if (imported?.status !== 'completed' || Number(imported.score) !== 8) {
+			throw new Error('Atomic library import smoke write was not preserved')
+		}
+		await prisma.$transaction(tx =>
+			rollbackLibraryImportBatch(tx, {
+				ownerId: user.id,
+				batchId: importBatch.id,
+			}),
+		)
+		if (
+			await prisma.trackingState.findUnique({
+				where: { ownerId_mediaId: { ownerId: user.id, mediaId: media.id } },
+			})
+		) {
+			throw new Error('Library import smoke rollback left tracking residue')
+		}
+
 		console.log(
-			'PostgreSQL smoke test passed: schema, pg_trgm indexes, model writes, and portable searches are healthy.',
+			'PostgreSQL smoke test passed: schema, pg_trgm indexes, model writes, portable searches, and atomic import rollback are healthy.',
 		)
 	} finally {
 		if (mediaId) await prisma.media.deleteMany({ where: { id: mediaId } })

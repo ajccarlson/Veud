@@ -20,7 +20,18 @@ export type LibraryImportItem = {
 	repeatCount: number
 	startedAt: string | null
 	completedAt: string | null
+	/**
+	 * Ephemeral history identity used only while consolidating exports such as
+	 * Trakt's one-row-per-episode history. It is not persisted in an import
+	 * preview.
+	 */
+	historyUnitKey?: string
 }
+
+const MAX_EXTERNAL_ID_LENGTH = 200
+const MAX_TITLE_LENGTH = 500
+const MAX_PROGRESS = 2_147_483_647
+const MAX_JSON_NODES = 100_000
 
 const statusAliases: Record<string, string> = {
 	completed: 'completed',
@@ -44,6 +55,18 @@ function text(value: unknown) {
 	return typeof value === 'string' ? value.trim() : ''
 }
 
+function boundedText(value: unknown, maximum: number) {
+	return text(value).slice(0, maximum)
+}
+
+function titleText(value: unknown) {
+	return boundedText(value, MAX_TITLE_LENGTH)
+}
+
+function externalIdText(value: unknown) {
+	return boundedText(value, MAX_EXTERNAL_ID_LENGTH)
+}
+
 function finiteNumber(value: unknown) {
 	if (typeof value === 'number') return Number.isFinite(value) ? value : null
 	const source = text(value)
@@ -54,7 +77,9 @@ function finiteNumber(value: unknown) {
 
 function nonNegativeInteger(value: unknown) {
 	const number = finiteNumber(value)
-	return number === null ? 0 : Math.max(0, Math.floor(number))
+	return number === null
+		? 0
+		: Math.min(MAX_PROGRESS, Math.max(0, Math.floor(number)))
 }
 
 function positiveScore(value: unknown) {
@@ -71,7 +96,9 @@ function normalizedDate(value: unknown) {
 	const source = text(value)
 	if (!source || source === '0000-00-00') return null
 	const date = new Date(source)
-	return Number.isNaN(date.getTime()) ? null : date.toISOString()
+	if (Number.isNaN(date.getTime())) return null
+	const year = date.getUTCFullYear()
+	return year >= 1 && year <= 9999 ? date.toISOString() : null
 }
 
 function decodeXml(value: string) {
@@ -104,10 +131,12 @@ export function parseMyAnimeListXml(source: string): LibraryImportItem[] {
 		for (const block of blocks ?? []) {
 			const prefix =
 				mediaKind === 'anime' ? 'series_animedb_id' : 'manga_mangadb_id'
-			const externalId = xmlTag(block, prefix)
+			const externalId = externalIdText(xmlTag(block, prefix))
 			const title =
-				xmlTag(block, 'series_title') || xmlTag(block, 'manga_title')
+				titleText(xmlTag(block, 'series_title')) ||
+				titleText(xmlTag(block, 'manga_title'))
 			if (!title) continue
+			const score = positiveScore(xmlTag(block, 'my_score'))
 			items.push({
 				sourceKey: `mal:${mediaKind}:${externalId || items.length}`,
 				provider: 'myanimelist',
@@ -116,7 +145,7 @@ export function parseMyAnimeListXml(source: string): LibraryImportItem[] {
 				externalId: externalId || null,
 				externalProvider: 'mal',
 				status: normalizedStatus(xmlTag(block, 'my_status')),
-				score: positiveScore(xmlTag(block, 'my_score')),
+				score: score === null ? null : Math.min(10, score),
 				progress:
 					mediaKind === 'anime'
 						? {
@@ -187,9 +216,9 @@ export function parseLetterboxdCsv(source: string): LibraryImportItem[] {
 	const watchedIndex = index('watched date')
 	const exportDateIndex = index('date')
 	return rows.flatMap((row, rowIndex) => {
-		const title = text(row[nameIndex])
+		const title = titleText(row[nameIndex])
 		if (!title) return []
-		const uri = text(row[uriIndex])
+		const uri = boundedText(row[uriIndex], 2_000)
 		const slug = uri.match(/letterboxd\.com\/film\/([^/]+)/i)?.[1] ?? null
 		const rating = positiveScore(row[ratingIndex])
 		const watchedDate = text(row[watchedIndex] ?? row[exportDateIndex])
@@ -199,7 +228,7 @@ export function parseLetterboxdCsv(source: string): LibraryImportItem[] {
 				provider: 'letterboxd' as const,
 				mediaKind: 'movie' as const,
 				title,
-				externalId: slug,
+				externalId: slug ? externalIdText(slug) : null,
 				externalProvider: 'letterboxd' as const,
 				status: watchedDate || rating !== null ? 'completed' : 'planning',
 				score: rating === null ? null : Math.min(10, Math.max(0, rating * 2)),
@@ -219,14 +248,30 @@ function object(value: unknown): Record<string, unknown> {
 }
 
 function collectObjects(value: unknown, output: Record<string, unknown>[]) {
-	if (Array.isArray(value)) {
-		for (const item of value) collectObjects(item, output)
-		return
+	const pending = [value]
+	let visited = 0
+	while (pending.length) {
+		const current = pending.pop()
+		visited += 1
+		if (visited > MAX_JSON_NODES) {
+			throw new Error('The JSON export is too deeply or densely nested.')
+		}
+		if (Array.isArray(current)) {
+			for (let index = current.length - 1; index >= 0; index--) {
+				pending.push(current[index])
+			}
+			continue
+		}
+		const record = object(current)
+		if (!Object.keys(record).length) continue
+		if (record.media || record.movie || record.show) output.push(record)
+		else {
+			const values = Object.values(record)
+			for (let index = values.length - 1; index >= 0; index--) {
+				pending.push(values[index])
+			}
+		}
 	}
-	const record = object(value)
-	if (!Object.keys(record).length) return
-	if (record.media || record.movie || record.show) output.push(record)
-	else for (const child of Object.values(record)) collectObjects(child, output)
 }
 
 export function parseJsonLibraryExport(
@@ -239,12 +284,13 @@ export function parseJsonLibraryExport(
 	return records.flatMap((record, index) => {
 		const media = object(record.media || record.movie || record.show)
 		const titles = object(media.title)
-		const title =
+		const title = titleText(
 			text(titles.english) ||
-			text(titles.romaji) ||
-			text(titles.native) ||
-			text(media.title) ||
-			text(record.title)
+				text(titles.romaji) ||
+				text(titles.native) ||
+				text(media.title) ||
+				text(record.title),
+		)
 		if (!title) return []
 		const type = text(media.type || record.type).toLowerCase()
 		const mediaKind =
@@ -256,8 +302,8 @@ export function parseJsonLibraryExport(
 					? 'manga'
 					: 'anime'
 		const ids = object(media.ids)
-		const malId = text(media.idMal || media.id_mal)
-		const tmdbId = text(ids.tmdb)
+		const malId = externalIdText(media.idMal || media.id_mal)
+		const tmdbId = externalIdText(ids.tmdb)
 		const externalProvider =
 			provider === 'anilist'
 				? malId
@@ -268,9 +314,26 @@ export function parseJsonLibraryExport(
 					: ('trakt' as const)
 		const externalId =
 			provider === 'anilist'
-				? malId || text(media.id || record.mediaId)
-				: tmdbId || text(ids.trakt || media.id)
+				? malId || externalIdText(media.id || record.mediaId)
+				: tmdbId || externalIdText(ids.trakt || media.id)
 		const score = positiveScore(record.score || record.rating)
+		const episode = object(record.episode)
+		const episodeSeason = nonNegativeInteger(episode.season)
+		const episodeNumber = nonNegativeInteger(episode.number)
+		const historyUnitKey =
+			provider === 'trakt' && Object.keys(episode).length
+				? `${episodeSeason}:${episodeNumber || text(episode.title)}`
+				: undefined
+		const explicitStatus = text(record.status)
+		const traktStatus = explicitStatus
+			? normalizedStatus(explicitStatus)
+			: historyUnitKey
+				? 'current'
+				: record.watched_at || record.rated_at
+					? 'completed'
+					: record.listed_at || record.rank
+						? 'planning'
+						: 'completed'
 		return [
 			{
 				sourceKey: `${provider}:${mediaKind}:${externalId || index}`,
@@ -279,15 +342,19 @@ export function parseJsonLibraryExport(
 				title,
 				externalId: externalId || null,
 				externalProvider,
-				status: normalizedStatus(record.status || 'completed'),
+				status:
+					provider === 'trakt'
+						? traktStatus
+						: normalizedStatus(record.status || 'completed'),
 				score:
 					score === null
 						? null
 						: provider === 'trakt'
 							? Math.min(10, Math.max(0, score))
 							: Math.min(10, Math.max(0, score > 10 ? score / 10 : score)),
-				progress:
-					mediaKind === 'anime' || mediaKind === 'tv'
+				progress: historyUnitKey
+					? { episodes: 1 }
+					: mediaKind === 'anime' || mediaKind === 'tv'
 						? { episodes: nonNegativeInteger(record.progress) }
 						: mediaKind === 'manga'
 							? {
@@ -298,8 +365,11 @@ export function parseJsonLibraryExport(
 				repeatCount: nonNegativeInteger(record.repeat || record.rewatchCount),
 				startedAt: normalizedDate(record.startedAt || record.started_at),
 				completedAt: normalizedDate(
-					record.completedAt || record.watched_at || record.completed_at,
+					record.completedAt ||
+						(historyUnitKey ? null : record.watched_at) ||
+						record.completed_at,
 				),
+				historyUnitKey,
 			},
 		]
 	})
@@ -315,15 +385,19 @@ function latestDate(values: Array<string | null>) {
 	return dates.at(-1) ?? null
 }
 
+function normalizedImportTitle(value: string) {
+	return value
+		.normalize('NFKD')
+		.replace(/\p{Mark}/gu, '')
+		.toLowerCase()
+		.replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
+		.trim()
+}
+
 function importIdentity(item: LibraryImportItem) {
 	const external = item.externalId
 		? `${item.externalProvider ?? item.provider}:${item.externalId}`
-		: item.title
-				.normalize('NFKD')
-				.replace(/\p{Diacritic}/gu, '')
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, ' ')
-				.trim()
+		: normalizedImportTitle(item.title)
 	return `${item.provider}:${item.mediaKind}:${external}`
 }
 
@@ -340,21 +414,41 @@ export function consolidateLibraryImportItems(items: LibraryImportItem[]) {
 	}
 	return [...groups.values()].map(group => {
 		const first = group[0]!
-		const last = group.at(-1)!
+		const chronological = group
+			.map((item, index) => ({
+				item,
+				index,
+				date: item.completedAt ?? item.startedAt ?? '',
+			}))
+			.sort(
+				(a, b) => a.date.localeCompare(b.date) || a.index - b.index,
+			)
+			.map(value => value.item)
+		const last = chronological.at(-1)!
 		const completedRows = group.filter(
 			item => item.status === 'completed',
 		).length
-		const scores = group.flatMap(item =>
+		const scores = chronological.flatMap(item =>
 			item.score === null ? [] : [item.score],
 		)
+		const historyUnits = new Set(
+			group
+				.map(item => item.historyUnitKey)
+				.filter((value): value is string => Boolean(value)),
+		)
+		const importedEpisodes = group.some(
+			item => item.progress.episodes !== undefined,
+		)
+			? Math.max(...group.map(item => item.progress.episodes ?? 0))
+			: undefined
 		return {
 			...first,
 			status: last.status,
 			score: scores.at(-1) ?? null,
 			progress: {
-				episodes: group.some(item => item.progress.episodes !== undefined)
-					? Math.max(...group.map(item => item.progress.episodes ?? 0))
-					: undefined,
+				episodes: historyUnits.size
+					? Math.max(importedEpisodes ?? 0, historyUnits.size)
+					: importedEpisodes,
 				chapters: group.some(item => item.progress.chapters !== undefined)
 					? Math.max(...group.map(item => item.progress.chapters ?? 0))
 					: undefined,
@@ -364,10 +458,11 @@ export function consolidateLibraryImportItems(items: LibraryImportItem[]) {
 			},
 			repeatCount: Math.max(
 				...group.map(item => item.repeatCount),
-				Math.max(0, completedRows - 1),
+				historyUnits.size ? 0 : Math.max(0, completedRows - 1),
 			),
 			startedAt: earliestDate(group.map(item => item.startedAt)),
 			completedAt: latestDate(group.map(item => item.completedAt)),
+			historyUnitKey: undefined,
 		}
 	})
 }
