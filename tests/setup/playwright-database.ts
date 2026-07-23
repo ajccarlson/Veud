@@ -124,16 +124,15 @@ export async function preparePlaywrightDatabase() {
 				prisma.entry.count(),
 				prisma.media.count(),
 				prisma.role.findMany({
-					where: { name: { in: ['admin', 'user'] } },
+					where: {
+						name: {
+							in: ['admin', 'user', 'moderator', 'community-admin'],
+						},
+					},
 					select: {
 						name: true,
 						permissions: {
-							where: {
-								entity: { in: ['user', 'watchlist'] },
-								action: { in: ['create', 'read', 'update', 'delete'] },
-								access: { in: ['own', 'any'] },
-							},
-							select: { access: true },
+							select: { action: true, entity: true, access: true },
 						},
 					},
 				}),
@@ -145,19 +144,43 @@ export async function preparePlaywrightDatabase() {
 				)
 			}
 			const rolePermissions = new Map(
-				roles.map(role => [
-					role.name,
-					role.permissions.map(permission => permission.access),
-				]),
+				roles.map(role => [role.name, role.permissions]),
 			)
 			const userPermissions = rolePermissions.get('user')
 			const adminPermissions = rolePermissions.get('admin')
+			const moderatorPermissions = rolePermissions.get('moderator')
+			const communityAdminPermissions = rolePermissions.get('community-admin')
+			const hasPermission = (
+				permissions: NonNullable<typeof userPermissions>,
+				action: string,
+				entity: string,
+				access: string,
+			) =>
+				permissions.some(
+					permission =>
+						permission.action === action &&
+						permission.entity === entity &&
+						permission.access === access,
+				)
 			if (
-				permissionCount !== 16 ||
-				userPermissions?.length !== 8 ||
-				!userPermissions.every(access => access === 'own') ||
-				adminPermissions?.length !== 8 ||
-				!adminPermissions.every(access => access === 'any')
+				permissionCount !== 22 ||
+				roles.length !== 4 ||
+				!userPermissions ||
+				userPermissions.length !== 9 ||
+				!hasPermission(userPermissions, 'create', 'report', 'own') ||
+				!adminPermissions ||
+				adminPermissions.length !== 14 ||
+				!moderatorPermissions ||
+				moderatorPermissions.length !== 5 ||
+				!hasPermission(moderatorPermissions, 'moderate', 'content', 'any') ||
+				!communityAdminPermissions ||
+				communityAdminPermissions.length !== 6 ||
+				!hasPermission(
+					communityAdminPermissions,
+					'assign',
+					'role',
+					'any',
+				)
 			) {
 				throw new Error(
 					'Playwright database migrations must install authorization reference data',

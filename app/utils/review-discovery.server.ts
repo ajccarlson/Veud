@@ -111,9 +111,14 @@ const reviewDiscoverySelect = {
 			airYear: true,
 		},
 	},
-	_count: { select: { likes: true, comments: true } },
+	_count: {
+		select: {
+			likes: true,
+			comments: { where: { moderationStatus: 'visible' } },
+		},
+	},
 	comments: {
-		where: { parentId: null },
+		where: { parentId: null, moderationStatus: 'visible' },
 		orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 		take: 3,
 		select: {
@@ -229,6 +234,7 @@ async function getTrendingReviewIds(
 			prisma.reviewComment.findMany({
 				where: {
 					createdAt: { gte: windowStart },
+					moderationStatus: 'visible',
 					review: { is: where },
 				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -251,13 +257,21 @@ async function getTrendingReviewIds(
 		select: {
 			id: true,
 			createdAt: true,
-			_count: { select: { likes: true, comments: true } },
+			_count: {
+				select: {
+					likes: true,
+					comments: { where: { moderationStatus: 'visible' } },
+				},
+			},
 			likes: {
 				where: { createdAt: { gte: windowStart } },
 				select: { createdAt: true },
 			},
 			comments: {
-				where: { createdAt: { gte: windowStart } },
+				where: {
+					createdAt: { gte: windowStart },
+					moderationStatus: 'visible',
+				},
 				select: { createdAt: true },
 			},
 		},
@@ -327,6 +341,7 @@ export async function getReviewDiscoveryResults(
 					.then(rows => rows.map(row => row.followingId))
 			: []
 	const where: Prisma.ReviewWhereInput = {
+		moderationStatus: 'visible',
 		AND: [
 			...(filters.q
 				? [

@@ -96,7 +96,10 @@ export async function getFollowingActivityFeed(
 				},
 			}),
 			prisma.review.findMany({
-				where: { authorId: { in: uniqueActorIds } },
+				where: {
+					authorId: { in: uniqueActorIds },
+					moderationStatus: 'visible',
+				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take,
 				select: {
@@ -124,7 +127,11 @@ export async function getFollowingActivityFeed(
 				},
 			}),
 			prisma.mediaCollection.findMany({
-				where: { ownerId: { in: uniqueActorIds }, isPublic: true },
+				where: {
+					ownerId: { in: uniqueActorIds },
+					isPublic: true,
+					moderationStatus: 'visible',
+				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take,
 				select: {

@@ -152,12 +152,19 @@ test('inbox preferences filter delivery and bulk-read only visible categories', 
 			inAppReleases: true,
 		},
 	})
-	const [social, release] = await Promise.all([
+	const [social, release, moderationNotice] = await Promise.all([
 		prisma.notification.create({
 			data: { type: 'review_like', recipientId: recipient.id },
 		}),
 		prisma.notification.create({
 			data: { type: 'release_reminder', recipientId: recipient.id },
+		}),
+		prisma.notification.create({
+			data: {
+				type: 'moderation_notice',
+				recipientId: recipient.id,
+				message: 'A required account notice.',
+			},
 		}),
 	])
 	const cookie = await cookieFor(recipient.id)
@@ -168,10 +175,10 @@ test('inbox preferences filter delivery and bulk-read only visible categories', 
 		}),
 		params: {},
 	} as any)
-	expect(result.data.notifications.map(notification => notification.id)).toEqual([
-		release.id,
-	])
-	expect(result.data.unreadCount).toBe(1)
+	expect(
+		new Set(result.data.notifications.map(notification => notification.id)),
+	).toEqual(new Set([release.id, moderationNotice.id]))
+	expect(result.data.unreadCount).toBe(2)
 
 	await action({
 		request: actionRequest(cookie, { intent: 'read-all' }),
@@ -179,6 +186,11 @@ test('inbox preferences filter delivery and bulk-read only visible categories', 
 	} as any)
 	expect(
 		await prisma.notification.findUniqueOrThrow({ where: { id: release.id } }),
+	).toMatchObject({ readAt: expect.any(Date) })
+	expect(
+		await prisma.notification.findUniqueOrThrow({
+			where: { id: moderationNotice.id },
+		}),
 	).toMatchObject({ readAt: expect.any(Date) })
 	expect(
 		await prisma.notification.findUniqueOrThrow({ where: { id: social.id } }),
