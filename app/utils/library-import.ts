@@ -13,6 +13,7 @@ export type LibraryImportItem = {
 	mediaKind: 'anime' | 'manga' | 'movie' | 'tv'
 	title: string
 	externalId: string | null
+	externalProvider?: 'mal' | 'tmdb' | 'anilist' | 'trakt' | 'letterboxd'
 	status: string
 	score: number | null
 	progress: { episodes?: number; chapters?: number; volumes?: number }
@@ -32,6 +33,7 @@ const statusAliases: Record<string, string> = {
 	watching: 'current',
 	reading: 'current',
 	current: 'current',
+	repeating: 'current',
 	'on-hold': 'paused',
 	paused: 'paused',
 	dropped: 'dropped',
@@ -43,13 +45,21 @@ function text(value: unknown) {
 }
 
 function finiteNumber(value: unknown) {
-	const number = typeof value === 'number' ? value : Number(text(value))
+	if (typeof value === 'number') return Number.isFinite(value) ? value : null
+	const source = text(value)
+	if (!source) return null
+	const number = Number(source)
 	return Number.isFinite(number) ? number : null
 }
 
 function nonNegativeInteger(value: unknown) {
 	const number = finiteNumber(value)
 	return number === null ? 0 : Math.max(0, Math.floor(number))
+}
+
+function positiveScore(value: unknown) {
+	const score = finiteNumber(value)
+	return score !== null && score > 0 ? score : null
 }
 
 function normalizedStatus(value: unknown) {
@@ -104,8 +114,9 @@ export function parseMyAnimeListXml(source: string): LibraryImportItem[] {
 				mediaKind,
 				title,
 				externalId: externalId || null,
+				externalProvider: 'mal',
 				status: normalizedStatus(xmlTag(block, 'my_status')),
-				score: finiteNumber(xmlTag(block, 'my_score')),
+				score: positiveScore(xmlTag(block, 'my_score')),
 				progress:
 					mediaKind === 'anime'
 						? {
@@ -174,12 +185,14 @@ export function parseLetterboxdCsv(source: string): LibraryImportItem[] {
 	const ratingIndex = index('rating')
 	const rewatchIndex = index('rewatch')
 	const watchedIndex = index('watched date')
+	const exportDateIndex = index('date')
 	return rows.flatMap((row, rowIndex) => {
 		const title = text(row[nameIndex])
 		if (!title) return []
 		const uri = text(row[uriIndex])
 		const slug = uri.match(/letterboxd\.com\/film\/([^/]+)/i)?.[1] ?? null
-		const rating = finiteNumber(row[ratingIndex])
+		const rating = positiveScore(row[ratingIndex])
+		const watchedDate = text(row[watchedIndex] ?? row[exportDateIndex])
 		return [
 			{
 				sourceKey: `letterboxd:movie:${slug || rowIndex}`,
@@ -187,12 +200,13 @@ export function parseLetterboxdCsv(source: string): LibraryImportItem[] {
 				mediaKind: 'movie' as const,
 				title,
 				externalId: slug,
-				status: 'completed',
+				externalProvider: 'letterboxd' as const,
+				status: watchedDate || rating !== null ? 'completed' : 'planning',
 				score: rating === null ? null : Math.min(10, Math.max(0, rating * 2)),
 				progress: {},
 				repeatCount: /^yes$/i.test(text(row[rewatchIndex])) ? 1 : 0,
 				startedAt: null,
-				completedAt: normalizedDate(row[watchedIndex]),
+				completedAt: normalizedDate(watchedDate),
 			},
 		]
 	})
@@ -242,11 +256,21 @@ export function parseJsonLibraryExport(
 					? 'manga'
 					: 'anime'
 		const ids = object(media.ids)
+		const malId = text(media.idMal || media.id_mal)
+		const tmdbId = text(ids.tmdb)
+		const externalProvider =
+			provider === 'anilist'
+				? malId
+					? ('mal' as const)
+					: ('anilist' as const)
+				: tmdbId
+					? ('tmdb' as const)
+					: ('trakt' as const)
 		const externalId =
 			provider === 'anilist'
-				? text(media.id || record.mediaId)
-				: text(ids.trakt || media.id)
-		const score = finiteNumber(record.score || record.rating)
+				? malId || text(media.id || record.mediaId)
+				: tmdbId || text(ids.trakt || media.id)
+		const score = positiveScore(record.score || record.rating)
 		return [
 			{
 				sourceKey: `${provider}:${mediaKind}:${externalId || index}`,
@@ -254,6 +278,7 @@ export function parseJsonLibraryExport(
 				mediaKind,
 				title,
 				externalId: externalId || null,
+				externalProvider,
 				status: normalizedStatus(record.status || 'completed'),
 				score:
 					score === null
@@ -280,11 +305,82 @@ export function parseJsonLibraryExport(
 	})
 }
 
+function earliestDate(values: Array<string | null>) {
+	const dates = values.filter((value): value is string => Boolean(value)).sort()
+	return dates[0] ?? null
+}
+
+function latestDate(values: Array<string | null>) {
+	const dates = values.filter((value): value is string => Boolean(value)).sort()
+	return dates.at(-1) ?? null
+}
+
+function importIdentity(item: LibraryImportItem) {
+	const external = item.externalId
+		? `${item.externalProvider ?? item.provider}:${item.externalId}`
+		: item.title
+				.normalize('NFKD')
+				.replace(/\p{Diacritic}/gu, '')
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, ' ')
+				.trim()
+	return `${item.provider}:${item.mediaKind}:${external}`
+}
+
+/**
+ * Provider history exports can contain one row per viewing. Collapse those
+ * rows before reconciliation so a single canonical title cannot be selected
+ * twice in the same atomic batch.
+ */
+export function consolidateLibraryImportItems(items: LibraryImportItem[]) {
+	const groups = new Map<string, LibraryImportItem[]>()
+	for (const item of items) {
+		const key = importIdentity(item)
+		groups.set(key, [...(groups.get(key) ?? []), item])
+	}
+	return [...groups.values()].map(group => {
+		const first = group[0]!
+		const last = group.at(-1)!
+		const completedRows = group.filter(
+			item => item.status === 'completed',
+		).length
+		const scores = group.flatMap(item =>
+			item.score === null ? [] : [item.score],
+		)
+		return {
+			...first,
+			status: last.status,
+			score: scores.at(-1) ?? null,
+			progress: {
+				episodes: group.some(item => item.progress.episodes !== undefined)
+					? Math.max(...group.map(item => item.progress.episodes ?? 0))
+					: undefined,
+				chapters: group.some(item => item.progress.chapters !== undefined)
+					? Math.max(...group.map(item => item.progress.chapters ?? 0))
+					: undefined,
+				volumes: group.some(item => item.progress.volumes !== undefined)
+					? Math.max(...group.map(item => item.progress.volumes ?? 0))
+					: undefined,
+			},
+			repeatCount: Math.max(
+				...group.map(item => item.repeatCount),
+				Math.max(0, completedRows - 1),
+			),
+			startedAt: earliestDate(group.map(item => item.startedAt)),
+			completedAt: latestDate(group.map(item => item.completedAt)),
+		}
+	})
+}
+
 export function parseLibraryImport(
 	provider: LibraryImportProvider,
 	source: string,
 ) {
-	if (provider === 'myanimelist') return parseMyAnimeListXml(source)
-	if (provider === 'letterboxd') return parseLetterboxdCsv(source)
-	return parseJsonLibraryExport(provider, source)
+	const items =
+		provider === 'myanimelist'
+			? parseMyAnimeListXml(source)
+			: provider === 'letterboxd'
+				? parseLetterboxdCsv(source)
+				: parseJsonLibraryExport(provider, source)
+	return consolidateLibraryImportItems(items)
 }

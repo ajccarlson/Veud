@@ -55,19 +55,33 @@ test('builds a non-mutating import reconciliation preview', async () => {
 	`)
 	const before = await prisma.trackingState.count()
 	const response = await action(args)
+	if (response instanceof Response) {
+		throw new Error('Expected a preview response')
+	}
+	if (!response.data.ok || !response.data.batchId) {
+		throw new Error('Expected a successful persisted preview')
+	}
 	expect(response.data).toEqual(
 		expect.objectContaining({
 			ok: true,
-			summary: expect.objectContaining({ matched: 1 }),
-			resolutions: [
+			batchId: expect.any(String),
+		}),
+	)
+	expect(await prisma.trackingState.count()).toBe(before)
+	const batch = await prisma.libraryImportBatch.findUniqueOrThrow({
+		where: { id: response.data.batchId },
+		include: { items: true },
+	})
+	expect(batch).toEqual(
+		expect.objectContaining({
+			matchedCount: 1,
+			status: 'previewed',
+			items: [
 				expect.objectContaining({
-					match: expect.objectContaining({
-						state: 'matched',
-						mediaId: media.id,
-					}),
+					mediaId: media.id,
+					resolution: 'add',
 				}),
 			],
 		}),
 	)
-	expect(await prisma.trackingState.count()).toBe(before)
 })

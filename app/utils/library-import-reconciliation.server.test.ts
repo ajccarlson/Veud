@@ -90,3 +90,39 @@ test('falls back to normalized exact titles and preserves ambiguity', async () =
 		expect(result.match.candidates).toHaveLength(2)
 	}
 })
+
+test('uses the catalog identity carried by a cross-platform export', async () => {
+	const owner = await prisma.user.create({
+		data: {
+			username: 'cross_platform_owner',
+			email: 'cross-platform-owner@example.com',
+		},
+	})
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Provider identity fixture',
+			externalIds: {
+				create: { provider: 'tmdb', kind: 'movie', externalId: '329865' },
+			},
+		},
+	})
+	const [result] = await reconcileLibraryImport(prisma, owner.id, [
+		{
+			...baseItem,
+			sourceKey: 'trakt:movie:329865',
+			provider: 'trakt',
+			mediaKind: 'movie',
+			title: 'A deliberately different source title',
+			externalId: '329865',
+			externalProvider: 'tmdb',
+		},
+	])
+	expect(result?.match).toEqual(
+		expect.objectContaining({
+			state: 'matched',
+			mediaId: media.id,
+			method: 'external-id',
+		}),
+	)
+})

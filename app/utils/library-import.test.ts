@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+	consolidateLibraryImportItems,
 	parseJsonLibraryExport,
 	parseLetterboxdCsv,
 	parseMyAnimeListXml,
@@ -29,6 +30,7 @@ test('normalizes MAL anime and manga XML without user-generated content', () => 
 	expect(items[0]).toEqual(
 		expect.objectContaining({
 			externalId: '1',
+			externalProvider: 'mal',
 			title: 'Cowboy Bebop & Friends',
 			status: 'completed',
 			score: 9,
@@ -41,6 +43,24 @@ test('normalizes MAL anime and manga XML without user-generated content', () => 
 			mediaKind: 'manga',
 			status: 'current',
 			progress: { chapters: 100, volumes: 12 },
+		}),
+	)
+})
+
+test('consolidates repeated history rows into one import decision', () => {
+	const rows = parseLetterboxdCsv(
+		'Date,Name,Year,Letterboxd URI,Rating,Rewatch\n' +
+			'2024-01-01,Arrival,2016,https://letterboxd.com/film/arrival/,4,No\n' +
+			'2025-01-01,Arrival,2016,https://letterboxd.com/film/arrival/,4.5,Yes\n',
+	)
+	const items = consolidateLibraryImportItems(rows)
+	expect(items).toHaveLength(1)
+	expect(items[0]).toEqual(
+		expect.objectContaining({
+			title: 'Arrival',
+			score: 9,
+			repeatCount: 1,
+			completedAt: '2025-01-01T00:00:00.000Z',
 		}),
 	)
 })
@@ -98,7 +118,7 @@ test('normalizes AniList and Trakt JSON variants', () => {
 			{
 				rating: 8,
 				watched_at: '2024-04-05T00:00:00Z',
-				movie: { title: 'Arrival', ids: { trakt: 123 } },
+				movie: { title: 'Arrival', ids: { trakt: 123, tmdb: 329865 } },
 			},
 		]),
 	)
@@ -106,9 +126,48 @@ test('normalizes AniList and Trakt JSON variants', () => {
 		expect.objectContaining({
 			mediaKind: 'movie',
 			title: 'Arrival',
-			externalId: '123',
+			externalId: '329865',
+			externalProvider: 'tmdb',
 			score: 8,
 			status: 'completed',
+		}),
+	)
+})
+
+test('uses MAL identity from AniList and treats repeating as current', () => {
+	const [anime] = parseJsonLibraryExport(
+		'anilist',
+		JSON.stringify({
+			entries: [
+				{
+					status: 'REPEATING',
+					media: {
+						id: 1,
+						idMal: 5114,
+						type: 'ANIME',
+						title: { english: 'Fullmetal Alchemist: Brotherhood' },
+					},
+				},
+			],
+		}),
+	)
+	expect(anime).toEqual(
+		expect.objectContaining({
+			externalId: '5114',
+			externalProvider: 'mal',
+			status: 'current',
+		}),
+	)
+})
+
+test('treats an undated Letterboxd watchlist row as planning', () => {
+	const [item] = parseLetterboxdCsv(
+		'Position,Name,Year,Letterboxd URI\n1,Arrival,2016,https://letterboxd.com/film/arrival/\n',
+	)
+	expect(item).toEqual(
+		expect.objectContaining({
+			status: 'planning',
+			completedAt: null,
 		}),
 	)
 })
