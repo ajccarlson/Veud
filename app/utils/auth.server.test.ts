@@ -2,8 +2,10 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import {
+	getPasswordHash,
 	getSessionExpirationDate,
 	getUserId,
+	login,
 	requireUserId,
 } from './auth.server.ts'
 import { prisma } from './db.server.ts'
@@ -78,4 +80,35 @@ test('requireUserId uses the normalized URL for login redirects', async () => {
 	expect(location.searchParams.get('redirectTo')).toBe(
 		'/settings/profile?tab=security',
 	)
+})
+
+test('login accepts either a username or an email address', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const password = faker.internet.password()
+	const user = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `u_${suffix}`,
+			password: { create: { hash: await getPasswordHash(password) } },
+		},
+		select: { id: true, email: true, username: true },
+	})
+
+	const usernameSession = await login({
+		usernameOrEmail: user.username.toUpperCase(),
+		password,
+	})
+	const emailSession = await login({
+		usernameOrEmail: user.email.toUpperCase(),
+		password,
+	})
+
+	expect(usernameSession?.userId).toBe(user.id)
+	expect(emailSession?.userId).toBe(user.id)
+	expect(
+		await login({
+			usernameOrEmail: user.email,
+			password: 'incorrect-password',
+		}),
+	).toBeNull()
 })

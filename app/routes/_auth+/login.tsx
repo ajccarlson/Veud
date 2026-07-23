@@ -24,11 +24,14 @@ import { login, requireAnonymous } from '#app/utils/auth.server.ts'
 // } from '#app/utils/connections.tsx'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
-import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
+import {
+	PasswordSchema,
+	UsernameOrEmailSchema,
+} from '#app/utils/user-validation.ts'
 import { handleNewSession } from './login.server.ts'
 
 const LoginFormSchema = z.object({
-	username: UsernameSchema,
+	usernameOrEmail: UsernameOrEmailSchema,
 	password: PasswordSchema,
 	redirectTo: z.string().optional(),
 	remember: z.boolean().optional(),
@@ -52,7 +55,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				if (!session) {
 					ctx.addIssue({
 						code: z.ZodIssueCode.custom,
-						message: 'Invalid username or password',
+						message: 'Invalid username, email, or password',
 					})
 					return z.NEVER
 				}
@@ -112,14 +115,13 @@ export default function LoginPage() {
 						<Form method="POST" {...getFormProps(form)}>
 							<HoneypotInputs />
 							<Field
-								labelProps={{ children: 'Username' }}
+								labelProps={{ children: 'Username or email' }}
 								inputProps={{
-									...getInputProps(fields.username, { type: 'text' }),
+									...getInputProps(fields.usernameOrEmail, { type: 'text' }),
 									autoFocus: true,
-									className: 'lowercase',
 									autoComplete: 'username',
 								}}
-								errors={fields.username.errors}
+								errors={fields.usernameOrEmail.errors}
 							/>
 
 							<Field

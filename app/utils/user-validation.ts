@@ -26,6 +26,8 @@ export const EmailSchema = z
 	// users can type the email in any case, but we store it in lowercase
 	.transform(value => value.toLowerCase())
 
+export const UsernameOrEmailSchema = z.union([EmailSchema, UsernameSchema])
+
 export const PasswordAndConfirmPasswordSchema = z
 	.object({ password: PasswordSchema, confirmPassword: PasswordSchema })
 	.superRefine(({ confirmPassword, password }, ctx) => {

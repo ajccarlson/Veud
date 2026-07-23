@@ -101,7 +101,10 @@ type ProfileActionArgs = {
 }
 const profileUpdateActionIntent = 'update-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
-const deleteDataActionIntent = 'delete-data'
+const deleteAccountActionIntent = 'delete-account'
+const DeleteAccountSchema = z.object({
+	confirmation: z.string().trim(),
+})
 
 export async function action({ request, url }: ActionFunctionArgs) {
 	const userId = await requireUserId(request, { url })
@@ -114,8 +117,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		case signOutOfSessionsActionIntent: {
 			return signOutOfSessionsAction({ request, userId, formData })
 		}
-		case deleteDataActionIntent: {
-			return deleteDataAction({ request, userId, formData })
+		case deleteAccountActionIntent: {
+			return deleteAccountAction({ request, userId, formData })
 		}
 		default: {
 			throw new Response(`Invalid intent "${intent}"`, { status: 400 })
@@ -222,7 +225,7 @@ export default function EditUserProfile() {
 					</Link>
 				</div>
 				<SignOutOfSessions />
-				<DeleteData />
+				<DeleteAccount />
 			</div>
 		</div>
 	)
@@ -395,36 +398,103 @@ function SignOutOfSessions() {
 	)
 }
 
-async function deleteDataAction({ userId }: ProfileActionArgs) {
-	await prisma.user.delete({ where: { id: userId } })
-	return redirectWithToast('/', {
-		type: 'success',
-		title: 'Data Deleted',
-		description: 'All of your data has been deleted',
+async function deleteAccountAction({
+	request,
+	userId,
+	formData,
+}: ProfileActionArgs) {
+	const user = await prisma.user.findUniqueOrThrow({
+		where: { id: userId },
+		select: { username: true },
 	})
+	const submission = await parseWithZod(formData, {
+		schema: DeleteAccountSchema.superRefine(({ confirmation }, ctx) => {
+			if (confirmation !== user.username) {
+				ctx.addIssue({
+					path: ['confirmation'],
+					code: z.ZodIssueCode.custom,
+					message: `Enter ${user.username} exactly to confirm`,
+				})
+			}
+		}),
+	})
+	if (submission.status !== 'success') {
+		return json(
+			{ result: submission.reply() },
+			{ status: submission.status === 'error' ? 400 : 200 },
+		)
+	}
+
+	const authSession = await authSessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	await prisma.user.delete({ where: { id: userId } })
+	return redirectWithToast(
+		'/',
+		{
+			type: 'success',
+			title: 'Account deleted',
+			description: 'Your Veud account and all associated data were deleted.',
+		},
+		{
+			headers: {
+				'set-cookie': await authSessionStorage.destroySession(authSession),
+			},
+		},
+	)
 }
 
-function DeleteData() {
-	const dc = useDoubleCheck()
-
-	const fetcher = useFetcher<typeof deleteDataAction>()
+function DeleteAccount() {
+	const data = useLoaderData<typeof loader>()
+	const fetcher = useFetcher<typeof deleteAccountAction>()
+	const [form, fields] = useForm({
+		id: 'delete-account',
+		constraint: getZodConstraint(DeleteAccountSchema),
+		lastResult: fetcher.data?.result,
+		onValidate({ formData }) {
+			return parseWithZod(formData, { schema: DeleteAccountSchema })
+		},
+		shouldRevalidate: 'onBlur',
+	})
 	return (
-		<div>
-			<fetcher.Form method="POST">
+		<section className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 sm:p-6">
+			<div className="max-w-xl">
+				<h2 className="text-h5 text-foreground">Delete account</h2>
+				<p className="mt-2 text-body-sm text-muted-foreground">
+					Permanently delete your profile, lists, activity, reviews, and all
+					other account data. This cannot be undone.
+				</p>
+			</div>
+			<fetcher.Form
+				method="POST"
+				{...getFormProps(form)}
+				className="mt-5 max-w-md"
+			>
+				<Field
+					labelProps={{
+						htmlFor: fields.confirmation.id,
+						children: `Type ${data.user.username} to confirm`,
+					}}
+					inputProps={{
+						...getInputProps(fields.confirmation, { type: 'text' }),
+						autoComplete: 'off',
+					}}
+					errors={fields.confirmation.errors}
+				/>
+				<ErrorList errors={form.errors} id={form.errorId} />
 				<StatusButton
-					{...dc.getButtonProps({
-						type: 'submit',
-						name: 'intent',
-						value: deleteDataActionIntent,
-					})}
-					variant={dc.doubleCheck ? 'destructive' : 'default'}
-					status={fetcher.state !== 'idle' ? 'pending' : 'idle'}
+					type="submit"
+					name="intent"
+					value={deleteAccountActionIntent}
+					variant="destructive"
+					status={
+						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
+					}
+					disabled={fetcher.state !== 'idle'}
 				>
-					<Icon name="trash">
-						{dc.doubleCheck ? `Are you sure?` : `Delete all your data`}
-					</Icon>
+					<Icon name="trash">Permanently delete account</Icon>
 				</StatusButton>
 			</fetcher.Form>
-		</div>
+		</section>
 	)
 }
