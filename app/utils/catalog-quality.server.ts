@@ -581,6 +581,18 @@ export async function getCatalogQualitySnapshot(
 			take: 5,
 			include: { actor: { select: { username: true } } },
 		},
+		merge: {
+			include: {
+				preparedBy: { select: { username: true } },
+				appliedBy: { select: { username: true } },
+				revertedBy: { select: { username: true } },
+				events: {
+					orderBy: { createdAt: 'desc' },
+					take: 10,
+					include: { actor: { select: { username: true } } },
+				},
+			},
+		},
 	} satisfies Prisma.CatalogQualityIssueInclude
 	const [counts, activeIssues] = await Promise.all([
 		prisma.catalogQualityIssue.groupBy({
