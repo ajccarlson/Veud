@@ -150,6 +150,37 @@ test('uses the latest same-day timestamp when one unit appears more than once', 
 	])
 })
 
+test('does not duplicate a unit when stored timestamps are newest-first', () => {
+	const result = buildProfileHistory({
+		listTypes: [animeType],
+		watchlists: [animeWatchlist],
+		entries: [
+			{
+				id: 'entry-1',
+				watchlistId: animeWatchlist.id,
+				history: JSON.stringify({
+					progress: {
+						1: {
+							finishDate: [
+								'2025-01-03T22:00:00.000Z',
+								'2025-01-03T18:00:00.000Z',
+							],
+						},
+					},
+				}),
+			},
+		],
+	})
+
+	expect(result.typedHistory.anime).toEqual([
+		{
+			type: 'Watched Episode 1',
+			time: new Date('2025-01-03T22:00:00.000Z'),
+			index: 0,
+		},
+	])
+})
+
 test('reads media-specific progress when the list type has no length column', () => {
 	const mangaType = {
 		id: 'manga',
@@ -198,10 +229,15 @@ test('reads media-specific progress when the list type has no length column', ()
 	])
 })
 
-test('surfaces malformed stored history instead of silently discarding it', () => {
-	expect(() =>
-		buildProfileHistory({
-			listTypes: [animeType],
+test('degrades malformed stored history and list settings safely', () => {
+	const result = buildProfileHistory({
+		listTypes: [
+			{
+				...animeType,
+				mediaType: '{not-json}',
+				completionType: '{not-json}',
+			},
+		],
 			watchlists: [animeWatchlist],
 			entries: [
 				{
@@ -209,7 +245,23 @@ test('surfaces malformed stored history instead of silently discarding it', () =
 					watchlistId: animeWatchlist.id,
 					history: '{not-json}',
 				},
-			],
+			{
+				id: 'entry-2',
+				watchlistId: animeWatchlist.id,
+				history: JSON.stringify({
+					added: 'not-a-date',
+					progress: { 1: { finishDate: ['also-not-a-date'] } },
 		}),
-	).toThrow(SyntaxError)
+			},
+		],
+	})
+
+	expect(result.typedEntries.anime?.[0]?.history).toEqual({
+		added: null,
+		started: null,
+		finished: null,
+		progress: null,
+		lastUpdated: null,
+	})
+	expect(result.typedHistory.anime).toEqual([])
 })

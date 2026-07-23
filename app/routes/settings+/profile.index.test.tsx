@@ -128,9 +128,11 @@ test('an anonymous user cannot update a profile', async () => {
 function deleteAccountRequest({
 	cookie,
 	confirmation,
+	currentPassword,
 }: {
 	cookie: string
 	confirmation: string
+	currentPassword?: string
 }) {
 	return new Request(`${BASE_URL}/settings/profile`, {
 		method: 'POST',
@@ -141,6 +143,7 @@ function deleteAccountRequest({
 		body: new URLSearchParams({
 			intent: 'delete-account',
 			confirmation,
+			...(currentPassword ? { currentPassword } : {}),
 		}),
 	})
 }
@@ -197,4 +200,33 @@ test('account deletion removes owned data and clears authentication', async () =
 	expect((response as Response).headers.get('set-cookie')).toContain(
 		'en_session=',
 	)
+})
+
+test('password-backed account deletion requires the current password', async () => {
+	const { user, cookie } = await createUserAndCookie()
+	const { getPasswordHash } = await import('#app/utils/auth.server.ts')
+	await prisma.password.create({
+		data: { userId: user.id, hash: await getPasswordHash('correct-password') },
+	})
+
+	const rejected = await action(
+		actionArgs(deleteAccountRequest({ cookie, confirmation: user.username })),
+	)
+	expect(getStatus(rejected)).toBe(400)
+	expect(
+		await prisma.user.findUnique({ where: { id: user.id } }),
+	).not.toBeNull()
+
+	const deleted = await action(
+		actionArgs(
+			deleteAccountRequest({
+				cookie,
+				confirmation: user.username,
+				currentPassword: 'correct-password',
+			}),
+		),
+	)
+	expect(deleted).toBeInstanceOf(Response)
+	expect((deleted as Response).status).toBe(302)
+	expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull()
 })

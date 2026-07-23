@@ -25,6 +25,31 @@ const EDITABLE_SETTINGS = [
 // `settings` arrives as a JSON array of [key, value] pairs.
 const SettingsSchema = z.array(z.tuple([z.string(), z.unknown()]))
 
+function validatedSetting(key: string, value: unknown) {
+	if (key === 'name' || key === 'header') {
+		const parsed = z.string().trim().min(1).max(100).safeParse(value)
+		if (!parsed.success) {
+			throw new Response(`Invalid ${key} setting`, { status: 400 })
+		}
+		return parsed.data
+	}
+	if (key === 'displayedColumns') {
+		const parsed = z.string().min(1).max(5_000).safeParse(value)
+		if (!parsed.success) {
+			throw new Response('Invalid displayed columns setting', { status: 400 })
+		}
+		return parsed.data
+	}
+	if (key === 'description') {
+		const parsed = z.string().max(5_000).safeParse(value)
+		if (!parsed.success) {
+			throw new Response('Invalid description setting', { status: 400 })
+		}
+		return parsed.data
+	}
+	return value
+}
+
 export async function action({ request, params }: ActionFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
 
@@ -74,7 +99,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				data[key] = direction
 				continue
 			}
-			data[key] = value
+			data[key] = validatedSetting(key, value)
 		}
 	}
 

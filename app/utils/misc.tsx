@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFormAction, useNavigation } from 'react-router'
 import { useSpinDelay } from 'spin-delay'
 import { extendTailwindMerge } from 'tailwind-merge'
+import { getCanonicalOrigin } from './canonical-origin.ts'
 import { extendedTheme } from './extended-theme.ts'
+import { hasSafeImageSignature, isSafeImageContentType } from './safe-image.ts'
 
 export function getUserImgSrc(imageId?: string | null) {
 	return imageId ? `/resources/user-images/${imageId}` : '/img/user.png'
@@ -63,12 +65,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getDomainUrl(request: Request) {
-	const host =
-		request.headers.get('X-Forwarded-Host') ??
-		request.headers.get('host') ??
-		new URL(request.url).host
-	const protocol = host.includes('localhost') ? 'http' : 'https'
-	return `${protocol}://${host}`
+	return getCanonicalOrigin(request)
 }
 
 export function getReferrerRoute(request: Request) {
@@ -272,18 +269,66 @@ export function useDebounce<
 	)
 }
 
+const MAX_REMOTE_IMAGE_SIZE = 3 * 1024 * 1024
+const REMOTE_IMAGE_HOSTS = new Set([
+	'avatars.githubusercontent.com',
+	'cdn.myanimelist.net',
+	'walter.trakt.tv',
+	'assets.fanart.tv',
+])
+
+function safeRemoteImageUrl(value: string, base?: string) {
+	const url = new URL(value, base)
+	const allowedHost =
+		REMOTE_IMAGE_HOSTS.has(url.hostname) ||
+		url.hostname.endsWith('.githubusercontent.com')
+	if (url.protocol !== 'https:' || !allowedHost) {
+		throw new Error('Provider image URL is not permitted')
+	}
+	return url
+}
+
 export async function downloadFile(url: string, retries: number = 0) {
 	const MAX_RETRIES = 3
 	try {
-		const response = await fetch(url)
+		const target = safeRemoteImageUrl(url)
+		const response = await fetch(target, {
+			redirect: 'manual',
+			signal: AbortSignal.timeout(10_000),
+		})
+		if (response.status >= 300 && response.status < 400) {
+			const location = response.headers.get('location')
+			if (!location || retries >= MAX_RETRIES) {
+				throw new Error('Provider image redirect was not permitted')
+			}
+			return downloadFile(
+				safeRemoteImageUrl(location, target.toString()).toString(),
+				retries + 1,
+			)
+		}
 		if (!response.ok) {
 			throw new Error(`Failed to fetch image with status ${response.status}`)
 		}
-		const contentType = response.headers.get('content-type') ?? 'image/jpg'
+		const declaredLength = Number(response.headers.get('content-length') ?? 0)
+		if (declaredLength > MAX_REMOTE_IMAGE_SIZE) {
+			throw new Error('Provider image is too large')
+		}
+		const rawContentType = response.headers.get('content-type')?.split(';')[0]
+		const contentType =
+			rawContentType === 'image/jpg' ? 'image/jpeg' : rawContentType
+		if (!contentType || !isSafeImageContentType(contentType)) {
+			throw new Error('Provider image type is not permitted')
+		}
 		const blob = Buffer.from(await response.arrayBuffer())
+		if (
+			blob.byteLength > MAX_REMOTE_IMAGE_SIZE ||
+			!hasSafeImageSignature(blob, contentType)
+		) {
+			throw new Error('Provider image contents are not permitted')
+		}
 		return { contentType, blob }
 	} catch (e) {
-		if (retries > MAX_RETRIES) throw e
+		if (retries >= MAX_RETRIES) throw e
 		return downloadFile(url, retries + 1)
 	}
 }

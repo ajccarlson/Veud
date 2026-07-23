@@ -71,13 +71,6 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	return json({ comments })
 }
 
-function getProfileCommentUrl(params: Record<string, string>) {
-	return (
-		'/resources/profile-comment/' +
-		encodeURIComponent(new URLSearchParams(params).toString())
-	)
-}
-
 async function getMutationError(response: Response) {
 	const message = await response.text()
 	return message || 'The comment could not be updated. Please try again.'
@@ -178,14 +171,15 @@ export default function ProfileSocial() {
 		setIsPosting(true)
 		setMutationError(null)
 		try {
-			const response = await fetch(
-				getProfileCommentUrl({
+			const response = await fetch('/resources/profile-comment', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
 					intent: 'create',
 					profileId: profileData.user.id,
 					body: trimmedBody,
 				}),
-				{ method: 'POST' },
-			)
+			})
 			if (!response.ok) throw new Error(await getMutationError(response))
 
 			setBody('')
@@ -207,10 +201,11 @@ export default function ProfileSocial() {
 		setDeletingCommentId(commentId)
 		setMutationError(null)
 		try {
-			const response = await fetch(
-				getProfileCommentUrl({ intent: 'delete', commentId }),
-				{ method: 'POST' },
-			)
+			const response = await fetch('/resources/profile-comment', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ intent: 'delete', commentId }),
+			})
 			if (!response.ok) throw new Error(await getMutationError(response))
 
 			revalidator.revalidate()
