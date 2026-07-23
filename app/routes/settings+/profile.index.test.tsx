@@ -18,7 +18,9 @@ function actionArgs(request: Request): Parameters<typeof action>[0] {
 }
 
 function getStatus(response: Response | { init: ResponseInit | null }) {
-	return response instanceof Response ? response.status : response.init?.status ?? 200
+	return response instanceof Response
+		? response.status
+		: (response.init?.status ?? 200)
 }
 
 async function createUserAndCookie() {
@@ -38,7 +40,7 @@ async function createUserAndCookie() {
 		},
 		select: { id: true },
 	})
-	return { user, cookie: await getSessionCookieHeader(session) }
+	return { user, session, cookie: await getSessionCookieHeader(session) }
 }
 
 function profileRequest({
@@ -88,9 +90,7 @@ test('clearing a bio stores null', async () => {
 	})
 
 	const response = await action(
-		actionArgs(
-			profileRequest({ cookie, username: user.username, bio: '   ' }),
-		),
+		actionArgs(profileRequest({ cookie, username: user.username, bio: '   ' })),
 	)
 	expect(getStatus(response)).toBe(200)
 	expect(
@@ -103,9 +103,9 @@ test('an oversized bio is rejected without changing the user', async () => {
 	const response = await action(
 		actionArgs(
 			profileRequest({
-			cookie,
-			username: user.username,
-			bio: 'x'.repeat(PROFILE_BIO_MAX_LENGTH + 1),
+				cookie,
+				username: user.username,
+				bio: 'x'.repeat(PROFILE_BIO_MAX_LENGTH + 1),
 			}),
 		),
 	)
@@ -123,4 +123,78 @@ test('an anonymous user cannot update a profile', async () => {
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBeGreaterThanOrEqual(300)
 	expect((response as Response).status).toBeLessThan(400)
+})
+
+function deleteAccountRequest({
+	cookie,
+	confirmation,
+}: {
+	cookie: string
+	confirmation: string
+}) {
+	return new Request(`${BASE_URL}/settings/profile`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/x-www-form-urlencoded',
+			cookie,
+		},
+		body: new URLSearchParams({
+			intent: 'delete-account',
+			confirmation,
+		}),
+	})
+}
+
+test('account deletion rejects an incorrect username confirmation', async () => {
+	const { user, cookie } = await createUserAndCookie()
+	const response = await action(
+		actionArgs(
+			deleteAccountRequest({ cookie, confirmation: 'not-the-username' }),
+		),
+	)
+
+	expect(getStatus(response)).toBe(400)
+	expect(
+		await prisma.user.findUnique({ where: { id: user.id } }),
+	).not.toBeNull()
+})
+
+test('account deletion removes owned data and clears authentication', async () => {
+	const { user, session, cookie } = await createUserAndCookie()
+	const listType = await prisma.listType.create({
+		data: {
+			name: `delete_account_${user.id}`,
+			header: 'Test',
+			columns: '',
+			mediaType: 'movie',
+			completionType: 'episode',
+		},
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'Delete me',
+			header: 'Delete me',
+			typeId: listType.id,
+			ownerId: user.id,
+		},
+		select: { id: true },
+	})
+
+	const response = await action(
+		actionArgs(deleteAccountRequest({ cookie, confirmation: user.username })),
+	)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(302)
+	expect((response as Response).headers.get('location')).toBe('/')
+	expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull()
+	expect(
+		await prisma.session.findUnique({ where: { id: session.id } }),
+	).toBeNull()
+	expect(
+		await prisma.watchlist.findUnique({ where: { id: watchlist.id } }),
+	).toBeNull()
+	expect((response as Response).headers.get('set-cookie')).toContain(
+		'en_session=',
+	)
 })

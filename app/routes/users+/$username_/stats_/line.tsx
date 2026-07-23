@@ -56,12 +56,12 @@ function MyResponsiveLine(data: any) {
             <div
               style={{
                 background: 'black',
-                color: point.point.serieColor,
+                color: point.point.seriesColor,
                 padding: '9px 12px',
                 border: '1px solid #ccc',
               }}
             >
-              <div>{`${point.point.serieId}`}</div>
+              <div>{`${point.point.seriesId}`}</div>
               <div>{`${point.point.data.x}: ${point.point.data.y}`}</div>
             </div>
           )
@@ -124,7 +124,7 @@ export function renderLineChart(loaderData: any, chartType: string) {
 
         try {
           matchResult = yearMatch[0][0]
-        } catch (e) {}
+        } catch {}
         
         if (matchResult) {
           const foundIndex = entryData.findIndex((element) => element.x == matchResult)
@@ -180,7 +180,7 @@ export function renderLineChart(loaderData: any, chartType: string) {
             throw new Error
           }
         }
-        catch(e) {
+        catch {
           return
         }
 

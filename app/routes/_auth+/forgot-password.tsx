@@ -18,11 +18,11 @@ import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { EmailSchema, UsernameSchema } from '#app/utils/user-validation.ts'
+import { UsernameOrEmailSchema } from '#app/utils/user-validation.ts'
 import { prepareVerification } from './verify.server.ts'
 
 const ForgotPasswordSchema = z.object({
-	usernameOrEmail: z.union([EmailSchema, UsernameSchema]),
+	usernameOrEmail: UsernameOrEmailSchema,
 })
 
 export async function action({ request }: ActionFunctionArgs) {

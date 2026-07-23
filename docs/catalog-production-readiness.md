@@ -1,6 +1,6 @@
 # Catalog production-readiness boundary
 
-Last updated: 2026-07-21
+Last updated: 2026-07-22
 
 Veud's catalog workers are resumable and suitable for bounded development and
 staging runs. Provider-scale production inventory and hydration are still
@@ -11,10 +11,13 @@ disabled operationally until the database and policy gates below are complete.
 - `/credits` publishes the approved TMDB logo and required non-endorsement
   notice, identifies the other catalog providers, and separates provider data
   from member-owned tracking and reviews.
-- MAL commit mode requires a written storage/redisplay approval reference. Every
-  committed MAL inventory or hydration run stores the normalized reference on
-  its `CatalogSyncRun` audit record; credentials must never be used as the
-  reference.
+- MAL commit mode requires a documented storage/redisplay authorization
+  reference. Every committed MAL inventory or hydration run stores the
+  normalized reference on its `CatalogSyncRun` audit record; credentials must
+  never be used as the reference. The current basis is the deployment owner's
+  API-agreement interpretation in
+  [`mal-catalog-policy-decision.md`](mal-catalog-policy-decision.md), not
+  provider-issued written approval.
 - Inventory and hydration jobs use durable leases, cursors, cooldowns, retry
   state, progress counters, and provider request/rate-limit metrics.
 - The reusable test database now applies pending migrations before workers clone
@@ -36,8 +39,9 @@ Do not enable an unbounded production backfill until all of these are true:
    representative catalog size.
 3. Inventory, hydration, refresh, reconciliation, and interactive reads have
    passed a concurrent load and interruption/resume test.
-4. MAL's written storage/redisplay approval is on file and its reference is
-   supplied to every committed MAL run.
+4. MAL storage/redisplay has a documented authorization basis, its limitations
+   are technically enforced, and its reference is supplied to every committed
+   MAL run.
 5. Current provider terms, attribution, commercial-use posture, refresh windows,
    and rate limits have been rechecked for the deployment.
 6. Coverage, freshness, queue depth, failures, request volume, and `429` events
@@ -90,13 +94,19 @@ without printing secret values:
 - `MAL_CLIENT_ID` is configured. One-record anime and manga inventory dry runs
   each completed a real provider request with zero failures and zero `429`
   responses. Dry-run mode committed no catalog or sync records.
-- `MAL_CATALOG_POLICY_APPROVAL_REF` is not configured. The written
-  storage/redisplay approval required by the worker therefore remains absent,
-  and no committed MAL inventory or hydration run was attempted.
+- On 2026-07-22 the deployment owner authorized ingestion and redisplay of
+  MAL-curated, non-user catalog metadata under the existing API agreement using
+  reference `OWNER-MAL-API-AGREEMENT-2026-07-22`. Reviews, community/forum
+  content, profiles, lists, and other user-originated content remain excluded.
+  The decision also prohibits sending MAL-sourced metadata to external AI.
+- `MAL_CATALOG_POLICY_APPROVAL_REF` should be configured with that non-secret
+  reference only on the PostgreSQL staging/production worker environment. No
+  committed MAL inventory or hydration run has yet been attempted.
 
 All executable local gates are complete. Resuming the held rollout requires a
 clearly identified production-like PostgreSQL staging URL plus protected backup,
 restore, and canary destinations; owner-approved staging policy/count budgets;
-and a non-secret reference to MAL's written storage/redisplay approval. After
-those inputs exist, follow the PostgreSQL cutover runbook and retain its passing
-evidence manifest before beginning bounded committed provider batches.
+and the recorded MAL policy authorization reference. The policy reference now
+exists; the PostgreSQL staging and evidence inputs do not. After those inputs
+exist, follow the PostgreSQL cutover runbook and retain its passing evidence
+manifest before beginning bounded committed provider batches.

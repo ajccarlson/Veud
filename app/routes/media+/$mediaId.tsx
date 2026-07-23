@@ -2080,12 +2080,13 @@ export default function MediaDetailRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => [
-	{ title: data ? `${data.media.title} | Veud` : 'Media | Veud' },
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
+	{ title: loaderData ? `${loaderData.media.title} | Veud` : 'Media | Veud' },
 	{
 		name: 'description',
 		content:
-			data?.media.description ?? 'Media details and community tracking on Veud',
+			loaderData?.media.description ??
+			'Media details and community tracking on Veud',
 	},
 ]
 

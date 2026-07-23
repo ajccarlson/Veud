@@ -49,8 +49,10 @@ are retried after 30 days.
 
 The command is a no-request dry-run unless `--commit` is explicit. A committed
 run also requires `--policy-approval-ref` or `MAL_CATALOG_POLICY_APPROVAL_REF`,
-identifying written permission for the deployment's bulk storage and redisplay.
-Never put credentials in that value.
+identifying the deployment's documented authorization basis for bulk storage and
+redisplay. Veud's current owner determination is documented in
+[`mal-catalog-policy-decision.md`](mal-catalog-policy-decision.md). Never put
+credentials in that value.
 
 Before a committed production run:
 
@@ -76,7 +78,7 @@ Hydrate a small reviewed batch:
 npm run catalog:mal-hydrate -- \
   --kind anime \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07 \
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22 \
   --limit 25
 ```
 
@@ -86,7 +88,7 @@ Process both queues using the conservative defaults:
 npm run catalog:mal-hydrate -- \
   --kind all \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22
 ```
 
 List every control:
@@ -99,9 +101,9 @@ npm run catalog:mal-hydrate -- --help
 
 The command prints before/after coverage, freshness, eligible queue, prioritized
 count, deferred failures, request count, and `429` count. `CatalogSyncRun`
-persists the policy approval reference alongside per-run progress and telemetry.
-The hydration cursor persists the provider cooldown and last completed source
-ID.
+persists the policy authorization reference alongside per-run progress and
+telemetry. The hydration cursor persists the provider cooldown and last
+completed source ID.
 
 Each identity's detail write, title replacement, relation replacement, source
 freshness, success/failure state, and run checkpoint share one transaction. If

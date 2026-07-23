@@ -11,6 +11,7 @@ import {
 	useActionData,
 } from 'react-router'
 import { ErrorList, Field } from '#app/components/forms.tsx'
+import { PasswordRequirements } from '#app/components/password-requirements.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -103,6 +104,7 @@ export default function CreatePasswordRoute() {
 				}}
 				errors={fields.password.errors}
 			/>
+			<PasswordRequirements />
 			<Field
 				labelProps={{ children: 'Confirm New Password' }}
 				inputProps={{

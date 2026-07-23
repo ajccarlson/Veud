@@ -3,7 +3,7 @@
  * Hydrate prioritized MAL identities with normalized anime/manga details.
  *
  * Dry-run by default. Committed runs are sequential, conservatively paced, and
- * require the same written bulk-storage approval reference as inventory.
+ * require the same documented bulk-storage authorization reference as inventory.
  */
 import 'dotenv/config'
 import os from 'node:os'
@@ -22,7 +22,7 @@ const usage = `Usage: npm run catalog:mal-hydrate -- [options]
 Options:
   --kind anime|manga|all       Catalog kind to hydrate (default: all)
   --commit                     Fetch and write details (default: dry-run)
-  --policy-approval-ref VALUE  Written MAL storage/redisplay approval reference
+  --policy-approval-ref VALUE  Documented MAL storage/redisplay authorization reference
   --limit N                    Maximum detail records per kind (default: 100)
   --refresh-days N             Freshness deadline in days (default: 180)
   --delay-ms N                 Delay between requests (default: 1000)
@@ -146,7 +146,7 @@ async function main() {
 			`Freshness target: ${refreshDays} days`,
 			`Request delay: ${delayMs}ms`,
 			...(commit
-				? [`Policy approval: ${policyApprovalReference?.trim()}`]
+				? [`Policy authorization: ${policyApprovalReference?.trim()}`]
 				: []),
 		].join('\n'),
 	)

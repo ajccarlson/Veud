@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
@@ -84,6 +85,7 @@ type Candidate = {
 	releaseStart: Date | null
 	startYear: string | null
 	airYear: string | null
+	isExternalAiRestricted: boolean
 }
 
 export type TipOfTongueMatch = z.infer<
@@ -99,6 +101,7 @@ export type TipOfTongueResults = {
 		| 'rate-limited'
 		| 'ai-error'
 		| 'ai-empty'
+		| 'provider-restricted'
 		| null
 }
 
@@ -176,7 +179,12 @@ async function candidatesFor(memory: string, kind: DiscoveryQuery['kind']) {
 		releaseStart: true,
 		startYear: true,
 		airYear: true,
-	} as const
+		externalIds: {
+			where: { provider: { in: ['mal', 'tmdb'] }, tombstonedAt: null },
+			select: { id: true },
+			take: 1,
+		},
+	} satisfies Prisma.MediaSelect
 	const [lexical, popular] = await Promise.all([
 		prisma.media.findMany({
 			where: lexicalWhere,
@@ -193,7 +201,12 @@ async function candidatesFor(memory: string, kind: DiscoveryQuery['kind']) {
 	])
 	return [
 		...new Map([...lexical, ...popular].map(item => [item.id, item])).values(),
-	].slice(0, MAX_CANDIDATES)
+	]
+		.slice(0, MAX_CANDIDATES)
+		.map(({ externalIds, ...candidate }) => ({
+			...candidate,
+			isExternalAiRestricted: externalIds.length > 0,
+		}))
 }
 
 function yearFor(candidate: Candidate) {
@@ -441,6 +454,16 @@ export async function getTipOfTongueMatches(
 			fallbackReason: 'sign-in-required',
 		}
 	}
+	const aiCandidates = candidates.filter(
+		candidate => !candidate.isExternalAiRestricted,
+	)
+	if (!aiCandidates.length) {
+		return {
+			matches: catalogMatches,
+			source: 'catalog-match',
+			fallbackReason: 'provider-restricted',
+		}
+	}
 	if (
 		options.rateLimitKey &&
 		!consumeAiRequest(options.rateLimitKey, options.now ?? Date.now())
@@ -454,7 +477,7 @@ export async function getTipOfTongueMatches(
 	try {
 		const matches = await aiMatches(
 			memory,
-			candidates,
+			aiCandidates,
 			options.fetchImpl ?? fetch,
 			apiKey,
 		)

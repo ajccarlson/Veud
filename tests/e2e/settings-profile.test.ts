@@ -33,7 +33,7 @@ test('Users can update their basic info', async ({ page, login }) => {
 
 test('Users can update their password', async ({ page, login }) => {
 	const oldPassword = faker.internet.password()
-	const newPassword = faker.internet.password()
+	const newPassword = `Aa1!${faker.string.alphanumeric(16)}`
 	const user = await login({ password: oldPassword })
 	await page.goto('/settings/profile')
 
@@ -122,4 +122,20 @@ test('Users can change their email address', async ({ page, login }) => {
 		errorMessage: 'Notice email was not sent',
 	})
 	expect(noticeEmail.subject).toContain('changed')
+})
+
+test('Users can permanently delete their account', async ({ page, login }) => {
+	const user = await login()
+	await page.goto('/settings/profile')
+
+	await page
+		.getByRole('textbox', { name: new RegExp(`type ${user.username}`, 'i') })
+		.fill(user.username)
+	await page
+		.getByRole('button', { name: /permanently delete account/i })
+		.click()
+
+	await expect(page).toHaveURL('/')
+	await expect(page.getByText(/your veud account.*deleted/i)).toBeVisible()
+	expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull()
 })

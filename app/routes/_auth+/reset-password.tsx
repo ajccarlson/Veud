@@ -13,6 +13,7 @@ import {
 
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
+import { PasswordRequirements } from '#app/components/password-requirements.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { requireAnonymous, resetUserPassword } from '#app/utils/auth.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -106,6 +107,7 @@ export default function ResetPasswordPage() {
 						}}
 						errors={fields.password.errors}
 					/>
+					<PasswordRequirements />
 					<Field
 						labelProps={{
 							htmlFor: fields.confirmPassword.id,
