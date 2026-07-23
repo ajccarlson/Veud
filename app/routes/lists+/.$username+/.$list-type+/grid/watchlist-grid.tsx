@@ -21,7 +21,15 @@ import {
 	getSortableWatchlistColumns,
 	getWatchlistDefaultSortModel,
 } from '#app/utils/lists/default-sort.ts'
-import { setColumnParams } from './grid-state.ts'
+import {
+	setColumnParams,
+	type FavoriteSummary,
+	type GridUser,
+	type ListTypeSummary,
+	type TrackingSummary,
+	type WatchlistRow,
+	type WatchlistSummary,
+} from './grid-state.ts'
 import { registerListDropZones, rowDragText } from './grid-actions.ts'
 import { gridOptions } from './grid-options.ts'
 import { columnDefs } from './columns.tsx'
@@ -29,25 +37,27 @@ import { MobileWatchlistCards } from './mobile-watchlist-cards.tsx'
 
 ModuleRegistry.registerModules([ClientSideRowModelModule])
 
-export function getWatchlistRowId(params: any) {
+export function getWatchlistRowId(params: { data: WatchlistRow }) {
 	const row = params.data
 	return row.id ?? `__new_entry__:${row.watchlistId}:${row.position}`
 }
 
 export function watchlistGrid(
-	listEntriesPass: any,
-	watchListData: any,
-	listTypeData: any,
-	watchlistId: any,
-	typedWatchlists: any,
-	typedFavorites: any,
-	trackingByIdentity: any,
-	listOwner: any,
-	currentUser: any,
-	currentUserId: any,
+	listEntriesPass: WatchlistRow[],
+	watchListData: WatchlistSummary,
+	listTypeData: ListTypeSummary,
+	watchlistId: string,
+	typedWatchlists: Record<string, WatchlistSummary[]>,
+	typedFavorites: Record<string, FavoriteSummary[]>,
+	trackingByIdentity: Record<string, TrackingSummary>,
+	listOwner: GridUser,
+	currentUser: GridUser | null | undefined,
+	currentUserId: string | null,
 	navigate: (path: string) => void,
 ) {
-	const [listEntries, setListEntries] = useState(() => [...listEntriesPass])
+	const [listEntries, setListEntries] = useState<WatchlistRow[]>(() => [
+		...listEntriesPass,
+	])
 	const [selectedSearchType, setSelectedSearchType] = useState('Type')
 
 	if (!typedFavorites[listTypeData.id]) {
@@ -55,14 +65,17 @@ export function watchlistGrid(
 	}
 
 	const [favoriteIds, setFavoriteIds] = useState(
-		typedFavorites[listTypeData.id].map((typedFavorite: any) => {
+		typedFavorites[listTypeData.id].map(typedFavorite => {
 			return getSiteIdSafe(getThumbnailInfo(typedFavorite.thumbnail).url)?.id
 		}),
 	)
 
-	const displayedArray = watchListData.displayedColumns.split(', ')
-	const displayedColumns = displayedArray.reduce(
-		(key: any, value: any) => ((key[value] = true), key),
+	const displayedArray = (watchListData.displayedColumns ?? '').split(', ')
+	const displayedColumns = displayedArray.reduce<Record<string, boolean>>(
+		(key, value) => {
+			key[value] = true
+			return key
+		},
 		{},
 	)
 	const sortableColumns = getSortableWatchlistColumns(listTypeData.columns)
@@ -113,8 +126,8 @@ export function watchlistGrid(
 			<div className="ag-theme-custom-react">
 				<AgGridReact
 					key={`${watchlistId}:${defaultSort?.colId ?? 'manual'}:${defaultSort?.sort ?? 'none'}`}
-					gridOptions={gridOptions as GridOptions}
-					columnDefs={columnDefs() as ColDef[]}
+					gridOptions={gridOptions as GridOptions<WatchlistRow>}
+					columnDefs={columnDefs() as ColDef<WatchlistRow>[]}
 					rowData={listEntries}
 					initialState={
 						defaultSort

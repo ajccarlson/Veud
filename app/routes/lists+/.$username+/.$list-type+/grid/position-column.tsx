@@ -27,6 +27,7 @@ import {
 	getThumbnailInfo,
 	updateRowInfo,
 } from '#app/utils/lists/column-functions.tsx'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 
 export function positionColumn() {
 	return [
@@ -175,16 +176,11 @@ export function positionColumn() {
 													) {
 														return
 													}
-													const deleteResponse = await fetch(
-														'/lists/fetch/delete-row/' +
-															encodeURIComponent(
-																new URLSearchParams({
-																	id: params.data.id,
-																} as any).toString(),
-															),
-														{ method: 'POST' },
-													)
-													if (!deleteResponse.ok) {
+													try {
+														await mutateList('delete-entry', {
+															entryId: params.data.id,
+														})
+													} catch {
 														await refreshGrid(columnParams)
 														return
 													}
@@ -240,15 +236,9 @@ export function positionColumn() {
 															)
 														})
 
-														const deleteResponse = await fetch(
-															'/lists/fetch/remove-favorite/' +
-																encodeURIComponent(
-																	new URLSearchParams({
-																		id: deleteRow[0].id,
-																	} as any).toString(),
-																),
-															{ method: 'POST' },
-														)
+														await mutateList('remove-favorite', {
+															favoriteId: deleteRow[0].id,
+														})
 
 														columnParams.setFavoriteIds(
 															columnParams.favoriteIds.filter(
@@ -294,15 +284,9 @@ export function positionColumn() {
 															ownerId: columnParams.listOwner.id,
 														}
 
-														const addResponse = await fetch(
-															'/lists/fetch/add-favorite/' +
-																encodeURIComponent(
-																	new URLSearchParams({
-																		favorite: JSON.stringify(addRow),
-																	} as any).toString(),
-																),
-															{ method: 'POST' },
-														)
+														await mutateList('add-favorite', {
+															favorite: addRow,
+														})
 
 														columnParams.setFavoriteIds([
 															...columnParams.favoriteIds,

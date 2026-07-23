@@ -7,6 +7,7 @@ import {
 	progressUnitsForMediaKind,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { refreshGrid } from './grid-actions.ts'
 import { columnParams } from './grid-state.ts'
@@ -158,14 +159,10 @@ export function AdvancedEntryEditor({
 		)
 
 		try {
-			const response = await fetch('/lists/fetch/advanced-edit', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ entryId: data.id, fields }),
+			await mutateList('advanced-edit-entry', {
+				entryId: data.id,
+				fields,
 			})
-			if (!response.ok) {
-				throw new Error((await response.text()) || 'Could not save this entry')
-			}
 			dialogRef.current?.close()
 			await refreshGrid(columnParams)
 		} catch (submitError) {

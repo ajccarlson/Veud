@@ -1,35 +1,32 @@
 // Row/cell action helpers for the watchlist grid, extracted from $watchlist_grid.jsx
-// (Phase 3.2, increment 2). These talk to the /lists/fetch/* endpoints and drive ag-grid
+// (Phase 3.2, increment 2). These use the versioned list resource API and drive ag-grid
 // mutations. They read the shared gridAPI/columnParams from grid-state (and gridReady
 // writes gridAPI via setGridAPI); refreshGrid keeps its own columnParams parameter, which
 // shadows the import inside its body exactly as it did when this lived in the monolith.
-import { gridAPI, columnParams, setGridAPI } from './grid-state.ts'
+import type { GridApi } from '@ag-grid-community/core'
+import {
+	gridAPI,
+	columnParams,
+	setGridAPI,
+	type WatchlistColumnParams,
+	type WatchlistRow,
+} from './grid-state.ts'
 import { mediaProgressParser } from '#app/utils/lists/column-functions.tsx'
-
-async function requireSuccessfulResponse(response: Response) {
-	if (response.ok) return response
-	const message = await response.text().catch(() => '')
-	throw new Error(message || `List request failed with ${response.status}`)
-}
+import {
+	getWatchlistEntries,
+	mutateList,
+} from '#app/utils/lists/mutation-client.ts'
 
 export async function moveEntry(
 	entryId: string,
 	destinationWatchlistId: string,
 	position?: number,
 ) {
-	const moveResponse = await fetch(
-		'/lists/fetch/move-row/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					entryId,
-					destinationWatchlistId,
-					...(position === undefined ? {} : { position: String(position) }),
-				}).toString(),
-			),
-		{ method: 'POST' },
-	)
-	await requireSuccessfulResponse(moveResponse)
-	return moveResponse.json()
+	return mutateList('move-entry', {
+		entryId,
+		destinationWatchlistId,
+		...(position === undefined ? {} : { position }),
+	})
 }
 
 const DESTINATION_PREVIEW_DELAY = 550
@@ -134,7 +131,7 @@ function clearDragExperience() {
 function destinationDetails(watchlistId: string) {
 	const destination = columnParams.typedWatchlists[
 		columnParams.listTypeData.id
-	]?.find((watchlist: any) => watchlist.id === watchlistId)
+	]?.find(watchlist => watchlist.id === watchlistId)
 	if (!destination) return null
 	return {
 		header: destination.header,
@@ -143,12 +140,7 @@ function destinationDetails(watchlistId: string) {
 }
 
 async function fetchWatchlistEntries(watchlistId: string) {
-	const response = await fetch(
-		'/lists/fetch/get-list-entries/' +
-			encodeURIComponent(new URLSearchParams({ watchlistId }).toString()),
-	)
-	await requireSuccessfulResponse(response)
-	return ((await response.json()) as any[]).sort(
+	return (await getWatchlistEntries<WatchlistRow[]>(watchlistId)).sort(
 		(first, second) => first.position - second.position,
 	)
 }
@@ -256,7 +248,7 @@ function runDragScroll() {
 	dragScrollFrame = requestAnimationFrame(runDragScroll)
 }
 
-export function gridReady(e: any) {
+export function gridReady(e: { api: GridApi<WatchlistRow> }) {
 	setGridAPI(e.api)
 	requestAnimationFrame(() => {
 		registerListDropZones()
@@ -310,17 +302,19 @@ export function registerListDropZones() {
 }
 
 export function getAllRows() {
-	let rowData: any[] = []
-	gridAPI.forEachNode((node: any) => rowData.push(node.data))
+	const rowData: WatchlistRow[] = []
+	gridAPI.forEachNode(node => {
+		if (node.data) rowData.push(node.data)
+	})
 	return rowData
 }
 
 export function createEmptyRow(
-	watchlistId: any,
-	position: any,
-	listTypeData: any,
+	watchlistId: string,
+	position: number,
+	listTypeData: { columns: string },
 ) {
-	let emptyRow: Record<string, any> = {}
+	const emptyRow: WatchlistRow = { watchlistId, position }
 
 	for (const [key, value] of Object.entries(
 		JSON.parse(listTypeData.columns) as Record<string, unknown>,
@@ -345,45 +339,24 @@ export function createEmptyRow(
 		}
 	}
 
-	emptyRow['watchlistId'] = watchlistId
-	emptyRow['position'] = position
-
 	return emptyRow
 }
 
-export async function refreshGrid(columnParams: any) {
-	const listEntriesResponse = await fetch(
-		'/lists/fetch/get-list-entries/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					watchlistId: columnParams.watchlistId,
-				}).toString(),
-			),
-	)
-	await requireSuccessfulResponse(listEntriesResponse)
-	const listEntriesData = ((await listEntriesResponse.json()) as any[]).sort(
-		(a: any, b: any) => a.position - b.position,
-	)
+export async function refreshGrid(columnParams: WatchlistColumnParams) {
+	const listEntriesData = (
+		await getWatchlistEntries<WatchlistRow[]>(columnParams.watchlistId)
+	).sort((a, b) => a.position - b.position)
 
 	columnParams.setListEntries(listEntriesData)
 	gridAPI?.setGridOption('rowData', listEntriesData)
 }
 
 export async function reformatHistory(params: any, newValue: any) {
-	const updateCellResponse = await fetch(
-		'/lists/fetch/update-cell/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					colId: params.column.colId,
-					rowIndex: params.node.data.id,
-					newValue: newValue,
-				} as any).toString(),
-			),
-		{ method: 'POST' },
-	)
-	const updateCellData = await updateCellResponse.json()
-
-	return updateCellData
+	return mutateList('update-entry-cell', {
+		columnId: params.column.colId,
+		entryId: params.node.data.id,
+		value: newValue,
+	})
 }
 
 export function rowDragEnter(params: any) {
@@ -446,10 +419,13 @@ export async function rowDragEnd(params: any) {
 }
 
 export const rowDragText = function (params: any) {
-	return params.rowNode.data.title + ' (' + (params.rowNode.rowIndex + 1) + ')'
+	return `${params.rowNode.data?.title ?? 'Untitled'} (${(params.rowNode.rowIndex ?? 0) + 1})`
 }
 
-export async function createNewRow(location: any, params: any, position?: any) {
+export async function createNewRow(
+	location: 'Above' | 'Below',
+	params: { data: WatchlistRow },
+) {
 	let insertPosition = 0
 	if (location == 'Above') {
 		if (params.data.position < 1) {
@@ -465,28 +441,15 @@ export async function createNewRow(location: any, params: any, position?: any) {
 		columnParams.listTypeData,
 	)
 
-	const addResponse = await fetch(
-		'/lists/fetch/add-row/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					row: JSON.stringify(emptyRow),
-				} as any).toString(),
-			),
-		{ method: 'POST' },
-	)
-	const addData = await addResponse.json()
+	const addData = await mutateList<'add-entry', any>('add-entry', {
+		row: emptyRow,
+	})
 
 	gridAPI.applyTransaction({ add: [addData], addIndex: insertPosition })
 
-	const updateResponse = await fetch(
-		'/lists/fetch/now-updated/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					watchlistId: params.data.watchlistId,
-				} as any).toString(),
-			),
-		{ method: 'POST' },
-	)
+	await mutateList('touch-watchlist', {
+		watchlistId: params.data.watchlistId,
+	})
 
 	updatePositions()
 }
@@ -496,17 +459,10 @@ export async function updatePositions() {
 		.map(row => row.id)
 		.filter((id): id is string => typeof id === 'string' && id.length > 0)
 	try {
-		const reorderResponse = await fetch(
-			'/lists/fetch/reorder-rows/' +
-				encodeURIComponent(
-					new URLSearchParams({
-						watchlistId: columnParams.watchlistId,
-						entryIds: JSON.stringify(entryIds),
-					}).toString(),
-				),
-			{ method: 'POST' },
-		)
-		await requireSuccessfulResponse(reorderResponse)
+		await mutateList('reorder-entries', {
+			watchlistId: columnParams.watchlistId,
+			entryIds,
+		})
 	} catch (error) {
 		console.error('[watchlist] failed to reorder entries', error)
 	} finally {
@@ -558,28 +514,15 @@ export async function setterFunction(params: any) {
 
 		params.data[params.column.colId] = params.newValue
 
-		const updateCellResponse = await fetch(
-			'/lists/fetch/update-cell/' +
-				encodeURIComponent(
-					new URLSearchParams({
-						colId: params.column.colId,
-						rowIndex: params.data.id,
-						newValue: params.newValue,
-					} as any).toString(),
-				),
-			{ method: 'POST' },
-		)
-		const updateCellData = await updateCellResponse.json()
+		await mutateList('update-entry-cell', {
+			columnId: params.column.colId,
+			entryId: params.data.id,
+			value: params.newValue,
+		})
 
-		const updateResponse = await fetch(
-			'/lists/fetch/now-updated/' +
-				encodeURIComponent(
-					new URLSearchParams({
-						watchlistId: params.data.watchlistId,
-					} as any).toString(),
-				),
-			{ method: 'POST' },
-		)
+		await mutateList('touch-watchlist', {
+			watchlistId: params.data.watchlistId,
+		})
 
 		if (
 			['length', 'chapters', 'volumes', 'date', 'finished', 'started'].includes(
