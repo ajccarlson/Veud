@@ -42,6 +42,11 @@ mv -Tf "$STAGING_ROOT/app/current.next" "$STAGING_ROOT/app/current"
 systemctl --user enable --now veud-staging-app.service
 systemctl --user restart veud-staging-app.service
 systemctl --user enable --now veud-staging-backup.timer
+if [[ -n "${MAL_CLIENT_ID:-}" && -n "${MAL_CATALOG_POLICY_APPROVAL_REF:-}" ]]; then
+	systemctl --user enable --now veud-staging-mal-hydration.timer
+	systemctl --user enable --now veud-staging-mal-inventory.timer
+fi
+systemctl --user enable --now veud-staging-catalog-backup.timer
 
 for _ in {1..60}; do
 	curl --fail --silent --show-error "http://127.0.0.1:4022/resources/healthcheck" >/dev/null 2>&1 && break
