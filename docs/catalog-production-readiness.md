@@ -138,6 +138,12 @@ without printing secret values:
   236.68 MB native backup passed a destructive restore with the expected 9
   users, 35 watchlists, 5,484 entries, and 4 migrations before the verified
   archive and receipt were copied to the separate backup filesystem.
+- Release `33b7790` enabled the serialized TMDB inventory and hydration timers.
+  The first automated worker used four concurrent responses with a global
+  100-millisecond request-start interval. During the initial observation it
+  increased movie coverage to 377 records with zero deferred failures or `429`
+  responses; shared catalog health remained `healthy`, the HTTPS healthcheck
+  returned `OK`, and the admin dashboard remained login-protected.
 
 The staging gate and initial provider execution are complete. Continue
 monitoring hydration coverage, failures, request volume, `429` events, and daily

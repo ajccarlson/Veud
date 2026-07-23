@@ -135,3 +135,7 @@ seeds priority feeds, and hydrates at most 100,000 records per kind per daily
 pass. It defaults to four concurrent responses and at least 100 milliseconds
 between all provider request starts. A failed process restarts after one minute;
 a successful bounded pass resumes on the next timer activation.
+
+The first scheduled worker started on 2026-07-23 and passed its initial live
+observation with 377 movies hydrated, no deferred failures, and no `429`
+responses. Catalog health remained `healthy` while the backfill was active.
