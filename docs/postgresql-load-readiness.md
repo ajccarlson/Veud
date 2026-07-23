@@ -1,6 +1,6 @@
 # PostgreSQL catalog load readiness
 
-Last rehearsed: 2026-07-20 with PostgreSQL 16
+Last rehearsed: 2026-07-23 on isolated production-like PostgreSQL 16 staging
 
 This runbook measures the PostgreSQL catalog and member-facing schema with
 deterministic synthetic records. It is safe to use only against an empty or
@@ -93,10 +93,12 @@ compatible watchlists per member plus deterministic tracking states, legacy
 entries, and activity history. Synthetic images use the non-routable
 `synthetic.invalid` domain and no provider content is fetched.
 
-The harness then runs `ANALYZE`, records `EXPLAIN (ANALYZE, BUFFERS)` summaries,
-performs concurrent catalog/profile reads and hydration/tracking writes, samples
-`pg_stat_activity` and waiting locks while that work is active, and writes
-credential-free mode-`0600` report/checkpoint JSON under `test-results/`.
+The harness then runs `ANALYZE`, records each `EXPLAIN (ANALYZE, BUFFERS)`
+summary sequentially so the individual query budgets are not distorted by the
+separate concurrency test, performs concurrent catalog/profile reads and
+hydration/tracking writes, samples `pg_stat_activity` and waiting locks while
+that work is active, and writes credential-free mode-`0600` report/checkpoint
+JSON under `test-results/`.
 
 Use `--help` for batch, concurrency, and report-path controls. Restore the
 normal development client afterward with `npm run prisma:generate:sqlite`.
@@ -214,6 +216,36 @@ is not production-like staging approval. Network latency, storage class,
 container limits, connection pooling, cold-cache behavior, real provider data,
 and live catalog-worker contention still require the separate deployment gate.
 
+## Production-like staging rehearsal
+
+On 2026-07-23, the isolated local staging deployment completed the approved
+1,564,333-identity shape on PostgreSQL 16.14 while retaining a transferred
+production snapshot. The logical run deliberately stopped after 20,000 committed
+identities, resumed from exactly those rows, and cleaned every synthetic
+media/member/reference prefix while preserving the snapshot's 5,377 media, 9
+members, and 5,484 entries.
+
+| Check                                   |                    Result |
+| --------------------------------------- | ------------------------: |
+| Inserted identities                     |                 1,564,333 |
+| Insert throughput                       |     11,118.15 rows/second |
+| Database size after representative load |                  4.07 GiB |
+| Relationships / feed rows               |          156,433 / 15,643 |
+| Members / tracking / entries / activity | 1,000 / 100k / 100k / 20k |
+| Canonical-title query                   |                 59.522 ms |
+| Slowest query (`popular-page`)          |                190.519 ms |
+| Mixed concurrent workload               |                 71.381 ms |
+| Peak connections / capacity             |                  17 / 100 |
+| Peak waiting locks                      |                         0 |
+| Synthetic cleanup                       |              zero residue |
+
+An earlier staging report correctly failed the approved 150 ms canonical-title
+budget because all individual `EXPLAIN ANALYZE` checks were launched
+concurrently, mixing query-isolation and concurrency measurements. The harness
+now records those plans sequentially and keeps the explicit mixed workload as
+the concurrency gate. The owner-approved evidence gate passed without changing
+the budget.
+
 ## CI boundary
 
 CI loads and cleans up 2,000 identities after the PostgreSQL migration, drift,
@@ -221,20 +253,13 @@ and application smoke checks. That proves command safety, schema compatibility,
 generation, measurement, report creation, and cascading cleanup. CI deliberately
 does not enforce planner choices or performance thresholds on shared runners.
 
-## Remaining cutover gates
+## Remaining production cutover decisions
 
-Before PostgreSQL cutover approval:
-
-1. Repeat the now-proven 1,564,333-identity test on production-like staging
-   hardware and retain that environment's report with the release evidence.
-2. Agree on query, import, concurrency, backup, and restore budgets with the
-   deployment owner; compare cold- and warm-cache results against them.
-3. Run the representative relationship/member mode documented above using
-   owner-approved counts, then run inventory/hydration workers alongside the
-   interactive read and write workload.
-4. Exercise interruption/resume, native backup/restore, locks, connection-pool
-   saturation, disk headroom, monitoring, and one-process canary behavior.
-5. Rehearse the final maintenance-window and rollback decision points in the
-   [PostgreSQL operations runbook](postgresql-operations.md), then bind the
-   artifacts with the
-   [PostgreSQL cutover evidence gate](postgresql-cutover-readiness.md).
+The production-like staging scale, interruption/resume, transfer,
+backup/restore, connection/lock, HTTPS canary, and artifact-policy gates passed
+on 2026-07-23. Before opening production PostgreSQL writes, retain a named
+maintenance owner, observe real inventory/hydration workers beside interactive
+traffic, and explicitly choose the forward-repair or change-capture boundary
+described in the
+[PostgreSQL cutover evidence runbook](postgresql-cutover-readiness.md). The
+passing staging manifest does not itself switch the production datasource.

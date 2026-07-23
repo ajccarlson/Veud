@@ -6,7 +6,7 @@ guard_backup_storage
 load_staging_environment
 systemctl --user --no-pager status veud-staging-postgres.service veud-staging-app.service veud-staging-backup.timer || true
 printf '\nPostgreSQL: '
-"$PG_BIN/psql" "$DATABASE_URL" --tuples-only --no-align --command="SELECT current_database() || ' PostgreSQL ' || current_setting('server_version')"
+"$PG_BIN/psql" "$(postgres_cli_url)" --tuples-only --no-align --command="SELECT current_database() || ' PostgreSQL ' || current_setting('server_version')"
 printf 'Application: '
 curl --fail --silent --show-error "http://127.0.0.1:4022/resources/healthcheck"
 printf '\nLive storage: '
