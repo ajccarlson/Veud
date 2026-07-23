@@ -22,6 +22,11 @@ cutover and monitoring ownership are explicit.
   provider-issued written approval.
 - Inventory and hydration jobs use durable leases, cursors, cooldowns, retry
   state, progress counters, and provider request/rate-limit metrics.
+- The shared [catalog operations monitor](catalog-operations-monitoring.md)
+  exposes those controls as a read-only admin dashboard and CLI, flags stale
+  workers, cooldowns, recent failures, overdue inventory, unmanaged queues, and
+  elevated deferred failures, and keeps all retry/reconciliation mutations in
+  the provider runbooks.
 - The reusable test database now applies pending migrations before workers clone
   it, preventing new audit columns from being skipped by an old local fixture.
 
