@@ -17,8 +17,10 @@ stale identities for the separate detail-hydration worker.
 
 - The command is a dry-run unless `--commit` is explicit.
 - A committed run requires `--policy-approval-ref` or
-  `MAL_CATALOG_POLICY_APPROVAL_REF`. The value should identify written approval
-  for the intended bulk storage and redisplay; it must not contain credentials.
+  `MAL_CATALOG_POLICY_APPROVAL_REF`. The value must identify the deployment's
+  documented authorization basis for bulk storage and redisplay; it must not
+  contain credentials. Veud's current owner determination is documented in
+  [`mal-catalog-policy-decision.md`](mal-catalog-policy-decision.md).
 - Anime and manga use separate cooperative leases and durable offset cursors.
 - Each fetched page and its next offset commit in one database transaction, so a
   stopped job resumes after the last durable page.
@@ -63,7 +65,7 @@ npm run catalog:mal-inventory -- \
   --kind anime \
   --date 2026-07-20 \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07 \
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22 \
   --limit 5000
 ```
 
@@ -74,7 +76,7 @@ npm run catalog:mal-inventory -- \
   --kind anime \
   --date 2026-07-20 \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07 \
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22 \
   --limit 5000
 ```
 
@@ -84,7 +86,7 @@ Scan both inventories to completion without tombstoning anything:
 npm run catalog:mal-inventory -- \
   --kind all \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22
 ```
 
 Only enable reconciliation after reviewing scan coverage and confirming that the
@@ -95,7 +97,7 @@ npm run catalog:mal-inventory -- \
   --kind anime \
   --date 2026-07-20 \
   --commit \
-  --policy-approval-ref MAL-approval-2026-07 \
+  --policy-approval-ref OWNER-MAL-API-AGREEMENT-2026-07-22 \
   --reconcile
 ```
 
@@ -118,11 +120,11 @@ Inventory title rows use `inventory-primary`, `inventory-english`,
 only those inventory title types, leaving richer detail-hydration title data
 intact.
 
-`CatalogSyncRun` records the policy approval reference, page-level progress,
-requests, rate-limit events, provider cooldown, errors, and completion.
-`CatalogSyncCursor` contains the logical scan date, next offset, cumulative
-committed count, stable scan start, cooldown, completion, reconciliation, and
-lease state.
+`CatalogSyncRun` records the policy authorization reference, page-level
+progress, requests, rate-limit events, provider cooldown, errors, and
+completion. `CatalogSyncCursor` contains the logical scan date, next offset,
+cumulative committed count, stable scan start, cooldown, completion,
+reconciliation, and lease state.
 
 ## Failure and recovery
 

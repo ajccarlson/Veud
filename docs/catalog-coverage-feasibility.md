@@ -107,13 +107,15 @@ Implementation consequences:
 3. Keep the existing one-request-per-second default until MAL supplies a limit.
    Honor `429` and `Retry-After`; pause the provider queue instead of retrying
    in a tight loop.
-4. Run inventory no more often than needed until written approval clarifies
-   acceptable mirroring and refresh behavior.
+4. Run inventory no more often than needed under the documented deployment
+   policy, and reassess if provider guidance changes acceptable mirroring or
+   refresh behavior.
 5. Do not scrape MAL HTML as a fallback. A missing API capability remains a
    provider limitation.
-6. Record written storage/redisplay permission, attribution requirements,
+6. Record the storage/redisplay authorization basis, attribution requirements,
    production request limits, and any commercial-use conditions before enabling
-   a full production backfill.
+   a full production backfill. Veud's 2026-07-22 owner determination is recorded
+   in [`mal-catalog-policy-decision.md`](mal-catalog-policy-decision.md).
 
 ## Veud's current foundation and gaps
 
