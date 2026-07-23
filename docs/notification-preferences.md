@@ -50,3 +50,22 @@ selection, durable delivery history, idempotent schedule advancement, settings
 validation, inbox filtering, and data export. Production-browser coverage
 protects persistence, mobile layout, inbox enforcement, and the signed-in WCAG
 surface.
+
+## Release evidence
+
+Application commit `7423a459e763a97b6ddeaddff978eac9b8fdc820` was deployed
+as an immutable release to the isolated PostgreSQL staging environment on
+2026-07-23.
+
+- A fresh install audited 1,431 packages with zero vulnerabilities.
+- Both staging databases applied the notification migration, reported no schema
+  drift, and passed the PostgreSQL write/search smoke checks.
+- All 402 unit and integration tests, lint, type checking, the production build,
+  and every checked client bundle budget passed.
+- The notification persistence/inbox workflow, complete mobile route audit, and
+  full accessibility/visual gate passed 30 of 30 production-browser tests.
+- The public HTTPS acceptance matrix passed 192 of 192 requests at p95
+  131.648 ms. The active release symlink resolved to the exact application
+  commit above, core services and the notification timer were active, recent
+  logs contained no warnings or errors, and the digest worker reported zero due
+  deliveries in read-only preview mode.
