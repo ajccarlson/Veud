@@ -154,7 +154,7 @@ jobs:
         run: npm audit --audit-level=high
 
   browser-smoke:
-    name: 🎭 Browser acceptance smoke
+    name: 🎭 Browser acceptance and quality gates
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -175,20 +175,25 @@ jobs:
       - name: 📥 Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: 🎭 Run critical browser workflows
+      - name: 🎭 Run critical browser workflows and quality gates
         run: >-
           npx playwright test tests/e2e/navigation.test.ts
           tests/e2e/responsive-routes.test.ts tests/e2e/calendar.test.ts
           tests/e2e/discover.test.ts tests/e2e/home-feed.test.ts
           tests/e2e/list-reliability.test.ts
-          tests/e2e/profile-visual-system.test.ts --project=chromium
+          tests/e2e/profile-visual-system.test.ts
+          tests/e2e/accessibility.test.ts tests/e2e/visual-regression.test.ts
+          --project=chromium
 
-      - name: 📊 Upload browser report
+      - name: 📊 Upload browser report and visual diffs
         uses: actions/upload-artifact@v7
         if: always()
         with:
           name: browser-acceptance-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
           retention-days: 14
 
   staging-canary:

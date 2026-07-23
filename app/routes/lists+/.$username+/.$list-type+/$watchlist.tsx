@@ -174,6 +174,10 @@ export default function WatchList() {
 
 	return (
 		<main className="user-watchlist">
+			<h1 className="sr-only">
+				{loaderData.watchListData.header} · {loaderData.listTypeData.header}{' '}
+				list for {loaderData.listOwner.username}
+			</h1>
 			{watchlistGrid(
 				loaderData.listEntries,
 				loaderData.watchListData,
