@@ -37,6 +37,13 @@ and verifies that catalog database before copying it to the backup drive. MAL
 workers share `$STAGING_ROOT/run/mal-provider.lock`, so inventory and hydration
 never issue provider requests concurrently.
 
+`ops/local-staging/status.sh` runs the read-only catalog health evaluator
+against `STAGING_LOAD_DATABASE_URL`, not the separate public application
+database. It reports coverage, queues, failures, and rate limits after checking
+the services and HTTPS application dependency. See
+[`docs/catalog-operations-monitoring.md`](../../docs/catalog-operations-monitoring.md)
+for thresholds and machine-readable CLI usage.
+
 For restart-on-boot before an interactive login, an administrator must run the
 one-time command `sudo loginctl enable-linger acarl`. This is optional for an
 interactive workstation but recommended for an unattended staging origin.
