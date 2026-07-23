@@ -25,6 +25,7 @@ const types = [
 	'onboarding-provider',
 	'reset-password',
 	'change-email',
+	'moderation-appeal',
 	'2fa',
 ] as const
 const VerificationTypeSchema = z.enum(types)
@@ -66,6 +67,14 @@ export default function VerifyRoute() {
 		'onboarding-provider': checkEmail,
 		'reset-password': checkEmail,
 		'change-email': checkEmail,
+		'moderation-appeal': (
+			<>
+				<h1 className="text-h1">Verify your appeal</h1>
+				<p className="mt-3 text-body-md text-muted-foreground">
+					Enter the code sent to the email on your suspended account.
+				</p>
+			</>
+		),
 		'2fa': (
 			<>
 				<h1 className="text-h1">Check your 2FA app</h1>

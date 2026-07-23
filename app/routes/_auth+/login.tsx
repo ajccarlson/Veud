@@ -87,6 +87,7 @@ export default function LoginPage() {
 	const isPending = useIsPending()
 	const [searchParams] = useSearchParams()
 	const redirectTo = searchParams.get('redirectTo')
+	const suspended = searchParams.get('account') === 'suspended'
 
 	const [form, fields] = useForm({
 		id: 'login-form',
@@ -108,6 +109,19 @@ export default function LoginPage() {
 						Please enter your details.
 					</p>
 				</div>
+				{suspended ? (
+					<p
+						role="alert"
+						className="mt-4 rounded-xl border border-red-300/50 bg-red-950/30 px-4 py-3 text-sm font-semibold text-red-100"
+					>
+						This account is currently suspended. Contact the moderation team if
+						you believe this is a mistake.{' '}
+						<Link to="/appeal" className="underline">
+							Submit a verified appeal
+						</Link>
+						.
+					</p>
+				) : null}
 				<Spacer size="xs" />
 
 				<div>
@@ -135,7 +149,7 @@ export default function LoginPage() {
 								errors={fields.password.errors}
 							/>
 
-							<div className="flex justify-between">
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 								<CheckboxField
 									labelProps={{
 										htmlFor: fields.remember.id,
@@ -146,12 +160,16 @@ export default function LoginPage() {
 									})}
 									errors={fields.remember.errors}
 								/>
-								<div>
+								<div className="flex items-center gap-2 whitespace-nowrap">
 									<Link
 										to="/forgot-password"
 										className="text-body-xs font-semibold"
 									>
 										Forgot password?
+									</Link>
+									<span className="text-muted-foreground">·</span>
+									<Link to="/appeal" className="text-body-xs font-semibold">
+										Appeal suspension
 									</Link>
 								</div>
 							</div>
@@ -164,7 +182,7 @@ export default function LoginPage() {
 							<div className="flex items-center justify-between gap-6 pt-3">
 								<StatusButton
 									className="w-full"
-									status={isPending ? 'pending' : form.status ?? 'idle'}
+									status={isPending ? 'pending' : (form.status ?? 'idle')}
 									type="submit"
 									disabled={isPending}
 								>

@@ -10,6 +10,7 @@ import { getDomainUrl } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { generateTOTP, verifyTOTP } from '#app/utils/totp.server.ts'
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx'
+import { handleModerationAppealVerification } from './appeal.server.ts'
 import {
 	handleVerification as handleLoginTwoFactorVerification,
 	shouldRequestTwoFA,
@@ -203,6 +204,10 @@ export async function validateRequest(
 		case 'change-email': {
 			await deleteVerification()
 			return handleChangeEmailVerification({ request, url, body, submission })
+		}
+		case 'moderation-appeal': {
+			await deleteVerification()
+			return handleModerationAppealVerification({ request, url, body, submission })
 		}
 		case '2fa': {
 			return handleLoginTwoFactorVerification({

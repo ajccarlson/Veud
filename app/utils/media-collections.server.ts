@@ -35,7 +35,10 @@ export function visibleCollectionWhere(
 ): Prisma.MediaCollectionWhereInput {
 	return {
 		id: collectionId,
-		OR: [{ isPublic: true }, ...(viewerId ? [{ ownerId: viewerId }] : [])],
+		OR: [
+			{ isPublic: true, moderationStatus: 'visible' },
+			...(viewerId ? [{ ownerId: viewerId }] : []),
+		],
 	}
 }
 

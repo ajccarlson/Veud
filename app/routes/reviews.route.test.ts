@@ -101,6 +101,64 @@ test('review hub searches media and reviewers while honoring kind and spoiler fi
 	])
 })
 
+test('moderated reviews and comments are excluded from public discovery', async () => {
+	const author = await createUser('moderated_critic')
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Moderated discovery fixture' },
+	})
+	const [visible, hidden] = await Promise.all([
+		prisma.review.create({
+			data: {
+				authorId: author.id,
+				mediaId: media.id,
+				body: 'Visible criticism.',
+			},
+		}),
+		prisma.review.create({
+			data: {
+				authorId: author.id,
+				mediaId: (
+					await prisma.media.create({
+						data: { kind: 'movie', title: 'Hidden review fixture' },
+					})
+				).id,
+				body: 'Hidden criticism.',
+				moderationStatus: 'hidden',
+			},
+		}),
+	])
+	await Promise.all([
+		prisma.reviewComment.create({
+			data: {
+				authorId: author.id,
+				reviewId: visible.id,
+				body: 'Visible discussion.',
+			},
+		}),
+		prisma.reviewComment.create({
+			data: {
+				authorId: author.id,
+				reviewId: visible.id,
+				body: 'Hidden discussion.',
+				moderationStatus: 'hidden',
+			},
+		}),
+	])
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/reviews?sort=recent`),
+		params: {},
+	} as any)
+	expect(result.data.items.map(review => review.id)).toContain(visible.id)
+	expect(result.data.items.map(review => review.id)).not.toContain(hidden.id)
+	expect(
+		result.data.items.find(review => review.id === visible.id),
+	).toMatchObject({
+		commentCount: 1,
+		recentComments: [{ body: 'Visible discussion.' }],
+	})
+})
+
 test('following view is signed-in only and popular reviews rank by engagement', async () => {
 	const [viewer, followed, other, firstLiker, secondLiker] = await Promise.all([
 		createUser('review_viewer'),

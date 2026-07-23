@@ -34,6 +34,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		select: {
 			id: true,
 			type: true,
+			message: true,
 			readAt: true,
 			availableAt: true,
 			releaseAt: true,
@@ -97,6 +98,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			},
 			select: {
 				id: true,
+				type: true,
 				reviewCommentId: true,
 				collectionCommentId: true,
 				review: { select: { id: true, mediaId: true } },
@@ -111,6 +113,9 @@ export async function action({ request }: ActionFunctionArgs) {
 			where: { id: notification.id },
 			data: { readAt: new Date() },
 		})
+		if (notification.type === 'moderation_notice') {
+			return redirect('/settings/profile')
+		}
 		if (notification.collection) {
 			const anchor = notification.collectionCommentId
 				? `collection-comment-${notification.collectionCommentId}`
@@ -179,6 +184,54 @@ export default function NotificationsRoute() {
 			{data.notifications.length ? (
 				<ul className="divide-y overflow-hidden rounded-xl border bg-card">
 					{data.notifications.map(notification => {
+						if (
+							notification.type === 'moderation_notice' &&
+							notification.message
+						) {
+							const copy = (
+								<>
+									<span className="font-semibold">Moderation notice:</span>{' '}
+									{notification.message}
+								</>
+							)
+							return (
+								<li
+									key={notification.id}
+									className={
+										notification.readAt
+											? 'p-4'
+											: 'bg-amber-400/10 p-4'
+									}
+								>
+									{notification.readAt ? (
+										<Link
+											to="/settings/profile"
+											className="block hover:underline"
+										>
+											{copy}
+										</Link>
+									) : (
+										<Form method="post">
+											<input type="hidden" name="intent" value="read" />
+											<input
+												type="hidden"
+												name="notificationId"
+												value={notification.id}
+											/>
+											<button
+												type="submit"
+												className="w-full text-left hover:underline"
+											>
+												{copy}
+											</button>
+										</Form>
+									)}
+									<time className="mt-1 block text-xs text-muted-foreground">
+										{displayTime(notification.availableAt)}
+									</time>
+								</li>
+							)
+						}
 						const collection = notification.collection
 						const review = notification.review
 						const releaseMedia = notification.releaseReminder?.media

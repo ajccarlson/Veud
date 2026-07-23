@@ -13,6 +13,7 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -270,7 +271,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			id: true,
 			kind: true,
 			_count: {
-				select: { reviews: true, diaryEntries: true, favorites: true },
+				select: {
+					reviews: { where: { moderationStatus: 'visible' } },
+					diaryEntries: true,
+					favorites: true,
+				},
 			},
 			...mediaCatalogSelect,
 			externalIds: {
@@ -376,7 +381,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			},
 		}),
 		prisma.review.findMany({
-			where: { mediaId: media.id },
+			where: { mediaId: media.id, moderationStatus: 'visible' },
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: 20,
 			select: {
@@ -387,7 +392,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				createdAt: true,
 				updatedAt: true,
 				author: { select: { id: true, username: true, name: true } },
-				_count: { select: { likes: true, comments: true } },
+				_count: {
+					select: {
+						likes: true,
+						comments: true,
+					},
+				},
 				likes: {
 					where: { userId: viewerId ?? '' },
 					take: 1,
@@ -399,6 +409,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					select: {
 						id: true,
 						body: true,
+						moderationStatus: true,
 						parentId: true,
 						createdAt: true,
 						author: {
@@ -552,10 +563,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		socialContext: followedTracking,
 		recommendations,
 		relations,
-		reviews: reviewRows.map(({ likes, ...review }) => ({
+		reviews: reviewRows.map(({ likes, comments, ...review }) => ({
 			...review,
 			rating: review.rating === null ? null : Number(review.rating),
 			viewerLiked: likes.length > 0,
+			comments: comments.map(({ moderationStatus, ...comment }) => ({
+				...comment,
+				body:
+					moderationStatus === 'visible'
+						? comment.body
+						: '[Removed by moderation]',
+				isRemoved: moderationStatus !== 'visible',
+			})),
 		})),
 		activity: activityRows.map(event => ({
 			id: event.id,
@@ -598,6 +617,7 @@ type ReviewCommentItem = {
 	body: string
 	parentId: string | null
 	createdAt: Date | string
+	isRemoved: boolean
 	author: { id: string; username: string; name: string | null }
 }
 
@@ -671,10 +691,14 @@ function ReviewCommentThread({
 							{displayDate(comment.createdAt)}
 						</time>
 					</div>
-					<p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+					<p
+						className={`whitespace-pre-wrap text-sm leading-6 text-muted-foreground ${
+							comment.isRemoved ? 'italic' : ''
+						}`}
+					>
 						{comment.body}
 					</p>
-					{viewerId ? (
+					{viewerId && !comment.isRemoved ? (
 						<div className="flex flex-wrap items-start gap-2">
 							<details>
 								<summary className="cursor-pointer text-xs font-semibold text-primary">
@@ -704,7 +728,13 @@ function ReviewCommentThread({
 										Delete
 									</button>
 								</Form>
-							) : null}
+							) : (
+								<ReportContentButton
+									targetType="review_comment"
+									targetId={comment.id}
+									label="review comment"
+								/>
+							)}
 						</div>
 					) : null}
 					<ReviewCommentThread
@@ -1972,9 +2002,19 @@ export default function MediaDetailRoute() {
 													</span>
 												) : null}
 											</div>
-											<time className="text-sm text-muted-foreground">
-												{displayDate(review.createdAt)}
-											</time>
+											<div className="flex items-center gap-2">
+												{data.viewer &&
+												data.viewer.id !== review.author.id ? (
+													<ReportContentButton
+														targetType="review"
+														targetId={review.id}
+														label="review"
+													/>
+												) : null}
+												<time className="text-sm text-muted-foreground">
+													{displayDate(review.createdAt)}
+												</time>
+											</div>
 										</header>
 										{review.containsSpoilers ? (
 											<details className="rounded-lg border bg-background p-3">

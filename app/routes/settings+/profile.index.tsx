@@ -32,6 +32,7 @@ import {
 	getUserImgSrc,
 	useDoubleCheck,
 } from '#app/utils/misc.tsx'
+import { createModerationAppeal } from '#app/utils/moderation.server.ts'
 import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
@@ -64,6 +65,8 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			username: true,
 			bio: true,
 			email: true,
+			accountStatus: true,
+			accountStatusReason: true,
 			image: {
 				select: { id: true },
 			},
@@ -75,6 +78,30 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 					sessions: {
 						where: {
 							expirationDate: { gt: new Date() },
+						},
+					},
+				},
+			},
+			moderationActionsSubject: {
+				where: {
+					action: {
+						in: ['hide_content', 'account_warn', 'account_suspend'],
+					},
+				},
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take: 20,
+				select: {
+					id: true,
+					action: true,
+					targetType: true,
+					reason: true,
+					createdAt: true,
+					nextStatus: true,
+					appeal: {
+						select: {
+							id: true,
+							status: true,
+							resolutionNote: true,
 						},
 					},
 				},
@@ -107,6 +134,7 @@ type ProfileActionArgs = {
 const profileUpdateActionIntent = 'update-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteAccountActionIntent = 'delete-account'
+const appealModerationActionIntent = 'appeal-moderation'
 const DeleteAccountSchema = z.object({
 	confirmation: z.string().trim(),
 	currentPassword: z.string().optional(),
@@ -126,6 +154,53 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		case deleteAccountActionIntent: {
 			await requireRecentVerification(request, url)
 			return deleteAccountAction({ request, userId, formData })
+		}
+		case appealModerationActionIntent: {
+			const parsed = z
+				.object({
+					actionId: z.string().min(1).max(100),
+					details: z.string().trim().min(10).max(1_000),
+				})
+				.safeParse(Object.fromEntries(formData))
+			if (!parsed.success) {
+				return json(
+					{
+						ok: false as const,
+						message:
+							'Explain the reason for your appeal in at least 10 characters.',
+					},
+					{ status: 400 },
+				)
+			}
+			const appeal = await prisma
+				.$transaction(tx =>
+					createModerationAppeal(tx, {
+						reporterId: userId,
+						actionId: parsed.data.actionId,
+						details: parsed.data.details,
+					}),
+				)
+				.catch(async error => {
+					if (
+						error &&
+						typeof error === 'object' &&
+						'code' in error &&
+						error.code === 'P2002'
+					) {
+						const existing = await prisma.moderationReport.findUnique({
+							where: { appealOfActionId: parsed.data.actionId },
+							select: { id: true },
+						})
+						if (existing) return { id: existing.id, duplicate: true }
+					}
+					throw error
+				})
+			return json({
+				ok: true as const,
+				message: appeal.duplicate
+					? 'This decision already has an appeal.'
+					: 'Your appeal is in the moderation queue.',
+			})
 		}
 		default: {
 			throw new Response(`Invalid intent "${intent}"`, { status: 400 })
@@ -191,6 +266,7 @@ export default function EditUserProfile() {
 				</div>
 			</div>
 			<UpdateProfile />
+			<ModerationStanding />
 
 			<div className="my-6 h-1 border-b-[1.5px] border-veud-border" />
 			<div className="col-span-full flex flex-col gap-6">
@@ -240,6 +316,132 @@ export default function EditUserProfile() {
 				<DeleteAccount />
 			</div>
 		</div>
+	)
+}
+
+function moderationActionLabel(action: string, targetType: string) {
+	if (action === 'account_warn') return 'Account warning'
+	if (action === 'account_suspend') return 'Account suspension'
+	return `${targetType.replaceAll('_', ' ')} hidden`
+}
+
+function ModerationStanding() {
+	const data = useLoaderData<typeof loader>()
+	const fetcher = useFetcher<{ ok: boolean; message: string }>()
+	const actions = data.user.moderationActionsSubject
+
+	return (
+		<section
+			aria-labelledby="account-standing-heading"
+			className="rounded-2xl border border-veud-border bg-black/10 p-5 sm:p-6"
+		>
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div>
+					<h2 id="account-standing-heading" className="text-h5 text-foreground">
+						Account standing
+					</h2>
+					<p className="mt-1 text-body-sm text-muted-foreground">
+						Moderation decisions and appeals are private to you and Veud staff.
+					</p>
+				</div>
+				<span
+					className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${
+						data.user.accountStatus === 'active'
+							? 'border-veud-mint/50 bg-emerald-950/30 text-veud-mint'
+							: 'border-destructive/60 bg-red-950/30 text-red-100'
+					}`}
+				>
+					{data.user.accountStatus}
+				</span>
+			</div>
+			{data.user.accountStatusReason ? (
+				<p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm">
+					{data.user.accountStatusReason}
+				</p>
+			) : null}
+			{actions.length ? (
+				<div className="mt-5 space-y-3">
+					{actions.map(action => (
+						<article
+							key={action.id}
+							className="rounded-xl border border-veud-border/70 bg-background/40 p-4"
+						>
+							<div className="flex flex-wrap items-start justify-between gap-2">
+								<div>
+									<h3 className="font-bold">
+										{moderationActionLabel(action.action, action.targetType)}
+									</h3>
+									<time className="text-xs text-muted-foreground">
+										{new Date(action.createdAt).toLocaleString()}
+									</time>
+								</div>
+								{action.appeal ? (
+									<span className="rounded-full border border-veud-border px-2.5 py-1 text-xs font-bold uppercase">
+										Appeal {action.appeal.status.replace('_', ' ')}
+									</span>
+								) : null}
+							</div>
+							<p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
+								{action.reason}
+							</p>
+							{action.appeal?.resolutionNote ? (
+								<p className="mt-3 rounded-lg bg-black/15 p-3 text-sm">
+									<span className="font-bold">Appeal decision:</span>{' '}
+									{action.appeal.resolutionNote}
+								</p>
+							) : null}
+							{!action.appeal &&
+							(action.action !== 'hide_content' ||
+								action.nextStatus === 'hidden') ? (
+								<fetcher.Form method="post" className="mt-4 space-y-2">
+									<input
+										type="hidden"
+										name="intent"
+										value={appealModerationActionIntent}
+									/>
+									<input type="hidden" name="actionId" value={action.id} />
+									<label
+										htmlFor={`appeal-${action.id}`}
+										className="block text-sm font-bold"
+									>
+										Why should this decision be reconsidered?
+									</label>
+									<textarea
+										id={`appeal-${action.id}`}
+										name="details"
+										required
+										minLength={10}
+										maxLength={1_000}
+										rows={3}
+										className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm"
+									/>
+									<Button
+										type="submit"
+										variant="outline"
+										size="sm"
+										disabled={fetcher.state !== 'idle'}
+									>
+										Submit appeal
+									</Button>
+								</fetcher.Form>
+							) : null}
+						</article>
+					))}
+				</div>
+			) : (
+				<p className="mt-4 text-sm text-muted-foreground">
+					No moderation actions are recorded on your account.
+				</p>
+			)}
+			{fetcher.data ? (
+				<p
+					role={fetcher.data.ok ? 'status' : 'alert'}
+					className="mt-3 text-sm font-bold"
+				>
+					{fetcher.data.message}
+				</p>
+			) : null}
+		</section>
 	)
 }
 
