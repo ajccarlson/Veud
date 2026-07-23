@@ -627,13 +627,21 @@ export default function CatalogAdminRoute() {
 					</p>
 				}
 				actions={
-					<Link
-						to="."
-						reloadDocument
-						className="inline-flex min-h-11 items-center justify-center rounded-xl border border-veud-mint/50 bg-veud-canvas px-4 font-black text-veud-mint transition hover:border-veud-mint hover:bg-veud-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-veud-mint"
-					>
-						Refresh snapshot
-					</Link>
+					<div className="flex flex-wrap gap-2">
+						<Link
+							to="/admin/operations"
+							className="inline-flex min-h-11 items-center justify-center rounded-xl border border-veud-border bg-veud-canvas px-4 font-black text-veud-copy transition hover:border-veud-mint hover:text-veud-mint"
+						>
+							Site operations
+						</Link>
+						<Link
+							to="."
+							reloadDocument
+							className="inline-flex min-h-11 items-center justify-center rounded-xl border border-veud-mint/50 bg-veud-canvas px-4 font-black text-veud-mint transition hover:border-veud-mint hover:bg-veud-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-veud-mint"
+						>
+							Refresh snapshot
+						</Link>
+					</div>
 				}
 			/>
 
