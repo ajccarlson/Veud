@@ -137,3 +137,23 @@ Do not scrape MAL HTML when the API omits a record. Record that limitation as a
 coverage gap. Do not substitute Jikan for the policy approval gate: Jikan is an
 unofficial API backed by MAL website data, so using it does not establish MAL
 storage or redisplay permission.
+
+## Staging execution
+
+The first approved full inventory completed on isolated PostgreSQL staging on
+2026-07-23:
+
+- anime committed: 30,245;
+- manga committed: 84,465;
+- failed requests: 0;
+- `429` responses: 0; and
+- reconciliation/tombstones: disabled/0.
+
+The resulting active inventory contained 30,246 anime and 84,465 manga
+identities because the staging snapshot already contained one additional anime
+identity. Both cursors reached provider-reported completion and released their
+leases. A restore-tested native backup was retained after the run.
+
+Staging now runs the same non-reconciling inventory once daily through
+`veud-staging-mal-inventory.timer`. It shares an exclusive provider lock with
+hydration so the two jobs cannot compete for the conservative request budget.
