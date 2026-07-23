@@ -15,6 +15,14 @@ printf '\nPostgreSQL: '
 "$PG_BIN/psql" "$(postgres_cli_url)" --tuples-only --no-align --command="SELECT current_database() || ' PostgreSQL ' || current_setting('server_version')"
 printf 'Application: '
 curl --fail --silent --show-error "http://127.0.0.1:4022/resources/healthcheck"
+printf '\nCatalog operations:\n'
+verify_node_22
+(
+	export DATABASE_URL="$STAGING_LOAD_DATABASE_URL"
+	export PATH="$(dirname "$NODE_BIN"):/usr/local/bin:/usr/bin:/bin"
+	cd "$STAGING_ROOT/app/current"
+	"$NPM_BIN" run --silent catalog:status
+)
 printf '\nLive storage: '
 df -h "$LIVE_MOUNT" | tail -1
 printf 'Backup storage: '
