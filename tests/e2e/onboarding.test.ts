@@ -24,7 +24,7 @@ const test = base.extend<{
 		await use(() => {
 			const onboardingData = {
 				...userData,
-				password: faker.internet.password(),
+				password: `Aa1!${faker.string.alphanumeric(16)}`,
 			}
 			return onboardingData
 		})
@@ -74,13 +74,18 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 		.click()
 
 	await expect(page).toHaveURL(`/onboarding`)
+	await expect(
+		page.getByRole('note', { name: /password requirements/i }),
+	).toContainText('At least 8 characters')
 	await page
 		.getByRole('textbox', { name: /^username/i })
 		.fill(onboardingData.username)
 
 	await page.getByRole('textbox', { name: /^name/i }).fill(onboardingData.name)
 
-	await page.getByLabel(/^password/i).fill(onboardingData.password)
+	await page.getByRole('textbox', { name: 'Password', exact: true }).fill(
+		onboardingData.password,
+	)
 
 	await page.getByLabel(/^confirm password/i).fill(onboardingData.password)
 
@@ -144,6 +149,20 @@ test('login as existing user', async ({ page, insertNewUser }) => {
 	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
 })
 
+test('login as existing user with email', async ({ page, insertNewUser }) => {
+	const password = faker.internet.password()
+	const user = await insertNewUser({ password })
+	await page.goto('/login')
+	await page
+		.getByRole('textbox', { name: /username or email/i })
+		.fill(user.email.toUpperCase())
+	await page.getByLabel(/^password$/i).fill(password)
+	await page.getByRole('button', { name: /log in/i }).click()
+
+	await expect(page).toHaveURL(`/`)
+	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
+})
+
 test('reset password with a link', async ({ page, insertNewUser }) => {
 	const originalPassword = faker.internet.password()
 	const user = await insertNewUser({ password: originalPassword })
@@ -180,7 +199,7 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 		.click()
 
 	await expect(page).toHaveURL(`/reset-password`)
-	const newPassword = faker.internet.password()
+	const newPassword = `Aa1!${faker.string.alphanumeric(16)}`
 	await page.getByLabel(/^new password$/i).fill(newPassword)
 	await page.getByLabel(/^confirm password$/i).fill(newPassword)
 
@@ -194,7 +213,9 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 	await page.getByLabel(/^password$/i).fill(originalPassword)
 	await page.getByRole('button', { name: /log in/i }).click()
 
-	await expect(page.getByText(/invalid username or password/i)).toBeVisible()
+	await expect(
+		page.getByText(/invalid username, email, or password/i),
+	).toBeVisible()
 
 	await page.getByLabel(/^password$/i).fill(newPassword)
 	await page.getByRole('button', { name: /log in/i }).click()

@@ -141,6 +141,133 @@ test('AI ranking cannot return a title outside the supplied catalog candidates',
 	expect(request.text.format.type).toBe('json_schema')
 })
 
+test('provider-restricted metadata is never sent to external AI ranking', async () => {
+	const malRestricted = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'MAL Restricted Clock',
+			description: 'A silver clock repeats a forgotten summer afternoon.',
+			externalIds: {
+				create: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: 'policy-restricted-mal-title',
+				},
+			},
+		},
+	})
+	const tmdbRestricted = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'TMDB Restricted Summer',
+			description: 'Friends repeat a summer afternoon beside a silver clock.',
+			externalIds: {
+				create: {
+					provider: 'tmdb',
+					kind: 'tv',
+					externalId: 'policy-restricted-tmdb-title',
+				},
+			},
+		},
+	})
+	const allowed = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Independent Silver Clock',
+			description: 'Friends find a silver clock during summer.',
+		},
+	})
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+		const request = JSON.parse(String(init?.body)) as { input: string }
+		const prompt = JSON.parse(request.input) as {
+			candidates: Array<{ id: string; title: string }>
+		}
+		expect(prompt.candidates).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: allowed.id })]),
+		)
+		expect(prompt.candidates).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: malRestricted.id }),
+			]),
+		)
+		expect(prompt.candidates).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: tmdbRestricted.id }),
+			]),
+		)
+		expect(request.input).not.toContain('MAL Restricted Clock')
+		expect(request.input).not.toContain('TMDB Restricted Summer')
+		return new Response(
+			JSON.stringify({
+				output: [
+					{
+						type: 'message',
+						content: [
+							{
+								type: 'output_text',
+								text: JSON.stringify({
+									matches: [
+										{
+											mediaId: allowed.id,
+											summary: 'The silver clock and summer match.',
+											matchedClues: ['silver clock', 'summer'],
+										},
+									],
+								}),
+							},
+						],
+					},
+				],
+			}),
+			{ status: 200, headers: { 'Content-Type': 'application/json' } },
+		)
+	})
+
+	const result = await getTipOfTongueMatches(
+		{
+			memory: 'A silver clock repeats a summer afternoon.',
+			kind: 'anime',
+		},
+		{ fetchImpl, allowAi: true },
+	)
+
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(result.source).toBe('ai')
+})
+
+test('TOMT stays local when every candidate is MAL-sourced', async () => {
+	await prisma.media.create({
+		data: {
+			kind: 'manga',
+			title: 'Local Only Lantern',
+			description: 'A lantern guides a traveler through a mirrored forest.',
+			externalIds: {
+				create: {
+					provider: 'mal',
+					kind: 'manga',
+					externalId: 'local-only-mal-title',
+				},
+			},
+		},
+	})
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const fetchImpl = vi.fn<typeof fetch>()
+
+	const result = await getTipOfTongueMatches(
+		{ memory: 'A lantern in a mirrored forest.', kind: 'manga' },
+		{ fetchImpl, allowAi: true },
+	)
+
+	expect(fetchImpl).not.toHaveBeenCalled()
+	expect(result).toEqual(
+		expect.objectContaining({
+			source: 'catalog-match',
+			fallbackReason: 'provider-restricted',
+		}),
+	)
+})
+
 test('AI results are deduplicated, evidence-checked, and filled to five catalog matches', async () => {
 	const candidates = await Promise.all(
 		Array.from({ length: 5 }, (_, index) =>

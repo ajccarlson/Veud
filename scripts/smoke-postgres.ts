@@ -48,6 +48,58 @@ async function main() {
 			)
 		}
 
+		const [roles, permissions, listTypes] = await Promise.all([
+			prisma.role.findMany({
+				where: { name: { in: ['admin', 'user'] } },
+				select: {
+					name: true,
+					permissions: {
+						where: {
+							entity: { in: ['user', 'watchlist'] },
+							action: { in: ['create', 'read', 'update', 'delete'] },
+							access: { in: ['own', 'any'] },
+						},
+						select: { access: true },
+					},
+				},
+			}),
+			prisma.permission.count({
+				where: {
+					entity: { in: ['user', 'watchlist'] },
+					action: { in: ['create', 'read', 'update', 'delete'] },
+					access: { in: ['own', 'any'] },
+				},
+			}),
+			prisma.listType.findMany({
+				where: { name: { in: ['liveaction', 'anime', 'manga'] } },
+				select: { name: true },
+			}),
+		])
+		const rolePermissions = new Map(
+			roles.map(role => [
+				role.name,
+				role.permissions.map(permission => permission.access),
+			]),
+		)
+		const userPermissions = rolePermissions.get('user')
+		const adminPermissions = rolePermissions.get('admin')
+		if (
+			permissions !== 16 ||
+			userPermissions?.length !== 8 ||
+			!userPermissions.every(access => access === 'own') ||
+			adminPermissions?.length !== 8 ||
+			!adminPermissions.every(access => access === 'any')
+		) {
+			throw new Error(
+				'Authorization reference data is incomplete; account creation is unsafe',
+			)
+		}
+		if (new Set(listTypes.map(type => type.name)).size !== 3) {
+			throw new Error(
+				'Media list-type reference data is incomplete; account lists cannot be initialized',
+			)
+		}
+
 		const user = await prisma.user.create({
 			data: {
 				email: `${username}@example.com`,

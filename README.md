@@ -190,7 +190,10 @@ batches, and guards full reconciliation against suspiciously small inputs.
 The anime and manga inventory stage is documented in the
 [MyAnimeList catalog inventory runbook](docs/mal-catalog-inventory.md). It scans
 official ranking pages with resumable offsets, conservative pacing, persistent
-rate-limit cooldowns, and an explicit bulk-storage policy approval gate.
+rate-limit cooldowns, and an explicit bulk-storage policy authorization gate.
+The current owner interpretation and its non-user-content and external-AI
+boundaries are recorded in the
+[MAL catalog policy decision](docs/mal-catalog-policy-decision.md).
 
 Prioritized detail fetching is documented in the
 [TMDB catalog hydration runbook](docs/tmdb-catalog-hydration.md). It processes

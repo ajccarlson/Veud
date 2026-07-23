@@ -799,12 +799,17 @@ export default function CollectionDetail() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => [
-	{ title: data ? `${data.collection.title} · Veud` : 'Collection · Veud' },
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
+	{
+		title: loaderData
+			? `${loaderData.collection.title} · Veud`
+			: 'Collection · Veud',
+	},
 	{
 		name: 'description',
 		content:
-			data?.collection.description ?? 'A curated media collection on Veud.',
+			loaderData?.collection.description ??
+			'A curated media collection on Veud.',
 	},
 ]
 

@@ -126,10 +126,10 @@ export async function formatTMDBResults(
 
 				try {
 					releaseStart = new Date(data.first_air_date)
-				} catch (e) {}
+				} catch {}
 				try {
 					releaseEnd = new Date(data.last_air_date)
-				} catch (e) {}
+				} catch {}
 				year = releaseStart!.getFullYear()
 
 				length = data.number_of_episodes + ' eps'
@@ -192,7 +192,7 @@ export async function formatTMDBResults(
 								image: `https://www.themoviedb.org/t/p/original${data.next_episode_to_air.still_path}|https://www.themoviedb.org/${type}/${entryID}/watch`,
 							}
 						}
-					} catch (e) {}
+					} catch {}
 
 					url =
 						'https://api.themoviedb.org/3/' +
