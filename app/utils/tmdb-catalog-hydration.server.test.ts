@@ -498,6 +498,51 @@ test('detail requests never exceed configured concurrency', async () => {
 	expect(fetchImpl).toHaveBeenCalledTimes(4)
 })
 
+test('paces request starts independently of response speed', async () => {
+	await Promise.all([
+		seedMovie(15),
+		seedMovie(16),
+		seedMovie(17),
+		seedMovie(18),
+	])
+	const releases: Array<() => void> = []
+	const sleep = vi.fn(
+		() =>
+			new Promise<void>(resolve => {
+				releases.push(resolve)
+			}),
+	)
+	const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+		const id = Number(new URL(String(input)).pathname.split('/').at(-1))
+		return jsonResponse(moviePayload(id))
+	})
+
+	const hydration = hydrateTmdbCatalog({
+		prisma,
+		kind: 'movie',
+		apiToken: 'test-token',
+		commit: true,
+		limit: 4,
+		concurrency: 4,
+		requestDelayMs: 100,
+		leaseOwner: 'paced-worker',
+		fetchImpl: fetchImpl as typeof fetch,
+		sleep,
+		now: () => new Date('2026-07-20T00:00:00.000Z'),
+	})
+
+	await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+	expect(sleep).toHaveBeenLastCalledWith(100)
+	for (let expectedCalls = 2; expectedCalls <= 4; expectedCalls++) {
+		releases.shift()?.()
+		await vi.waitFor(() =>
+			expect(fetchImpl).toHaveBeenCalledTimes(expectedCalls),
+		)
+	}
+	await hydration
+	expect(sleep).toHaveBeenCalledTimes(4)
+})
+
 test('a 429 checkpoints successes, defers the provider, and resumes after Retry-After', async () => {
 	await seedMovie(21)
 	await seedMovie(22)

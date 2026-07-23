@@ -10,7 +10,9 @@ systemctl --user --no-pager status \
 	veud-staging-backup.timer \
 	veud-staging-catalog-backup.timer \
 	veud-staging-mal-inventory.timer \
-	veud-staging-mal-hydration.timer || true
+	veud-staging-mal-hydration.timer \
+	veud-staging-tmdb-inventory.timer \
+	veud-staging-tmdb-hydration.timer || true
 printf '\nPostgreSQL: '
 "$PG_BIN/psql" "$(postgres_cli_url)" --tuples-only --no-align --command="SELECT current_database() || ' PostgreSQL ' || current_setting('server_version')"
 printf 'Application: '

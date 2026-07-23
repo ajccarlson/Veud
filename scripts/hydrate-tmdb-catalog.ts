@@ -26,6 +26,7 @@ Options:
   --commit                  Fetch and write details (default: dry-run)
   --limit N                 Maximum detail records per kind (default: 100)
   --concurrency N           Parallel detail requests, maximum 10 (default: 4)
+  --delay-ms N              Minimum delay between request starts (default: 100)
   --refresh-days N          Freshness deadline in days (default: 150)
   --seed-priorities         Fetch upcoming, trending, and popular feeds first
   --feeds LIST              Comma-separated priority feeds used with seeding
@@ -63,6 +64,7 @@ function assertKnownArguments() {
 		'--kind',
 		'--limit',
 		'--concurrency',
+		'--delay-ms',
 		'--refresh-days',
 		'--feeds',
 		'--lease-seconds',
@@ -78,6 +80,16 @@ function assertKnownArguments() {
 		}
 		throw new Error(`Unknown argument: ${argument}`)
 	}
+}
+
+function nonNegativeInteger(flag: string, fallback: number) {
+	const raw = valueFor(flag)
+	if (raw === undefined) return fallback
+	const value = Number(raw)
+	if (!Number.isSafeInteger(value) || value < 0) {
+		throw new Error(`${flag} must be a non-negative integer`)
+	}
+	return value
 }
 
 function requestedFeeds() {
@@ -131,6 +143,7 @@ async function main() {
 	const feeds = requestedFeeds()
 	const limit = positiveInteger('--limit', 100)
 	const concurrency = positiveInteger('--concurrency', 4)
+	const requestDelayMs = nonNegativeInteger('--delay-ms', 100)
 	const refreshDays = positiveInteger('--refresh-days', 150)
 	const leaseSeconds = positiveInteger('--lease-seconds', 300)
 	const leaseOwner =
@@ -142,6 +155,7 @@ async function main() {
 			`Kinds: ${kinds.join(', ')}`,
 			`Limit per kind: ${limit}`,
 			`Concurrency: ${concurrency}`,
+			`Minimum request-start delay: ${requestDelayMs}ms`,
 			`Freshness target: ${refreshDays} days`,
 			`Priority feeds: ${seedPriorities ? feeds.join(', ') : 'not requested'}`,
 		].join('\n'),
@@ -164,6 +178,7 @@ async function main() {
 				commit,
 				limit,
 				concurrency,
+				requestDelayMs,
 				refreshDays,
 				seedPriorities,
 				feeds,
