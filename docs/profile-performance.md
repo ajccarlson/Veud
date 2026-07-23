@@ -90,3 +90,22 @@ profile test also observes actual asset requests: an empty Overview must not
 download Nivo, the populated calendar must load on demand, default Stats must
 not fetch unselected chart modules, and choosing Score Distribution must fetch
 only that newly selected visualization.
+
+## Visualization-splitting release evidence
+
+Commit `4781651ce323db2d0af66af20472c23f27c013af` was deployed as an
+immutable release to isolated PostgreSQL staging on 2026-07-23.
+
+- A fresh `npm ci` audited 1,431 packages with zero vulnerabilities.
+- PostgreSQL source/schema parity, migrations, drift checks, and application
+  query smoke tests passed for both the application and catalog-load databases.
+- The active staging symlink resolved to the exact commit; the PostgreSQL,
+  application, application-backup, catalog-backup, and catalog-ingestion units
+  were active and enabled.
+- The HTTPS acceptance gate passed 192 of 192 requests across eight public
+  routes, including production security headers, with p95 latency of
+  146.272 ms.
+- Local release gates passed ESLint, TypeScript, all 85 Vitest files and 386
+  tests, the focused production-browser network regression, the 16-test
+  accessibility/visual gate, the production build, and all client bundle
+  budgets.
