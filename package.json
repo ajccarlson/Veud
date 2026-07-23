@@ -13,6 +13,7 @@
     "build:server": "tsx ./other/build-server.ts",
     "catalog:mal-hydrate": "tsx scripts/hydrate-mal-catalog.ts",
     "catalog:mal-inventory": "tsx scripts/import-mal-inventory.ts",
+    "catalog:status": "tsx scripts/catalog-status.ts",
     "catalog:tmdb-hydrate": "tsx scripts/hydrate-tmdb-catalog.ts",
     "catalog:tmdb-inventory": "tsx scripts/import-tmdb-inventory.ts",
     "db:backup": "node scripts/backup-database.mjs",
