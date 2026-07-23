@@ -8,9 +8,15 @@ export function SiteFooter() {
 				<span aria-hidden="true"> · </span>
 				Metadata from TMDB, MyAnimeList, AniList, and Trakt.
 			</p>
-			<Link prefetch="intent" to="/credits">
-				About &amp; data sources
-			</Link>
+			<span>
+				<Link prefetch="intent" to="/status">
+					Service status
+				</Link>
+				<span aria-hidden="true"> · </span>
+				<Link prefetch="intent" to="/credits">
+					About &amp; data sources
+				</Link>
+			</span>
 		</footer>
 	)
 }

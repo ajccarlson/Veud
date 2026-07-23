@@ -64,6 +64,7 @@ model User {
   moderationActionsPerformed ModerationAction[]       @relation("ModerationActor")
   moderationActionsSubject   ModerationAction[]       @relation("ModerationActionSubject")
   moderationAppealDrafts     ModerationAppealDraft[]
+  serviceIncidentEvents      ServiceIncidentEvent[]
 }
 
 model ListType {
@@ -1001,6 +1002,42 @@ model Role {
 
   users       User[]
   permissions Permission[]
+}
+
+/// A public operational incident. Current state is stored on the incident for
+/// fast status reads while every operator update is retained as an event.
+model ServiceIncident {
+  id            String    @id @default(cuid())
+  title         String
+  summary       String
+  severity      String    @default("minor")
+  status        String    @default("investigating")
+  affectedAreas String    @default("[]")
+  startedAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  events ServiceIncidentEvent[]
+
+  @@index([status, startedAt])
+  @@index([resolvedAt, startedAt])
+}
+
+/// Append-only public history for a service incident.
+model ServiceIncidentEvent {
+  id        String   @id @default(cuid())
+  status    String
+  message   String
+  createdAt DateTime @default(now())
+
+  incident   ServiceIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  incidentId String
+  actor      User?           @relation(fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorId    String?
+
+  @@index([incidentId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 /// A member-submitted flag for community content or account behavior. Targets

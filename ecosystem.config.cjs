@@ -1,3 +1,18 @@
+const { execFileSync } = require("node:child_process")
+
+function currentRelease() {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+  } catch {
+    return "local"
+  }
+}
+
+const release = currentRelease()
+
 module.exports = {
   apps : [{
     name   : "veud",
@@ -17,6 +32,8 @@ module.exports = {
     env_production: {
       args : "start",
       NODE_ENV: "production",
+      VEUD_ENVIRONMENT: "production",
+      VEUD_RELEASE: release,
     },
     env_development: {
       args : "dev",
