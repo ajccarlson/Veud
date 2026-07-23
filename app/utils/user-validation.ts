@@ -14,6 +14,24 @@ export const PasswordSchema = z
 	.string({ required_error: 'Password is required' })
 	.min(6, { message: 'Password is too short' })
 	.max(100, { message: 'Password is too long' })
+
+export const NEW_PASSWORD_REQUIREMENTS = [
+	'At least 8 characters',
+	'One uppercase letter',
+	'One lowercase letter',
+	'One number',
+	'One symbol',
+] as const
+
+export const NewPasswordSchema = z
+	.string({ required_error: 'Password is required' })
+	.min(8, { message: 'Password must be at least 8 characters' })
+	.max(100, { message: 'Password must be 100 characters or fewer' })
+	.regex(/[A-Z]/, { message: 'Password must include an uppercase letter' })
+	.regex(/[a-z]/, { message: 'Password must include a lowercase letter' })
+	.regex(/[0-9]/, { message: 'Password must include a number' })
+	.regex(/[^A-Za-z0-9]/, { message: 'Password must include a symbol' })
+
 export const NameSchema = z
 	.string({ required_error: 'Name is required' })
 	.min(3, { message: 'Name is too short' })
@@ -29,7 +47,7 @@ export const EmailSchema = z
 export const UsernameOrEmailSchema = z.union([EmailSchema, UsernameSchema])
 
 export const PasswordAndConfirmPasswordSchema = z
-	.object({ password: PasswordSchema, confirmPassword: PasswordSchema })
+	.object({ password: NewPasswordSchema, confirmPassword: NewPasswordSchema })
 	.superRefine(({ confirmPassword, password }, ctx) => {
 		if (confirmPassword !== password) {
 			ctx.addIssue({
