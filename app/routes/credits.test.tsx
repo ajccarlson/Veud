@@ -17,7 +17,7 @@ test('publishes provider attribution and the required TMDB notice', () => {
 	).toBeInTheDocument()
 	expect(
 		screen.getByRole('img', { name: 'The Movie Database (TMDB)' }),
-	).toHaveAttribute('src', expect.stringContaining('/logos/v2/blue_long_2-'))
+	).toHaveAttribute('src', expect.stringMatching(/^data:image\/svg\+xml/))
 	for (const provider of ['MyAnimeList', 'AniList', 'Trakt']) {
 		expect(screen.getByRole('link', { name: provider })).toHaveAttribute(
 			'target',
