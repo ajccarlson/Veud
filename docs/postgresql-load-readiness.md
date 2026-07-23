@@ -93,10 +93,12 @@ compatible watchlists per member plus deterministic tracking states, legacy
 entries, and activity history. Synthetic images use the non-routable
 `synthetic.invalid` domain and no provider content is fetched.
 
-The harness then runs `ANALYZE`, records `EXPLAIN (ANALYZE, BUFFERS)` summaries,
-performs concurrent catalog/profile reads and hydration/tracking writes, samples
-`pg_stat_activity` and waiting locks while that work is active, and writes
-credential-free mode-`0600` report/checkpoint JSON under `test-results/`.
+The harness then runs `ANALYZE`, records each `EXPLAIN (ANALYZE, BUFFERS)`
+summary sequentially so the individual query budgets are not distorted by the
+separate concurrency test, performs concurrent catalog/profile reads and
+hydration/tracking writes, samples `pg_stat_activity` and waiting locks while
+that work is active, and writes credential-free mode-`0600` report/checkpoint
+JSON under `test-results/`.
 
 Use `--help` for batch, concurrency, and report-path controls. Restore the
 normal development client afterward with `npm run prisma:generate:sqlite`.
