@@ -195,10 +195,10 @@ async function formatAnimeInfo(data: any, full = true) {
 		let releaseStart, releaseEnd
 		try {
 			releaseStart = new Date(data['start_date'])
-		} catch (e) {}
+		} catch {}
 		try {
 			releaseEnd = new Date(data['end_date'])
-		} catch (e) {}
+		} catch {}
 
 		const seasonInfo = data['start_season']
 		const seasonURL =
@@ -326,7 +326,7 @@ export async function formatMangaInfo(data: any, full = true) {
 		let releaseStart /*, releaseEnd*/
 		try {
 			releaseStart = new Date(data['start_date'])
-		} catch (e) {}
+		} catch {}
 		// try {
 		//   releaseEnd = new Date (data['end_date'])
 		// }

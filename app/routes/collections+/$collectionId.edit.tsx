@@ -213,10 +213,10 @@ export default function EditCollection() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => [
+export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
 	{
-		title: data
-			? `Edit ${data.collection.title} · Veud`
+		title: loaderData
+			? `Edit ${loaderData.collection.title} · Veud`
 			: 'Edit collection · Veud',
 	},
 ]

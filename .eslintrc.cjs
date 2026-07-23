@@ -31,14 +31,6 @@ module.exports = {
 		'no-async-promise-executor': 'off',
 		'no-empty': ['warn', { allowEmptyCatch: true }],
 		'no-useless-concat': 'warn',
-		'@typescript-eslint/consistent-type-imports': [
-			'warn',
-			{
-				prefer: 'type-imports',
-				disallowTypeAnnotations: true,
-				fixStyle: 'inline-type-imports',
-			},
-		],
 		'import/no-duplicates': ['warn', { 'prefer-inline': true }],
 		'import/consistent-type-specifier-style': ['warn', 'prefer-inline'],
 		'import/order': [
@@ -109,8 +101,17 @@ module.exports = {
 			rules: {
 				'@typescript-eslint/ban-ts-comment': 'off',
 				'@typescript-eslint/ban-types': 'off',
+				'@typescript-eslint/consistent-type-imports': [
+					'warn',
+					{
+						prefer: 'type-imports',
+						disallowTypeAnnotations: true,
+						fixStyle: 'inline-type-imports',
+					},
+				],
 				'@typescript-eslint/no-empty-function': 'off',
 				'@typescript-eslint/no-empty-interface': 'off',
+				'@typescript-eslint/no-empty-object-type': 'off',
 				'@typescript-eslint/no-explicit-any': 'off',
 				'@typescript-eslint/no-inferrable-types': 'off',
 				'@typescript-eslint/no-namespace': 'off',

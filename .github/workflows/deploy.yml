@@ -184,7 +184,7 @@ jobs:
           tests/e2e/profile-visual-system.test.ts --project=chromium
 
       - name: 📊 Upload browser report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: browser-acceptance-report
@@ -215,7 +215,7 @@ jobs:
           STAGING_URL: ${{ inputs.staging_url }}
 
       - name: 📊 Upload staging evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: staging-acceptance-report

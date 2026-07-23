@@ -85,7 +85,7 @@ export function renderCalendarChart(loaderData: any, chartType: string) {
 					for (const finishDate of finishDates) {
 						addDate(calendarHistory, finishDate)
 					}
-				} catch (e) {
+				} catch {
 					return
 				}
 			})
