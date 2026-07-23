@@ -29,24 +29,28 @@ model User {
   roles                 Role[]
   sessions              Session[]
   connections           Connection[]
-  following             Follow[]              @relation("UserFollowing")
-  followers             Follow[]              @relation("UserFollowers")
-  commentsAuthored      ProfileComment[]      @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[]      @relation("ProfileCommentProfile")
+  following             Follow[]                 @relation("UserFollowing")
+  followers             Follow[]                 @relation("UserFollowers")
+  commentsAuthored      ProfileComment[]         @relation("ProfileCommentAuthor")
+  profileComments       ProfileComment[]         @relation("ProfileCommentProfile")
   trackingStates        TrackingState[]
   activityEvents        ActivityEvent[]
   reviews               Review[]
   diaryEntries          DiaryEntry[]
   reviewLikes           ReviewLike[]
   reviewComments        ReviewComment[]
-  notificationsReceived Notification[]        @relation("NotificationRecipient")
-  notificationsSent     Notification[]        @relation("NotificationActor")
+  notificationsReceived Notification[]           @relation("NotificationRecipient")
+  notificationsSent     Notification[]           @relation("NotificationActor")
   mediaCollections      MediaCollection[]
   collectionLikes       CollectionLike[]
   collectionComments    CollectionComment[]
   releaseReminders      ReleaseReminder[]
-  catalogQualityReviews CatalogQualityIssue[] @relation("CatalogQualityReviewer")
-  catalogQualityEvents  CatalogQualityEvent[] @relation("CatalogQualityActor")
+  catalogQualityReviews CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
+  catalogQualityEvents  CatalogQualityEvent[]    @relation("CatalogQualityActor")
+  catalogMergesPrepared CatalogMediaMerge[]      @relation("CatalogMergePreparer")
+  catalogMergesApplied  CatalogMediaMerge[]      @relation("CatalogMergeApplier")
+  catalogMergesReverted CatalogMediaMerge[]      @relation("CatalogMergeReverter")
+  catalogMergeEvents    CatalogMediaMergeEvent[]
 }
 
 model ListType {
@@ -332,6 +336,7 @@ model CatalogQualityIssue {
   reviewedBy       User?                 @relation("CatalogQualityReviewer", fields: [reviewedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reviewedById     String?
   events           CatalogQualityEvent[]
+  merge            CatalogMediaMerge?
 
   @@index([status, issueType, lastSeenAt])
   @@index([primaryMediaId])
@@ -356,6 +361,61 @@ model CatalogQualityEvent {
   actorId String?
 
   @@index([issueId, createdAt])
+  @@index([actorId])
+}
+
+/// A reviewed, reversible canonical-media merge. Media identifiers are stored
+/// as durable scalar values because the source row is intentionally absent
+/// while a merge is applied and must be recreated during reversal.
+model CatalogMediaMerge {
+  id                   String    @id @default(cuid())
+  status               String    @default("planned")
+  sourceMediaId        String
+  targetMediaId        String
+  preflight            String
+  preflightFingerprint String
+  journal              String?
+  preparedAt           DateTime  @default(now())
+  appliedAt            DateTime?
+  revertedAt           DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  issue   CatalogQualityIssue @relation(fields: [issueId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  issueId String              @unique
+
+  preparedBy   User?                    @relation("CatalogMergePreparer", fields: [preparedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  preparedById String?
+  appliedBy    User?                    @relation("CatalogMergeApplier", fields: [appliedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  appliedById  String?
+  revertedBy   User?                    @relation("CatalogMergeReverter", fields: [revertedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  revertedById String?
+  events       CatalogMediaMergeEvent[]
+
+  @@index([status, updatedAt])
+  @@index([sourceMediaId])
+  @@index([targetMediaId])
+  @@index([preparedById])
+  @@index([appliedById])
+  @@index([revertedById])
+}
+
+/// Append-only merge lifecycle events. The operation's journal is immutable
+/// after apply; later reversal adds an event rather than erasing history.
+model CatalogMediaMergeEvent {
+  id             String   @id @default(cuid())
+  action         String
+  previousStatus String?
+  nextStatus     String
+  details        String?
+  createdAt      DateTime @default(now())
+
+  merge   CatalogMediaMerge @relation(fields: [mergeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mergeId String
+  actor   User?             @relation(fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  actorId String?
+
+  @@index([mergeId, createdAt])
   @@index([actorId])
 }
 

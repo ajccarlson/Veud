@@ -2,6 +2,11 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { action, loader } from '#app/routes/media+/$mediaId.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import {
+	applyCatalogMediaMerge,
+	prepareCatalogMediaMerge,
+} from '#app/utils/catalog-media-merge.server.ts'
+import { expectedCatalogMergeConfirmation } from '#app/utils/catalog-media-merge.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
@@ -168,6 +173,55 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 	).toBe(true)
 	expect(result.data.socialContext).toBeNull()
 	expect(result.data.viewer).toBeNull()
+})
+
+test('public media loader permanently redirects an applied merge source', async () => {
+	const admin = await user('merge_redirect_admin')
+	await prisma.media.createMany({
+		data: [
+			{ id: 'redirect-merge-source', kind: 'movie', title: 'Old record' },
+			{ id: 'redirect-merge-target', kind: 'movie', title: 'Canonical record' },
+		],
+	})
+	const issue = await prisma.catalogQualityIssue.create({
+		data: {
+			fingerprint: 'redirect-merge-fingerprint',
+			issueType: 'possible_duplicate',
+			status: 'confirmed',
+			severity: 'warning',
+			summary: 'Redirect duplicate',
+			primaryMediaId: 'redirect-merge-source',
+			secondaryMediaId: 'redirect-merge-target',
+			reviewedById: admin.id,
+		},
+	})
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'redirect-merge-target',
+		actorId: admin.id,
+	})
+	await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'redirect-merge-source',
+			'redirect-merge-target',
+		),
+	})
+
+	try {
+		await loader({
+			request: new Request(`${BASE_URL}/media/redirect-merge-source`),
+			params: { mediaId: 'redirect-merge-source' },
+		} as any)
+		throw new Error('Expected redirect')
+	} catch (error) {
+		expect(error).toBeInstanceOf(Response)
+		expect((error as Response).status).toBe(301)
+		expect((error as Response).headers.get('Location')).toBe(
+			'/media/redirect-merge-target',
+		)
+	}
 })
 
 test('public media loader exposes grouped canonical title relations', async () => {
