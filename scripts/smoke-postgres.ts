@@ -50,45 +50,49 @@ async function main() {
 
 		const [roles, permissions, listTypes] = await Promise.all([
 			prisma.role.findMany({
-				where: { name: { in: ['admin', 'user'] } },
-				select: {
-					name: true,
-					permissions: {
-						where: {
-							entity: { in: ['user', 'watchlist'] },
-							action: { in: ['create', 'read', 'update', 'delete'] },
-							access: { in: ['own', 'any'] },
-						},
-						select: { access: true },
+				where: {
+					name: {
+						in: ['admin', 'user', 'moderator', 'community-admin'],
 					},
 				},
-			}),
-			prisma.permission.count({
-				where: {
-					entity: { in: ['user', 'watchlist'] },
-					action: { in: ['create', 'read', 'update', 'delete'] },
-					access: { in: ['own', 'any'] },
+				select: {
+					name: true,
+					permissions: { select: { action: true, entity: true, access: true } },
 				},
 			}),
+			prisma.permission.count(),
 			prisma.listType.findMany({
 				where: { name: { in: ['liveaction', 'anime', 'manga'] } },
 				select: { name: true },
 			}),
 		])
 		const rolePermissions = new Map(
-			roles.map(role => [
-				role.name,
-				role.permissions.map(permission => permission.access),
-			]),
+			roles.map(role => [role.name, role.permissions]),
 		)
-		const userPermissions = rolePermissions.get('user')
-		const adminPermissions = rolePermissions.get('admin')
+		const hasPermission = (
+			roleName: string,
+			action: string,
+			entity: string,
+			access: string,
+		) =>
+			rolePermissions
+				.get(roleName)
+				?.some(
+					permission =>
+						permission.action === action &&
+						permission.entity === entity &&
+						permission.access === access,
+				) ?? false
 		if (
-			permissions !== 16 ||
-			userPermissions?.length !== 8 ||
-			!userPermissions.every(access => access === 'own') ||
-			adminPermissions?.length !== 8 ||
-			!adminPermissions.every(access => access === 'any')
+			permissions !== 22 ||
+			roles.length !== 4 ||
+			rolePermissions.get('user')?.length !== 9 ||
+			rolePermissions.get('admin')?.length !== 14 ||
+			rolePermissions.get('moderator')?.length !== 5 ||
+			rolePermissions.get('community-admin')?.length !== 6 ||
+			!hasPermission('user', 'create', 'report', 'own') ||
+			!hasPermission('moderator', 'moderate', 'content', 'any') ||
+			!hasPermission('community-admin', 'assign', 'role', 'any')
 		) {
 			throw new Error(
 				'Authorization reference data is incomplete; account creation is unsafe',

@@ -228,7 +228,9 @@ export async function getPersonalizedCollectionRanking(
 			prisma.collectionLike.findMany({
 				where: {
 					userId: viewerId,
-					collection: { is: { isPublic: true } },
+					collection: {
+						is: { isPublic: true, moderationStatus: 'visible' },
+					},
 				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take: PERSONALIZATION_HISTORY_LIMIT,
@@ -364,7 +366,12 @@ export async function getPersonalizedCollectionRanking(
 			id: true,
 			ownerId: true,
 			updatedAt: true,
-			_count: { select: { likes: true, comments: true } },
+			_count: {
+				select: {
+					likes: true,
+					comments: { where: { moderationStatus: 'visible' } },
+				},
+			},
 			items: { select: { mediaId: true } },
 			tags: { select: { tag: { select: { name: true, slug: true } } } },
 		},
@@ -428,6 +435,7 @@ export async function getTrendingCollectionIds(
 			prisma.collectionComment.findMany({
 				where: {
 					createdAt: { gte: windowStart },
+					moderationStatus: 'visible',
 					collection: { is: where },
 				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -452,13 +460,21 @@ export async function getTrendingCollectionIds(
 			id: true,
 			createdAt: true,
 			updatedAt: true,
-			_count: { select: { likes: true, comments: true } },
+			_count: {
+				select: {
+					likes: true,
+					comments: { where: { moderationStatus: 'visible' } },
+				},
+			},
 			likes: {
 				where: { createdAt: { gte: windowStart } },
 				select: { createdAt: true },
 			},
 			comments: {
-				where: { createdAt: { gte: windowStart } },
+				where: {
+					createdAt: { gte: windowStart },
+					moderationStatus: 'visible',
+				},
 				select: { createdAt: true },
 			},
 		},

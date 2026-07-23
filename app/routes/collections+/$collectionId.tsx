@@ -12,6 +12,7 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -90,13 +91,19 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				orderBy: { tag: { name: 'asc' } },
 				select: { tag: { select: { name: true, slug: true } } },
 			},
-			_count: { select: { likes: true, comments: true } },
+			_count: {
+				select: {
+					likes: true,
+					comments: { where: { moderationStatus: 'visible' } },
+				},
+			},
 			likes: {
 				where: { userId: viewerId ?? '' },
 				take: 1,
 				select: { id: true },
 			},
 			comments: {
+				where: { moderationStatus: 'visible' },
 				orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 				take: 100,
 				select: {
@@ -429,6 +436,13 @@ export default function CollectionDetail() {
 							<Button asChild variant="outline">
 								<Link to="edit">Edit collection</Link>
 							</Button>
+						) : null}
+						{data.viewerId && !data.isOwner ? (
+							<ReportContentButton
+								targetType="collection"
+								targetId={data.collection.id}
+								label="collection"
+							/>
 						) : null}
 						{data.isAdmin && data.collection.isPublic ? (
 							<Form method="post">
@@ -776,6 +790,12 @@ export default function CollectionDetail() {
 												Delete
 											</button>
 										</Form>
+									) : data.viewerId ? (
+										<ReportContentButton
+											targetType="collection_comment"
+											targetId={comment.id}
+											label="collection comment"
+										/>
 									) : null}
 								</div>
 								<p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#c6ded2]">

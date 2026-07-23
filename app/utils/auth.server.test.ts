@@ -182,3 +182,82 @@ test('authenticated password changes retain only the current session', async () 
 		await verifyUserPassword({ id: user.id }, 'New-password-123!'),
 	).toEqual({ id: user.id })
 })
+
+test('suspended accounts cannot authenticate and active sessions are revoked', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const password = 'Suspended-password-123!'
+	const user = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `suspended_${suffix}`,
+			accountStatus: 'suspended',
+			suspensionEndsAt: new Date(Date.now() + 86_400_000),
+			accountStatusReason: 'Account safety review.',
+			password: { create: { hash: await getPasswordHash(password) } },
+			sessions: { create: { expirationDate: getSessionExpirationDate() } },
+		},
+		select: { id: true, sessions: { select: { id: true } } },
+	})
+
+	expect(await verifyUserPassword({ id: user.id }, password)).toBeNull()
+	const cookie = await getSessionCookieHeader(user.sessions[0]!)
+	const response = await getUserId(
+		new Request(BASE_URL, { headers: { cookie } }),
+	).catch(error => error)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).headers.get('location')).toBe(
+		'/login?account=suspended',
+	)
+	expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0)
+})
+
+test('expired timed suspensions are cleared automatically', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const password = 'Restored-password-123!'
+	const user = await prisma.user.create({
+		data: {
+			email: `${suffix}@example.com`,
+			username: `restored_${suffix}`,
+			accountStatus: 'suspended',
+			suspensionEndsAt: new Date(Date.now() - 60_000),
+			accountStatusReason: 'Expired action.',
+			password: { create: { hash: await getPasswordHash(password) } },
+		},
+		select: { id: true },
+	})
+
+	expect(await verifyUserPassword({ id: user.id }, password)).toEqual({
+		id: user.id,
+	})
+	expect(
+		await prisma.user.findUniqueOrThrow({
+			where: { id: user.id },
+			select: {
+				accountStatus: true,
+				suspensionEndsAt: true,
+				accountStatusReason: true,
+			},
+		}),
+	).toEqual({
+		accountStatus: 'active',
+		suspensionEndsAt: null,
+		accountStatusReason: null,
+	})
+	await expect(
+		prisma.moderationAction.findFirst({
+			where: {
+				subjectId: user.id,
+				action: 'account_suspension_expired',
+			},
+			select: {
+				actorId: true,
+				previousStatus: true,
+				nextStatus: true,
+			},
+		}),
+	).resolves.toEqual({
+		actorId: null,
+		previousStatus: 'suspended',
+		nextStatus: 'active',
+	})
+})

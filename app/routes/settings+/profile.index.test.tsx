@@ -1,7 +1,10 @@
 import { faker } from '@faker-js/faker'
 import { RouterContextProvider } from 'react-router'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/settings+/profile.index.tsx'
+import {
+	action,
+	loader,
+} from '#app/routes/settings+/profile.index.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
@@ -229,4 +232,65 @@ test('password-backed account deletion requires the current password', async () 
 	expect(deleted).toBeInstanceOf(Response)
 	expect((deleted as Response).status).toBe(302)
 	expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull()
+})
+
+test('account standing exposes decisions and accepts one appeal for the signed-in member', async () => {
+	const { user, cookie } = await createUserAndCookie()
+	const decision = await prisma.moderationAction.create({
+		data: {
+			subjectId: user.id,
+			action: 'account_warn',
+			targetType: 'account',
+			targetId: user.id,
+			reason: 'Account warning fixture.',
+			previousStatus: 'active',
+			nextStatus: 'active',
+		},
+	})
+	const request = new Request(`${BASE_URL}/settings/profile`, {
+		headers: { cookie },
+	})
+	const loaded = await loader({
+		request,
+		url: new URL(request.url),
+		params: {},
+	} as any)
+	expect(loaded.data.user.moderationActionsSubject).toEqual([
+		expect.objectContaining({
+			id: decision.id,
+			reason: 'Account warning fixture.',
+		}),
+	])
+
+	const response = await action(
+		actionArgs(
+			new Request(`${BASE_URL}/settings/profile`, {
+				method: 'POST',
+				headers: {
+					cookie,
+					'content-type': 'application/x-www-form-urlencoded',
+				},
+				body: new URLSearchParams({
+					intent: 'appeal-moderation',
+					actionId: decision.id,
+					details: 'This warning was based on mistaken context.',
+				}),
+			}),
+		),
+	)
+	expect(getStatus(response)).toBe(200)
+	expect(
+		await prisma.moderationReport.findFirstOrThrow({
+			where: { appealOfActionId: decision.id },
+			select: {
+				reporterId: true,
+				reasonCategory: true,
+				details: true,
+			},
+		}),
+	).toEqual({
+		reporterId: user.id,
+		reasonCategory: 'appeal',
+		details: 'This warning was based on mistaken context.',
+	})
 })

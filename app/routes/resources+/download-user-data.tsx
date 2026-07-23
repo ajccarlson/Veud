@@ -37,6 +37,35 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			homeDashboardPreference: true,
 			notificationPreference: true,
 			notificationDigests: true,
+			moderationReportsSubmitted: {
+				select: {
+					id: true,
+					targetType: true,
+					targetId: true,
+					reasonCategory: true,
+					details: true,
+					status: true,
+					priority: true,
+					resolutionNote: true,
+					createdAt: true,
+					updatedAt: true,
+					resolvedAt: true,
+					appealOfActionId: true,
+				},
+			},
+			moderationActionsSubject: {
+				select: {
+					id: true,
+					action: true,
+					targetType: true,
+					targetId: true,
+					reason: true,
+					details: true,
+					previousStatus: true,
+					nextStatus: true,
+					createdAt: true,
+				},
+			},
 		},
 	})
 
