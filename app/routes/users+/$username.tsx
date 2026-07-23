@@ -79,16 +79,14 @@ export default function ProfileRoute() {
 		Boolean(navigation.location?.pathname.startsWith(`/users/${user.username}`))
 
 	async function toggleFollow() {
-		await fetch(
-			'/resources/follow/' +
-				encodeURIComponent(
-					new URLSearchParams({
+		await fetch('/resources/follow', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
 						userId: user.id,
 						intent: loaderData.isFollowing ? 'unfollow' : 'follow',
-					}).toString(),
-				),
-			{ method: 'POST' },
-		)
+			}),
+		})
 		revalidator.revalidate()
 	}
 

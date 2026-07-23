@@ -19,7 +19,7 @@ import {
 	prepareVerification,
 	requireRecentVerification,
 } from '#app/routes/_auth+/verify.server.ts'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { requireUserId, verifyUserPassword } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
@@ -37,6 +37,7 @@ export const newEmailAddressSessionKey = 'new-email-address'
 
 const ChangeEmailSchema = z.object({
 	email: EmailSchema,
+	currentPassword: z.string().optional(),
 })
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
@@ -44,13 +45,16 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request, { url })
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
-		select: { email: true },
+		select: { email: true, password: { select: { userId: true } } },
 	})
 	if (!user) {
 		const params = new URLSearchParams({ redirectTo: url.toString() })
 		throw redirect(`/login?${params}`)
 	}
-	return json({ user })
+	return json({
+		user: { email: user.email },
+		hasPassword: Boolean(user.password),
+	})
 }
 
 export async function action({ request, url }: ActionFunctionArgs) {
@@ -77,6 +81,31 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			{ result: submission.reply() },
 			{ status: submission.status === 'error' ? 400 : 200 },
 		)
+	}
+	const user = await prisma.user.findUniqueOrThrow({
+		where: { id: userId },
+		select: { username: true, password: { select: { userId: true } } },
+	})
+	if (user.password) {
+		const passwordMatch = submission.value.currentPassword
+			? await verifyUserPassword(
+					{ username: user.username },
+					submission.value.currentPassword,
+				)
+			: null
+		if (!passwordMatch) {
+			return json(
+				{
+					result: submission.reply({
+						hideFields: ['currentPassword'],
+						fieldErrors: {
+							currentPassword: ['Enter your current password'],
+						},
+					}),
+				},
+				{ status: 400 },
+			)
+		}
 	}
 	const { otp, redirectTo, verifyUrl } = await prepareVerification({
 		period: 10 * 60,
@@ -138,10 +167,25 @@ export default function ChangeEmailIndex() {
 						}}
 						errors={fields.email.errors}
 					/>
+					{data.hasPassword ? (
+						<Field
+							labelProps={{
+								htmlFor: fields.currentPassword.id,
+								children: 'Current password',
+							}}
+							inputProps={{
+								...getInputProps(fields.currentPassword, {
+									type: 'password',
+								}),
+								autoComplete: 'current-password',
+							}}
+							errors={fields.currentPassword.errors}
+						/>
+					) : null}
 					<ErrorList id={form.errorId} errors={form.errors} />
 					<div>
 						<StatusButton
-							status={isPending ? 'pending' : form.status ?? 'idle'}
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
 						>
 							Send Confirmation
 						</StatusButton>

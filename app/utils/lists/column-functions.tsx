@@ -272,6 +272,18 @@ export function getThumbnailInfo(thumbnail: string | null | undefined) {
 	}
 }
 
+export function safeMediaHref(value: string) {
+	if (value.startsWith('/') && !value.startsWith('//')) return value
+	try {
+		const url = new URL(value)
+		return url.protocol === 'https:' || url.protocol === 'http:'
+			? url.toString()
+			: '/discover'
+	} catch {
+		return '/discover'
+	}
+}
+
 export function hyperlinkRenderer(
 	params: string,
 	type: any = undefined,
@@ -286,6 +298,7 @@ export function hyperlinkRenderer(
 		let hyperlinkArray = []
 
 		for (const item of paramsObject) {
+			if (typeof item !== 'string') continue
 			const { content, url } = getThumbnailInfo(item)
 
 			if (itemCount % 2 == 0) {
@@ -294,7 +307,12 @@ export function hyperlinkRenderer(
 				inner = <span className="ag-list-even">{content}</span>
 			}
 
-			hyperlinkArray.push(<a href={url}>{inner}</a>)
+			hyperlinkArray.push(
+				<a href={safeMediaHref(url)} key={`${url}:${itemCount}`}>
+					{inner}
+				</a>,
+			)
+			itemCount += 1
 		}
 
 		return hyperlinkArray
@@ -326,7 +344,7 @@ export function hyperlinkRenderer(
 			inner = <span>{content}</span>
 		}
 
-		return <a href={url}>{inner}</a>
+		return <a href={safeMediaHref(url)}>{inner}</a>
 	}
 }
 

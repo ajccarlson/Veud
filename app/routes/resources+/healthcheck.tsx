@@ -1,26 +1,19 @@
 // learn more: https://fly.io/docs/reference/configuration/#services-http_checks
-import { type LoaderFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 
-export async function loader({ request }: LoaderFunctionArgs) {
-	const host =
-		request.headers.get('X-Forwarded-Host') ?? request.headers.get('host')
-
+export async function loader() {
 	try {
-		// if we can connect to the database and make a simple query
-		// and make a HEAD request to ourselves, then we're good.
-		await Promise.all([
-			prisma.listType.count(),
-			fetch(`${new URL(request.url).protocol}${host}`, {
-				method: 'HEAD',
-				headers: { 'X-Healthcheck': 'true' },
-			}).then(r => {
-				if (!r.ok) return Promise.reject(r)
-			}),
-		])
-		return new Response('OK')
+		// Serving this request already proves the HTTP process is responsive.
+		// Avoid constructing a server-side request from untrusted Host headers.
+		await prisma.listType.count()
+		return new Response('OK', {
+			headers: { 'Cache-Control': 'no-store' },
+		})
 	} catch (error: unknown) {
-		console.log('healthcheck ❌', { error })
-		return new Response('ERROR', { status: 500 })
+		console.error('healthcheck failed', error)
+		return new Response('ERROR', {
+			status: 500,
+			headers: { 'Cache-Control': 'no-store' },
+		})
 	}
 }

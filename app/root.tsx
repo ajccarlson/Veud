@@ -1,7 +1,6 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-import { useRef } from 'react'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -9,6 +8,7 @@ import {
 	type HeadersFunction,
 	type LinksFunction,
 	type MetaFunction,
+	type ShouldRevalidateFunctionArgs,
 	Form,
 	Link,
 	Links,
@@ -211,6 +211,26 @@ export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
 	)
 }
 
+/**
+ * Root account/navigation data is stable during ordinary client-side route
+ * changes. Actions and explicit same-page revalidation still refresh it.
+ */
+export function shouldRevalidate({
+	currentUrl,
+	nextUrl,
+	formMethod,
+	defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+	if (formMethod) return true
+	if (
+		currentUrl.pathname !== nextUrl.pathname ||
+		currentUrl.search !== nextUrl.search
+	) {
+		return false
+	}
+	return defaultShouldRevalidate
+}
+
 const ThemeFormSchema = z.object({
 	theme: z.enum(['system', 'light', 'dark']),
 })
@@ -259,7 +279,7 @@ function Document({
 				<script
 					nonce={nonce}
 					dangerouslySetInnerHTML={{
-						__html: `window.ENV = ${JSON.stringify(env)}`,
+						__html: `window.ENV = ${JSON.stringify(env).replaceAll('<', '\\u003c')}`,
 					}}
 				/>
 				<ScrollRestoration nonce={nonce} />
@@ -562,21 +582,17 @@ function ListsDropdown() {
 function UserDropdown() {
 	const user = useUser()
 	const submit = useSubmit()
-	const formRef = useRef<HTMLFormElement>(null)
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button asChild variant="secondary">
-					<Link
-						to={`/users/${user.username}`}
-						// this is for progressive enhancement
-						onClick={e => e.preventDefault()}
-						className="root-user-links-dropdown"
-					>
-						<span className="text-body-sm font-bold">{user.username}</span>
-						<Icon name="triangle-down" />
-					</Link>
+				<Button
+					aria-label={`Open ${user.username} account menu`}
+					className="root-user-links-dropdown"
+					variant="secondary"
+				>
+					<span className="text-body-sm font-bold">{user.username}</span>
+					<Icon name="triangle-down" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuPortal>
@@ -603,18 +619,13 @@ function UserDropdown() {
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem
-						asChild
-						// this prevents the menu from closing before the form submission is completed
-						onSelect={event => {
-							event.preventDefault()
-							submit(formRef.current)
+						onSelect={() => {
+							void submit(null, { action: '/logout', method: 'post' })
 						}}
 					>
-						<Form action="/logout" method="POST" ref={formRef}>
-							<Icon className="text-body-md" name="exit">
-								<button type="submit">Logout</button>
-							</Icon>
-						</Form>
+						<Icon className="text-body-md" name="exit">
+							Logout
+						</Icon>
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenuPortal>

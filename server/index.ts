@@ -15,6 +15,8 @@ import {
 	type cspNonceContext as CspNonceContext,
 	type serverBuildContext as ServerBuildContext,
 } from '../app/env.ts'
+import { canonicalOriginFromEnvironment } from '../app/utils/canonical-origin.ts'
+import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
 
 type ServerContextModule = {
 	cspNonceContext: typeof CspNonceContext
@@ -47,8 +49,12 @@ app.use((req, res, next) => {
 	const proto = req.get('X-Forwarded-Proto')
 	const host = getHost(req)
 	if (proto === 'http') {
+		const canonicalOrigin = canonicalOriginFromEnvironment()
+		const destination = canonicalOrigin
+			? `${canonicalOrigin}${req.originalUrl.startsWith('/') ? req.originalUrl : `/${req.originalUrl}`}`
+			: `https://${host}${req.originalUrl}`
 		res.set('X-Forwarded-Proto', 'https')
-		res.redirect(`https://${host}${req.originalUrl}`)
+		res.redirect(308, destination)
 		return
 	}
 	next()
@@ -91,7 +97,13 @@ app.get(['/img/*', '/favicons/*'], (req, res) => {
 	return res.status(404).send('Not found')
 })
 
-morgan.token('url', req => decodeURIComponent(req.url ?? ''))
+morgan.token('url', req => {
+	try {
+		return decodeURIComponent(req.url ?? '')
+	} catch {
+		return req.url ?? ''
+	}
+})
 app.use(
 	morgan('tiny', {
 		skip: (req, res) =>
@@ -154,12 +166,14 @@ const rateLimitDefault = {
 	max: 1000 * maxMultiple,
 	standardHeaders: true,
 	legacyHeaders: false,
-	// Behind Cloudflare the real client IP is in CF-Connecting-IP; req.ip is only the
-	// cloudflared (loopback) hop. Key the limiter on the Cloudflare-provided IP, falling
-	// back to req.ip for local dev, so a client can't forge X-Forwarded-For to dodge the
-	// auth/signup limits or push another IP over its limit.
+	// Accept Cloudflare's client address only when the direct socket is the local
+	// tunnel. A direct client can otherwise forge CF-Connecting-IP.
 	keyGenerator: (req: Request) =>
-		req.get('cf-connecting-ip') ?? req.ip ?? 'unknown',
+		rateLimitClientKey({
+			socketAddress: req.socket.remoteAddress,
+			cloudflareAddress: req.get('cf-connecting-ip'),
+			requestAddress: req.ip,
+		}),
 	// trust proxy is narrowed to loopback (above), so the prior Fly note no longer applies.
 	validate: { trustProxy: false },
 }
