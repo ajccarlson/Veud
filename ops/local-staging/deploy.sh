@@ -27,6 +27,8 @@ cd "$temporary"
 "$NPM_BIN" run db:migrate:postgres
 "$NPM_BIN" run db:verify:postgres
 "$NPM_BIN" run db:smoke:postgres
+DATABASE_URL="$STAGING_LOAD_DATABASE_URL" "$NPM_BIN" run db:migrate:postgres
+DATABASE_URL="$STAGING_LOAD_DATABASE_URL" "$NPM_BIN" run db:verify:postgres
 
 if [[ -d "$release" ]]; then
 	rm -rf "$temporary"
