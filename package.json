@@ -59,6 +59,7 @@
     "test:e2e:server": "tsx ./tests/setup/playwright-server.ts",
     "pretest:e2e:run": "npm run build",
     "test:e2e:run": "cross-env CI=true playwright test",
+    "test:e2e:gates": "cross-env CI=true playwright test tests/e2e/accessibility.test.ts tests/e2e/visual-regression.test.ts --project=chromium",
     "test:e2e:install": "npx playwright install --with-deps chromium",
     "typecheck": "react-router typegen && tsc",
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run"
@@ -155,6 +156,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@faker-js/faker": "^8.4.1",
     "@playwright/test": "^1.42.1",
     "@react-router/dev": "^8.3.0",

@@ -1,3 +1,25 @@
+.skip-link {
+	position: fixed;
+	z-index: 1000;
+	top: 0.75rem;
+	left: 0.75rem;
+	padding: 0.7rem 1rem;
+	color: #211f24;
+	background: #ffffb1;
+	border: 2px solid #211f24;
+	border-radius: 0.6rem;
+	box-shadow: 0 0.45rem 1.25rem rgba(0, 0, 0, 0.45);
+	font-weight: 800;
+	transform: translateY(calc(-100% - 1rem));
+	transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+	outline: 3px solid #a2ffd5;
+	outline-offset: 2px;
+	transform: translateY(0);
+}
+
 .root {
 	min-height: 100dvh;
 
@@ -343,9 +365,9 @@
 		width: min(100% - 2rem, 80rem);
 		margin-inline: auto;
 		padding-block: 0.65rem;
-		color: rgba(198, 222, 210, 0.58);
+		color: #b7ccc2;
 		border-top: 1px solid rgba(84, 128, 108, 0.18);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		line-height: 1.25rem;
 	}
 
@@ -354,13 +376,13 @@
 	}
 
 	.site-footer-brand {
-		color: rgba(255, 153, 0, 0.72);
+		color: #ffb347;
 		font-weight: 800;
 	}
 
 	.site-footer a {
 		flex: 0 0 auto;
-		color: rgba(162, 255, 213, 0.68);
+		color: #a2ffd5;
 		text-decoration: underline;
 		text-decoration-color: transparent;
 		text-underline-offset: 0.2rem;
@@ -392,11 +414,11 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		background-color: #54806c;
+		background-color: #476b5b;
 	}
 
 	.root-user-links-dropdown:hover {
-		background-color: #476b5b;
+		background-color: #3a5b4d;
 	}
 
 	.root-user-lists {
@@ -445,7 +467,7 @@
 			align-items: flex-start;
 			gap: 0.25rem;
 			padding-block: 0.45rem;
-			font-size: 0.65rem;
+			font-size: 0.7rem;
 		}
 
 		.site-footer p {
