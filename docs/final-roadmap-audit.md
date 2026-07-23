@@ -128,17 +128,27 @@ clients do not load that desktop-only module.
 
 ## Operational acceptance
 
-The exact committed candidate must still pass the isolated local PostgreSQL
-staging deployment before promotion:
+Exact application commit `f47ca9622bbf7715035ba319febfd9b4bd919976`
+passed the isolated local PostgreSQL staging deployment on 2026-07-23:
 
-1. Archive and install the exact Git commit with `npm ci`.
-2. Generate and validate the PostgreSQL client.
-3. Build the production application.
-4. Apply and verify migrations to both staging databases.
-5. Run PostgreSQL write and search smoke checks.
-6. Restart the staged application and verify its health endpoint.
-7. Confirm HTTPS canary checks, timers, catalog status, live storage, backup
-   storage, and restore-tested backup operations.
+- The archived commit installed 1,431 packages with zero vulnerabilities,
+  generated its PostgreSQL client, and built successfully.
+- Migration `20260723210000_add_watchlist_mutation_version` applied to both
+  `veud_staging` and `veud_staging_load`. Both databases reported migration 10,
+  no pending migrations, and no schema drift.
+- PostgreSQL schema, `pg_trgm` indexes, model writes, and portable searches
+  passed the production smoke probe.
+- The application restarted on Node 22, returned a healthy database-backed
+  response, and remained reachable through the Cloudflare HTTPS boundary.
+- The public matrix passed 192 of 192 requests across eight routes with a
+  67.034 ms p95, including security-header, origin, status, content, and
+  latency checks.
+- PostgreSQL 16.14, the application, daily backup timers, digest delivery,
+  and all enabled MAL/TMDB inventory and hydration workers were healthy.
+  Catalog telemetry reported zero provider rate-limit responses.
+- Fresh application and catalog backups were written, restored into the
+  verification database, checked at migration 10, and copied to the physically
+  separate backup drive. The catalog receipt covered 1,565,817 media rows.
 
 MAL and TMDB hydration are intentionally resumable operational processes, not
 release blockers while their queues continue to drain without errors. External
