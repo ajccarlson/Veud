@@ -65,6 +65,7 @@ model User {
   moderationActionsSubject   ModerationAction[]       @relation("ModerationActionSubject")
   moderationAppealDrafts     ModerationAppealDraft[]
   serviceIncidentEvents      ServiceIncidentEvent[]
+  libraryImportBatches       LibraryImportBatch[]
 }
 
 model ListType {
@@ -166,6 +167,7 @@ model Media {
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
   secondaryQualityIssues CatalogQualityIssue[]    @relation("CatalogQualitySecondaryMedia")
   recommendationFeedback RecommendationFeedback[]
+  libraryImportItems     LibraryImportItem[]
 
   @@index([kind])
   @@index([catalogPopularity])
@@ -1033,6 +1035,57 @@ model ServiceIncidentEvent {
 
   @@index([incidentId, createdAt])
   @@index([actorId, createdAt])
+}
+
+/// A private, owner-scoped import preview. Raw provider files are never stored;
+/// only bounded normalized items and reconciliation decisions are retained.
+model LibraryImportBatch {
+  id             String    @id @default(cuid())
+  provider       String
+  fileName       String
+  status         String    @default("previewed")
+  itemCount      Int
+  matchedCount   Int
+  ambiguousCount Int
+  unmatchedCount Int
+  conflictCount  Int
+  appliedAt      DateTime?
+  rolledBackAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  owner   User                @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+  items   LibraryImportItem[]
+
+  @@index([ownerId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// One normalized provider row and its selected canonical match. `journal`
+/// captures only the member-owned state needed for an exact rollback.
+model LibraryImportItem {
+  id          String    @id @default(cuid())
+  sourceKey   String
+  payload     String
+  matchState  String
+  matchMethod String?
+  hasConflict Boolean   @default(false)
+  candidates  String    @default("[]")
+  resolution  String    @default("skip")
+  journal     String?
+  appliedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  batch   LibraryImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  batchId String
+  media   Media?             @relation(fields: [mediaId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mediaId String?
+
+  @@unique([batchId, sourceKey])
+  @@index([batchId, matchState])
+  @@index([mediaId])
 }
 
 /// A member-submitted flag for community content or account behavior. Targets
