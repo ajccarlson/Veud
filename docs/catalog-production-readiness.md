@@ -144,6 +144,14 @@ without printing secret values:
   increased movie coverage to 377 records with zero deferred failures or `429`
   responses; shared catalog health remained `healthy`, the HTTPS healthcheck
   returned `OK`, and the admin dashboard remained login-protected.
+- Release `d1013c4` added non-destructive catalog-quality review. Its migration
+  passed first on the disposable restore database and then on both staging
+  databases without drift. A reviewed 2,000-record scan committed eight
+  duplicate candidates and one missing-poster candidate; repeating the same page
+  retained nine rows with nine unique fingerprints. Catalog health stayed
+  `healthy`, both provider hydration workers remained active with zero recorded
+  `429` responses, HTTPS health returned `200`, and anonymous admin access
+  redirected to login.
 
 The staging gate and initial provider execution are complete. Continue
 monitoring hydration coverage, failures, request volume, `429` events, and daily
