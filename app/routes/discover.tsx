@@ -137,6 +137,7 @@ function memorySearchStatus(data: {
 		| 'rate-limited'
 		| 'ai-error'
 		| 'ai-empty'
+		| 'provider-restricted'
 		| null
 }) {
 	if (data.memorySearchSource === 'ai') return 'AI ranked'
@@ -149,6 +150,8 @@ function memorySearchStatus(data: {
 			return 'Catalog matched · AI temporarily unavailable'
 		case 'ai-empty':
 			return 'Catalog matched · AI returned no usable matches'
+		case 'provider-restricted':
+			return 'Catalog matched · provider terms limit AI ranking'
 		case 'not-configured':
 			return 'Catalog matched · AI not configured'
 		default:

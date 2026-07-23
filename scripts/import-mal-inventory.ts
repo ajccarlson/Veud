@@ -23,7 +23,7 @@ Options:
   --kind anime|manga|all       Inventory to scan (default: all)
   --date YYYY-MM-DD            Logical scan date (default: today in UTC)
   --commit                     Write to the database (default: dry-run)
-  --policy-approval-ref VALUE  Written MAL storage/redisplay approval reference
+  --policy-approval-ref VALUE  Documented MAL storage/redisplay authorization reference
   --limit N                    Process at most N records per selected kind
   --page-size N                Ranking records per request, at most 500 (default: 500)
   --delay-ms N                 Delay between MAL requests (default: 1000)
@@ -154,7 +154,7 @@ async function main() {
 			`Request delay: ${delayMs}ms`,
 			`Reconciliation: ${reconcile ? 'guarded' : 'disabled'}`,
 			...(commit
-				? [`Policy approval: ${policyApprovalReference?.trim()}`]
+				? [`Policy authorization: ${policyApprovalReference?.trim()}`]
 				: []),
 		].join('\n'),
 	)
