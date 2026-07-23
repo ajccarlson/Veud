@@ -215,6 +215,28 @@ test('marks stale running heartbeats critical', () => {
 	)
 })
 
+test('marks an eligible queue without hydration state as degraded', () => {
+	const health = assessCatalogHealth({
+		now,
+		coverage: [
+			coverage({ provider: 'tmdb', kind: 'movie', label: 'TMDB movies' }),
+		],
+		runs: [
+			run({
+				provider: 'mal',
+				kind: 'anime',
+			}),
+		],
+		cursors: [cursor()],
+	})
+	expect(health.status).toBe('degraded')
+	expect(health.issues).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ id: 'unmanaged-queue:tmdb:movie' }),
+		]),
+	)
+})
+
 test('surfaces recent failures, cooldowns, overdue inventory, leases, and deferred failures', () => {
 	const health = assessCatalogHealth({
 		now,

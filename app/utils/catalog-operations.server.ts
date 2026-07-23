@@ -218,6 +218,29 @@ export function assessCatalogHealth({
 	}
 
 	for (const item of coverage) {
+		const hasHydrationState =
+			runs.some(
+				run =>
+					run.provider === item.provider &&
+					run.kind === item.kind &&
+					run.mode === 'hydrate',
+			) ||
+			cursors.some(
+				cursor =>
+					cursor.provider === item.provider &&
+					cursor.kind === item.kind &&
+					cursor.mode === 'hydrate',
+			)
+		if (item.queueDepth > 0 && !hasHydrationState) {
+			issues.push(
+				issue(
+					`unmanaged-queue:${item.provider}:${item.kind}`,
+					'warning',
+					'Eligible queue has no worker state',
+					`${item.label} has ${item.queueDepth.toLocaleString()} eligible records but no hydration run or durable cursor.`,
+				),
+			)
+		}
 		const warningThreshold = Math.max(25, Math.ceil(item.active * 0.01))
 		if (item.failedDeferred >= warningThreshold) {
 			issues.push(
