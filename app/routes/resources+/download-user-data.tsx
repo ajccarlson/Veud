@@ -24,20 +24,33 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			password: false, // <-- intentionally omit password
 			sessions: true,
 			roles: true,
+			recommendationFeedback: {
+				select: {
+					id: true,
+					mediaId: true,
+					feedbackType: true,
+					sourceLane: true,
+					createdAt: true,
+					updatedAt: true,
+				},
+			},
 		},
 	})
 
 	const domain = getDomainUrl(request)
 
-	return Response.json({
-		user: {
-			...user,
-			image: user.image
-				? {
-						...user.image,
-						url: `${domain}/resources/user-images/${user.image.id}`,
-					}
-				: null,
+	return Response.json(
+		{
+			user: {
+				...user,
+				image: user.image
+					? {
+							...user.image,
+							url: `${domain}/resources/user-images/${user.image.id}`,
+						}
+					: null,
+			},
 		},
-	})
+		{ headers: { 'Cache-Control': 'private, no-store' } },
+	)
 }
