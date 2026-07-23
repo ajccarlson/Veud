@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -10,7 +10,11 @@ import { ProfileEmptyState } from '#app/components/profile-ui.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
-import { renderCalendarChart } from '#app/routes/users+/$username_/stats_/calendar.tsx'
+import {
+	ProfileVisualizationBoundary,
+	ProfileVisualizationLoading,
+} from '#app/routes/users+/$username_/stats_/visualization-boundary.tsx'
+import { buildCompletionHistory } from '#app/utils/profile-completion-history.ts'
 import { loadProfileAnalytics } from '#app/utils/profile-data.server.ts'
 import { profileHeaders } from '#app/utils/profile-headers.ts'
 import { type ProfileShellData } from '#app/utils/profile.ts'
@@ -32,6 +36,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 export const headers = profileHeaders
 
+const DeferredCompletionHistoryChart = lazy(() =>
+	import('#app/routes/users+/$username_/stats_/calendar.tsx').then(module => ({
+		default: module.CompletionHistoryChart,
+	})),
+)
+
 function getMonthName(monthNum: any) {
 	const date = new Date(2000, monthNum - 1, 1)
 	return date.toLocaleString('default', { month: 'long' })
@@ -43,21 +53,17 @@ export default function ProfileOverview() {
 	const loaderData = { ...shellData, ...analyticsData }
 
 	const completionHistory = useMemo(
-		() =>
-			renderCalendarChart(
-				{ ...shellData, ...analyticsData },
-				'completion history',
-			),
-		[analyticsData, shellData],
+		() => buildCompletionHistory(analyticsData.typedEntries),
+		[analyticsData.typedEntries],
 	)
 	const completionYears = useMemo(
-		() => Object.keys(completionHistory),
+		() => Object.keys(completionHistory.months),
 		[completionHistory],
 	)
 
 	const latestYear = completionYears[completionYears.length - 1]
 	const [completionMonths, setCompletionMonths] = useState(() =>
-		latestYear ? Object.keys(completionHistory[latestYear]) : [],
+		latestYear ? Object.keys(completionHistory.months[latestYear]) : [],
 	)
 	const [yearIndex, setYearIndex] = useState(
 		Math.max(0, completionYears.length - 1),
@@ -79,14 +85,14 @@ export default function ProfileOverview() {
 		}
 		setMonthIndex(0)
 		setCompletionMonths(
-			Object.keys(completionHistory[completionYears[yearIndex]]),
+			Object.keys(completionHistory.months[completionYears[yearIndex]]),
 		)
 	}, [completionHistory, completionYears, yearIndex])
 	const selectedYear = completionYears[yearIndex]
 	const selectedMonth = completionMonths[monthIndex]
-	const selectedChart =
+	const selectedRange =
 		selectedYear && selectedMonth
-			? completionHistory[selectedYear]?.[selectedMonth]
+			? completionHistory.months[selectedYear]?.[selectedMonth]
 			: null
 
 	return (
@@ -99,10 +105,24 @@ export default function ProfileOverview() {
 					<h2>Completion History</h2>
 					<p>Finished titles and progress logged during the selected month.</p>
 				</header>
-				{selectedChart ? (
+				{selectedRange ? (
 					<>
 						<div className="user-landing-completion-history-chart">
-							{selectedChart}
+							<ProfileVisualizationBoundary
+								key={`${selectedYear}:${selectedMonth}`}
+							>
+								<Suspense
+									fallback={
+										<ProfileVisualizationLoading label="completion history" />
+									}
+								>
+									<DeferredCompletionHistoryChart
+										data={completionHistory.days}
+										from={selectedRange.from}
+										to={selectedRange.to}
+									/>
+								</Suspense>
+							</ProfileVisualizationBoundary>
 						</div>
 						<div className="user-landing-completion-history-controls">
 							<TypeSwitcher
