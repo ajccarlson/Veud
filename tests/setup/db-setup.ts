@@ -3,7 +3,10 @@ import fsExtra from 'fs-extra'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { BASE_DATABASE_PATH } from './global-setup.ts'
 
-const databaseFile = `./tests/prisma/data.${process.env.VITEST_POOL_ID || 0}.db`
+// Vitest 4 does not guarantee that VITEST_POOL_ID is unique across every fork.
+// A process id is unique for the lifetime of each fork and prevents one worker
+// from replacing another worker's open SQLite file with a fresh template.
+const databaseFile = `./tests/prisma/data.${process.pid}.db`
 const databasePath = path.join(process.cwd(), databaseFile)
 // connection_limit=1 forces a single SQLite connection (matching the app's own
 // DATABASE_URL). Without it the test DB uses a multi-connection pool and a read can

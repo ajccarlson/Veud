@@ -34,6 +34,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 					updatedAt: true,
 				},
 			},
+			homeDashboardPreference: true,
 		},
 	})
 
