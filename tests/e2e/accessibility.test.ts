@@ -39,7 +39,11 @@ test('signed-in settings and profile meet automated WCAG checks', async ({
 	login,
 }) => {
 	const user = await login()
-	for (const path of ['/settings/profile', `/users/${user.username}`]) {
+	for (const path of [
+		'/settings/profile',
+		'/settings/profile/notifications',
+		`/users/${user.username}`,
+	]) {
 		await page.goto(path)
 		await expect(page.locator('h1').first()).toBeVisible()
 		await expectNoAccessibilityViolations(page)

@@ -188,6 +188,11 @@ export default function EditUserProfile() {
 			<div className="my-6 h-1 border-b-[1.5px] border-veud-border" />
 			<div className="col-span-full flex flex-col gap-6">
 				<div>
+					<Link to="notifications">
+						<Icon name="envelope-closed">Notification preferences</Icon>
+					</Link>
+				</div>
+				<div>
 					<Link to="change-email">
 						<Icon name="envelope-closed">
 							Change email from {data.user.email}
