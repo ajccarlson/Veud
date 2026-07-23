@@ -144,6 +144,20 @@ test('login as existing user', async ({ page, insertNewUser }) => {
 	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
 })
 
+test('login as existing user with email', async ({ page, insertNewUser }) => {
+	const password = faker.internet.password()
+	const user = await insertNewUser({ password })
+	await page.goto('/login')
+	await page
+		.getByRole('textbox', { name: /username or email/i })
+		.fill(user.email.toUpperCase())
+	await page.getByLabel(/^password$/i).fill(password)
+	await page.getByRole('button', { name: /log in/i }).click()
+
+	await expect(page).toHaveURL(`/`)
+	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
+})
+
 test('reset password with a link', async ({ page, insertNewUser }) => {
 	const originalPassword = faker.internet.password()
 	const user = await insertNewUser({ password: originalPassword })
@@ -194,7 +208,9 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 	await page.getByLabel(/^password$/i).fill(originalPassword)
 	await page.getByRole('button', { name: /log in/i }).click()
 
-	await expect(page.getByText(/invalid username or password/i)).toBeVisible()
+	await expect(
+		page.getByText(/invalid username, email, or password/i),
+	).toBeVisible()
 
 	await page.getByLabel(/^password$/i).fill(newPassword)
 	await page.getByRole('button', { name: /log in/i }).click()
