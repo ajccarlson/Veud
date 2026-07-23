@@ -21,8 +21,7 @@ const DEVELOPMENT_DATABASE_GUARD_PATH = path.join(
 )
 
 type DatabaseFingerprint =
-	| { exists: false }
-	| { exists: true; bytes: number; sha256: string }
+	{ exists: false } | { exists: true; bytes: number; sha256: string }
 
 export function assertIsolatedDatabasePath(
 	testDatabasePath: string,
@@ -110,38 +109,58 @@ export async function preparePlaywrightDatabase() {
 
 		const prisma = new PrismaClient({ datasourceUrl: PLAYWRIGHT_DATABASE_URL })
 		try {
-			const permissions = []
-			for (const entity of ['user', 'watchlist']) {
-				for (const action of ['create', 'read', 'update', 'delete']) {
-					permissions.push(
-						await prisma.permission.upsert({
+			const [
+				listTypeCount,
+				userCount,
+				watchlistCount,
+				entryCount,
+				mediaCount,
+				roles,
+				permissionCount,
+			] = await Promise.all([
+				prisma.listType.count(),
+				prisma.user.count(),
+				prisma.watchlist.count(),
+				prisma.entry.count(),
+				prisma.media.count(),
+				prisma.role.findMany({
+					where: { name: { in: ['admin', 'user'] } },
+					select: {
+						name: true,
+						permissions: {
 							where: {
-								action_entity_access: { entity, action, access: 'own' },
+								entity: { in: ['user', 'watchlist'] },
+								action: { in: ['create', 'read', 'update', 'delete'] },
+								access: { in: ['own', 'any'] },
 							},
-							create: { entity, action, access: 'own' },
-							update: {},
-							select: { id: true },
-						}),
-					)
-				}
-			}
-			await prisma.role.upsert({
-				where: { name: 'user' },
-				create: { name: 'user', permissions: { connect: permissions } },
-				update: { permissions: { set: permissions } },
-			})
-
-			const [listTypeCount, userCount, watchlistCount, entryCount, mediaCount] =
-				await Promise.all([
-					prisma.listType.count(),
-					prisma.user.count(),
-					prisma.watchlist.count(),
-					prisma.entry.count(),
-					prisma.media.count(),
-				])
+							select: { access: true },
+						},
+					},
+				}),
+				prisma.permission.count(),
+			])
 			if (listTypeCount !== 3) {
 				throw new Error(
 					`Expected 3 migrated list types in the Playwright database; found ${listTypeCount}`,
+				)
+			}
+			const rolePermissions = new Map(
+				roles.map(role => [
+					role.name,
+					role.permissions.map(permission => permission.access),
+				]),
+			)
+			const userPermissions = rolePermissions.get('user')
+			const adminPermissions = rolePermissions.get('admin')
+			if (
+				permissionCount !== 16 ||
+				userPermissions?.length !== 8 ||
+				!userPermissions.every(access => access === 'own') ||
+				adminPermissions?.length !== 8 ||
+				!adminPermissions.every(access => access === 'any')
+			) {
+				throw new Error(
+					'Playwright database migrations must install authorization reference data',
 				)
 			}
 			if (userCount || watchlistCount || entryCount || mediaCount) {
