@@ -169,6 +169,12 @@ install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-postgres.servi
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-app.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-backup.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-backup.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-catalog-backup.timer" "$unit_dir/"
 systemctl --user daemon-reload
 systemctl --user enable --now veud-staging-postgres.service
 
