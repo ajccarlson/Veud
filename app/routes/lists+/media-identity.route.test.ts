@@ -494,6 +494,7 @@ test('refreshing a legacy row can establish its canonical identity', async () =>
 				rowIndex: entry.id,
 				row: JSON.stringify({
 					title: 'Fullmetal Alchemist: Brotherhood',
+					position: 99,
 					mediaIdentity: {
 						provider: 'mal',
 						kind: 'anime',
@@ -505,6 +506,7 @@ test('refreshing a legacy row can establish its canonical identity', async () =>
 	} as any)
 
 	expect(updated.title).toBe('Fullmetal Alchemist: Brotherhood')
+	expect(updated.position).toBe(1)
 	expect(updated.mediaId).toEqual(expect.any(String))
 	expect(updated.trackingStateId).toEqual(expect.any(String))
 	expect(

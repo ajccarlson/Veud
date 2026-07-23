@@ -26,6 +26,10 @@ import {
 	useDoubleCheck,
 	useIsPending,
 } from '#app/utils/misc.tsx'
+import {
+	hasSafeImageSignature,
+	isSafeImageContentType,
+} from '#app/utils/safe-image.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 
 export const handle: BreadcrumbHandle & SEOHandle = {
@@ -44,7 +48,11 @@ const NewImageSchema = z.object({
 	photoFile: z
 		.instanceof(File)
 		.refine(file => file.size > 0, 'Image is required')
-		.refine(file => file.size <= MAX_SIZE, 'Image size must be less than 3MB'),
+		.refine(file => file.size <= MAX_SIZE, 'Image size must be less than 3MB')
+		.refine(
+			file => isSafeImageContentType(file.type),
+			'Choose a JPEG, PNG, GIF, or WebP image.',
+		),
 })
 
 const PhotoFormSchema = z.discriminatedUnion('intent', [
@@ -76,20 +84,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		maxTotalSize: MAX_SIZE + 64 * 1024,
 	})
 
-	const submission = await parseWithZod(formData, {
-		schema: PhotoFormSchema.transform(async data => {
-			if (data.intent === 'delete') return { intent: 'delete' }
-			if (data.photoFile.size <= 0) return z.NEVER
-			return {
-				intent: data.intent,
-				image: {
-					contentType: data.photoFile.type,
-					blob: Buffer.from(await data.photoFile.arrayBuffer()),
-				},
-			}
-		}),
-		async: true,
-	})
+	const submission = await parseWithZod(formData, { schema: PhotoFormSchema })
 
 	if (submission.status !== 'success') {
 		return json(
@@ -98,18 +93,35 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		)
 	}
 
-	const { image, intent } = submission.value
-
-	if (intent === 'delete') {
+	if (submission.value.intent === 'delete') {
 		await prisma.userImage.deleteMany({ where: { userId } })
 		return redirect('/settings/profile')
+	}
+
+	const photoFile = submission.value.photoFile
+	const blob = Buffer.from(await photoFile.arrayBuffer())
+	if (!hasSafeImageSignature(blob, photoFile.type)) {
+		return json(
+			{
+				result: submission.reply({
+					fieldErrors: {
+						photoFile: ['The file contents do not match a supported image.'],
+					},
+				}),
+			},
+			{ status: 400 },
+		)
 	}
 
 	await prisma.$transaction(async $prisma => {
 		await $prisma.userImage.deleteMany({ where: { userId } })
 		await $prisma.user.update({
 			where: { id: userId },
-			data: { image: { create: image } },
+			data: {
+				image: {
+					create: { contentType: photoFile.type, blob },
+				},
+			},
 		})
 	})
 
@@ -198,7 +210,7 @@ export default function PhotoRoute() {
 							pendingIntent === 'submit'
 								? 'pending'
 								: lastSubmissionIntent === 'submit'
-									? form.status ?? 'idle'
+									? (form.status ?? 'idle')
 									: 'idle'
 						}
 					>
@@ -224,7 +236,7 @@ export default function PhotoRoute() {
 								pendingIntent === 'delete'
 									? 'pending'
 									: lastSubmissionIntent === 'delete'
-										? form.status ?? 'idle'
+										? (form.status ?? 'idle')
 										: 'idle'
 							}
 						>

@@ -32,22 +32,23 @@ test('Users can update their basic info', async ({ page, login }) => {
 })
 
 test('Users can update their password', async ({ page, login }) => {
-	const oldPassword = faker.internet.password()
+	const oldPassword = `Aa1!${faker.string.alphanumeric(16)}`
 	const newPassword = `Aa1!${faker.string.alphanumeric(16)}`
 	const user = await login({ password: oldPassword })
 	await page.goto('/settings/profile')
 
 	await page.getByRole('link', { name: /change password/i }).click()
+	await expect(page).toHaveURL('/settings/profile/password')
+	const passwordForm = page.locator('#password-change-form')
+	await expect(passwordForm).toBeVisible()
 
-	await page
-		.getByRole('textbox', { name: /^current password/i })
-		.fill(oldPassword)
-	await page.getByRole('textbox', { name: /^new password/i }).fill(newPassword)
-	await page
-		.getByRole('textbox', { name: /^confirm new password/i })
-		.fill(newPassword)
+	await passwordForm.getByLabel(/^current password/i).fill(oldPassword)
+	await passwordForm.getByLabel(/^new password/i).fill(newPassword)
+	await passwordForm.getByLabel(/^confirm new password/i).fill(newPassword)
 
-	await page.getByRole('button', { name: /^change password/i }).click()
+	await passwordForm
+		.getByRole('button', { name: /^change password/i })
+		.click()
 
 	await expect(page).toHaveURL(`/settings/profile`)
 
@@ -93,12 +94,16 @@ test('Users can update their profile photo', async ({ page, login }) => {
 })
 
 test('Users can change their email address', async ({ page, login }) => {
-	const preUpdateUser = await login()
+	const currentPassword = `Aa1!${faker.string.alphanumeric(16)}`
+	const preUpdateUser = await login({ password: currentPassword })
 	const newEmailAddress = faker.internet.email().toLowerCase()
 	expect(preUpdateUser.email).not.toEqual(newEmailAddress)
 	await page.goto('/settings/profile')
 	await page.getByRole('link', { name: /change email/i }).click()
 	await page.getByRole('textbox', { name: /new email/i }).fill(newEmailAddress)
+	await page
+		.getByRole('textbox', { name: /current password/i })
+		.fill(currentPassword)
 	await page.getByRole('button', { name: /send confirmation/i }).click()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
 	const email = await waitFor(() => readEmail(newEmailAddress), {
@@ -125,12 +130,16 @@ test('Users can change their email address', async ({ page, login }) => {
 })
 
 test('Users can permanently delete their account', async ({ page, login }) => {
-	const user = await login()
+	const currentPassword = `Aa1!${faker.string.alphanumeric(16)}`
+	const user = await login({ password: currentPassword })
 	await page.goto('/settings/profile')
 
 	await page
 		.getByRole('textbox', { name: new RegExp(`type ${user.username}`, 'i') })
 		.fill(user.username)
+	await page
+		.getByRole('textbox', { name: /current password/i })
+		.fill(currentPassword)
 	await page
 		.getByRole('button', { name: /permanently delete account/i })
 		.click()

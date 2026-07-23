@@ -20,7 +20,12 @@ import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { requireUserId, sessionKey } from '#app/utils/auth.server.ts'
+import { requireRecentVerification } from '#app/routes/_auth+/verify.server.ts'
+import {
+	requireUserId,
+	sessionKey,
+	verifyUserPassword,
+} from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	getUserBannerSrc,
@@ -104,6 +109,7 @@ const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteAccountActionIntent = 'delete-account'
 const DeleteAccountSchema = z.object({
 	confirmation: z.string().trim(),
+	currentPassword: z.string().optional(),
 })
 
 export async function action({ request, url }: ActionFunctionArgs) {
@@ -118,6 +124,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			return signOutOfSessionsAction({ request, userId, formData })
 		}
 		case deleteAccountActionIntent: {
+			await requireRecentVerification(request, url)
 			return deleteAccountAction({ request, userId, formData })
 		}
 		default: {
@@ -410,7 +417,7 @@ async function deleteAccountAction({
 }: ProfileActionArgs) {
 	const user = await prisma.user.findUniqueOrThrow({
 		where: { id: userId },
-		select: { username: true },
+		select: { username: true, password: { select: { userId: true } } },
 	})
 	const submission = await parseWithZod(formData, {
 		schema: DeleteAccountSchema.superRefine(({ confirmation }, ctx) => {
@@ -428,6 +435,27 @@ async function deleteAccountAction({
 			{ result: submission.reply() },
 			{ status: submission.status === 'error' ? 400 : 200 },
 		)
+	}
+	if (user.password) {
+		const passwordMatch = submission.value.currentPassword
+			? await verifyUserPassword(
+					{ username: user.username },
+					submission.value.currentPassword,
+				)
+			: null
+		if (!passwordMatch) {
+			return json(
+				{
+					result: submission.reply({
+						hideFields: ['currentPassword'],
+						fieldErrors: {
+							currentPassword: ['Enter your current password'],
+						},
+					}),
+				},
+				{ status: 400 },
+			)
+		}
 	}
 
 	const authSession = await authSessionStorage.getSession(
@@ -486,6 +514,19 @@ function DeleteAccount() {
 					}}
 					errors={fields.confirmation.errors}
 				/>
+				{data.hasPassword ? (
+					<Field
+						labelProps={{
+							htmlFor: fields.currentPassword.id,
+							children: 'Current password',
+						}}
+						inputProps={{
+							...getInputProps(fields.currentPassword, { type: 'password' }),
+							autoComplete: 'current-password',
+						}}
+						errors={fields.currentPassword.errors}
+					/>
+				) : null}
 				<ErrorList errors={form.errors} id={form.errorId} />
 				<StatusButton
 					type="submit"

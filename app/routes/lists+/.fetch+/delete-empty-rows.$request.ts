@@ -1,6 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { normalizeEntryPositions } from '#app/utils/lists/entry-order.server.ts'
+import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,
@@ -41,6 +43,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			await tx.entry.deleteMany({
 				where: { id: { in: removedEntryIds } },
 			})
+			await normalizeEntryPositions(tx, watchlist.id)
+			await claimWatchlistRevisions(tx, [watchlist])
 			for (const trackingStateId of new Set(
 				removedEntries.map(entry => entry.trackingStateId).filter(Boolean),
 			)) {

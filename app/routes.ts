@@ -163,8 +163,8 @@ export default [
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
 	}),
-	appRoute('routes/resources+/follow.$request.ts', {
-		path: 'resources/follow/:request',
+	appRoute('routes/resources+/follow.ts', {
+		path: 'resources/follow',
 	}),
 	appRoute('routes/resources+/healthcheck.tsx', {
 		path: 'resources/healthcheck',
@@ -175,8 +175,8 @@ export default [
 	appRoute('routes/resources+/lists.v1.entries.ts', {
 		path: 'resources/lists/v1/entries',
 	}),
-	appRoute('routes/resources+/profile-comment.$request.ts', {
-		path: 'resources/profile-comment/:request',
+	appRoute('routes/resources+/profile-comment.ts', {
+		path: 'resources/profile-comment',
 	}),
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',

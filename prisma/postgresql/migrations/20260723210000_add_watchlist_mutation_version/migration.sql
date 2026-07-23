@@ -1,0 +1,2 @@
+ALTER TABLE "Watchlist"
+ADD COLUMN "mutationVersion" INTEGER NOT NULL DEFAULT 0;

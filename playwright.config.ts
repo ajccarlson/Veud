@@ -3,6 +3,7 @@ import 'dotenv/config'
 import { PLAYWRIGHT_DATABASE_URL } from './tests/setup/playwright-database.ts'
 
 const PORT = process.env.PORT || '4022'
+const BASE_URL = `http://localhost:${PORT}`
 process.env.DATABASE_URL = PLAYWRIGHT_DATABASE_URL
 
 export default defineConfig({
@@ -20,7 +21,7 @@ export default defineConfig({
 	workers: 1,
 	reporter: 'html',
 	use: {
-		baseURL: `http://localhost:${PORT}/`,
+		baseURL: `${BASE_URL}/`,
 		trace: 'on-first-retry',
 	},
 
@@ -42,6 +43,9 @@ export default defineConfig({
 		env: {
 			PORT,
 			DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+			// Production-mode browser tests must generate verification links that
+			// point back to their isolated local origin, never the real site.
+			VEUD_ORIGIN: BASE_URL,
 		},
 	},
 })
