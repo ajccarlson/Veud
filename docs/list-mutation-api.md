@@ -85,3 +85,30 @@ after deployed clients no longer call them and access logs show no external use.
 Before removal, move the remaining domain operations into server-only service
 modules so route tests can target the same implementation without maintaining a
 second transport.
+
+## Release evidence
+
+Commit `623c6a90ba3b7e10eda8f05e2c6140ba2a089bb3` was deployed as an immutable
+release to the isolated PostgreSQL staging environment on 2026-07-23.
+
+- A fresh `npm ci` audited 1,431 packages with zero vulnerabilities.
+- The PostgreSQL source/schema parity check, migrations, drift checks, and
+  application query smoke tests passed for both the application and catalog-load
+  databases.
+- The active release symlink resolved to the exact commit, and the PostgreSQL
+  service, application service, application backup timer, and catalog backup
+  timer were active.
+- The HTTPS acceptance gate passed 192 of 192 requests across eight public
+  routes, including security-header checks, with p95 latency of 185.794 ms.
+- A direct HTTPS mutation probe returned `401` with the structured
+  `UNAUTHENTICATED` JSON envelope instead of redirecting to HTML.
+- Local release gates passed ESLint, TypeScript, all 84 Vitest files and 384
+  tests, the 11-test list reliability browser suite, and the exact 47-test CI
+  browser/accessibility/visual command.
+
+GitHub Actions is not included as affirmative evidence for this release. All 42
+recorded `main` workflow runs fail with `startup_failure` before GitHub creates
+a job. The workflow passes `actionlint`, and every referenced action tag exists,
+so repository/account Actions state remains an owner-side operational follow-up;
+the locally reproducible and deployed-staging gates above were used for this
+release.
