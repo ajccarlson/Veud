@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	assertProductionDatabaseUrl,
 	replaceEnvironmentValues,
+	resolveSqliteDatabasePath,
 } from './production-environment-utils.mjs'
 
 test('replaces only allowlisted environment values and preserves formatting', () => {
@@ -42,4 +43,20 @@ test('rejects an unexpected production database URL', () => {
 			'postgresql://user:password@127.0.0.1:5433/veud_staging',
 		),
 	).toThrow('unexpected production database')
+})
+
+test('resolves the explicit SQLite path before a URL with query parameters', () => {
+	expect(
+		resolveSqliteDatabasePath(
+			'/srv/veud',
+			'file:./wrong.db?connection_limit=1',
+			'./prisma/data.db',
+		),
+	).toBe('/srv/veud/prisma/data.db')
+	expect(
+		resolveSqliteDatabasePath(
+			'/srv/veud',
+			'file:./prisma/data.db?connection_limit=1',
+		),
+	).toBe('/srv/veud/prisma/data.db')
 })
