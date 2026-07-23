@@ -1,6 +1,107 @@
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
+test('member dashboard preferences persist across reloads and stay calm on mobile', async ({
+	page,
+	login,
+}) => {
+	const viewer = await login()
+	const genre = 'Dashboard browser genre'
+	const [active, recommendation] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Dashboard Continue Fixture',
+				genres: genre,
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Dashboard Recommendation Fixture',
+				genres: genre,
+			},
+		}),
+	])
+	await prisma.trackingState.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: active.id,
+			status: 'watching',
+			score: 9,
+			progress: {
+				create: { unit: 'episodes', current: 4, total: 12 },
+			},
+		},
+	})
+
+	try {
+		await page.goto('/')
+		await expect(
+			page.getByRole('heading', { name: 'Continue', exact: true }),
+		).toBeVisible()
+		await expect(page.getByText('Episodes 4 of 12')).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Recommendations', exact: true }),
+		).toBeVisible()
+    const recommendationsModule = page.locator(
+      ".home-dashboard-module--recommendations",
+    )
+    await expect(
+      recommendationsModule.getByText(recommendation.title!, { exact: true }),
+    ).toBeVisible()
+
+		await page.getByText('Customize home', { exact: true }).click()
+		await page.getByRole('button', { name: 'Compact' }).click()
+		await page
+			.getByRole('button', { name: 'Collapse Following activity' })
+			.click()
+		await page
+			.getByRole('button', { name: 'Move Recommendations earlier' })
+			.click()
+		await expect(
+			page.getByRole('region', { name: 'Following activity' }),
+		).toBeVisible()
+		await expect(
+			page.getByRole('heading', { name: 'Following', exact: true }),
+		).not.toBeVisible()
+		await expect
+			.poll(async () => {
+				const preference =
+					await prisma.homeDashboardPreference.findUnique({
+						where: { ownerId: viewer.id },
+					})
+				return {
+					density: preference?.density,
+					collapsed: preference?.collapsedModules,
+				}
+			})
+			.toEqual({
+				density: 'compact',
+				collapsed: JSON.stringify(['following']),
+			})
+
+		await page.reload()
+		await expect(page.locator('.home-personal-dashboard')).toHaveAttribute(
+			'data-density',
+			'compact',
+		)
+		await expect(
+			page.getByRole('region', { name: 'Following activity' }),
+		).toBeVisible()
+		await page.setViewportSize({ width: 390, height: 844 })
+		expect(
+			await page.evaluate(
+				() => document.documentElement.scrollWidth <= window.innerWidth,
+			),
+		).toBe(true)
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: [active.id, recommendation.id] } } })
+			.catch(() => {})
+	}
+})
+
 test('home shows a unified activity feed from followed members', async ({
 	page,
 	login,
