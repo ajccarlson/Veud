@@ -56,6 +56,16 @@ test('member can type a new position and see the persisted order', async ({
 		}),
 	])
 
+	const listResourcePaths: string[] = []
+	page.on('request', request => {
+		const path = new URL(request.url()).pathname
+		if (
+			path.startsWith('/resources/lists/') ||
+			path.startsWith('/lists/fetch/')
+		) {
+			listResourcePaths.push(path)
+		}
+	})
 	await page.goto(`/lists/${user.username}/anime/${source.name}`)
 	const firstPosition = page
 		.locator('.ag-theme-custom-react')
@@ -92,6 +102,11 @@ test('member can type a new position and see the persisted order', async ({
 			'3:Third reliability entry',
 		])
 	await expect(mobileCards.nth(0)).toContainText('First reliability entry')
+	expect(listResourcePaths).toContain('/resources/lists/v1')
+	expect(listResourcePaths).toContain('/resources/lists/v1/entries')
+	expect(listResourcePaths.some(path => path.startsWith('/lists/fetch/'))).toBe(
+		false,
+	)
 })
 
 test('member can keep tracking global search results across lists in one session', async ({

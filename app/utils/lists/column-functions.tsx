@@ -9,6 +9,7 @@ import {
 	getMangaInfo,
 } from '#app/routes/media+/mal.ts'
 import { searchTMDB, getTMDBInfo } from '#app/routes/media+/tmdb.ts'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
 	mediaIdentityForTmdb,
@@ -485,28 +486,14 @@ export async function updateRowInfo(params: any, columnParams: any, bulk: any) {
 		}
 	}
 
-	const rowUpdateResponse = await fetch(
-		'/lists/fetch/update-row/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					rowIndex: params.data.id,
-					row: JSON.stringify(updateRow),
-				} as any).toString(),
-			),
-		{ method: 'POST' },
-	)
-	await rowUpdateResponse.json()
-	//console.log(rowUpdateData)
+	await mutateList('update-entry', {
+		entryId: params.data.id,
+		row: updateRow,
+	})
 
-	await fetch(
-		'/lists/fetch/now-updated/' +
-			encodeURIComponent(
-				new URLSearchParams({
-					watchlistId: params.data.watchlistId,
-				} as any).toString(),
-			),
-		{ method: 'POST' },
-	)
+	await mutateList('touch-watchlist', {
+		watchlistId: params.data.watchlistId,
+	})
 
 	if (!bulk) {
 		refreshGrid(columnParams)

@@ -15,6 +15,7 @@ import {
 	searchMAL,
 } from '#app/routes/media+/mal.ts'
 import { getTMDBInfo, searchTMDB } from '#app/routes/media+/tmdb.ts'
+import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
 	mediaIdentityForTmdb,
@@ -338,17 +339,10 @@ export function MediaSearchBar(params: any) {
 					params.columnParams,
 					selectedDestination.id,
 				)
-				const response = await fetch(
-					'/lists/fetch/add-row/' +
-						encodeURIComponent(
-							new URLSearchParams({
-								row: JSON.stringify(row),
-							}).toString(),
-						),
-					{ method: 'POST' },
+				const entry = await mutateList<'add-entry', { mediaId?: string }>(
+					'add-entry',
+					{ row },
 				)
-				await requireSuccessfulResponse(response)
-				const entry = (await response.json()) as { mediaId?: string }
 				mediaId = entry.mediaId
 			}
 
