@@ -97,13 +97,19 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 
 	await expect(page).toHaveURL(`/`)
 
-	await page.locator('.root-user-links-dropdown').click()
+	await page.getByRole('button', { name: /account menu/i }).click()
 	await page.getByRole('menuitem', { name: /profile/i }).click()
 
 	await expect(page).toHaveURL(`/users/${onboardingData.username}`)
+	await expect(
+		page.getByRole('heading', { name: onboardingData.name, exact: true }),
+	).toBeVisible()
+	await expect(page.getByRole('progressbar')).toHaveCount(0)
 
-	await page.locator('.root-user-links-dropdown').click()
-	await page.getByRole('button', { name: /logout/i }).click({ force: true })
+	await page.getByRole('button', { name: /account menu/i }).click()
+	const logoutMenuItem = page.getByRole('menuitem', { name: /logout/i })
+	await expect(logoutMenuItem).toBeVisible()
+	await logoutMenuItem.click()
 	await expect(page).toHaveURL(`/`)
 })
 

@@ -2,6 +2,7 @@ import { type ActionFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireEntryOwner } from '#app/utils/lists/authorization.server.ts'
 import { normalizeEntryPositions } from '#app/utils/lists/entry-order.server.ts'
+import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,
@@ -13,7 +14,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	const id = searchParams.get('id')
 
 	// The entry must belong to a watchlist the current user owns.
-	const { entry } = await requireEntryOwner(request, id)
+	const { entry, watchlist } = await requireEntryOwner(request, id)
 
 	return await prisma.$transaction(async tx => {
 		await reconcileTrackingStateBeforeEntryDeletion(tx, entry.trackingStateId, {
@@ -23,10 +24,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			where: { id: entry.id },
 		})
 		await normalizeEntryPositions(tx, deleted.watchlistId)
-		await tx.watchlist.update({
-			where: { id: deleted.watchlistId },
-			data: { updatedAt: new Date() },
-		})
+		await claimWatchlistRevisions(tx, [watchlist])
 		await deleteTrackingStateIfOrphan(tx, deleted.trackingStateId)
 		return deleted
 	})

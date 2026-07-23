@@ -49,10 +49,7 @@ export async function getUserId(request: Request) {
 		await prisma.user.updateMany({
 			where: {
 				id: session.user.id,
-				OR: [
-					{ lastActiveAt: null },
-					{ lastActiveAt: { lte: staleBefore } },
-				],
+				OR: [{ lastActiveAt: null }, { lastActiveAt: { lte: staleBefore } }],
 			},
 			data: { lastActiveAt: now },
 		})
@@ -63,10 +60,7 @@ export async function getUserId(request: Request) {
 
 export async function requireUserId(
 	request: Request,
-	{
-		redirectTo,
-		url,
-	}: { redirectTo?: string | null; url?: URL } = {},
+	{ redirectTo, url }: { redirectTo?: string | null; url?: URL } = {},
 ) {
 	const userId = await getUserId(request)
 	if (!userId) {
@@ -74,7 +68,7 @@ export async function requireUserId(
 		redirectTo =
 			redirectTo === null
 				? null
-				: redirectTo ?? `${requestUrl.pathname}${requestUrl.search}`
+				: (redirectTo ?? `${requestUrl.pathname}${requestUrl.search}`)
 		const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null
 		const loginRedirect = ['/login', loginParams?.toString()]
 			.filter(Boolean)
@@ -122,16 +116,41 @@ export async function resetUserPassword({
 	password: string
 }) {
 	const hashedPassword = await getPasswordHash(password)
-	return prisma.user.update({
+	return prisma.$transaction(async transaction => {
+		const user = await transaction.user.findUniqueOrThrow({
 		where: { username },
-		data: {
-			password: {
-				update: {
-					hash: hashedPassword,
-				},
-			},
-		},
+			select: { id: true, username: true },
+		})
+		await transaction.password.upsert({
+			where: { userId: user.id },
+			create: { userId: user.id, hash: hashedPassword },
+			update: { hash: hashedPassword },
 	})
+		await transaction.session.deleteMany({ where: { userId: user.id } })
+		return user
+	})
+}
+
+export async function changeUserPassword({
+	userId,
+	password,
+	preserveSessionId,
+}: {
+	userId: string
+	password: string
+	preserveSessionId: string
+}) {
+	const hashedPassword = await getPasswordHash(password)
+	return prisma.$transaction([
+		prisma.password.upsert({
+			where: { userId },
+			create: { userId, hash: hashedPassword },
+			update: { hash: hashedPassword },
+		}),
+		prisma.session.deleteMany({
+			where: { userId, id: { not: preserveSessionId } },
+		}),
+	])
 }
 
 export async function signup({
@@ -185,6 +204,9 @@ export async function signupWithConnection({
 	providerName: Connection['providerName']
 	imageUrl?: string
 }) {
+	const image = imageUrl
+		? await downloadFile(imageUrl).catch(() => undefined)
+		: undefined
 	const session = await prisma.session.create({
 		data: {
 			expirationDate: getSessionExpirationDate(),
@@ -195,9 +217,7 @@ export async function signupWithConnection({
 					name,
 					roles: { connect: { name: 'user' } },
 					connections: { create: { providerId, providerName } },
-					image: imageUrl
-						? { create: await downloadFile(imageUrl) }
-						: undefined,
+					image: image ? { create: image } : undefined,
 				},
 			},
 		},

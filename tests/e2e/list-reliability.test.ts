@@ -943,8 +943,15 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	const mobileList = page.getByRole('region', { name: 'Mobile list' })
 	const mobileCards = mobileList.getByRole('article')
 	await expect(mobileCards).toHaveCount(40)
-	await expect(mobileCards.first().getByRole('heading')).toHaveText(
-		'Scroll entry 01',
+	expect(
+		await mobileCards.getByRole('heading').allTextContents(),
+	).toEqual(
+		expect.arrayContaining(
+			Array.from(
+				{ length: 40 },
+				(_, index) => `Scroll entry ${String(index + 1).padStart(2, '0')}`,
+			),
+		),
 	)
 	const firstMobileCardBounds = await mobileCards.first().boundingBox()
 	expect(firstMobileCardBounds).not.toBeNull()

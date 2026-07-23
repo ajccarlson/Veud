@@ -436,6 +436,15 @@
 		background-color: white;
 	}
 
+	// Keep account actions inside the compact navigation once the header switches
+	// to its two-row mobile/tablet layout. This rule intentionally follows the
+	// desktop declaration above so source order cannot make the controls reappear.
+	@media (max-width: 52rem) {
+		.root-user-links {
+			display: none;
+		}
+	}
+
 	@media (max-width: 40rem) {
 		.root-header {
 			gap: 0.55rem;

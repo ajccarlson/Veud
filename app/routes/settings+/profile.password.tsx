@@ -17,12 +17,14 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
-	getPasswordHash,
+	changeUserPassword,
 	requireUserId,
+	sessionKey,
 	verifyUserPassword,
 } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
+import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import {
 	NewPasswordSchema,
@@ -101,16 +103,17 @@ export async function action({ request, url }: ActionFunctionArgs) {
 
 	const { newPassword } = submission.value
 
-	await prisma.user.update({
-		select: { username: true },
-		where: { id: userId },
-		data: {
-			password: {
-				update: {
-					hash: await getPasswordHash(newPassword),
-				},
-			},
-		},
+	const authSession = await authSessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const currentSessionId = authSession.get(sessionKey)
+	if (typeof currentSessionId !== 'string' || !currentSessionId) {
+		throw new Response('Authentication session not found', { status: 401 })
+	}
+	await changeUserPassword({
+		userId,
+		password: newPassword,
+		preserveSessionId: currentSessionId,
 	})
 
 	return redirectWithToast(
@@ -118,7 +121,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		{
 			type: 'success',
 			title: 'Password Changed',
-			description: 'Your password has been changed.',
+			description:
+				'Your password has been changed and other sessions were signed out.',
 		},
 		{ status: 302 },
 	)
@@ -135,7 +139,11 @@ export default function ChangePasswordRoute() {
 		onValidate({ formData }) {
 			return parseWithZod(formData, { schema: ChangePasswordForm })
 		},
-		shouldRevalidate: 'onBlur',
+		// Password inputs are intentionally not repopulated after validation.
+		// Validate on submit so moving between fields cannot clear a correct
+		// current password before the member finishes the form.
+		shouldValidate: 'onSubmit',
+		shouldRevalidate: 'onInput',
 	})
 
 	return (
@@ -174,7 +182,7 @@ export default function ChangePasswordRoute() {
 				</Button>
 				<StatusButton
 					type="submit"
-					status={isPending ? 'pending' : form.status ?? 'idle'}
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
 				>
 					Change Password
 				</StatusButton>

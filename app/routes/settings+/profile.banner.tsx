@@ -26,6 +26,10 @@ import {
 	useDoubleCheck,
 	useIsPending,
 } from '#app/utils/misc.tsx'
+import {
+	hasSafeImageSignature,
+	isSafeImageContentType,
+} from '#app/utils/safe-image.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 
 export const handle: BreadcrumbHandle & SEOHandle = {
@@ -44,7 +48,11 @@ const NewImageSchema = z.object({
 	bannerFile: z
 		.instanceof(File)
 		.refine(file => file.size > 0, 'Image is required')
-		.refine(file => file.size <= MAX_SIZE, 'Image size must be less than 5MB'),
+		.refine(file => file.size <= MAX_SIZE, 'Image size must be less than 5MB')
+		.refine(
+			file => isSafeImageContentType(file.type),
+			'Choose a JPEG, PNG, GIF, or WebP image.',
+		),
 })
 
 const BannerFormSchema = z.discriminatedUnion('intent', [
@@ -76,20 +84,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		maxTotalSize: MAX_SIZE + 64 * 1024,
 	})
 
-	const submission = await parseWithZod(formData, {
-		schema: BannerFormSchema.transform(async data => {
-			if (data.intent === 'delete') return { intent: 'delete' }
-			if (data.bannerFile.size <= 0) return z.NEVER
-			return {
-				intent: data.intent,
-				banner: {
-					contentType: data.bannerFile.type,
-					blob: Buffer.from(await data.bannerFile.arrayBuffer()),
-				},
-			}
-		}),
-		async: true,
-	})
+	const submission = await parseWithZod(formData, { schema: BannerFormSchema })
 
 	if (submission.status !== 'success') {
 		return json(
@@ -98,18 +93,35 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		)
 	}
 
-	const { banner, intent } = submission.value
-
-	if (intent === 'delete') {
+	if (submission.value.intent === 'delete') {
 		await prisma.userBanner.deleteMany({ where: { userId } })
 		return redirect('/settings/profile')
+	}
+
+	const bannerFile = submission.value.bannerFile
+	const blob = Buffer.from(await bannerFile.arrayBuffer())
+	if (!hasSafeImageSignature(blob, bannerFile.type)) {
+		return json(
+			{
+				result: submission.reply({
+					fieldErrors: {
+						bannerFile: ['The file contents do not match a supported image.'],
+					},
+				}),
+			},
+			{ status: 400 },
+		)
 	}
 
 	await prisma.$transaction(async $prisma => {
 		await $prisma.userBanner.deleteMany({ where: { userId } })
 		await $prisma.user.update({
 			where: { id: userId },
-			data: { banner: { create: banner } },
+			data: {
+				banner: {
+					create: { contentType: bannerFile.type, blob },
+				},
+			},
 		})
 	})
 
@@ -140,7 +152,9 @@ export default function BannerRoute() {
 
 	const [newImageSrc, setNewImageSrc] = useState<string | null>(null)
 
-	const existingBannerSrc = data.user ? getUserBannerSrc(data.user.banner?.id) : null
+	const existingBannerSrc = data.user
+		? getUserBannerSrc(data.user.banner?.id)
+		: null
 	const previewSrc = newImageSrc ?? existingBannerSrc
 
 	return (
@@ -163,7 +177,10 @@ export default function BannerRoute() {
 						No banner yet
 					</div>
 				)}
-				<ErrorList errors={fields.bannerFile.errors} id={fields.bannerFile.id} />
+				<ErrorList
+					errors={fields.bannerFile.errors}
+					id={fields.bannerFile.id}
+				/>
 				<div className="flex gap-4">
 					{/*
 						Same progressive-enhancement approach as the photo form: CSS toggles
@@ -203,7 +220,7 @@ export default function BannerRoute() {
 							pendingIntent === 'submit'
 								? 'pending'
 								: lastSubmissionIntent === 'submit'
-									? form.status ?? 'idle'
+									? (form.status ?? 'idle')
 									: 'idle'
 						}
 					>
@@ -229,7 +246,7 @@ export default function BannerRoute() {
 								pendingIntent === 'delete'
 									? 'pending'
 									: lastSubmissionIntent === 'delete'
-										? form.status ?? 'idle'
+										? (form.status ?? 'idle')
 										: 'idle'
 							}
 						>

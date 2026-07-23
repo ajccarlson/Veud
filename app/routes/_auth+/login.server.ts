@@ -13,6 +13,7 @@ import { getRedirectToUrl, type VerifyFunctionArgs } from './verify.server.ts'
 const verifiedTimeKey = 'verified-time'
 const unverifiedSessionIdKey = 'unverified-session-id'
 const rememberKey = 'remember'
+export const RECENT_VERIFICATION_WINDOW_MS = 1000 * 60 * 60 * 2
 
 export async function handleNewSession(
 	{
@@ -153,6 +154,5 @@ export async function shouldRequestTwoFA(request: Request) {
 	})
 	if (!userHasTwoFA) return false
 	const verifiedTime = authSession.get(verifiedTimeKey) ?? new Date(0)
-	const twoHours = 1000 * 60 * 2
-	return Date.now() - verifiedTime > twoHours
+	return Date.now() - verifiedTime > RECENT_VERIFICATION_WINDOW_MS
 }
