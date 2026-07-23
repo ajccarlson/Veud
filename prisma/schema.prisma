@@ -21,36 +21,37 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastActiveAt DateTime?
 
-  image                 UserImage?
-  banner                UserBanner?
-  password              Password?
-  watchlists            Watchlist[]
-  userFavorites         UserFavorite[]
-  roles                 Role[]
-  sessions              Session[]
-  connections           Connection[]
-  following             Follow[]                 @relation("UserFollowing")
-  followers             Follow[]                 @relation("UserFollowers")
-  commentsAuthored      ProfileComment[]         @relation("ProfileCommentAuthor")
-  profileComments       ProfileComment[]         @relation("ProfileCommentProfile")
-  trackingStates        TrackingState[]
-  activityEvents        ActivityEvent[]
-  reviews               Review[]
-  diaryEntries          DiaryEntry[]
-  reviewLikes           ReviewLike[]
-  reviewComments        ReviewComment[]
-  notificationsReceived Notification[]           @relation("NotificationRecipient")
-  notificationsSent     Notification[]           @relation("NotificationActor")
-  mediaCollections      MediaCollection[]
-  collectionLikes       CollectionLike[]
-  collectionComments    CollectionComment[]
-  releaseReminders      ReleaseReminder[]
-  catalogQualityReviews CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
-  catalogQualityEvents  CatalogQualityEvent[]    @relation("CatalogQualityActor")
-  catalogMergesPrepared CatalogMediaMerge[]      @relation("CatalogMergePreparer")
-  catalogMergesApplied  CatalogMediaMerge[]      @relation("CatalogMergeApplier")
-  catalogMergesReverted CatalogMediaMerge[]      @relation("CatalogMergeReverter")
-  catalogMergeEvents    CatalogMediaMergeEvent[]
+  image                  UserImage?
+  banner                 UserBanner?
+  password               Password?
+  watchlists             Watchlist[]
+  userFavorites          UserFavorite[]
+  roles                  Role[]
+  sessions               Session[]
+  connections            Connection[]
+  following              Follow[]                 @relation("UserFollowing")
+  followers              Follow[]                 @relation("UserFollowers")
+  commentsAuthored       ProfileComment[]         @relation("ProfileCommentAuthor")
+  profileComments        ProfileComment[]         @relation("ProfileCommentProfile")
+  trackingStates         TrackingState[]
+  activityEvents         ActivityEvent[]
+  reviews                Review[]
+  diaryEntries           DiaryEntry[]
+  reviewLikes            ReviewLike[]
+  reviewComments         ReviewComment[]
+  notificationsReceived  Notification[]           @relation("NotificationRecipient")
+  notificationsSent      Notification[]           @relation("NotificationActor")
+  mediaCollections       MediaCollection[]
+  collectionLikes        CollectionLike[]
+  collectionComments     CollectionComment[]
+  releaseReminders       ReleaseReminder[]
+  catalogQualityReviews  CatalogQualityIssue[]    @relation("CatalogQualityReviewer")
+  catalogQualityEvents   CatalogQualityEvent[]    @relation("CatalogQualityActor")
+  catalogMergesPrepared  CatalogMediaMerge[]      @relation("CatalogMergePreparer")
+  catalogMergesApplied   CatalogMediaMerge[]      @relation("CatalogMergeApplier")
+  catalogMergesReverted  CatalogMediaMerge[]      @relation("CatalogMergeReverter")
+  catalogMergeEvents     CatalogMediaMergeEvent[]
+  recommendationFeedback RecommendationFeedback[]
 }
 
 model ListType {
@@ -137,8 +138,8 @@ model Media {
 
   externalIds            MediaExternalId[]
   titles                 MediaTitle[]
-  outgoingRelations      MediaRelation[]       @relation("MediaRelationSource")
-  incomingRelations      MediaRelation[]       @relation("MediaRelationTarget")
+  outgoingRelations      MediaRelation[]          @relation("MediaRelationSource")
+  incomingRelations      MediaRelation[]          @relation("MediaRelationTarget")
   entries                Entry[]
   favorites              UserFavorite[]
   trackingStates         TrackingState[]
@@ -148,8 +149,9 @@ model Media {
   collectionItems        MediaCollectionItem[]
   releaseReminders       ReleaseReminder[]
   catalogFeedItems       CatalogFeedItem[]
-  primaryQualityIssues   CatalogQualityIssue[] @relation("CatalogQualityPrimaryMedia")
-  secondaryQualityIssues CatalogQualityIssue[] @relation("CatalogQualitySecondaryMedia")
+  primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
+  secondaryQualityIssues CatalogQualityIssue[]    @relation("CatalogQualitySecondaryMedia")
+  recommendationFeedback RecommendationFeedback[]
 
   @@index([kind])
   @@index([catalogPopularity])
@@ -515,6 +517,26 @@ model TrackingProgress {
 
   @@unique([trackingStateId, unit])
   @@index([trackingStateId])
+}
+
+/// A member-owned negative signal for one canonical work. Feedback is durable,
+/// reversible, and excluded from public aggregates; it only shapes that
+/// member's future recommendation candidates.
+model RecommendationFeedback {
+  id           String   @id @default(cuid())
+  feedbackType String
+  sourceLane   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([ownerId, mediaId])
+  @@index([ownerId, feedbackType, updatedAt])
+  @@index([mediaId])
 }
 
 /// An immutable, user-visible change to tracking state. Application code only

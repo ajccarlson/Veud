@@ -46,6 +46,50 @@ test('signed-in settings and profile meet automated WCAG checks', async ({
 	}
 })
 
+test('explainable recommendation lanes meet automated WCAG checks', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const [seed, candidate] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Accessibility recommendation seed',
+				genres: 'Accessible Adventure',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Accessibility recommendation candidate',
+				genres: 'Accessible Adventure',
+			},
+		}),
+	])
+	await prisma.trackingState.create({
+		data: {
+			ownerId: user.id,
+			mediaId: seed.id,
+			status: 'completed',
+			score: 9,
+		},
+	})
+
+	try {
+		await page.goto('/discover?sort=for-you')
+		await expect(
+			page.getByRole('heading', { name: 'Recommendations for you' }),
+		).toBeVisible()
+		await expect(page.getByText(candidate.title!)).toBeVisible()
+		await expectNoAccessibilityViolations(page)
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: [seed.id, candidate.id] } } })
+			.catch(() => {})
+	}
+})
+
 test('mobile navigation meets automated WCAG checks while expanded', async ({
 	page,
 }) => {
