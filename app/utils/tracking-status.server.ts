@@ -109,7 +109,12 @@ async function renumberWatchlist(
  */
 export async function setMediaTrackingStatus(
 	tx: Prisma.TransactionClient,
-	input: { ownerId: string; mediaId: string; watchlistId: string },
+	input: {
+		ownerId: string
+		mediaId: string
+		watchlistId: string
+		recordActivity?: boolean
+	},
 ) {
 	const media = await tx.media.findUnique({
 		where: { id: input.mediaId },
@@ -200,7 +205,7 @@ export async function setMediaTrackingStatus(
 		statusWatchlistId: destination.id,
 		entry: target,
 		mode: 'status',
-		recordActivity: true,
+		recordActivity: input.recordActivity ?? true,
 	})
 	await tx.entry.updateMany({
 		where: { mediaId: media.id, watchlist: { ownerId: input.ownerId } },
