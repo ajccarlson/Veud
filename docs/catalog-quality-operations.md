@@ -75,3 +75,20 @@ favorites, reminders, feed rows, and provider relations. That future planner
 must emit a complete preflight, preserve a reversal journal, and refuse any move
 whose member-owned semantics are ambiguous. Direct media deletion or ad hoc
 foreign-key rewrites are not an approved review action.
+
+## Staging evidence
+
+Release `d1013c4` was deployed to isolated PostgreSQL staging on 2026-07-23. The
+migration applied to the application and catalog-load databases, both datamodel
+drift checks passed, and the normal PostgreSQL write/search smoke test remained
+healthy. The public HTTPS healthcheck returned `200`; an anonymous request to
+`/admin/catalog` returned the expected login redirect.
+
+The first 500 hydrated catalog records produced zero candidates in dry-run mode.
+A resumed 2,000-record preview produced nine plausible review candidates: eight
+exact normalized title/kind/year pairs and one missing poster. After operator
+review, commit mode created exactly nine open issues. Repeating the identical
+commit scan retained nine rows and nine distinct fingerprints, demonstrating
+idempotence. The separate application database had no hydrated catalog rows and
+therefore remained empty; the review findings stay with the isolated catalog
+that will be evaluated for cutover.
