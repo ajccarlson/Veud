@@ -150,3 +150,18 @@ export function postgresTargetIdentity(value) {
 		url.pathname.replace(/^\//, ''),
 	)}`
 }
+
+const migrationSeededReferenceTables = new Set([
+	'ListType',
+	'Permission',
+	'Role',
+	'_PermissionToRole',
+])
+
+export function containsOnlyMigrationSeededReferenceRows(counts) {
+	const occupied = [...counts].filter(([, count]) => count > 0)
+	return (
+		occupied.length > 0 &&
+		occupied.every(([name]) => migrationSeededReferenceTables.has(name))
+	)
+}

@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	assertPostgresDatabaseUrl,
 	buildModelTransferPlan,
+	containsOnlyMigrationSeededReferenceRows,
 	convertSqliteRow,
 	postgresTargetIdentity,
 	sortRowsForSelfRelations,
@@ -96,4 +97,34 @@ test('requires an explicit PostgreSQL transfer target', () => {
 			'postgresql://veud:secret@Database.EXAMPLE:5433/veud_stage',
 		),
 	).toBe('database.example:5433/veud_stage')
+})
+
+test('distinguishes migration-seeded reference rows from occupied targets', () => {
+	expect(
+		containsOnlyMigrationSeededReferenceRows(
+			new Map([
+				['User', 0],
+				['ListType', 3],
+				['Permission', 16],
+				['Role', 2],
+				['_PermissionToRole', 16],
+			]),
+		),
+	).toBe(true)
+	expect(
+		containsOnlyMigrationSeededReferenceRows(
+			new Map([
+				['ListType', 3],
+				['User', 1],
+			]),
+		),
+	).toBe(false)
+	expect(
+		containsOnlyMigrationSeededReferenceRows(
+			new Map([
+				['ListType', 0],
+				['User', 0],
+			]),
+		),
+	).toBe(false)
 })

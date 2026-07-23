@@ -1,10 +1,12 @@
 # Catalog production-readiness boundary
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
 Veud's catalog workers are resumable and suitable for bounded development and
-staging runs. Provider-scale production inventory and hydration are still
-disabled operationally until the database and policy gates below are complete.
+staging runs. The production-like PostgreSQL staging and policy evidence gate
+passed on 2026-07-23. Bounded, monitored staging inventory and hydration may
+proceed; unbounded production ingestion remains disabled until production
+cutover and monitoring ownership are explicit.
 
 ## Completed controls
 
@@ -69,11 +71,11 @@ shape, deliberate interruption/resume, connection/lock sampling, checkpoint hash
 binding, and complete cleanup. See the
 [PostgreSQL catalog load runbook](postgresql-load-readiness.md).
 
-The production hold remains. The next batch must run the current
-1,564,333-identity target on production-like staging using owner-approved
-relationship and member counts, and record database/index size, import and
-hydration throughput, search/profile latency, lock and pool behavior,
-backup/restore timing, interruption recovery, and canary/rollback behavior.
+The production-like staging batch completed on 2026-07-23 with the
+owner-approved 1,564,333-identity, 1,000-member, 100,000-tracking/entry, and
+20,000-activity shape. It passed interruption/resume, sequential query budgets,
+mixed concurrency, connection/lock pressure, exact snapshot transfer,
+restore-tested backup, and the one-process HTTPS canary.
 
 Cutover evidence automation is available in the
 [PostgreSQL cutover runbook](postgresql-cutover-readiness.md): verified backups
@@ -81,16 +83,18 @@ now emit archive-bound restore receipts, the read-only canary records public
 application and database-health latency, and the final gate hashes and evaluates
 all artifacts against an owner-approved policy. The gate now rejects flat
 catalog-only load reports, target/checkpoint mismatches, unproven recovery, and
-connection or waiting-lock pressure outside policy. The automation enforces the
-hold; it does not satisfy the still-unrun production-like staging gates.
+connection or waiting-lock pressure outside policy. The staging manifest passed
+on 2026-07-23; the automation still does not change the production datasource or
+open writes.
 
-## Final local prerequisite audit
+## Staging prerequisite audit
 
 The 2026-07-21 roadmap closeout rechecked the active operator environment
 without printing secret values:
 
-- `DATABASE_URL` still uses the local `file:` datasource, and no separate
-  production-like staging/PostgreSQL target is configured.
+- Local development remains on SQLite. Isolated staging uses PostgreSQL 16.14 on
+  a dedicated live drive with a distinct restore database and offsite backup
+  drive.
 - `MAL_CLIENT_ID` is configured. One-record anime and manga inventory dry runs
   each completed a real provider request with zero failures and zero `429`
   responses. Dry-run mode committed no catalog or sync records.
@@ -99,14 +103,12 @@ without printing secret values:
   reference `OWNER-MAL-API-AGREEMENT-2026-07-22`. Reviews, community/forum
   content, profiles, lists, and other user-originated content remain excluded.
   The decision also prohibits sending MAL-sourced metadata to external AI.
-- `MAL_CATALOG_POLICY_APPROVAL_REF` should be configured with that non-secret
-  reference only on the PostgreSQL staging/production worker environment. No
-  committed MAL inventory or hydration run has yet been attempted.
+- `MAL_CATALOG_POLICY_APPROVAL_REF` is configured with that non-secret reference
+  on staging. No committed MAL inventory or hydration run has yet been
+  attempted.
 
-All executable local gates are complete. Resuming the held rollout requires a
-clearly identified production-like PostgreSQL staging URL plus protected backup,
-restore, and canary destinations; owner-approved staging policy/count budgets;
-and the recorded MAL policy authorization reference. The policy reference now
-exists; the PostgreSQL staging and evidence inputs do not. After those inputs
-exist, follow the PostgreSQL cutover runbook and retain its passing evidence
-manifest before beginning bounded committed provider batches.
+All staging evidence inputs now exist and the protected manifest passed. Proceed
+with a small committed MAL inventory batch on staging, inspect the audited sync
+run and provider metrics, then increase bounded batches only while failures and
+`429` events remain within the runbook. Production-wide ingestion still requires
+explicit production cutover and monitoring ownership.

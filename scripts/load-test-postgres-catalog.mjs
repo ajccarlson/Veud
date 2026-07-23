@@ -519,60 +519,56 @@ async function explain(prisma, name, sql, values = []) {
 async function queryMetrics(prisma, count, shape) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
-	const queries = await Promise.all([
-		explain(
-			prisma,
+	const definitions = [
+		[
 			'canonical-title',
 			'SELECT id FROM "Media" WHERE title LIKE $1 LIMIT 24',
 			[`%Catalog Work ${needle}%`],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'alternate-title',
 			'SELECT "mediaId" FROM "MediaTitle" WHERE normalized LIKE $1 LIMIT 24',
 			[`%alternate load alias ${alternate}%`],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'rare-description',
 			'SELECT id FROM "Media" WHERE description LIKE $1 LIMIT 24',
 			['%rare-nebula-token%'],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'broad-description',
 			'SELECT id FROM "Media" WHERE description LIKE $1 LIMIT 24',
 			[`%${syntheticBroadDescriptionNeedle}%`],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'no-match',
 			'SELECT id FROM "MediaTitle" WHERE normalized LIKE $1 LIMIT 24',
 			['%term-that-does-not-exist-7f01%'],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'popular-page',
 			`SELECT id FROM "Media"
 			 ORDER BY "catalogPopularity" DESC NULLS LAST, id
 			 LIMIT 24 OFFSET $1`,
 			[Math.min(10_000, Math.max(0, count - 24))],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'related-media',
 			`SELECT "targetMediaId" FROM "MediaRelation"
 			 WHERE "sourceMediaId" = $1 ORDER BY "relationType" LIMIT 24`,
 			[`${prefix}media-${Math.max(10, Math.floor(count / 20) * 10)}`],
-		),
-		explain(
-			prisma,
+		],
+		[
 			'trending-feed',
 			`SELECT "mediaId" FROM "CatalogFeedItem"
 			 WHERE kind = $1 AND feed = $2 ORDER BY rank LIMIT 18`,
 			['movie', 'trending'],
-		),
-	])
+		],
+	]
+	const queries = []
+	for (const definition of definitions) {
+		queries.push(await explain(prisma, ...definition))
+	}
 	if (!shape.memberCount) return queries
 	let memberNumber = Math.max(1, Math.floor(shape.memberCount / 2))
 	if (memberNumber % 7 === 0) {
