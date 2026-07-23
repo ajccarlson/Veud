@@ -187,3 +187,7 @@ export function renderBoxPlotChart(loaderData: any, chartType: string, listType:
     return MyResponsiveBoxPlot(scoresFormatted)
   }
 }
+
+export function BoxPlotChart({ data, listType }: any) {
+  return renderBoxPlotChart(data, 'objective scores', listType)
+}
