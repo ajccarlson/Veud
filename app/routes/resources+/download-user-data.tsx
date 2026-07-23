@@ -37,6 +37,9 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			homeDashboardPreference: true,
 			notificationPreference: true,
 			notificationDigests: true,
+			libraryImportBatches: {
+				include: { items: true },
+			},
 			moderationReportsSubmitted: {
 				select: {
 					id: true,
