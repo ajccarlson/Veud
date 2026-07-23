@@ -957,6 +957,69 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	await expect(mobileCards.last()).toBeVisible()
 })
 
+test('mobile list defers desktop grid, catalog search, and advanced editor assets', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'mobile-module-boundary',
+			header: 'Mobile module boundary',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: 'Deferred mobile entry',
+			type: 'TV Series',
+		},
+	})
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	const assetRequests: string[] = []
+	page.on('request', request => {
+		const pathname = new URL(request.url()).pathname
+		if (pathname.startsWith('/assets/')) assetRequests.push(pathname)
+	})
+
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+	await expect(page.getByRole('region', { name: 'Mobile list' })).toBeVisible()
+
+	const requestedAsset = (prefix: string) =>
+		assetRequests.some(pathname => pathname.includes(`/assets/${prefix}-`))
+	expect(requestedAsset('mobile-watchlist-cards')).toBe(true)
+	expect(requestedAsset('watchlist-grid')).toBe(false)
+	expect(requestedAsset('advanced-entry-editor')).toBe(false)
+	expect(requestedAsset('search-add-watchlist-entry')).toBe(false)
+	expect(requestedAsset('tmdb')).toBe(false)
+	expect(requestedAsset('mal')).toBe(false)
+
+	await page.getByRole('button', { name: 'Add title' }).click()
+	const quickAdd = page.getByRole('dialog', { name: 'Choose a title' })
+	await expect(quickAdd).toBeVisible()
+	expect(requestedAsset('search-add-watchlist-entry')).toBe(true)
+	expect(requestedAsset('watchlist-grid')).toBe(false)
+	await quickAdd.getByRole('button', { name: 'Close quick add' }).click()
+
+	await page
+		.getByRole('button', { name: 'Quick edit Deferred mobile entry' })
+		.click()
+	await expect(
+		page.getByRole('dialog', { name: 'Deferred mobile entry' }),
+	).toBeVisible()
+	expect(requestedAsset('advanced-entry-editor')).toBe(true)
+	expect(requestedAsset('watchlist-grid')).toBe(false)
+})
+
 test('member can save a default list sort without changing manual positions', async ({
 	page,
 	login,
