@@ -504,6 +504,7 @@
 	}
 
 	.ag-thumbnail-cell {
+		justify-content: stretch;
 		padding-right: 0px;
 		padding-left: 0px;
 		overflow: hidden;
@@ -511,13 +512,23 @@
 		transition: all 0.1s ease-in-out;
 	}
 
+	.ag-thumbnail-cell .ag-cell-wrapper,
+	.ag-thumbnail-cell .ag-cell-value,
+	.ag-thumbnail-cell a,
+	.ag-thumbnail-cell a > span {
+		display: block;
+		width: 100%;
+	}
+
 	.ag-thumbnail-image {
 		display: block;
-		width: clamp(5.5rem, 7vw, 10rem);
-		height: clamp(8.25rem, 10.5vw, 15rem);
+		box-sizing: border-box;
+		width: 100%;
+		height: auto;
+		aspect-ratio: 2 / 3;
 		object-fit: cover;
 		border: 1px solid rgba(255, 255, 255, 0.16);
-		border-radius: clamp(0.4rem, 0.35vw, 0.65rem);
+		border-radius: 0.4rem;
 	}
 
 	.ag-thumbnail-cell:hover {

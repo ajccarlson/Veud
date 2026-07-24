@@ -1027,7 +1027,7 @@ test('mobile list defers desktop grid, catalog search, and advanced editor asset
 	expect(requestedAsset('watchlist-grid')).toBe(false)
 })
 
-test('desktop list keeps the detailed grid with readable poster thumbnails', async ({
+test('desktop poster follows the user-resizable thumbnail column', async ({
 	page,
 	login,
 }) => {
@@ -1064,18 +1064,38 @@ test('desktop list keeps the detailed grid with readable poster thumbnails', asy
 	await expect(grid).toBeVisible()
 	await expect(mobileCards).toBeHidden()
 	await expect(poster).toBeVisible()
-	const compactBounds = await poster.boundingBox()
-	expect(compactBounds).not.toBeNull()
-	expect(compactBounds!.width).toBeGreaterThanOrEqual(88)
-	expect(compactBounds!.height).toBeGreaterThanOrEqual(132)
+	const thumbnailHeader = grid.locator(
+		'.ag-header-cell[col-id="thumbnail"]',
+	)
+	const initialPosterBounds = await poster.boundingBox()
+	const initialHeaderBounds = await thumbnailHeader.boundingBox()
+	expect(initialPosterBounds).not.toBeNull()
+	expect(initialHeaderBounds).not.toBeNull()
+	expect(
+		Math.abs(initialPosterBounds!.width - initialHeaderBounds!.width),
+	).toBeLessThanOrEqual(2)
 
-	await page.setViewportSize({ width: 1920, height: 1080 })
-	const largeBounds = await poster.boundingBox()
-	expect(largeBounds).not.toBeNull()
-	expect(largeBounds!.width).toBeGreaterThan(compactBounds!.width * 1.4)
-	expect(largeBounds!.height).toBeGreaterThan(compactBounds!.height * 1.4)
-	expect(largeBounds!.width).toBeLessThanOrEqual(160)
-	expect(largeBounds!.height).toBeLessThanOrEqual(240)
+	const resizeHandle = thumbnailHeader.locator('.ag-header-cell-resize')
+	const handleBounds = await resizeHandle.boundingBox()
+	expect(handleBounds).not.toBeNull()
+	await page.mouse.move(
+		handleBounds!.x + handleBounds!.width / 2,
+		handleBounds!.y + handleBounds!.height / 2,
+	)
+	await page.mouse.down()
+	await page.mouse.move(handleBounds!.x + 82, handleBounds!.y, { steps: 8 })
+	await page.mouse.up()
+
+	await expect
+		.poll(async () => (await poster.boundingBox())?.width ?? 0)
+		.toBeGreaterThan(initialPosterBounds!.width + 60)
+	const resizedPosterBounds = await poster.boundingBox()
+	const resizedHeaderBounds = await thumbnailHeader.boundingBox()
+	expect(resizedPosterBounds).not.toBeNull()
+	expect(resizedHeaderBounds).not.toBeNull()
+	expect(
+		Math.abs(resizedPosterBounds!.width - resizedHeaderBounds!.width),
+	).toBeLessThanOrEqual(2)
 })
 
 test('member can save a default list sort without changing manual positions', async ({
