@@ -1,33 +1,35 @@
 # Contributing to Veud
 
-Thanks for your interest in improving Veud! It's a [Remix](https://remix.run/) app built on
-the [Epic Stack](https://github.com/epicweb-dev/epic-stack), backed by SQLite via Prisma.
+Thanks for your interest in improving Veud. It is a React Router application
+using Prisma, SQLite for local development and tests, and PostgreSQL in
+production.
 
 ## Local setup
 
-1. **Prerequisites:** Node.js (see the `engines` field in `package.json`) and npm.
-2. **Install:** `npm install`
-3. **Environment:** `cp .env.example .env`, then fill in the values — the third-party API
-   credentials you need (TMDB, MyAnimeList, AniList, Trakt) and the session/auth secrets.
-   `.env` (and other `.env.*` files) are git-ignored.
-4. **Database:** `npx prisma migrate deploy` to create the local SQLite database, then
-   `npx prisma db seed` for sample data.
-5. **Run:** `npm run dev` and open the printed URL.
+1. Install Node.js 22 and npm.
+2. Run `npm install`.
+3. Copy `.env.example` to `.env` and add only the credentials you need.
+4. Run `npm run prisma:generate:sqlite`, `npx prisma migrate deploy`, and
+   `npx prisma db seed`.
+5. Run `npm run dev`.
 
 ## Checks before opening a PR
 
-- `npm run typecheck` — must be clean.
-- `npm run test` — the Vitest suite must pass.
-- Keep changes focused, and describe the intent (plus any migration or rollout steps) in the
-  PR description.
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test -- --run`
+
+Run the relevant Playwright tests for interface or browser behavior changes.
+Keep changes focused and document migrations or rollout requirements.
 
 ## Database changes
 
-Schema edits require a Prisma migration: generate one with
-`npx prisma migrate dev --name <short-description>` and commit the generated
-`prisma/migrations/**` folder. Migrations that drop or transform columns are destructive —
-call that out in the PR, and make sure existing data is preserved or intentionally removed.
+Schema edits require synchronized SQLite and PostgreSQL migrations. See
+[Architecture](docs/architecture.md#database-schemas) before changing either
+schema. Call out destructive transformations and preserve existing data unless
+removal is intentional.
 
 ## Reporting security issues
 
-Please don't file public issues for security problems — see [`SECURITY.md`](./SECURITY.md).
+Please don't file public issues for security problems — see
+[`SECURITY.md`](./SECURITY.md).
