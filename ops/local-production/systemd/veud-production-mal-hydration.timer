@@ -1,0 +1,11 @@
+[Unit]
+Description=Resume Veud production MAL catalog hydration daily
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1d
+Persistent=true
+Unit=veud-production-mal-hydration.service
+
+[Install]
+WantedBy=timers.target

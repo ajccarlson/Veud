@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Veud production MAL ranking inventory daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=veud-production-mal-inventory.service
+
+[Install]
+WantedBy=timers.target
