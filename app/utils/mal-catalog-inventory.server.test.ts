@@ -94,8 +94,11 @@ test('builds ranking URLs and parses identity, freshness, and alternate titles',
 	expect(malRankingUrl('anime', 500, 250)).toBe(
 		'https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&offset=500&limit=250&fields=alternative_titles%2Cmedia_type%2Cnsfw%2Cpopularity%2Cnum_list_users%2Cnum_scoring_users%2Cupdated_at',
 	)
+	const zeroMetrics = rankingResult(2)
+	zeroMetrics.node.num_list_users = 0
+	zeroMetrics.node.num_scoring_users = 0
 	const parsed = parseMalInventoryPage(
-		rankingPage({ records: [rankingResult(2)], nextOffset: 500 }),
+		rankingPage({ records: [zeroMetrics], nextOffset: 500 }),
 		'anime',
 		0,
 	)
@@ -107,8 +110,8 @@ test('builds ranking URLs and parses identity, freshness, and alternate titles',
 				mediaType: 'tv',
 				nsfw: 'gray',
 				popularityRank: 2,
-				audience: 2_000,
-				ratingCount: 200,
+				audience: 0,
+				ratingCount: 0,
 				rankingRank: 2,
 				sourceUpdatedAt: new Date('2026-07-19T12:00:00.000Z'),
 				catalogPopularity: 0.5,
