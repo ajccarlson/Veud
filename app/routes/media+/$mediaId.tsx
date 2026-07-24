@@ -14,6 +14,7 @@ import {
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
+import { ReviewEditor } from '#app/components/review-editor.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -1738,58 +1739,20 @@ export default function MediaDetailRoute() {
 										Share a spoiler-safe review with the community.
 									</p>
 								</div>
-								<Form
-									method="post"
-									className="space-y-3"
+								<ReviewEditor
 									key={
 										data.viewer.review?.updatedAt?.toString() ?? 'new-review'
 									}
-								>
-									<input type="hidden" name="intent" value="review-save" />
-									<div className="space-y-2">
-										<Label htmlFor="review-body">Review</Label>
-										<Textarea
-											id="review-body"
-											name="body"
-											defaultValue={data.viewer.review?.body ?? ''}
-											maxLength={REVIEW_MAX_LENGTH}
-											rows={7}
-											required
-											placeholder="What did you think?"
-										/>
-									</div>
-									<div className="flex flex-wrap items-end gap-3">
-										<div className="w-32 space-y-2">
-											<Label htmlFor="review-rating">Review rating</Label>
-											<Input
-												id="review-rating"
-												name="rating"
-												type="number"
-												min="0.1"
-												max="10"
-												step="0.1"
-												defaultValue={
-													data.viewer.review?.rating ?? tracking?.score ?? ''
-												}
-												placeholder="Optional"
-											/>
-										</div>
-										<label className="flex flex-1 items-center gap-2 pb-2 text-sm">
-											<input
-												type="checkbox"
-												name="containsSpoilers"
-												value="true"
-												defaultChecked={
-													data.viewer.review?.containsSpoilers ?? false
-												}
-											/>
-											Contains spoilers
-										</label>
-										<Button type="submit" disabled={busy}>
-											{data.viewer.review ? 'Update review' : 'Publish review'}
-										</Button>
-									</div>
-								</Form>
+									initialBody={data.viewer.review?.body ?? ''}
+									initialRating={
+										data.viewer.review?.rating ?? tracking?.score ?? null
+									}
+									initialContainsSpoilers={
+										data.viewer.review?.containsSpoilers ?? false
+									}
+									maxLength={REVIEW_MAX_LENGTH}
+									isExisting={Boolean(data.viewer.review)}
+								/>
 								{data.viewer.review ? (
 									<Form method="post">
 										<input type="hidden" name="intent" value="review-delete" />

@@ -78,6 +78,7 @@ export default [
 		path: 'collections/:collectionId',
 	}),
 	appRoute('routes/calendar.tsx', { path: 'calendar' }),
+	appRoute('routes/assistant.tsx', { path: 'assistant' }),
 	appRoute('routes/credits.tsx', { path: 'credits' }),
 	appRoute('routes/discover.tsx', { path: 'discover' }),
 	appRoute('routes/reviews.tsx', { path: 'reviews' }),
@@ -184,6 +185,12 @@ export default [
 	}),
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
+	}),
+	appRoute('routes/resources+/image-tip-of-tongue.ts', {
+		path: 'resources/image-tip-of-tongue',
+	}),
+	appRoute('routes/resources+/review-assistance.ts', {
+		path: 'resources/review-assistance',
 	}),
 	appRoute('routes/resources+/home-dashboard-preferences.ts', {
 		path: 'resources/home-dashboard-preferences',

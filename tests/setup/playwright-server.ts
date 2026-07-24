@@ -16,7 +16,11 @@ await preparePlaywrightDatabase()
 
 const server = execa('npm', ['run', 'start:mocks'], {
 	stdio: 'inherit',
-	env: { ...process.env, DATABASE_URL: PLAYWRIGHT_DATABASE_URL },
+	env: {
+		...process.env,
+		DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+		VEUD_E2E: '1',
+	},
 })
 
 let stopping = false

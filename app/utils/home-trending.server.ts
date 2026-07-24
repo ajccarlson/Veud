@@ -39,7 +39,8 @@ export type HomeTrendingItem = {
 	year: string | null
 	score: number | null
 	rank: number
-	source: 'provider-feed' | 'catalog-popularity'
+	source: 'provider-feed' | 'popular-fallback' | 'catalog-popularity'
+	observedAt: Date | null
 	viewerTracking: {
 		status: string
 		statusWatchlistId: string | null
@@ -50,6 +51,8 @@ export type HomeTrendingRail = {
 	kind: (typeof railDefinitions)[number]['kind']
 	title: string
 	items: HomeTrendingItem[]
+	signal: 'trending' | 'popular' | 'legacy'
+	observedAt: Date | null
 }
 
 function yearFor(media: HomeTrendingMedia) {
@@ -71,7 +74,7 @@ async function candidatesForRail(input: {
 	limit: number
 	freshAfter: Date
 }) {
-	const [feedItems, popular] = await Promise.all([
+	const [feedItems, popularFeedItems, popular] = await Promise.all([
 		prisma.catalogFeedItem.findMany({
 			where: {
 				kind: input.kind,
@@ -81,7 +84,23 @@ async function candidatesForRail(input: {
 			},
 			orderBy: [{ observedAt: 'desc' }, { rank: 'asc' }],
 			take: input.limit,
-			select: { media: { select: homeTrendingMediaSelect } },
+			select: {
+				observedAt: true,
+				media: { select: homeTrendingMediaSelect },
+			},
+		}),
+		prisma.catalogFeedItem.findMany({
+			where: {
+				kind: input.kind,
+				feed: 'popular',
+				media: { is: { title: { not: null } } },
+			},
+			orderBy: [{ rankingScore: 'desc' }, { rank: 'asc' }, { mediaId: 'asc' }],
+			take: input.limit,
+			select: {
+				observedAt: true,
+				media: { select: homeTrendingMediaSelect },
+			},
 		}),
 		prisma.media.findMany({
 			where: { kind: input.kind, title: { not: null } },
@@ -97,16 +116,28 @@ async function candidatesForRail(input: {
 	const uniqueFeedItems = [
 		...new Map(feedItems.map(item => [item.media.id, item])).values(),
 	]
-	const feedIds = new Set(uniqueFeedItems.map(item => item.media.id))
-	return [
-		...uniqueFeedItems.map(item => ({
+	const uniquePopularFeedItems = [
+		...new Map(popularFeedItems.map(item => [item.media.id, item])).values(),
+	]
+	if (uniqueFeedItems.length) {
+		return uniqueFeedItems.slice(0, input.limit).map(item => ({
 			media: item.media,
 			source: 'provider-feed' as const,
-		})),
-		...popular
-			.filter(media => !feedIds.has(media.id))
-			.map(media => ({ media, source: 'catalog-popularity' as const })),
-	].slice(0, input.limit)
+			observedAt: item.observedAt,
+		}))
+	}
+	if (uniquePopularFeedItems.length) {
+		return uniquePopularFeedItems.slice(0, input.limit).map(item => ({
+			media: item.media,
+			source: 'popular-fallback' as const,
+			observedAt: item.observedAt,
+		}))
+	}
+	return popular.map(media => ({
+		media,
+		source: 'catalog-popularity' as const,
+		observedAt: null,
+	}))
 }
 
 export async function getHomeTrending(
@@ -147,7 +178,19 @@ export async function getHomeTrending(
 		return [
 			{
 				kind: rail.kind,
-				title: rail.title,
+				title:
+					rail.items[0]?.source === 'provider-feed'
+						? rail.title
+						: rail.items[0]?.source === 'popular-fallback'
+							? `Popular ${rail.kind === 'tv' ? 'TV' : rail.kind}`
+							: `Catalog ${rail.kind === 'tv' ? 'TV' : rail.kind}`,
+				signal:
+					rail.items[0]?.source === 'provider-feed'
+						? ('trending' as const)
+						: rail.items[0]?.source === 'popular-fallback'
+							? ('popular' as const)
+							: ('legacy' as const),
+				observedAt: rail.items[0]?.observedAt ?? null,
 				items: rail.items.map(({ media, source }, index) => {
 					const viewerState = viewerStateByMediaId.get(media.id)
 					return {
@@ -160,6 +203,7 @@ export async function getHomeTrending(
 						score: providerScore(media),
 						rank: index + 1,
 						source,
+						observedAt: rail.items[index]?.observedAt ?? null,
 						viewerTracking: viewerState
 							? {
 									status: viewerState.status,

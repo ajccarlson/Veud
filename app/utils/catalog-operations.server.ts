@@ -71,6 +71,23 @@ export type CatalogCoverage = {
 	rateLimitEvents: number
 }
 
+export type PopularityDiagnostic = {
+	provider: string
+	kind: string
+	total: number
+	ranked: number
+	audienceKnown: number
+	averageScore: number | null
+	minimumScore: number | null
+	maximumScore: number | null
+	outliers: Array<{
+		title: string
+		rank: number
+		audience: number | null
+		score: number | null
+	}>
+}
+
 type CatalogHealthInput = {
 	now: Date
 	coverage: CatalogCoverage[]
@@ -290,6 +307,8 @@ export async function getCatalogOperationsSnapshot(
 		telemetryRows,
 		runs,
 		cursors,
+		popularAggregates,
+		popularOutlierRows,
 	] = await Promise.all([
 		prisma.mediaExternalId.groupBy({
 			by: ['provider', 'kind'],
@@ -394,6 +413,37 @@ export async function getCatalogOperationsSnapshot(
 				updatedAt: true,
 			},
 		}),
+		prisma.catalogFeedItem.groupBy({
+			by: ['provider', 'kind'],
+			where: {
+				provider: { in: ['tmdb', 'mal'] },
+				kind: { in: ['movie', 'tv', 'anime', 'manga'] },
+				feed: 'popular',
+			},
+			_count: { _all: true, audience: true, rankingScore: true },
+			_avg: { rankingScore: true },
+			_min: { rankingScore: true },
+			_max: { rankingScore: true },
+		}),
+		prisma.catalogFeedItem.findMany({
+			where: {
+				provider: { in: ['tmdb', 'mal'] },
+				kind: { in: ['movie', 'tv', 'anime', 'manga'] },
+				feed: 'popular',
+				rank: { lte: 20 },
+				OR: [{ audience: null }, { audience: { lt: 25 } }],
+			},
+			orderBy: [{ provider: 'asc' }, { kind: 'asc' }, { rank: 'asc' }],
+			take: 80,
+			select: {
+				provider: true,
+				kind: true,
+				rank: true,
+				audience: true,
+				rankingScore: true,
+				media: { select: { title: true } },
+			},
+		}),
 	])
 
 	const totals = countMap(totalRows)
@@ -431,11 +481,36 @@ export async function getCatalogOperationsSnapshot(
 		}
 	})
 	const health = assessCatalogHealth({ now, coverage, runs, cursors })
+	const popularity: PopularityDiagnostic[] = catalogScopes.map(scope => {
+		const aggregate = popularAggregates.find(
+			row => row.provider === scope.provider && row.kind === scope.kind,
+		)
+		const outliers = popularOutlierRows.filter(
+			row => row.provider === scope.provider && row.kind === scope.kind,
+		)
+		return {
+			provider: scope.provider,
+			kind: scope.kind,
+			total: aggregate?._count._all ?? 0,
+			ranked: aggregate?._count.rankingScore ?? 0,
+			audienceKnown: aggregate?._count.audience ?? 0,
+			averageScore: aggregate?._avg.rankingScore ?? null,
+			minimumScore: aggregate?._min.rankingScore ?? null,
+			maximumScore: aggregate?._max.rankingScore ?? null,
+			outliers: outliers.slice(0, 8).map(row => ({
+				title: row.media.title?.trim() || 'Untitled media',
+				rank: row.rank,
+				audience: row.audience,
+				score: row.rankingScore,
+			})),
+		}
+	})
 	return {
 		generatedAt: now,
 		health,
 		coverage,
 		runs,
 		cursors,
+		popularity,
 	}
 }

@@ -268,6 +268,45 @@
 	filter: saturate(0.35);
 }
 
+.discover-image-memory {
+	border: 1px solid color-mix(in srgb, var(--veud-mint) 26%, var(--veud-border));
+	border-radius: 1.25rem;
+	padding: clamp(1rem, 2vw, 1.5rem);
+	background:
+		linear-gradient(135deg, rgb(52 38 75 / 28%), transparent 48%),
+		color-mix(in srgb, var(--veud-surface) 94%, transparent);
+	box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 14%);
+}
+
+.discover-image-progress {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 1rem;
+	padding: 0.85rem 1rem;
+	border: 1px solid rgb(162 255 213 / 32%);
+	border-radius: 0.85rem;
+	background: rgb(10 36 28 / 55%);
+	color: var(--veud-mint);
+}
+
+.discover-image-result {
+	display: flex;
+	flex-direction: column;
+	gap: 0.65rem;
+	min-width: 0;
+	padding: 0.75rem;
+	border: 1px solid color-mix(in srgb, var(--veud-border) 78%, transparent);
+	border-radius: 1rem;
+	background: color-mix(in srgb, var(--veud-canvas) 72%, transparent);
+}
+
+.discover-image-result > p {
+	font-size: 0.8rem;
+	line-height: 1.35;
+	color: var(--veud-copy);
+}
+
 @keyframes discover-memory-pulse {
 	0%,
 	100% {

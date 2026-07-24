@@ -11,6 +11,7 @@ import {
 	fetchMalInventoryPage,
 	importMalInventory,
 	malCatalogPopularity,
+	malPopularFeedScore,
 	malRankingUrl,
 	parseMalInventoryPage,
 	parseMalRetryAfter,
@@ -30,6 +31,8 @@ function rankingResult(id: number, kind: 'anime' | 'manga' = 'anime') {
 			media_type: kind === 'anime' ? 'tv' : 'manga',
 			nsfw: id % 2 ? 'white' : 'gray',
 			popularity: id,
+			num_list_users: id * 1_000,
+			num_scoring_users: id * 100,
 			updated_at: '2026-07-19T12:00:00+00:00',
 		},
 		ranking: { rank: id },
@@ -89,7 +92,7 @@ test('builds ranking URLs and parses identity, freshness, and alternate titles',
 		'2026-07-20',
 	)
 	expect(malRankingUrl('anime', 500, 250)).toBe(
-		'https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&offset=500&limit=250&fields=alternative_titles%2Cmedia_type%2Cnsfw%2Cpopularity%2Cupdated_at',
+		'https://api.myanimelist.net/v2/anime/ranking?ranking_type=all&offset=500&limit=250&fields=alternative_titles%2Cmedia_type%2Cnsfw%2Cpopularity%2Cnum_list_users%2Cnum_scoring_users%2Cupdated_at',
 	)
 	const parsed = parseMalInventoryPage(
 		rankingPage({ records: [rankingResult(2)], nextOffset: 500 }),
@@ -104,6 +107,8 @@ test('builds ranking URLs and parses identity, freshness, and alternate titles',
 				mediaType: 'tv',
 				nsfw: 'gray',
 				popularityRank: 2,
+				audience: 2_000,
+				ratingCount: 200,
 				rankingRank: 2,
 				sourceUpdatedAt: new Date('2026-07-19T12:00:00.000Z'),
 				catalogPopularity: 0.5,
@@ -119,6 +124,9 @@ test('builds ranking URLs and parses identity, freshness, and alternate titles',
 	})
 	expect(malCatalogPopularity(1)).toBe(1)
 	expect(malCatalogPopularity(100)).toBe(0.01)
+	expect(malPopularFeedScore(2, 120_000)).toBeGreaterThan(
+		malPopularFeedScore(1, 3),
+	)
 	expect(() => requireMalInventoryDate('2026-02-30')).toThrow(
 		'not a real calendar date',
 	)
@@ -301,6 +309,9 @@ test('a bounded commit resumes by offset and a completed rerun is idempotent', a
 		expect.objectContaining({
 			sourceTitle: 'Anime 2',
 			sourcePopularity: 0.5,
+			sourceRank: 2,
+			sourceAudience: 2_000,
+			sourceRatingCount: 200,
 			sourceIsAdult: true,
 			sourceUpdatedAt: new Date('2026-07-19T12:00:00.000Z'),
 			hydrationReason: 'mal-inventory',
@@ -310,6 +321,30 @@ test('a bounded commit resumes by offset and a completed rerun is idempotent', a
 				catalogPopularity: 0.5,
 			}),
 		}),
+	)
+	expect(
+		await prisma.catalogFeedItem.findMany({
+			where: { provider: 'mal', kind: 'anime', feed: 'popular' },
+			orderBy: { rank: 'asc' },
+			select: {
+				rank: true,
+				audience: true,
+				rankingScore: true,
+				rankingVersion: true,
+			},
+		}),
+	).toEqual(
+		[1, 2, 3, 4].map((rank, index) =>
+			expect.objectContaining({
+				rank,
+				audience: rank * 1_000,
+				rankingVersion: 2,
+				rankingScore: expect.closeTo(
+					(1 - index / 3) * 0.35 + ((index + 1) / 4) * 0.65,
+					8,
+				),
+			}),
+		),
 	)
 
 	const repeatFetch = inventoryFetch([rankingResult(999)])
