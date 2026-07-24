@@ -149,6 +149,14 @@ function optionalPositiveInteger(value: unknown, label: string) {
 	return Number(value)
 }
 
+function optionalNonNegativeInteger(value: unknown, label: string) {
+	if (value === undefined || value === null) return null
+	if (!Number.isSafeInteger(value) || Number(value) < 0) {
+		throw new Error(`${label} must be a non-negative safe integer when present`)
+	}
+	return Number(value)
+}
+
 function optionalDate(value: unknown, label: string) {
 	const raw = optionalString(value, label)
 	if (!raw) return null
@@ -360,11 +368,11 @@ export function parseMalInventoryPage(
 			mediaType: optionalString(node.media_type, 'MAL node media_type'),
 			nsfw: optionalString(node.nsfw, 'MAL node nsfw'),
 			popularityRank,
-			audience: optionalPositiveInteger(
+			audience: optionalNonNegativeInteger(
 				node.num_list_users,
 				'MAL node num_list_users',
 			),
-			ratingCount: optionalPositiveInteger(
+			ratingCount: optionalNonNegativeInteger(
 				node.num_scoring_users,
 				'MAL node num_scoring_users',
 			),
