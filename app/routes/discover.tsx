@@ -154,6 +154,7 @@ function memorySearchStatus(data: {
 		| 'not-configured'
 		| 'sign-in-required'
 		| 'rate-limited'
+		| 'ai-unavailable'
 		| 'ai-error'
 		| 'ai-empty'
 		| null
@@ -164,6 +165,8 @@ function memorySearchStatus(data: {
 			return 'Catalog matched · sign in for AI clue expansion'
 		case 'rate-limited':
 			return 'Catalog matched · AI limit reached'
+		case 'ai-unavailable':
+			return 'Catalog matched · AI capacity temporarily unavailable'
 		case 'ai-error':
 			return 'Catalog matched · AI temporarily unavailable'
 		case 'ai-empty':

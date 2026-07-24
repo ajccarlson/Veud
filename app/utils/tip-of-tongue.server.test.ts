@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { prisma } from './db.server.ts'
 import { getTipOfTongueMatches } from './tip-of-tongue.server.ts'
+import { consoleError } from '#tests/setup/setup-test-env.ts'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -92,6 +93,25 @@ test('local matching retains meaningful short clues and selects the relevant sen
 			matchedClues: expect.arrayContaining(['boy', 'red', 'dog', 'war']),
 		}),
 	)
+})
+
+test('local matching does not pad results with unrelated popular titles', async () => {
+	await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Unrelated Popular Harbor',
+			description: 'Sailors celebrate a summer festival beside the sea.',
+			catalogPopularity: 1_000,
+		},
+	})
+
+	const result = await getTipOfTongueMatches({
+		memory: 'A crystalline typewriter inside a volcano.',
+		kind: 'movie',
+	})
+
+	expect(result.source).toBe('catalog-match')
+	expect(result.matches).toEqual([])
 })
 
 test('AI expands clues while final matches remain catalog-backed', async () => {
@@ -314,6 +334,68 @@ test('AI clue expansion is limited per member and falls back to catalog matching
 		expect.objectContaining({
 			source: 'catalog-match',
 			fallbackReason: 'rate-limited',
+		}),
+	)
+})
+
+test('AI quota failures open a circuit while catalog matching stays available', async () => {
+	const candidate = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Quota Clock',
+			description: 'A clock repeats the final hour inside a mountain observatory.',
+		},
+	})
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	consoleError.mockImplementation(() => {})
+	const fetchImpl = vi.fn<typeof fetch>(async () => {
+		return new Response(
+			JSON.stringify({
+				error: {
+					code: 'insufficient_quota',
+					message: 'Quota unavailable.',
+				},
+			}),
+			{ status: 429, headers: { 'Content-Type': 'application/json' } },
+		)
+	})
+	const aiCircuit = { unavailableUntil: 0 }
+
+	const first = await getTipOfTongueMatches(
+		{
+			memory: 'A clock repeats inside a mountain observatory.',
+			kind: 'movie',
+		},
+		{ fetchImpl, allowAi: true, now: 1_000, aiCircuit },
+	)
+	const second = await getTipOfTongueMatches(
+		{
+			memory: 'A clock repeats inside a mountain observatory.',
+			kind: 'movie',
+		},
+		{ fetchImpl, allowAi: true, now: 2_000, aiCircuit },
+	)
+
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(consoleError).toHaveBeenCalledWith(
+		'[tip-of-tongue] AI service unavailable (429, insufficient_quota); using catalog match',
+	)
+	expect(aiCircuit.unavailableUntil).toBe(3_601_000)
+	expect(first).toEqual(
+		expect.objectContaining({
+			source: 'catalog-match',
+			fallbackReason: 'ai-unavailable',
+			matches: [
+				expect.objectContaining({
+					mediaId: candidate.id,
+				}),
+			],
+		}),
+	)
+	expect(second).toEqual(
+		expect.objectContaining({
+			source: 'catalog-match',
+			fallbackReason: 'ai-unavailable',
 		}),
 	)
 })
