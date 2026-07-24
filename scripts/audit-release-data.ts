@@ -4,20 +4,23 @@ import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import {
 	getReleaseDataIntegritySnapshot,
+	removeConfirmedSeedAccounts,
 	removeConfirmedTestMediaFixtures,
 } from '#app/utils/release-data-integrity.server.ts'
 
 const usage = `Usage:
   npm run data:release-audit -- [--json]
-  npm run data:release-audit -- --commit-fixture-removal \\
+  npm run data:release-audit -- [--commit-fixture-removal] \\
+    [--commit-seed-account-removal] \\
     --expected-database <database> \\
     --backup-receipt <restore-verified.json> \\
-    --confirm REMOVE_CONFIRMED_VEUD_TEST_FIXTURES
+    --confirm REMOVE_CONFIRMED_VEUD_TEST_DATA
 
-The audit is read-only by default. Committed cleanup removes only the five exact
-browser-fixture media records and the exact isolated fixture account confirmed
-in DATA-002. It refuses any unexpected member-owned data and requires a fresh
-restore-verified PostgreSQL backup receipt.`
+The audit is read-only by default. Committed cleanup can remove the five exact
+browser-fixture media records and isolated fixture account confirmed in
+DATA-002, the seven exact generated seed accounts, or both. It refuses any
+unexpected member-owned data and requires a fresh restore-verified PostgreSQL
+backup receipt.`
 
 function valueAfter(name: string) {
 	const index = process.argv.indexOf(name)
@@ -67,6 +70,7 @@ async function main() {
 		'--help',
 		'--json',
 		'--commit-fixture-removal',
+		'--commit-seed-account-removal',
 		'--expected-database',
 		'--backup-receipt',
 		'--confirm',
@@ -104,7 +108,11 @@ async function main() {
 				)
 			}
 		}
-		if (!process.argv.includes('--commit-fixture-removal')) return
+		const removeFixtures = process.argv.includes('--commit-fixture-removal')
+		const removeSeedAccounts = process.argv.includes(
+			'--commit-seed-account-removal',
+		)
+		if (!removeFixtures && !removeSeedAccounts) return
 
 		const expectedDatabase = valueAfter('--expected-database')
 		const receipt = valueAfter('--backup-receipt')
@@ -112,7 +120,10 @@ async function main() {
 		if (
 			!expectedDatabase ||
 			!receipt ||
-			confirmation !== 'REMOVE_CONFIRMED_VEUD_TEST_FIXTURES'
+			confirmation !==
+				(removeSeedAccounts
+					? 'REMOVE_CONFIRMED_VEUD_TEST_DATA'
+					: 'REMOVE_CONFIRMED_VEUD_TEST_FIXTURES')
 		) {
 			throw new Error(usage)
 		}
@@ -123,14 +134,24 @@ async function main() {
 			)
 		}
 		assertFreshBackupReceipt(receipt, identity.target)
-		const result = await removeConfirmedTestMediaFixtures(prisma)
-		console.log(
-			result.removed.length
-				? `Removed confirmed fixtures: ${result.removed.join(', ')}${result.removedFixtureAccount ? '; removed the exact isolated fixture account' : ''}`
-				: result.removedFixtureAccount
-					? 'The fixture media were already absent; removed the exact isolated fixture account.'
-					: 'The confirmed fixture family and account are already absent.',
-		)
+		if (removeFixtures) {
+			const result = await removeConfirmedTestMediaFixtures(prisma)
+			console.log(
+				result.removed.length
+					? `Removed confirmed fixtures: ${result.removed.join(', ')}${result.removedFixtureAccount ? '; removed the exact isolated fixture account' : ''}`
+					: result.removedFixtureAccount
+						? 'The fixture media were already absent; removed the exact isolated fixture account.'
+						: 'The confirmed fixture family and account are already absent.',
+			)
+		}
+		if (removeSeedAccounts) {
+			const result = await removeConfirmedSeedAccounts(prisma)
+			console.log(
+				result.removed.length
+					? `Removed confirmed seed accounts: ${result.removed.join(', ')}`
+					: 'The confirmed seed accounts are already absent.',
+			)
+		}
 	} finally {
 		await prisma.$disconnect()
 	}
