@@ -38,6 +38,65 @@ export const confirmedFixtureAccount = {
 	trackedMediaId: 'cmrtt7fle003sawoigicy9li5',
 } as const
 
+export const confirmedSeedAccounts = [
+	{
+		id: '450ab1b9-d297-4fee-8796-e4b8d0996485',
+		username: 'ck_aylin_christianse',
+		email: 'ck_aylin_christianse@example.com',
+		createdAt: '2024-06-22T21:22:02.426Z',
+		watchlists: 4,
+		trackingStates: 24,
+	},
+	{
+		id: '3cb129ee-a6af-4734-8a88-ec26d1be8310',
+		username: 'q6_kody_parisian33',
+		email: 'q6_kody_parisian33@example.com',
+		createdAt: '2024-06-22T21:22:04.671Z',
+		watchlists: 3,
+		trackingStates: 17,
+	},
+	{
+		id: 'cbf663a1-fcf8-43b3-be71-6b3e61d0f4e0',
+		username: 'vf_velma_kris30',
+		email: 'vf_velma_kris30@example.com',
+		createdAt: '2024-06-22T21:22:06.288Z',
+		watchlists: 2,
+		trackingStates: 9,
+	},
+	{
+		id: '4252c1d1-e84f-44ae-b32e-1d29ecd9d0de',
+		username: 'am_carmelo_ullrich29',
+		email: 'am_carmelo_ullrich29@example.com',
+		createdAt: '2024-06-22T21:22:06.956Z',
+		watchlists: 5,
+		trackingStates: 19,
+	},
+	{
+		id: '7819f13f-6b26-4293-9160-47543433002c',
+		username: 'pi_wallace_leuschke2',
+		email: 'pi_wallace_leuschke2@example.com',
+		createdAt: '2024-06-22T21:22:08.696Z',
+		watchlists: 4,
+		trackingStates: 13,
+	},
+	{
+		id: 'cmrtt7rkz00033tgguf8fdely',
+		username: 'u9_bryana_ebert',
+		email: 'u9_bryana_ebert@example.com',
+		createdAt: '2026-07-20T22:42:03.492Z',
+		watchlists: 0,
+		trackingStates: 0,
+	},
+	{
+		id: 'cmrtt7skf0003wms99x8m0cut',
+		username: 'jg_arvid_nader23',
+		email: 'jg_arvid_nader23@example.com',
+		createdAt: '2026-07-20T22:42:04.768Z',
+		watchlists: 0,
+		trackingStates: 0,
+	},
+] as const
+
 export const knownTestEmailDomains = [
 	'example.com',
 	'example.test',
@@ -340,6 +399,108 @@ export async function removeConfirmedTestMediaFixtures(prisma: PrismaClient) {
 				removed: rows.map(row => row.id).sort(),
 				removedFixtureAccount: Boolean(fixtureAccount),
 			}
+		},
+		{ isolationLevel: 'Serializable' },
+	)
+}
+
+export async function removeConfirmedSeedAccounts(prisma: PrismaClient) {
+	return await prisma.$transaction(
+		async tx => {
+			const expectedById = new Map<
+				string,
+				(typeof confirmedSeedAccounts)[number]
+			>(confirmedSeedAccounts.map(account => [account.id, account]))
+			const accounts = await tx.user.findMany({
+				where: { id: { in: confirmedSeedAccounts.map(account => account.id) } },
+				select: {
+					id: true,
+					username: true,
+					email: true,
+					createdAt: true,
+					password: { select: { userId: true } },
+					image: { select: { id: true } },
+					banner: { select: { id: true } },
+					homeDashboardPreference: { select: { id: true } },
+					notificationPreference: { select: { id: true } },
+					roles: { select: { name: true } },
+					watchlists: {
+						select: {
+							_count: {
+								select: {
+									activityEvents: true,
+									previousActivityEvents: true,
+								},
+							},
+						},
+					},
+					trackingStates: {
+						select: {
+							_count: { select: { activityEvents: true } },
+						},
+					},
+					_count: { select: fixtureAccountCountSelect },
+				},
+			})
+
+			for (const account of accounts) {
+				const expected = expectedById.get(account.id)
+				if (!expected) {
+					throw new Error(
+						`Refusing seed-account cleanup: ${account.id} is not a confirmed seed identity.`,
+					)
+				}
+				const identityMatches =
+					account.username === expected.username &&
+					account.email === expected.email &&
+					account.createdAt.toISOString() === expected.createdAt
+				if (!identityMatches) {
+					throw new Error(
+						`Refusing seed-account cleanup: ${account.id} no longer matches its confirmed seed identity.`,
+					)
+				}
+
+				const expectedCounts = {
+					roles: 1,
+					watchlists: expected.watchlists,
+					trackingStates: expected.trackingStates,
+				}
+				const hasOnlyExpectedCounts = Object.entries(account._count).every(
+					([name, count]) =>
+						count ===
+						(expectedCounts[name as keyof typeof expectedCounts] ?? 0),
+				)
+				const hasOnlyExpectedProfile =
+					Boolean(account.password) &&
+					!account.image &&
+					!account.banner &&
+					!account.homeDashboardPreference &&
+					!account.notificationPreference &&
+					account.roles.length === 1 &&
+					account.roles[0]?.name === 'user'
+				const hasNoActivity =
+					account.watchlists.every(watchlist =>
+						Object.values(watchlist._count).every(count => count === 0),
+					) &&
+					account.trackingStates.every(trackingState =>
+						Object.values(trackingState._count).every(count => count === 0),
+					)
+				if (
+					!hasOnlyExpectedCounts ||
+					!hasOnlyExpectedProfile ||
+					!hasNoActivity
+				) {
+					throw new Error(
+						`Refusing seed-account cleanup: ${account.id} now has non-seed member data.`,
+					)
+				}
+			}
+
+			if (!accounts.length) return { removed: [] as string[] }
+			await tx.user.deleteMany({
+				where: { id: { in: accounts.map(account => account.id) } },
+			})
+			return { removed: accounts.map(account => account.id).sort() }
 		},
 		{ isolationLevel: 'Serializable' },
 	)

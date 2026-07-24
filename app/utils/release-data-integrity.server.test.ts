@@ -5,8 +5,10 @@ import {
 	confirmedFixtureAccount,
 	confirmedFixtureFamily,
 	confirmedLeakedMediaFixtures,
+	confirmedSeedAccounts,
 	E2E_MEDIA_TITLE_PREFIX,
 	knownMediaFixtureTitles,
+	removeConfirmedSeedAccounts,
 	removeConfirmedTestMediaFixtures,
 } from './release-data-integrity.server.ts'
 
@@ -29,6 +31,86 @@ describe('release data integrity', () => {
 			confirmedFixtureAccount.trackedMediaId,
 		)
 		expect(confirmedFixtureAccount.emailDomain).toBe('example.com')
+		expect(confirmedSeedAccounts).toHaveLength(7)
+		expect(
+			confirmedSeedAccounts.every(
+				account => account.email === `${account.username}@example.com`,
+			),
+		).toBe(true)
+	})
+
+	test('removes only exact isolated seed-account identities', async () => {
+		const role = await prisma.role.upsert({
+			where: { name: 'user' },
+			update: {},
+			create: { name: 'user', description: 'Member' },
+		})
+		const isolatedAccounts = confirmedSeedAccounts.filter(
+			account => account.watchlists === 0 && account.trackingStates === 0,
+		)
+		await prisma.user.createMany({
+			data: isolatedAccounts.map(account => ({
+				id: account.id,
+				username: account.username,
+				email: account.email,
+				createdAt: new Date(account.createdAt),
+				updatedAt: new Date(account.createdAt),
+			})),
+		})
+		for (const account of isolatedAccounts) {
+			await prisma.user.update({
+				where: { id: account.id },
+				data: {
+					password: { create: { hash: 'test-only' } },
+					roles: { connect: { id: role.id } },
+				},
+			})
+		}
+
+		await expect(removeConfirmedSeedAccounts(prisma)).resolves.toEqual({
+			removed: isolatedAccounts.map(account => account.id).sort(),
+		})
+		expect(
+			await prisma.user.count({
+				where: { id: { in: isolatedAccounts.map(account => account.id) } },
+			}),
+		).toBe(0)
+	})
+
+	test('refuses seed-account cleanup after community activity', async () => {
+		const role = await prisma.role.upsert({
+			where: { name: 'user' },
+			update: {},
+			create: { name: 'user', description: 'Member' },
+		})
+		const account = confirmedSeedAccounts.find(
+			candidate => candidate.watchlists === 0 && candidate.trackingStates === 0,
+		)!
+		const media = await prisma.media.create({
+			data: { kind: 'movie', title: 'Seed cleanup refusal test' },
+		})
+		await prisma.user.create({
+			data: {
+				id: account.id,
+				username: account.username,
+				email: account.email,
+				createdAt: new Date(account.createdAt),
+				updatedAt: new Date(account.createdAt),
+				password: { create: { hash: 'test-only' } },
+				roles: { connect: { id: role.id } },
+				reviews: {
+					create: {
+						mediaId: media.id,
+						body: 'Community activity must make account cleanup fail closed.',
+					},
+				},
+			},
+		})
+
+		await expect(removeConfirmedSeedAccounts(prisma)).rejects.toThrow(
+			'now has non-seed member data',
+		)
+		expect(await prisma.user.count({ where: { id: account.id } })).toBe(1)
 	})
 
 	test('counts every member-owned attachment category', () => {
