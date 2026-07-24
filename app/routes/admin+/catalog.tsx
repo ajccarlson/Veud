@@ -708,6 +708,82 @@ export default function CatalogAdminRoute() {
 				))}
 			</section>
 
+			<section aria-labelledby="popularity-diagnostics" className="space-y-4">
+				<div>
+					<h2
+						id="popularity-diagnostics"
+						className="text-2xl font-black text-veud-amber"
+					>
+						Popularity signal diagnostics
+					</h2>
+					<p className="mt-1 max-w-3xl text-sm leading-6 text-veud-copy">
+						Provider-native rank and audience size are normalized within each
+						source and media kind. Raw TMDB popularity and reciprocal MAL rank
+						are never compared directly.
+					</p>
+				</div>
+				<div className="grid gap-4 md:grid-cols-2">
+					{snapshot.popularity.map(item => (
+						<VeudPanel
+							key={`${item.provider}:${item.kind}`}
+							className="space-y-3"
+						>
+							<h3 className="font-black uppercase tracking-wide text-veud-cream">
+								{item.provider} · {item.kind}
+							</h3>
+							<dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+								<div>
+									<dt className="text-veud-mint">Feed rows</dt>
+									<dd className="font-black">{formatNumber(item.total)}</dd>
+								</div>
+								<div>
+									<dt className="text-veud-mint">Audience known</dt>
+									<dd className="font-black">
+										{formatNumber(item.audienceKnown)}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-veud-mint">Mean normalized</dt>
+									<dd className="font-black">
+										{item.averageScore === null
+											? '—'
+											: item.averageScore.toFixed(3)}
+									</dd>
+								</div>
+								<div>
+									<dt className="text-veud-mint">Score range</dt>
+									<dd className="font-black">
+										{item.minimumScore === null || item.maximumScore === null
+											? '—'
+											: `${item.minimumScore.toFixed(3)}–${item.maximumScore.toFixed(3)}`}
+									</dd>
+								</div>
+							</dl>
+							{item.outliers.length ? (
+								<div className="rounded-xl border border-amber-300/30 bg-amber-950/15 p-3">
+									<p className="text-xs font-black uppercase tracking-wide text-amber-100">
+										Top-20 rows with missing or tiny audience
+									</p>
+									<ul className="mt-2 grid gap-1 text-sm text-veud-copy">
+										{item.outliers.map(outlier => (
+											<li key={`${outlier.rank}:${outlier.title}`}>
+												#{outlier.rank} {outlier.title} · audience{' '}
+												{outlier.audience ?? 'unknown'} · score{' '}
+												{outlier.score?.toFixed(3) ?? 'uncomputed'}
+											</li>
+										))}
+									</ul>
+								</div>
+							) : (
+								<p className="text-sm text-veud-copy">
+									No top-rank audience outliers detected.
+								</p>
+							)}
+						</VeudPanel>
+					))}
+				</div>
+			</section>
+
 			<section aria-labelledby="quality-heading" className="space-y-4">
 				<div className="flex flex-wrap items-end justify-between gap-3">
 					<div>

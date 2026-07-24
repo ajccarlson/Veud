@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const optionalBooleanFlag = z.enum(['true', 'false', '1', '0']).optional()
+
 const schema = z.object({
 	NODE_ENV: z.enum(['production', 'development', 'test'] as const),
 	DATABASE_PATH: z.string(),
@@ -38,6 +40,20 @@ const schema = z.object({
 
 	OPENAI_API_KEY: z.string().optional(),
 	OPENAI_TIP_OF_TONGUE_MODEL: z.string().optional(),
+	OPENAI_DEFAULT_MODEL: z.string().optional(),
+	VEUD_AI_ENABLED: optionalBooleanFlag,
+	VEUD_AI_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
+	VEUD_AI_NATURAL_LANGUAGE_DISCOVERY_ENABLED: optionalBooleanFlag,
+	VEUD_AI_DISCOVERY_REFINEMENT_ENABLED: optionalBooleanFlag,
+	VEUD_AI_TRACKING_COMMAND_ENABLED: optionalBooleanFlag,
+	VEUD_AI_IMAGE_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
+	VEUD_AI_IMPORT_RECONCILIATION_ENABLED: optionalBooleanFlag,
+	VEUD_AI_REVIEW_ASSISTANCE_ENABLED: optionalBooleanFlag,
+	VEUD_AI_MODERATION_TRIAGE_ENABLED: optionalBooleanFlag,
+	VEUD_AI_MAX_CONCURRENCY: z
+		.string()
+		.regex(/^(?:[1-9]|1[0-9]|20)$/)
+		.optional(),
 })
 
 declare global {

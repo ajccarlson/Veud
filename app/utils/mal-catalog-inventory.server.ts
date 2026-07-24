@@ -37,6 +37,8 @@ export type MalInventoryRecord = {
 	mediaType: string | null
 	nsfw: string | null
 	popularityRank: number | null
+	audience: number | null
+	ratingCount: number | null
 	rankingRank: number | null
 	sourceUpdatedAt: Date | null
 	catalogPopularity: number | null
@@ -191,7 +193,7 @@ export function malRankingUrl(
 	url.searchParams.set('limit', String(limit))
 	url.searchParams.set(
 		'fields',
-		'alternative_titles,media_type,nsfw,popularity,updated_at',
+		'alternative_titles,media_type,nsfw,popularity,num_list_users,num_scoring_users,updated_at',
 	)
 	return url.toString()
 }
@@ -214,6 +216,18 @@ export function parseMalRetryAfter(value: string | null, now = new Date()) {
  * pretending the provider's rank is directly comparable to TMDB's score. */
 export function malCatalogPopularity(popularityRank: number | null) {
 	return popularityRank === null ? null : 1 / popularityRank
+}
+
+export function malPopularFeedScore(
+	popularityRank: number,
+	audience: number | null,
+) {
+	const rankScore = 1 / (1 + Math.log10(Math.max(1, popularityRank)))
+	const audienceScore = Math.min(
+		1,
+		Math.log10(1 + Math.max(0, audience ?? 0)) / 7,
+	)
+	return Math.max(0, Math.min(1, rankScore * 0.35 + audienceScore * 0.65))
 }
 
 function inventoryTitles(node: Record<string, unknown>, title: string) {
@@ -346,6 +360,14 @@ export function parseMalInventoryPage(
 			mediaType: optionalString(node.media_type, 'MAL node media_type'),
 			nsfw: optionalString(node.nsfw, 'MAL node nsfw'),
 			popularityRank,
+			audience: optionalPositiveInteger(
+				node.num_list_users,
+				'MAL node num_list_users',
+			),
+			ratingCount: optionalPositiveInteger(
+				node.num_scoring_users,
+				'MAL node num_scoring_users',
+			),
 			rankingRank,
 			sourceUpdatedAt: optionalDate(node.updated_at, 'MAL node updated_at'),
 			catalogPopularity: malCatalogPopularity(popularityRank),
@@ -775,7 +797,45 @@ export async function importMalInventory(
 					now: clock(),
 				})
 				tombstoned = result.count
+				await tx.catalogFeedItem.deleteMany({
+					where: {
+						provider: 'mal',
+						kind: options.kind,
+						feed: 'popular',
+						observedAt: { lt: scanStartedAt },
+					},
+				})
 			}
+			await tx.$executeRaw`
+				WITH "normalized" AS (
+					SELECT
+						"id",
+						1.0 - PERCENT_RANK() OVER (ORDER BY "rank" ASC) AS "rankScore",
+						CASE
+							WHEN "audience" IS NULL THEN 0.0
+							ELSE CUME_DIST() OVER (
+								ORDER BY CASE
+									WHEN "audience" IS NULL THEN -1
+									ELSE "audience"
+								END ASC
+							)
+						END AS "audienceScore"
+					FROM "CatalogFeedItem"
+					WHERE "provider" = 'mal'
+						AND "kind" = ${options.kind}
+						AND "feed" = 'popular'
+				)
+				UPDATE "CatalogFeedItem"
+				SET
+					"rankingScore" = (
+						SELECT
+							"rankScore" * 0.35 + "audienceScore" * 0.65
+						FROM "normalized"
+						WHERE "normalized"."id" = "CatalogFeedItem"."id"
+					),
+					"rankingVersion" = 2
+				WHERE "id" IN (SELECT "id" FROM "normalized")
+			`
 			await completeCatalogSyncRun(tx, {
 				runId: lease.run.id,
 				leaseOwner,
@@ -877,10 +937,49 @@ export async function importMalInventory(
 						sourceUpdatedAt: record.sourceUpdatedAt,
 						sourceTitle: record.title,
 						sourcePopularity: record.catalogPopularity,
+						sourceRank: record.popularityRank,
+						sourceAudience: record.audience,
+						sourceRatingCount: record.ratingCount,
 						sourceIsAdult: malSourceIsAdult(record.nsfw),
 						seenAt: scanStartedAt,
 					})
 					await replaceMalInventoryTitles(tx, source.mediaId, record.titles)
+					if (record.popularityRank !== null) {
+						await tx.catalogFeedItem.upsert({
+							where: {
+								provider_kind_feed_mediaId: {
+									provider: 'mal',
+									kind: options.kind,
+									feed: 'popular',
+									mediaId: source.mediaId,
+								},
+							},
+							create: {
+								provider: 'mal',
+								kind: options.kind,
+								feed: 'popular',
+								mediaId: source.mediaId,
+								rank: record.popularityRank,
+								audience: record.audience,
+								rankingScore: malPopularFeedScore(
+									record.popularityRank,
+									record.audience,
+								),
+								rankingVersion: 1,
+								observedAt: scanStartedAt,
+							},
+							update: {
+								rank: record.popularityRank,
+								audience: record.audience,
+								rankingScore: malPopularFeedScore(
+									record.popularityRank,
+									record.audience,
+								),
+								rankingVersion: 1,
+								observedAt: scanStartedAt,
+							},
+						})
+					}
 					if (record.mediaType && source.media.type !== record.mediaType) {
 						await tx.media.update({
 							where: { id: source.mediaId },

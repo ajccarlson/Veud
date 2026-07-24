@@ -42,6 +42,8 @@ test('signed-in settings and profile meet automated WCAG checks', async ({
 	for (const path of [
 		'/settings/profile',
 		'/settings/profile/notifications',
+		'/assistant',
+		'/discover?mode=memory',
 		`/users/${user.username}`,
 	]) {
 		await page.goto(path)
@@ -216,4 +218,58 @@ test('reduced-motion preference minimizes global animation and transitions', asy
 	expect(Number.parseFloat(metrics.transitionDuration)).toBeLessThanOrEqual(
 		0.001,
 	)
+})
+
+test('projector beam scales, pauses, and has a static reduced-motion state', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.emulateMedia({
+		colorScheme: 'dark',
+		reducedMotion: 'no-preference',
+	})
+	await page.goto('/credits')
+	const beam = page.locator('.root-logo-projector-beam')
+	await expect(beam).toBeVisible()
+	const wide = await beam.evaluate(element => {
+		const style = getComputedStyle(element)
+		const highlight = getComputedStyle(element, '::before')
+		return {
+			width: Number.parseFloat(style.width),
+			animation: style.animationName,
+			highlightAnimation: highlight.animationName,
+		}
+	})
+	expect(wide.width).toBeGreaterThan(60)
+	expect(wide.animation).toContain('veud-projector-breathe')
+	expect(wide.highlightAnimation).toContain('veud-projector-sweep')
+
+	await page.setViewportSize({ width: 760, height: 900 })
+	const narrowWidth = await beam.evaluate(element =>
+		Number.parseFloat(getComputedStyle(element).width),
+	)
+	expect(narrowWidth).toBeLessThan(wide.width)
+	expect(narrowWidth).toBeGreaterThanOrEqual(60)
+
+	await page.evaluate(() =>
+		document.documentElement.classList.add('veud-document-hidden'),
+	)
+	expect(
+		await beam.evaluate(
+			element => getComputedStyle(element).animationPlayState,
+		),
+	).toBe('paused')
+
+	await page.emulateMedia({ reducedMotion: 'reduce' })
+	expect(
+		await beam.evaluate(element => getComputedStyle(element).animationName),
+	).toBe('none')
+	expect(
+		await beam.evaluate(
+			element => getComputedStyle(element, '::before').display,
+		),
+	).toBe('none')
+
+	await page.setViewportSize({ width: 390, height: 844 })
+	await expect(beam).toBeHidden()
 })

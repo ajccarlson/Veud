@@ -66,6 +66,8 @@ model User {
   moderationAppealDrafts     ModerationAppealDraft[]
   serviceIncidentEvents      ServiceIncidentEvent[]
   libraryImportBatches       LibraryImportBatch[]
+  aiDiscoverySessions        AiDiscoverySession[]
+  trackingCommandPreviews    TrackingCommandPreview[]
 }
 
 model ListType {
@@ -137,6 +139,10 @@ model Media {
   length            String?
   chapters          String?
   volumes           String?
+  runtimeMinutes    Int?
+  episodeCount      Int?
+  chapterCount      Int?
+  volumeCount       Int?
   rating            String?
   language          String?
   studios           String?
@@ -175,23 +181,31 @@ model Media {
   @@index([releaseStart])
   @@index([releaseStatus])
   @@index([title])
+  @@index([runtimeMinutes])
+  @@index([episodeCount])
+  @@index([chapterCount])
+  @@index([volumeCount])
 }
 
 /// A ranked provider feed snapshot tied to a canonical work. Replacing one
 /// provider/kind/feed snapshot never affects user-owned media history.
 model CatalogFeedItem {
-  id         String   @id @default(cuid())
-  provider   String
-  kind       String
-  feed       String
-  rank       Int
-  observedAt DateTime
+  id             String   @id @default(cuid())
+  provider       String
+  kind           String
+  feed           String
+  rank           Int
+  audience       Int?
+  rankingScore   Float?
+  rankingVersion Int      @default(1)
+  observedAt     DateTime
 
   media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId String
 
   @@unique([provider, kind, feed, mediaId])
   @@index([provider, kind, feed, rank])
+  @@index([provider, kind, feed, observedAt, rankingScore])
   @@index([mediaId])
   @@index([observedAt])
 }
@@ -208,6 +222,9 @@ model MediaExternalId {
   sourceUpdatedAt      DateTime?
   sourceTitle          String?
   sourcePopularity     Float?
+  sourceRank           Int?
+  sourceAudience       Int?
+  sourceRatingCount    Int?
   sourceIsAdult        Boolean?
   sourceIsVideo        Boolean?
   hydrationPriority    Int       @default(0)
@@ -1065,18 +1082,20 @@ model LibraryImportBatch {
 /// One normalized provider row and its selected canonical match. `journal`
 /// captures only the member-owned state needed for an exact rollback.
 model LibraryImportItem {
-  id          String    @id @default(cuid())
-  sourceKey   String
-  payload     String
-  matchState  String
-  matchMethod String?
-  hasConflict Boolean   @default(false)
-  candidates  String    @default("[]")
-  resolution  String    @default("skip")
-  journal     String?
-  appliedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  sourceKey       String
+  payload         String
+  matchState      String
+  matchMethod     String?
+  hasConflict     Boolean   @default(false)
+  candidates      String    @default("[]")
+  aiHypotheses    String?
+  aiPromptVersion String?
+  resolution      String    @default("skip")
+  journal         String?
+  appliedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   batch   LibraryImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   batchId String
@@ -1104,21 +1123,84 @@ model ModerationReport {
   updatedAt      DateTime  @updatedAt
   resolvedAt     DateTime?
 
-  reporter         User               @relation("ModerationReporter", fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reporter         User                     @relation("ModerationReporter", fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   reporterId       String
-  subject          User?              @relation("ModerationSubject", fields: [subjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subject          User?                    @relation("ModerationSubject", fields: [subjectId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   subjectId        String?
-  assignedTo       User?              @relation("ModerationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  assignedTo       User?                    @relation("ModerationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   assignedToId     String?
-  appealOfAction   ModerationAction?  @relation("ModerationAppeal", fields: [appealOfActionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  appealOfActionId String?            @unique
-  actions          ModerationAction[] @relation("ModerationReportActions")
+  appealOfAction   ModerationAction?        @relation("ModerationAppeal", fields: [appealOfActionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  appealOfActionId String?                  @unique
+  actions          ModerationAction[]       @relation("ModerationReportActions")
+  aiAssessments    AiModerationAssessment[]
 
   @@index([status, priority, createdAt])
   @@index([targetType, targetId])
   @@index([reporterId, createdAt])
   @@index([subjectId, createdAt])
   @@index([assignedToId, status])
+}
+
+/// A short-lived private natural-language discovery conversation. It stores
+/// member-authored phrases and normalized plans, never catalog candidates.
+model AiDiscoverySession {
+  id          String   @id @default(cuid())
+  phrases     String
+  plans       String
+  currentStep Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  @@index([ownerId, updatedAt])
+  @@index([expiresAt])
+}
+
+/// A confirmed-before-write natural-language tracking plan. The operation and
+/// journal payloads remain owner-private and expire when unused.
+model TrackingCommandPreview {
+  id           String    @id @default(cuid())
+  requestText  String
+  operations   String
+  snapshotHash String
+  status       String    @default("pending")
+  journal      String?
+  expiresAt    DateTime
+  appliedAt    DateTime?
+  revertedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId String
+
+  @@index([ownerId, status, createdAt])
+  @@index([expiresAt])
+}
+
+/// Versioned, staff-only machine triage attached to a report. It cannot enact
+/// moderation and is intentionally separate from the immutable human action log.
+model AiModerationAssessment {
+  id               String   @id @default(cuid())
+  categories       String
+  severity         String
+  confidence       Float
+  evidence         String
+  uncertainty      String
+  recommendedQueue String
+  model            String
+  promptVersion    String
+  policyVersion    String
+  createdAt        DateTime @default(now())
+
+  report   ModerationReport @relation(fields: [reportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reportId String
+
+  @@index([reportId, createdAt])
+  @@index([severity, createdAt])
 }
 
 /// Immutable staff activity. Content state remains reversible, while this

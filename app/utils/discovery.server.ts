@@ -2,13 +2,15 @@ import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
+import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
 
 export const DISCOVERY_PAGE_SIZE = 24
 const FOR_YOU_CANDIDATE_LIMIT = 500
+const POPULAR_FEED_FRESHNESS_MS = 8 * 24 * 60 * 60 * 1_000
 
 export const discoveryKinds = ['all', 'movie', 'tv', 'anime', 'manga'] as const
 export const discoveryProviders = ['all', 'tmdb', 'mal'] as const
-export const discoveryModes = ['standard', 'memory'] as const
+export const discoveryModes = ['standard', 'memory', 'describe'] as const
 export const discoverySorts = [
 	'popular',
 	'top-rated',
@@ -101,6 +103,8 @@ const discoveryMediaSelect = {
 			provider: true,
 			externalId: true,
 			lastFetchedAt: true,
+			sourceAudience: true,
+			sourceRatingCount: true,
 		},
 	},
 	trackingStates: {
@@ -141,9 +145,16 @@ function boundedSearchValue(value: string | null, maximum: number) {
 }
 
 export function parseDiscoveryQuery(searchParams: URLSearchParams) {
-	const mode = searchParams.get('mode') === 'memory' ? 'memory' : 'standard'
+	const requestedMode = searchParams.get('mode')
+	const mode =
+		requestedMode === 'memory' || requestedMode === 'describe'
+			? requestedMode
+			: 'standard'
 	return DiscoveryQuerySchema.parse({
-		q: boundedSearchValue(searchParams.get('q'), mode === 'memory' ? 500 : 100),
+		q: boundedSearchValue(
+			searchParams.get('q'),
+			mode === 'memory' || mode === 'describe' ? 500 : 100,
+		),
 		kind: searchParams.get('kind') ?? 'all',
 		mode,
 		genre: boundedSearchValue(searchParams.get('genre'), 80),
@@ -153,6 +164,156 @@ export function parseDiscoveryQuery(searchParams: URLSearchParams) {
 		sort: searchParams.get('sort') ?? 'popular',
 		page: searchParams.get('page') ?? '1',
 	})
+}
+
+function naturalTermWhere(term: string): Prisma.MediaWhereInput {
+	const normalized = normalizeCatalogTitle(term)
+	return {
+		OR: [
+			{ title: { contains: term } },
+			{ description: { contains: term } },
+			{ genres: { contains: term } },
+			...(normalized
+				? [{ titles: { some: { normalized: { contains: normalized } } } }]
+				: []),
+		],
+	}
+}
+
+function naturalYearWhere(
+	from: number | null,
+	to: number | null,
+): Prisma.MediaWhereInput | null {
+	if (from === null && to === null) return null
+	const start = from ?? 1870
+	const end = to ?? 2200
+	return {
+		OR: [
+			{
+				releaseStart: {
+					gte: new Date(`${start}-01-01T00:00:00.000Z`),
+					lt: new Date(`${end + 1}-01-01T00:00:00.000Z`),
+				},
+			},
+			{ startYear: { gte: String(start), lte: String(end) } },
+			{ airYear: { gte: String(start), lte: String(end) } },
+		],
+	}
+}
+
+function naturalLengthWhere(
+	plan: NaturalLanguageDiscoveryPlan,
+): Prisma.MediaWhereInput | null {
+	if (
+		!plan.lengthUnit ||
+		(plan.lengthFrom === null && plan.lengthTo === null)
+	) {
+		return null
+	}
+	const field = {
+		minutes: 'runtimeMinutes',
+		episodes: 'episodeCount',
+		chapters: 'chapterCount',
+		volumes: 'volumeCount',
+	}[plan.lengthUnit] as
+		'runtimeMinutes' | 'episodeCount' | 'chapterCount' | 'volumeCount'
+	return {
+		[field]: {
+			...(plan.lengthFrom === null ? {} : { gte: plan.lengthFrom }),
+			...(plan.lengthTo === null ? {} : { lte: plan.lengthTo }),
+		},
+	}
+}
+
+function naturalReleaseStatusWhere(
+	status: NaturalLanguageDiscoveryPlan['releaseStatus'],
+): Prisma.MediaWhereInput | null {
+	if (!status) return null
+	const values = {
+		upcoming: ['Not yet aired', 'Planned', 'In Production', 'Upcoming'],
+		ongoing: [
+			'Currently Airing',
+			'Returning Series',
+			'Airing',
+			'Publishing',
+			'Ongoing',
+		],
+		completed: [
+			'Finished Airing',
+			'Finished',
+			'Ended',
+			'Released',
+			'Completed',
+		],
+		hiatus: ['On Hiatus', 'Hiatus'],
+		cancelled: ['Canceled', 'Cancelled'],
+	}[status]
+	return { releaseStatus: { in: values } }
+}
+
+export async function getDiscoveryResultsForPlan(
+	plan: NaturalLanguageDiscoveryPlan,
+	viewerId: string | null,
+	input: { page: number; filters: DiscoveryQuery },
+): Promise<DiscoveryResults> {
+	const year = naturalYearWhere(plan.yearFrom, plan.yearTo)
+	const length = naturalLengthWhere(plan)
+	const releaseStatus = naturalReleaseStatusWhere(plan.releaseStatus)
+	const sort =
+		plan.sort === 'for-you' && !viewerId ? ('popular' as const) : plan.sort
+	const where = {
+		AND: [
+			{ kind: { in: plan.kinds } },
+			...plan.includeGenres.map(genre => genreWhere(genre)),
+			...plan.excludeGenres.map(genre => ({ NOT: genreWhere(genre) })),
+			...plan.includeTerms.map(naturalTermWhere),
+			...plan.toneTerms.map(naturalTermWhere),
+			...(plan.pace ? [naturalTermWhere(plan.pace)] : []),
+			...plan.excludeTerms.map(term => ({ NOT: naturalTermWhere(term) })),
+			...(year ? [year] : []),
+			...(releaseStatus ? [releaseStatus] : []),
+			...(plan.language ? [{ language: { contains: plan.language } }] : []),
+			...(length ? [length] : []),
+			...(sort === 'top-rated' ? [publicRatingWhere()] : []),
+		],
+	} satisfies Prisma.MediaWhereInput
+	const [total, preferences] = await Promise.all([
+		prisma.media.count({ where }),
+		getGenrePreferences(viewerId),
+	])
+	const { page, pageCount, skip } = pagination(total, input.page)
+	const media =
+		sort === 'popular' || sort === 'for-you'
+			? await popularMediaPage({
+					where,
+					page,
+					pageSize: DISCOVERY_PAGE_SIZE,
+				})
+			: sort === 'top-rated'
+				? await topRatedMediaPage({
+						where,
+						page,
+						pageSize: DISCOVERY_PAGE_SIZE,
+						preferences,
+						viewerId,
+					})
+				: await prisma.media.findMany({
+						where,
+						select: discoveryMediaSelect,
+						orderBy: discoveryOrderBy(sort),
+						skip,
+						take: DISCOVERY_PAGE_SIZE,
+					})
+	let ranked = rankableMedia(media, preferences, viewerId)
+	if (sort === 'top-rated') ranked = rankTopRated(ranked)
+	if (sort === 'for-you') ranked = rankForYou(ranked)
+	return {
+		filters: { ...input.filters, sort, page },
+		items: ranked.map(item => resultFromMedia(item, '')),
+		total,
+		pageCount,
+		preferredGenres: preferences.map(preference => preference.label),
+	}
 }
 
 export async function getDiscoveryResultsForMediaIds(
@@ -281,13 +442,31 @@ function providerScore(media: DiscoveryMedia) {
 function weightedRatingScore(media: RankedMedia) {
 	if (media.communityScore !== null) {
 		const priorScore = 7
-		const priorRatings = 3
+		const priorRatings = 20
 		return (
 			(media.communityScore * media.ratingCount + priorScore * priorRatings) /
 			(media.ratingCount + priorRatings)
 		)
 	}
-	return providerScore(media) ?? Number.NEGATIVE_INFINITY
+	const score = providerScore(media)
+	if (score === null) return Number.NEGATIVE_INFINITY
+	const ratingCount = Math.max(
+		0,
+		...media.externalIds.map(source => source.sourceRatingCount ?? 0),
+	)
+	const audience = Math.max(
+		0,
+		...media.externalIds.map(source => source.sourceAudience ?? 0),
+	)
+	const confidenceWeight = ratingCount
+		? Math.sqrt(ratingCount)
+		: Math.sqrt(audience) * 0.35
+	const priorScore = 7
+	const priorWeight = 50
+	return (
+		(score * confidenceWeight + priorScore * priorWeight) /
+		(confidenceWeight + priorWeight)
+	)
 }
 
 function rankTopRated(media: RankedMedia[]) {
@@ -503,6 +682,110 @@ function discoveryOrderBy(
 	]
 }
 
+async function popularMediaPage(input: {
+	where: Prisma.MediaWhereInput
+	page: number
+	pageSize: number
+}) {
+	const freshAfter = new Date(Date.now() - POPULAR_FEED_FRESHNESS_MS)
+	const feedSelect = {
+		mediaId: true,
+		rank: true,
+		rankingScore: true,
+		media: { select: discoveryMediaSelect },
+	} satisfies Prisma.CatalogFeedItemSelect
+	const feedWhere = {
+		feed: 'popular',
+		media: { is: input.where },
+	} satisfies Prisma.CatalogFeedItemWhereInput
+	const freshFeedRows = await prisma.catalogFeedItem.findMany({
+		where: {
+			...feedWhere,
+			observedAt: { gte: freshAfter },
+		},
+		orderBy: [
+			{ rankingScore: 'desc' },
+			{ rank: 'asc' },
+			{ kind: 'asc' },
+			{ mediaId: 'asc' },
+		],
+		take: 200,
+		select: feedSelect,
+	})
+	const feedRows = freshFeedRows.length
+		? freshFeedRows
+		: await prisma.catalogFeedItem.findMany({
+				where: feedWhere,
+				orderBy: [
+					{ observedAt: 'desc' },
+					{ rankingScore: 'desc' },
+					{ rank: 'asc' },
+					{ mediaId: 'asc' },
+				],
+				take: 200,
+				select: feedSelect,
+			})
+	const ranked = [...new Map(feedRows.map(row => [row.mediaId, row])).values()]
+		.sort((left, right) => {
+			const boundedCommunityBoost = (media: DiscoveryMedia) =>
+				Math.min(0.02, publicTrackingStates(media).length / 50_000)
+			return (
+				(right.rankingScore ?? 0) +
+					boundedCommunityBoost(right.media) -
+					((left.rankingScore ?? 0) + boundedCommunityBoost(left.media)) ||
+				left.rank - right.rank ||
+				left.mediaId.localeCompare(right.mediaId)
+			)
+		})
+		.map(row => row.media)
+	const rankedIds = ranked.map(media => media.id)
+	const start = (input.page - 1) * input.pageSize
+	const rankedSlice =
+		start < ranked.length ? ranked.slice(start, start + input.pageSize) : []
+	const remaining = input.pageSize - rankedSlice.length
+	if (!remaining) return rankedSlice
+	const fallbackSkip = Math.max(0, start - ranked.length)
+	const fallback = await prisma.media.findMany({
+		where: {
+			AND: [
+				input.where,
+				...(rankedIds.length ? [{ id: { notIn: rankedIds } }] : []),
+			],
+		},
+		select: discoveryMediaSelect,
+		orderBy: [{ title: 'asc' }, { id: 'asc' }],
+		skip: fallbackSkip,
+		take: remaining,
+	})
+	return [...rankedSlice, ...fallback]
+}
+
+async function topRatedMediaPage(input: {
+	where: Prisma.MediaWhereInput
+	page: number
+	pageSize: number
+	preferences: Preference[]
+	viewerId: string | null
+}) {
+	const candidates = await prisma.media.findMany({
+		where: input.where,
+		select: discoveryMediaSelect,
+		orderBy: [
+			{ catalogScore: 'desc' },
+			{ tmdbScore: 'desc' },
+			{ malScore: 'desc' },
+			{ title: 'asc' },
+			{ id: 'asc' },
+		],
+		take: 1_000,
+	})
+	const ranked = rankTopRated(
+		rankableMedia(candidates, input.preferences, input.viewerId),
+	)
+	const start = (input.page - 1) * input.pageSize
+	return ranked.slice(start, start + input.pageSize)
+}
+
 function rankableMedia(
 	media: DiscoveryMedia[],
 	preferences: Preference[],
@@ -613,13 +896,28 @@ export async function getDiscoveryResults(
 
 	const total = await prisma.media.count({ where })
 	const { page, pageCount, skip } = pagination(total, filters.page)
-	const media = await prisma.media.findMany({
-		where,
-		select: discoveryMediaSelect,
-		orderBy: discoveryOrderBy(filters.sort),
-		skip,
-		take: DISCOVERY_PAGE_SIZE,
-	})
+	const media =
+		filters.sort === 'popular'
+			? await popularMediaPage({
+					where,
+					page,
+					pageSize: DISCOVERY_PAGE_SIZE,
+				})
+			: filters.sort === 'top-rated'
+				? await topRatedMediaPage({
+						where,
+						page,
+						pageSize: DISCOVERY_PAGE_SIZE,
+						preferences,
+						viewerId,
+					})
+				: await prisma.media.findMany({
+						where,
+						select: discoveryMediaSelect,
+						orderBy: discoveryOrderBy(filters.sort),
+						skip,
+						take: DISCOVERY_PAGE_SIZE,
+					})
 	const ranked = rankableMedia(media, preferences, viewerId)
 	return {
 		filters: { ...filters, page },

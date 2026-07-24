@@ -39,6 +39,7 @@ type TmdbPrioritySignal = {
 	externalId: string
 	title: string | null
 	popularity: number | null
+	audience: number | null
 	isAdult: boolean | null
 	isVideo: boolean | null
 	rank: number
@@ -50,6 +51,8 @@ export type NormalizedTmdbDetails = {
 	id: number
 	sourceTitle: string
 	sourcePopularity: number | null
+	sourceAudience: number | null
+	sourceRatingCount: number | null
 	sourceIsAdult: boolean | null
 	sourceIsVideo: boolean | null
 	catalog: Record<string, unknown>
@@ -152,6 +155,13 @@ function optionalString(value: unknown) {
 
 function optionalNumber(value: unknown) {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function optionalAudience(value: unknown) {
+	const audience = optionalNumber(value)
+	return audience !== null && Number.isSafeInteger(audience) && audience >= 0
+		? audience
+		: null
 }
 
 function optionalBoolean(value: unknown) {
@@ -327,6 +337,10 @@ export function normalizeTmdbDetails(
 					const episodes = optionalNumber(payload.number_of_episodes)
 					return episodes && episodes > 0 ? `${episodes} eps` : null
 				})()
+	const runtimeMinutes =
+		kind === 'movie' ? optionalNumber(payload.runtime) : null
+	const episodeCount =
+		kind === 'tv' ? optionalNumber(payload.number_of_episodes) : null
 	const rating =
 		kind === 'movie' ? movieCertification(payload) : tvCertification(payload)
 	const catalog = {
@@ -340,6 +354,9 @@ export function normalizeTmdbDetails(
 		description: optionalString(payload.overview) ?? undefined,
 		startYear: releaseStart ? String(releaseStart.getUTCFullYear()) : undefined,
 		length: runtime ?? undefined,
+		runtimeMinutes:
+			runtimeMinutes !== null ? Math.round(runtimeMinutes) : undefined,
+		episodeCount: episodeCount !== null ? Math.round(episodeCount) : undefined,
 		genres: commaSeparatedNames(payload.genres) ?? undefined,
 		rating: rating ?? undefined,
 		language: languageName(originalLanguage) ?? undefined,
@@ -354,6 +371,8 @@ export function normalizeTmdbDetails(
 		id,
 		sourceTitle: originalTitle ?? canonicalTitle,
 		sourcePopularity: optionalNumber(payload.popularity),
+		sourceAudience: optionalAudience(payload.vote_count),
+		sourceRatingCount: optionalAudience(payload.vote_count),
 		sourceIsAdult: optionalBoolean(payload.adult),
 		sourceIsVideo: optionalBoolean(payload.video),
 		catalog,
@@ -480,6 +499,7 @@ function prioritySignals(
 				kind === 'movie' ? record.original_title : record.original_name,
 			),
 			popularity: optionalNumber(record.popularity),
+			audience: optionalAudience(record.vote_count),
 			isAdult: optionalBoolean(record.adult),
 			isVideo: optionalBoolean(record.video),
 			rank: index + 1,
@@ -498,6 +518,23 @@ function mergePrioritySignals(signals: TmdbPrioritySignal[]) {
 		}
 	}
 	return [...merged.values()]
+}
+
+export function providerFeedRankingScores(
+	signals: Array<Pick<TmdbPrioritySignal, 'rank' | 'audience'>>,
+) {
+	const maxRank = Math.max(1, ...signals.map(signal => signal.rank))
+	const maxAudienceLog = Math.max(
+		0,
+		...signals.map(signal => Math.log1p(signal.audience ?? 0)),
+	)
+	return signals.map(signal => {
+		const rankScore = maxRank === 1 ? 1 : 1 - (signal.rank - 1) / (maxRank - 1)
+		const audienceScore = maxAudienceLog
+			? Math.log1p(signal.audience ?? 0) / maxAudienceLog
+			: 0
+		return Math.max(0, Math.min(1, rankScore * 0.35 + audienceScore * 0.65))
+	})
 }
 
 export function tmdbRetryDeadline(input: {
@@ -649,6 +686,8 @@ async function applyPrioritySignals(
 			externalId: signal.externalId,
 			sourceTitle: signal.title,
 			sourcePopularity: signal.popularity,
+			sourceAudience: signal.audience,
+			sourceRatingCount: signal.audience,
 			sourceIsAdult: signal.isAdult,
 			sourceIsVideo: signal.isVideo,
 			seenAt: now,
@@ -668,7 +707,8 @@ async function applyPrioritySignals(
 			where: { provider: 'tmdb', kind, feed: snapshot.feed },
 		})
 		const seenMediaIds = new Set<string>()
-		const feedItems = snapshot.signals.flatMap(signal => {
+		const rankingScores = providerFeedRankingScores(snapshot.signals)
+		const feedItems = snapshot.signals.flatMap((signal, index) => {
 			const mediaId = mediaIds.get(signal.externalId)
 			if (!mediaId || seenMediaIds.has(mediaId)) return []
 			seenMediaIds.add(mediaId)
@@ -678,6 +718,9 @@ async function applyPrioritySignals(
 					kind,
 					feed: snapshot.feed,
 					rank: signal.rank,
+					audience: signal.audience,
+					rankingScore: rankingScores[index],
+					rankingVersion: 1,
 					observedAt: now,
 					mediaId,
 				},
@@ -1030,6 +1073,14 @@ export async function hydrateTmdbCatalog(
 								...(result.details.sourcePopularity === null
 									? {}
 									: { sourcePopularity: result.details.sourcePopularity }),
+								...(result.details.sourceAudience === null
+									? {}
+									: { sourceAudience: result.details.sourceAudience }),
+								...(result.details.sourceRatingCount === null
+									? {}
+									: {
+											sourceRatingCount: result.details.sourceRatingCount,
+										}),
 								...(result.details.sourceIsAdult === null
 									? {}
 									: { sourceIsAdult: result.details.sourceIsAdult }),

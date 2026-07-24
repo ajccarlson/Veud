@@ -29,7 +29,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
-					title: 'Canonical Media Browser Test',
+					title: '[VEUD E2E] Canonical Media Browser Test',
 					genres: 'Action, Fantasy',
 					length: '12 eps',
 					description: 'A browser-level canonical media fixture.',
@@ -45,7 +45,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
-					title: 'Canonical Browser Sequel',
+					title: '[VEUD E2E] Canonical Browser Sequel',
 					type: 'TV Series',
 					startSeason: 'Fall 2027',
 				},
@@ -53,21 +53,21 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
-					title: 'Recommended Browser Match',
+					title: '[VEUD E2E] Recommended Browser Match',
 					genres: 'Action, Fantasy, Adventure',
 				},
 			}),
 			prisma.media.create({
 				data: {
 					kind: 'anime',
-					title: 'Hidden Tracked Match',
+					title: '[VEUD E2E] Hidden Tracked Match',
 					genres: 'Action, Fantasy',
 				},
 			}),
 			prisma.media.create({
 				data: {
 					kind: 'anime',
-					title: 'Unrelated Browser Romance',
+					title: '[VEUD E2E] Unrelated Browser Romance',
 					genres: 'Romance',
 				},
 			}),
@@ -122,7 +122,9 @@ test('member can open a canonical media page and change status', async ({
 	try {
 		await page.goto(`/media/${media.id}`)
 		await expect(
-			page.getByRole('heading', { name: 'Canonical Media Browser Test' }),
+			page.getByRole('heading', {
+				name: '[VEUD E2E] Canonical Media Browser Test',
+			}),
 		).toBeVisible()
 		await expect(
 			page.getByRole('heading', { name: 'Community insights' }),
@@ -179,7 +181,10 @@ test('member can open a canonical media page and change status', async ({
 					select: { title: true, position: true },
 				}),
 			)
-			.toEqual({ title: 'Canonical Media Browser Test', position: 1 })
+			.toEqual({
+				title: '[VEUD E2E] Canonical Media Browser Test',
+				position: 1,
+			})
 		await page.getByRole('button', { name: '★ Favorited' }).click()
 		await expect(
 			page.getByRole('button', { name: '☆ Add to favorites' }),
@@ -211,7 +216,7 @@ test('member can open a canonical media page and change status', async ({
 					select: { title: true },
 				}),
 			)
-			.toEqual({ title: 'Canonical Media Browser Test' })
+			.toEqual({ title: '[VEUD E2E] Canonical Media Browser Test' })
 		await expect(
 			page.getByText('added to completed', { exact: true }),
 		).toBeVisible()
