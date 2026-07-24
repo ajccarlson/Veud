@@ -60,7 +60,13 @@ test('selects the UTC MAL season and provider-supported charts', () => {
 test('parses chart results and filters adult candidates during fetch', async () => {
 	const payload = {
 		data: [
-			candidate({ id: 1, rank: 1, audience: 10_000 }),
+			{
+				...candidate({ id: 1, rank: 1, audience: 10_000 }),
+				node: {
+					...candidate({ id: 1, rank: 1, audience: 10_000 }).node,
+					num_scoring_users: 0,
+				},
+			},
 			{
 				...candidate({ id: 2, rank: 2, audience: 9_000 }),
 				node: {
@@ -75,6 +81,7 @@ test('parses chart results and filters adult candidates during fetch', async () 
 			id: 1,
 			chartRank: 1,
 			audience: 10_000,
+			ratingCount: 0,
 			sourceUpdatedAt: new Date('2026-07-24T12:00:00.000Z'),
 		}),
 	)
