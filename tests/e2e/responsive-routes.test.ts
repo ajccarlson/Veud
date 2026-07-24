@@ -95,7 +95,7 @@ test.describe('mobile route audit', () => {
 			['/settings/profile/password', /Edit profile/i],
 			['/settings/profile/two-factor', /Edit profile/i],
 			['/collections/new', /New collection/i],
-			[`/users/${user.username}`, new RegExp(user.name ?? user.username, 'i')],
+			[`/users/${user.username}`, new RegExp(user.username, 'i')],
 		] as const
 
 		for (const [path, heading] of routes) {

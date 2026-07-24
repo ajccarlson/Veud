@@ -4,6 +4,29 @@ import { getTipOfTongueMatches } from './tip-of-tongue.server.ts'
 
 afterEach(() => vi.unstubAllEnvs())
 
+function aiPlanResponse(searchTerms: string[]) {
+	return new Response(
+		JSON.stringify({
+			output: [
+				{
+					type: 'message',
+					content: [
+						{
+							type: 'output_text',
+							text: JSON.stringify({
+								searchTerms,
+								interpretation:
+									'These are uncertain clues for a local catalog search.',
+							}),
+						},
+					],
+				},
+			],
+		}),
+		{ status: 200, headers: { 'Content-Type': 'application/json' } },
+	)
+}
+
 test('descriptive search ranks only catalog titles and exposes matching clues', async () => {
 	const expected = await prisma.media.create({
 		data: {
@@ -71,7 +94,7 @@ test('local matching retains meaningful short clues and selects the relevant sen
 	)
 })
 
-test('AI ranking cannot return a title outside the supplied catalog candidates', async () => {
+test('AI expands clues while final matches remain catalog-backed', async () => {
 	const expected = await prisma.media.create({
 		data: {
 			kind: 'anime',
@@ -80,37 +103,8 @@ test('AI ranking cannot return a title outside the supplied catalog candidates',
 		},
 	})
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
-	const fetchImpl = vi.fn<typeof fetch>(
-		async (_input, _init) =>
-			new Response(
-				JSON.stringify({
-					output: [
-						{
-							type: 'message',
-							content: [
-								{
-									type: 'output_text',
-									text: JSON.stringify({
-										matches: [
-											{
-												mediaId: 'invented-media-id',
-												summary: 'Invented result.',
-												matchedClues: ['summer'],
-											},
-											{
-												mediaId: expected.id,
-												summary: 'The repeating summer day matches the memory.',
-												matchedClues: ['repeating summer day'],
-											},
-										],
-									}),
-								},
-							],
-						},
-					],
-				}),
-				{ status: 200, headers: { 'Content-Type': 'application/json' } },
-			),
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiPlanResponse(['time loop', 'clock', 'summer day', 'friendship']),
 	)
 
 	const result = await getTipOfTongueMatches(
@@ -127,21 +121,28 @@ test('AI ranking cannot return a title outside the supplied catalog candidates',
 		matches: [
 			expect.objectContaining({
 				mediaId: expected.id,
-				matchedClues: ['repeating summer day'],
+				matchedClues: expect.arrayContaining(['friends', 'summer', 'day']),
 			}),
 		],
 	})
 	expect(fetchImpl).toHaveBeenCalledOnce()
 	const [, requestInit] = fetchImpl.mock.calls[0]!
 	const request = JSON.parse(String(requestInit?.body)) as {
+		model: string
 		store: boolean
+		input: string
 		text: { format: { type: string } }
 	}
+	expect(request.model).toBe('gpt-5.6-sol')
 	expect(request.store).toBe(false)
 	expect(request.text.format.type).toBe('json_schema')
+	expect(JSON.parse(request.input)).toEqual({
+		memory: 'An anime where friends repeat the same summer day with a clock.',
+		requestedMediaType: 'anime',
+	})
 })
 
-test('provider-restricted metadata is never sent to external AI ranking', async () => {
+test('catalog and provider metadata are never sent to external AI', async () => {
 	const malRestricted = await prisma.media.create({
 		data: {
 			kind: 'anime',
@@ -170,74 +171,34 @@ test('provider-restricted metadata is never sent to external AI ranking', async 
 			},
 		},
 	})
-	const allowed = await prisma.media.create({
-		data: {
-			kind: 'anime',
-			title: 'Independent Silver Clock',
-			description: 'Friends find a silver clock during summer.',
-		},
-	})
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const memory = 'A silver clock repeats a summer afternoon.'
 	const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
 		const request = JSON.parse(String(init?.body)) as { input: string }
-		const prompt = JSON.parse(request.input) as {
-			candidates: Array<{ id: string; title: string }>
-		}
-		expect(prompt.candidates).toEqual(
-			expect.arrayContaining([expect.objectContaining({ id: allowed.id })]),
-		)
-		expect(prompt.candidates).not.toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: malRestricted.id }),
-			]),
-		)
-		expect(prompt.candidates).not.toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ id: tmdbRestricted.id }),
-			]),
-		)
-		expect(request.input).not.toContain('MAL Restricted Clock')
-		expect(request.input).not.toContain('TMDB Restricted Summer')
-		return new Response(
-			JSON.stringify({
-				output: [
-					{
-						type: 'message',
-						content: [
-							{
-								type: 'output_text',
-								text: JSON.stringify({
-									matches: [
-										{
-											mediaId: allowed.id,
-											summary: 'The silver clock and summer match.',
-											matchedClues: ['silver clock', 'summer'],
-										},
-									],
-								}),
-							},
-						],
-					},
-				],
-			}),
-			{ status: 200, headers: { 'Content-Type': 'application/json' } },
-		)
+		expect(JSON.parse(request.input)).toEqual({
+			memory,
+			requestedMediaType: 'anime',
+		})
+		expect(request.input).not.toContain(malRestricted.title!)
+		expect(request.input).not.toContain(tmdbRestricted.title!)
+		expect(request.input).not.toContain('externalId')
+		return aiPlanResponse(['silver clock', 'summer', 'time loop'])
 	})
 
 	const result = await getTipOfTongueMatches(
-		{
-			memory: 'A silver clock repeats a summer afternoon.',
-			kind: 'anime',
-		},
+		{ memory, kind: 'anime' },
 		{ fetchImpl, allowAi: true },
 	)
 
 	expect(fetchImpl).toHaveBeenCalledOnce()
 	expect(result.source).toBe('ai')
+	expect(result.matches.map(match => match.mediaId)).toEqual(
+		expect.arrayContaining([malRestricted.id, tmdbRestricted.id]),
+	)
 })
 
-test('TOMT stays local when every candidate is MAL-sourced', async () => {
-	await prisma.media.create({
+test('MAL-sourced titles can be matched after privacy-safe AI clue expansion', async () => {
+	const candidate = await prisma.media.create({
 		data: {
 			kind: 'manga',
 			title: 'Local Only Lantern',
@@ -252,23 +213,30 @@ test('TOMT stays local when every candidate is MAL-sourced', async () => {
 		},
 	})
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
-	const fetchImpl = vi.fn<typeof fetch>()
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiPlanResponse(['lantern', 'mirror forest', 'lost traveler']),
+	)
 
 	const result = await getTipOfTongueMatches(
 		{ memory: 'A lantern in a mirrored forest.', kind: 'manga' },
 		{ fetchImpl, allowAi: true },
 	)
 
-	expect(fetchImpl).not.toHaveBeenCalled()
+	expect(fetchImpl).toHaveBeenCalledOnce()
 	expect(result).toEqual(
 		expect.objectContaining({
-			source: 'catalog-match',
-			fallbackReason: 'provider-restricted',
+			source: 'ai',
+			fallbackReason: null,
+			matches: [
+				expect.objectContaining({
+					mediaId: candidate.id,
+				}),
+			],
 		}),
 	)
 })
 
-test('AI results are deduplicated, evidence-checked, and filled to five catalog matches', async () => {
+test('AI-expanded search returns five unique local catalog matches', async () => {
 	const candidates = await Promise.all(
 		Array.from({ length: 5 }, (_, index) =>
 			prisma.media.create({
@@ -283,41 +251,8 @@ test('AI results are deduplicated, evidence-checked, and filled to five catalog 
 		),
 	)
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
-	const fetchImpl = vi.fn<typeof fetch>(
-		async () =>
-			new Response(
-				JSON.stringify({
-					output: [
-						{
-							type: 'message',
-							content: [
-								{
-									type: 'output_text',
-									text: JSON.stringify({
-										matches: [
-											{
-												mediaId: candidates[0]!.id,
-												summary:
-													'The violet airship and coastal mystery are a strong fit.',
-												matchedClues: [
-													'violet zeppelin',
-													'invented spaceship battle',
-												],
-											},
-											{
-												mediaId: candidates[0]!.id,
-												summary: 'Duplicate result.',
-												matchedClues: ['violet zeppelin'],
-											},
-										],
-									}),
-								},
-							],
-						},
-					],
-				}),
-				{ status: 200, headers: { 'Content-Type': 'application/json' } },
-			),
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiPlanResponse(['airship', 'detective', 'coastal mystery', 'violet']),
 	)
 
 	const result = await getTipOfTongueMatches(
@@ -335,8 +270,7 @@ test('AI results are deduplicated, evidence-checked, and filled to five catalog 
 	expect(new Set(result.matches.map(match => match.mediaId)).size).toBe(5)
 	expect(result.matches[0]).toEqual(
 		expect.objectContaining({
-			mediaId: candidates[0]!.id,
-			matchedClues: ['violet zeppelin'],
+			matchedClues: expect.arrayContaining(['detective', 'violet', 'zeppelin']),
 		}),
 	)
 	expect(result.matches.map(match => match.mediaId)).toEqual(
@@ -344,7 +278,7 @@ test('AI results are deduplicated, evidence-checked, and filled to five catalog 
 	)
 })
 
-test('AI ranking is limited per member and falls back to catalog matching', async () => {
+test('AI clue expansion is limited per member and falls back to catalog matching', async () => {
 	const candidate = await prisma.media.create({
 		data: {
 			kind: 'manga',
@@ -353,32 +287,8 @@ test('AI ranking is limited per member and falls back to catalog matching', asyn
 		},
 	})
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
-	const fetchImpl = vi.fn<typeof fetch>(
-		async () =>
-			new Response(
-				JSON.stringify({
-					output: [
-						{
-							type: 'message',
-							content: [
-								{
-									type: 'output_text',
-									text: JSON.stringify({
-										matches: [
-											{
-												mediaId: candidate.id,
-												summary: 'The lantern and mirrored forest match.',
-												matchedClues: ['lantern', 'mirrored forest'],
-											},
-										],
-									}),
-								},
-							],
-						},
-					],
-				}),
-				{ status: 200, headers: { 'Content-Type': 'application/json' } },
-			),
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiPlanResponse(['lantern', 'mirrored forest']),
 	)
 	const rateLimitKey = `tip-test-${candidate.id}`
 	for (let request = 0; request < 5; request += 1) {

@@ -1,4 +1,4 @@
-import { type Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
@@ -6,7 +6,6 @@ import { discoveryKinds, type DiscoveryQuery } from './discovery.server.ts'
 
 const MAX_CANDIDATES = 72
 const MAX_MATCHES = 5
-const DESCRIPTION_LENGTH = 700
 const AI_REQUEST_LIMIT = 5
 const AI_REQUEST_WINDOW_MS = 10 * 60 * 1_000
 const aiRequestHistory = new Map<string, number[]>()
@@ -63,16 +62,9 @@ const STOP_WORDS = new Set([
 	'your',
 ])
 
-const AiMatchesSchema = z.object({
-	matches: z
-		.array(
-			z.object({
-				mediaId: z.string().min(1),
-				summary: z.string().trim().min(1).max(280),
-				matchedClues: z.array(z.string().trim().min(1).max(80)).max(5),
-			}),
-		)
-		.max(MAX_MATCHES),
+const AiCluePlanSchema = z.object({
+	searchTerms: z.array(z.string().trim().min(2).max(60)).max(20),
+	interpretation: z.string().trim().min(1).max(240),
 })
 
 type Candidate = {
@@ -85,12 +77,13 @@ type Candidate = {
 	releaseStart: Date | null
 	startYear: string | null
 	airYear: string | null
-	isExternalAiRestricted: boolean
 }
 
-export type TipOfTongueMatch = z.infer<
-	typeof AiMatchesSchema
->['matches'][number]
+export type TipOfTongueMatch = {
+	mediaId: string
+	summary: string
+	matchedClues: string[]
+}
 
 export type TipOfTongueResults = {
 	matches: TipOfTongueMatch[]
@@ -101,7 +94,6 @@ export type TipOfTongueResults = {
 		| 'rate-limited'
 		| 'ai-error'
 		| 'ai-empty'
-		| 'provider-restricted'
 		| null
 }
 
@@ -147,28 +139,22 @@ function excerptFor(candidate: Candidate, matchedClues: string[]) {
 function candidateWhere(kind: DiscoveryQuery['kind']) {
 	return {
 		title: { not: null },
-		description: { not: null },
 		...(kind === 'all' ? {} : { kind }),
 	}
 }
 
-async function candidatesFor(memory: string, kind: DiscoveryQuery['kind']) {
-	const terms = memoryTerms(memory)
+async function candidatesFor(
+	memory: string,
+	kind: DiscoveryQuery['kind'],
+	expandedTerms: string[] = [],
+) {
+	const terms = [
+		...new Set([
+			...memoryTerms(memory),
+			...expandedTerms.flatMap(term => memoryTerms(term)),
+		]),
+	].slice(0, 28)
 	const base = candidateWhere(kind)
-	const lexicalWhere = terms.length
-		? {
-				AND: [
-					base,
-					{
-						OR: terms.flatMap(term => [
-							{ title: { contains: term } },
-							{ description: { contains: term } },
-							{ genres: { contains: term } },
-						]),
-					},
-				],
-			}
-		: base
 	const select = {
 		id: true,
 		title: true,
@@ -179,19 +165,48 @@ async function candidatesFor(memory: string, kind: DiscoveryQuery['kind']) {
 		releaseStart: true,
 		startYear: true,
 		airYear: true,
-		externalIds: {
-			where: { provider: { in: ['mal', 'tmdb'] }, tombstonedAt: null },
-			select: { id: true },
-			take: 1,
-		},
 	} satisfies Prisma.MediaSelect
-	const [lexical, popular] = await Promise.all([
-		prisma.media.findMany({
-			where: lexicalWhere,
-			select,
-			orderBy: [{ catalogPopularity: 'desc' }, { title: 'asc' }],
-			take: MAX_CANDIDATES,
-		}),
+	const lexicalIds = terms.length
+		? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+				SELECT "Media"."id"
+				FROM "Media"
+				WHERE "Media"."title" IS NOT NULL
+				${
+					kind === 'all'
+						? Prisma.empty
+						: Prisma.sql`AND "Media"."kind" = ${kind}`
+				}
+				AND (
+					${Prisma.join(
+						terms.map(term => {
+							const pattern = `%${term}%`
+							return Prisma.sql`
+								LOWER(COALESCE("Media"."title", '')) LIKE ${pattern}
+								OR LOWER(COALESCE("Media"."description", '')) LIKE ${pattern}
+								OR LOWER(COALESCE("Media"."genres", '')) LIKE ${pattern}
+								OR EXISTS (
+									SELECT 1
+									FROM "MediaTitle"
+									WHERE "MediaTitle"."mediaId" = "Media"."id"
+									AND "MediaTitle"."normalized" LIKE ${pattern}
+								)
+							`
+						}),
+						' OR ',
+					)}
+				)
+				ORDER BY COALESCE("Media"."catalogPopularity", 0) DESC, "Media"."title" ASC
+				LIMIT ${MAX_CANDIDATES}
+			`)
+		: []
+	const lexicalIdOrder = lexicalIds.map(item => item.id)
+	const [lexicalRows, popular] = await Promise.all([
+		lexicalIdOrder.length
+			? prisma.media.findMany({
+					where: { id: { in: lexicalIdOrder } },
+					select,
+				})
+			: Promise.resolve([]),
 		prisma.media.findMany({
 			where: base,
 			select,
@@ -199,32 +214,26 @@ async function candidatesFor(memory: string, kind: DiscoveryQuery['kind']) {
 			take: 24,
 		}),
 	])
+	const lexicalById = new Map(lexicalRows.map(item => [item.id, item]))
+	const lexical = lexicalIdOrder.flatMap(id => {
+		const item = lexicalById.get(id)
+		return item ? [item] : []
+	})
 	return [
 		...new Map([...lexical, ...popular].map(item => [item.id, item])).values(),
-	]
-		.slice(0, MAX_CANDIDATES)
-		.map(({ externalIds, ...candidate }) => ({
-			...candidate,
-			isExternalAiRestricted: externalIds.length > 0,
-		}))
-}
-
-function yearFor(candidate: Candidate) {
-	return (
-		(candidate.releaseStart
-			? String(candidate.releaseStart.getUTCFullYear())
-			: null) ??
-		candidate.startYear ??
-		candidate.airYear
-	)
+	].slice(0, MAX_CANDIDATES)
 }
 
 function localMatches(
 	memory: string,
 	candidates: Candidate[],
 	limit = MAX_MATCHES,
+	expandedTerms: string[] = [],
 ) {
 	const terms = memoryTerms(memory)
+	const expansionWords = [
+		...new Set(expandedTerms.flatMap(term => memoryTerms(term))),
+	].filter(term => !terms.includes(term))
 	return candidates
 		.map((candidate, originalIndex) => {
 			const title = normalizeCatalogTitle(candidate.title ?? '')
@@ -236,14 +245,29 @@ function localMatches(
 					genres.includes(term) ||
 					description.includes(term),
 			)
-			const score = matchedClues.reduce(
-				(total, term) =>
-					total +
-					(title.includes(term) ? 8 : 0) +
-					(genres.includes(term) ? 3 : 0) +
-					(description.includes(term) ? 2 : 0),
-				0,
+			const matchedExpansions = expansionWords.filter(
+				term =>
+					title.includes(term) ||
+					genres.includes(term) ||
+					description.includes(term),
 			)
+			const score =
+				matchedClues.reduce(
+					(total, term) =>
+						total +
+						(title.includes(term) ? 8 : 0) +
+						(genres.includes(term) ? 3 : 0) +
+						(description.includes(term) ? 2 : 0),
+					0,
+				) +
+				matchedExpansions.reduce(
+					(total, term) =>
+						total +
+						(title.includes(term) ? 3 : 0) +
+						(genres.includes(term) ? 2 : 0) +
+						(description.includes(term) ? 1 : 0),
+					0,
+				)
 			return { candidate, originalIndex, matchedClues, score }
 		})
 		.sort(
@@ -256,50 +280,6 @@ function localMatches(
 			summary: excerptFor(candidate, matchedClues),
 			matchedClues: matchedClues.slice(0, 5),
 		}))
-}
-
-function clueRoot(term: string) {
-	if (term.length > 5 && term.endsWith('ing')) return term.slice(0, -3)
-	if (term.length > 4 && term.endsWith('ed')) return term.slice(0, -2)
-	if (term.length > 4 && term.endsWith('es')) return term.slice(0, -2)
-	if (term.length > 4 && term.endsWith('s')) return term.slice(0, -1)
-	return term
-}
-
-function isMemoryBackedClue(memory: string, clue: string) {
-	const memoryRoots = new Set(memoryTerms(memory).map(clueRoot))
-	const clueRoots = memoryTerms(clue).map(clueRoot)
-	return clueRoots.length > 0 && clueRoots.every(term => memoryRoots.has(term))
-}
-
-function mergeAiWithCatalogMatches(
-	memory: string,
-	ai: TipOfTongueMatch[],
-	catalog: TipOfTongueMatch[],
-) {
-	const catalogByMediaId = new Map(catalog.map(match => [match.mediaId, match]))
-	const merged: TipOfTongueMatch[] = []
-	const seen = new Set<string>()
-	for (const match of ai) {
-		if (seen.has(match.mediaId)) continue
-		seen.add(match.mediaId)
-		const groundedClues = match.matchedClues.filter(clue =>
-			isMemoryBackedClue(memory, clue),
-		)
-		merged.push({
-			...match,
-			matchedClues: groundedClues.length
-				? groundedClues
-				: (catalogByMediaId.get(match.mediaId)?.matchedClues ?? []),
-		})
-	}
-	for (const match of catalog) {
-		if (seen.has(match.mediaId)) continue
-		seen.add(match.mediaId)
-		merged.push(match)
-		if (merged.length === MAX_MATCHES) break
-	}
-	return merged.slice(0, MAX_MATCHES)
 }
 
 function consumeAiRequest(key: string, now: number) {
@@ -346,13 +326,12 @@ function responseText(payload: unknown) {
 	return null
 }
 
-async function aiMatches(
+async function aiCluePlan(
 	memory: string,
-	candidates: Candidate[],
+	kind: DiscoveryQuery['kind'],
 	fetchImpl: typeof fetch,
 	apiKey: string,
 ) {
-	const allowedIds = new Set(candidates.map(candidate => candidate.id))
 	const response = await fetchImpl('https://api.openai.com/v1/responses', {
 		method: 'POST',
 		headers: {
@@ -360,54 +339,32 @@ async function aiMatches(
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
-			// This bounded ranking/extraction workload intentionally uses the
-			// low-latency Luna tier unless an operator overrides it.
-			model: process.env.OPENAI_TIP_OF_TONGUE_MODEL || 'gpt-5.6-luna',
+			model: process.env.OPENAI_TIP_OF_TONGUE_MODEL || 'gpt-5.6-sol',
 			store: false,
 			reasoning: { effort: 'low' },
 			instructions:
-				'Rank only the supplied Veud catalog candidates against the user memory. Never invent a title or ID. Return up to five strongest matches in descending confidence. Each summary must briefly connect the candidate to the memory. matchedClues must be short phrases copied or closely paraphrased from the user memory.',
+				'Turn a person’s incomplete memory of a film, television series, anime, or manga into concise catalog search clues. Return up to 20 specific search terms: distinctive objects, settings, character roles, plot devices, genres, visual details, likely title words, and reasonable synonyms. Do not request personal information. The interpretation must make uncertainty explicit and must not claim a definite identification.',
 			input: JSON.stringify({
 				memory,
-				candidates: candidates.map(candidate => ({
-					id: candidate.id,
-					title: candidate.title,
-					kind: candidate.kind,
-					type: candidate.type,
-					year: yearFor(candidate),
-					genres: candidate.genres,
-					description: candidate.description?.slice(0, DESCRIPTION_LENGTH),
-				})),
+				requestedMediaType: kind,
 			}),
 			text: {
 				verbosity: 'low',
 				format: {
 					type: 'json_schema',
-					name: 'tip_of_tongue_matches',
+					name: 'tip_of_tongue_clue_plan',
 					strict: true,
 					schema: {
 						type: 'object',
 						additionalProperties: false,
-						required: ['matches'],
+						required: ['searchTerms', 'interpretation'],
 						properties: {
-							matches: {
+							searchTerms: {
 								type: 'array',
-								maxItems: MAX_MATCHES,
-								items: {
-									type: 'object',
-									additionalProperties: false,
-									required: ['mediaId', 'summary', 'matchedClues'],
-									properties: {
-										mediaId: { type: 'string' },
-										summary: { type: 'string' },
-										matchedClues: {
-											type: 'array',
-											maxItems: 5,
-											items: { type: 'string' },
-										},
-									},
-								},
+								maxItems: 20,
+								items: { type: 'string' },
 							},
+							interpretation: { type: 'string' },
 						},
 					},
 				},
@@ -418,8 +375,7 @@ async function aiMatches(
 	if (!response.ok) throw new Error(`AI search failed (${response.status})`)
 	const text = responseText(await response.json())
 	if (!text) throw new Error('AI search returned no structured text')
-	const parsed = AiMatchesSchema.parse(JSON.parse(text))
-	return parsed.matches.filter(match => allowedIds.has(match.mediaId))
+	return AiCluePlanSchema.parse(JSON.parse(text))
 }
 
 export async function getTipOfTongueMatches(
@@ -433,79 +389,47 @@ export async function getTipOfTongueMatches(
 ): Promise<TipOfTongueResults> {
 	const memory = input.memory.trim().slice(0, 500)
 	const kind = discoveryKinds.includes(input.kind) ? input.kind : 'all'
-	const candidates = await candidatesFor(memory, kind)
-	if (!candidates.length) {
-		return { matches: [], source: 'catalog-match', fallbackReason: null }
-	}
-	const rankedCatalogMatches = localMatches(memory, candidates, MAX_CANDIDATES)
-	const catalogMatches = rankedCatalogMatches.slice(0, MAX_MATCHES)
 	const apiKey = process.env.OPENAI_API_KEY?.trim()
-	if (!apiKey) {
+	const fallback = async (
+		fallbackReason: TipOfTongueResults['fallbackReason'],
+	) => {
+		const candidates = await candidatesFor(memory, kind)
 		return {
-			matches: catalogMatches,
-			source: 'catalog-match',
-			fallbackReason: 'not-configured',
+			matches: localMatches(memory, candidates).slice(0, MAX_MATCHES),
+			source: 'catalog-match' as const,
+			fallbackReason,
 		}
 	}
-	if (options.allowAi !== true) {
-		return {
-			matches: catalogMatches,
-			source: 'catalog-match',
-			fallbackReason: 'sign-in-required',
-		}
-	}
-	const aiCandidates = candidates.filter(
-		candidate => !candidate.isExternalAiRestricted,
-	)
-	if (!aiCandidates.length) {
-		return {
-			matches: catalogMatches,
-			source: 'catalog-match',
-			fallbackReason: 'provider-restricted',
-		}
-	}
+	if (!apiKey) return fallback('not-configured')
+	if (options.allowAi !== true) return fallback('sign-in-required')
 	if (
 		options.rateLimitKey &&
 		!consumeAiRequest(options.rateLimitKey, options.now ?? Date.now())
 	) {
-		return {
-			matches: catalogMatches,
-			source: 'catalog-match',
-			fallbackReason: 'rate-limited',
-		}
+		return fallback('rate-limited')
 	}
 	try {
-		const matches = await aiMatches(
+		const plan = await aiCluePlan(
 			memory,
-			aiCandidates,
+			kind,
 			options.fetchImpl ?? fetch,
 			apiKey,
 		)
-		if (matches.length) {
-			return {
-				matches: mergeAiWithCatalogMatches(
-					memory,
-					matches,
-					rankedCatalogMatches,
-				),
-				source: 'ai',
-				fallbackReason: null,
-			}
+		if (!plan.searchTerms.length) return fallback('ai-empty')
+		const candidates = await candidatesFor(memory, kind, plan.searchTerms)
+		if (!candidates.length) {
+			return { matches: [], source: 'ai', fallbackReason: null }
 		}
 		return {
-			matches: catalogMatches,
-			source: 'catalog-match',
-			fallbackReason: 'ai-empty',
+			matches: localMatches(memory, candidates, MAX_MATCHES, plan.searchTerms),
+			source: 'ai',
+			fallbackReason: null,
 		}
 	} catch (error) {
 		console.error(
-			'[tip-of-tongue] AI ranking failed; using catalog match',
+			'[tip-of-tongue] AI clue expansion failed; using catalog match',
 			error,
 		)
 	}
-	return {
-		matches: catalogMatches,
-		source: 'catalog-match',
-		fallbackReason: 'ai-error',
-	}
+	return fallback('ai-error')
 }

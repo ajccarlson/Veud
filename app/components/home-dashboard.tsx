@@ -50,17 +50,41 @@ export function HomeDashboard({
 		})
 	}
 
-	function move(module: HomeDashboardModule, offset: -1 | 1) {
-		const index = config.moduleOrder.indexOf(module)
-		const target = index + offset
-		if (index < 0 || target < 0 || target >= config.moduleOrder.length) return
-		const moduleOrder = [...config.moduleOrder]
-		;[moduleOrder[index], moduleOrder[target]] = [
-			moduleOrder[target]!,
-			moduleOrder[index]!,
-		]
-		save({ ...config, moduleOrder })
+	function renderModule(module: HomeDashboardModule) {
+		const collapsed = config.collapsedModules.includes(module)
+		return (
+			<section
+				key={module}
+				className={`home-dashboard-module home-dashboard-module--${module}`}
+				data-collapsed={collapsed}
+				aria-label={collapsed ? HOME_DASHBOARD_LABELS[module] : undefined}
+			>
+				<div className="home-dashboard-module-toolbar">
+					{collapsed ? <h2>{HOME_DASHBOARD_LABELS[module]}</h2> : <span />}
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={() => toggle(module)}
+						aria-expanded={!collapsed}
+						aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${HOME_DASHBOARD_LABELS[module]}`}
+					>
+						{collapsed ? 'Expand' : 'Collapse'}
+					</Button>
+				</div>
+				{collapsed ? null : modules[module]}
+			</section>
+		)
 	}
+
+	const primaryModules = config.moduleOrder.filter(module =>
+		(
+			['continue', 'recommendations', 'following'] as HomeDashboardModule[]
+		).includes(module),
+	)
+	const sidebarModules = config.moduleOrder.filter(module =>
+		(['library', 'upcoming'] as HomeDashboardModule[]).includes(module),
+	)
 
 	return (
 		<section
@@ -72,7 +96,7 @@ export function HomeDashboard({
 				<summary>
 					<span>
 						<strong>Customize home</strong>
-						<small>Order, density, and collapsed sections sync to your account.</small>
+						<small>Density and collapsed sections sync to your account.</small>
 					</span>
 					<span aria-live="polite">
 						{fetcher.state === 'idle' ? 'Saved' : 'Saving…'}
@@ -97,34 +121,14 @@ export function HomeDashboard({
 						</div>
 					</fieldset>
 					<fieldset>
-						<legend>Module order and visibility</legend>
+						<legend>Section visibility</legend>
 						<ul className="home-dashboard-module-controls">
-							{config.moduleOrder.map((module, index) => {
+							{config.moduleOrder.map(module => {
 								const collapsed = config.collapsedModules.includes(module)
 								return (
 									<li key={module}>
 										<span>{HOME_DASHBOARD_LABELS[module]}</span>
 										<div>
-											<Button
-												type="button"
-												size="sm"
-												variant="ghost"
-												disabled={index === 0}
-												onClick={() => move(module, -1)}
-												aria-label={`Move ${HOME_DASHBOARD_LABELS[module]} earlier`}
-											>
-												↑
-											</Button>
-											<Button
-												type="button"
-												size="sm"
-												variant="ghost"
-												disabled={index === config.moduleOrder.length - 1}
-												onClick={() => move(module, 1)}
-												aria-label={`Move ${HOME_DASHBOARD_LABELS[module]} later`}
-											>
-												↓
-											</Button>
 											<Button
 												type="button"
 												size="sm"
@@ -144,38 +148,15 @@ export function HomeDashboard({
 			</details>
 
 			<div className="home-dashboard-grid">
-				{config.moduleOrder.map(module => {
-					const collapsed = config.collapsedModules.includes(module)
-					return (
-						<section
-							key={module}
-							className={`home-dashboard-module home-dashboard-module--${module}`}
-							data-collapsed={collapsed}
-							aria-label={
-								collapsed ? HOME_DASHBOARD_LABELS[module] : undefined
-							}
-						>
-							<div className="home-dashboard-module-toolbar">
-								{collapsed ? (
-									<h2>{HOME_DASHBOARD_LABELS[module]}</h2>
-								) : (
-									<span />
-								)}
-								<Button
-									type="button"
-									size="sm"
-									variant="ghost"
-									onClick={() => toggle(module)}
-									aria-expanded={!collapsed}
-									aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${HOME_DASHBOARD_LABELS[module]}`}
-								>
-									{collapsed ? 'Expand' : 'Collapse'}
-								</Button>
-							</div>
-							{collapsed ? null : modules[module]}
-						</section>
-					)
-				})}
+				<div className="home-dashboard-lead">{renderModule('trending')}</div>
+				<div className="home-dashboard-columns">
+					<div className="home-dashboard-primary">
+						{primaryModules.map(renderModule)}
+					</div>
+					<aside className="home-dashboard-sidebar" aria-label="At a glance">
+						{sidebarModules.map(renderModule)}
+					</aside>
+				</div>
 			</div>
 		</section>
 	)

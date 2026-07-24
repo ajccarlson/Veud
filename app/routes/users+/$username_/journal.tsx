@@ -94,12 +94,7 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 			<ProfilePageHeader
 				eyebrow="Journal"
 				title="Reviews"
-				description={
-					<>
-						Long-form thoughts published by{' '}
-						{data.user.name ?? data.user.username}.
-					</>
-				}
+				description={<>Long-form thoughts published by {data.user.username}.</>}
 				meta={`${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`}
 			/>
 
@@ -198,7 +193,7 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 			<ProfilePageHeader
 				eyebrow="Journal"
 				title="Diary"
-				description={`Dated watches and reads from ${data.user.name ?? data.user.username}.`}
+				description={`Dated watches and reads from ${data.user.username}.`}
 				meta={`${diaryEntries.length} ${diaryEntries.length === 1 ? 'entry' : 'entries'}`}
 			/>
 

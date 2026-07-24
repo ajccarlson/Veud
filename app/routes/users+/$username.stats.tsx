@@ -37,7 +37,7 @@ export default function ProfileStats() {
 			<ProfilePageHeader
 				eyebrow="Library insights"
 				title="Stats"
-				description={`A closer look at ${data.user.name ?? data.user.username}'s scores, progress, and viewing patterns.`}
+				description={`A closer look at ${data.user.username}'s scores, progress, and viewing patterns.`}
 			/>
 			<StatsOverview data={data} />
 			<StatsData data={data} />

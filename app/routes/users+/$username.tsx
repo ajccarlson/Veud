@@ -84,8 +84,8 @@ export default function ProfileRoute() {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
-						userId: user.id,
-						intent: loaderData.isFollowing ? 'unfollow' : 'follow',
+				userId: user.id,
+				intent: loaderData.isFollowing ? 'unfollow' : 'follow',
 			}),
 		})
 		revalidator.revalidate()
@@ -112,10 +112,8 @@ export default function ProfileRoute() {
 						className="user-landing-hero-avatar"
 					/>
 					<div className="user-landing-hero-info">
-						<h1 className="user-landing-hero-name">
-							{user.name ?? user.username}
-						</h1>
-						<span className="user-landing-hero-username">@{user.username}</span>
+						<h1 className="user-landing-hero-name">{user.username}</h1>
+						<span className="user-landing-hero-username">Veud member</span>
 						<div className="user-landing-hero-meta">
 							<span className="user-landing-hero-joined">
 								Joined {loaderData.userJoinedDisplay}

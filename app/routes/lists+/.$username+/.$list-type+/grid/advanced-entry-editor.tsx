@@ -8,6 +8,7 @@ import {
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
+import { scoreColor, scoreRange } from '#app/utils/lists/score-colorer.tsx'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { refreshGrid } from './grid-actions.ts'
 import { columnParams } from './grid-state.ts'
@@ -24,6 +25,41 @@ const categoryScoreFields = [
 function scoreValue(value: unknown) {
 	const score = Number(value)
 	return Number.isFinite(score) && score > 0 ? String(score) : ''
+}
+
+function ScoreInput({
+	name,
+	value,
+	step,
+}: {
+	name: string
+	value: unknown
+	step: string
+}) {
+	const [currentValue, setCurrentValue] = useState(scoreValue(value))
+	const score = Number(currentValue)
+	const color =
+		Number.isFinite(score) && score > 0
+			? scoreColor({
+					range: scoreRange(),
+					score,
+					type: 'Default',
+				})
+			: undefined
+
+	return (
+		<Input
+			className="ag-advanced-edit-score-input"
+			name={name}
+			type="number"
+			min="1"
+			max="10"
+			step={step}
+			value={currentValue}
+			style={color}
+			onChange={event => setCurrentValue(event.currentTarget.value)}
+		/>
+	)
 }
 
 function historyForEntry(value: unknown): Record<string, unknown> {
@@ -283,26 +319,16 @@ export function AdvancedEntryEditor({
 								{categoryFields.map(field => (
 									<label key={field}>
 										<span>{fieldLabel(field)}</span>
-										<Input
-											name={field}
-											type="number"
-											min="1"
-											max="10"
-											step="1"
-											defaultValue={scoreValue(data[field])}
-										/>
+										<ScoreInput name={field} step="1" value={data[field]} />
 									</label>
 								))}
 								{Object.hasOwn(availableColumns, 'personal') ? (
 									<label>
 										<span>Personal</span>
-										<Input
+										<ScoreInput
 											name="personal"
-											type="number"
-											min="1"
-											max="10"
 											step="0.1"
-											defaultValue={scoreValue(data.personal)}
+											value={data.personal}
 										/>
 									</label>
 								) : null}
