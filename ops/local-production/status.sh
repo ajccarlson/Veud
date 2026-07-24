@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
 source "$(dirname "$0")/common.sh"
 
 guard_live_storage
@@ -41,6 +40,20 @@ DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
 	}
 	process.stdout.write(result.stdout)
 '
+
+systemctl --user --no-pager status \
+	veud-production-mal-inventory.timer \
+	veud-production-mal-hydration.timer \
+	veud-production-tmdb-inventory.timer \
+	veud-production-tmdb-hydration.timer || true
+
+if [[ -L "$APP_ROOT" ]]; then
+	printf '\nCatalog operations:\n'
+	(
+		cd "$APP_ROOT"
+		"$NPM_BIN" run --silent catalog:status
+	)
+fi
 
 printf 'Primary backup storage: '
 df -h "$LIVE_MOUNT" | tail -1
