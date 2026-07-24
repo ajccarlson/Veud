@@ -85,16 +85,6 @@
 		flex: 1 0 auto;
 		flex-direction: column;
 		background:
-			linear-gradient(90deg, rgb(129 84 58 / 0.3) 0 0.22rem, transparent 0) left
-				4.5vw top / 0.22rem 100% no-repeat,
-			linear-gradient(90deg, rgb(121 91 161 / 0.34) 0 0.22rem, transparent 0)
-				left 5.4vw top / 0.22rem 100% no-repeat,
-			linear-gradient(
-					90deg,
-					rgb(var(--veud-mint) / 0.25) 0 0.22rem,
-					transparent 0
-				)
-				right 4.5vw top / 0.22rem 100% no-repeat,
 			radial-gradient(
 				circle at 11% 5%,
 				rgb(105 66 127 / 0.19),
