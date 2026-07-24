@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Veud production MAL momentum every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:20:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=veud-production-mal-trending.service
+
+[Install]
+WantedBy=timers.target

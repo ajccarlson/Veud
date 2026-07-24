@@ -16,7 +16,12 @@ npm run catalog:tmdb-inventory -- --help
 npm run catalog:tmdb-hydrate -- --help
 npm run catalog:mal-inventory -- --help
 npm run catalog:mal-hydrate -- --help
+npm run catalog:mal-trending -- --help
 ```
+
+The trending refresh stores six-hour audience snapshots. Anime starts from MAL's
+current seasonal chart; manga starts from MAL popularity and changes to measured
+audience momentum as history accumulates.
 
 Before a committed manual job, confirm the target database, take a
 restore-verified backup, and begin with a bounded batch. Production scheduled

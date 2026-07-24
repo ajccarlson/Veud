@@ -14,8 +14,6 @@ node_modules
 /backups/
 /tests/prisma
 
-/docs/mal-catalog-policy-decision.md
-
 /test-results/
 /playwright-report/
 /playwright/.cache/
