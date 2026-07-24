@@ -39,6 +39,7 @@
     "prisma:generate:sqlite": "prisma generate --schema=prisma/schema.prisma",
     "prisma:postgres:check": "node scripts/sync-postgres-prisma-schema.mjs --check && cross-env DATABASE_URL=postgresql://schema-validation:unused@localhost:5432/veud prisma validate --schema=prisma/postgresql/schema.prisma",
     "prisma:postgres:sync-schema": "node scripts/sync-postgres-prisma-schema.mjs",
+    "production:catalog:deploy": "bash ops/local-production/deploy-catalog-release.sh",
     "production:postgres:prepare": "bash ops/local-production/prepare-target.sh",
     "production:postgres:provision": "bash ops/local-production/provision.sh",
     "production:postgres:status": "bash ops/local-production/status.sh",

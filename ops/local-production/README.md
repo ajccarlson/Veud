@@ -53,6 +53,18 @@ Run the read-only status gate at any time:
 npm run production:postgres:status
 ```
 
+## Production catalog workers
+
+The production catalog uses immutable, provider-locked MAL and TMDB inventory
+and hydration workers. Package the exact clean release with:
+
+```sh
+npm run production:catalog:deploy
+```
+
+Installation, pacing, timer ownership, monitoring, and recovery are documented
+in [Production catalog workers](../../docs/production-catalog-workers.md).
+
 ## Write cutover boundary
 
 Before switching the application:
