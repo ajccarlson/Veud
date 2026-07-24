@@ -13,4 +13,5 @@ exec "$NPM_BIN" run catalog:tmdb-hydrate -- \
 	--limit "${VEUD_PRODUCTION_TMDB_HYDRATION_LIMIT:-100000}" \
 	--concurrency "${VEUD_PRODUCTION_TMDB_CONCURRENCY:-4}" \
 	--delay-ms "${VEUD_PRODUCTION_TMDB_DELAY_MS:-100}" \
+	--lease-seconds "${VEUD_PRODUCTION_CATALOG_LEASE_SECONDS:-30}" \
 	--worker-id "production-tmdb:${HOSTNAME:-host}:$$"
