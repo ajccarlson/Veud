@@ -30,7 +30,7 @@ test('operators can publish and resolve a public incident', async ({
 		await expect(page.getByText('Overall readiness')).toBeVisible()
 		await expect(page.getByText('Database', { exact: true })).toBeVisible()
 
-		await page.getByLabel('Title').fill(incidentTitle)
+		await page.getByLabel('Title', { exact: true }).fill(incidentTitle)
 		await page
 			.getByLabel('Public summary')
 			.fill('Search results are temporarily delayed during a queue repair.')
