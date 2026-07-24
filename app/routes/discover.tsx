@@ -6,11 +6,13 @@ import {
 	type MetaFunction,
 	useLoaderData,
 	useLocation,
+	useNavigation,
 } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
 import { RecommendationLanes } from '#app/components/recommendation-lanes.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import {
@@ -162,7 +164,7 @@ function memorySearchStatus(data: {
 	if (data.memorySearchSource === 'ai') return 'AI-assisted catalog match'
 	switch (data.memorySearchFallbackReason) {
 		case 'sign-in-required':
-			return 'Catalog matched · sign in for AI clue expansion'
+			return 'Catalog matched · sign in for AI identification'
 		case 'rate-limited':
 			return 'Catalog matched · AI limit reached'
 		case 'ai-unavailable':
@@ -170,7 +172,7 @@ function memorySearchStatus(data: {
 		case 'ai-error':
 			return 'Catalog matched · AI temporarily unavailable'
 		case 'ai-empty':
-			return 'Catalog matched · AI returned no usable clues'
+			return 'Catalog matched · AI returned no usable title suggestions'
 		case 'not-configured':
 			return 'Catalog matched · AI not configured'
 		default:
@@ -240,6 +242,14 @@ function HighlightedMemorySummary({
 export default function DiscoverRoute() {
 	const data = useLoaderData<typeof loader>()
 	const location = useLocation()
+	const navigation = useNavigation()
+	const pendingSearchParams = navigation.location
+		? new URLSearchParams(navigation.location.search)
+		: null
+	const memorySearchPending =
+		navigation.state !== 'idle' &&
+		(navigation.formData?.get('mode') === 'memory' ||
+			pendingSearchParams?.get('mode') === 'memory')
 	const loginRedirectTo = `${location.pathname}${location.search}`
 	const filterKey = [
 		data.filters.q,
@@ -253,7 +263,7 @@ export default function DiscoverRoute() {
 	].join(':')
 
 	return (
-		<VeudPage>
+		<VeudPage aria-busy={memorySearchPending}>
 			<VeudPageHeader
 				eyebrow="Canonical catalog"
 				title="Discover"
@@ -284,6 +294,9 @@ export default function DiscoverRoute() {
 				key={filterKey}
 				method="get"
 				className={`discover-search-panel ${data.filters.mode === 'memory' ? 'discover-search-panel--memory' : ''}`}
+				aria-describedby={
+					data.filters.mode === 'memory' ? 'discover-memory-privacy' : undefined
+				}
 			>
 				{data.filters.mode === 'memory' ? (
 					<input type="hidden" name="mode" value="memory" />
@@ -431,27 +444,42 @@ export default function DiscoverRoute() {
 						</div>
 					</>
 				) : (
-					<div className="discover-memory-privacy">
+					<div id="discover-memory-privacy" className="discover-memory-privacy">
 						<strong>
 							{data.aiSearchAvailable
-								? 'AI clue expansion is ready'
+								? 'AI title identification is ready'
 								: 'Local catalog matching is ready'}
 						</strong>
 						<p>
 							{data.aiSearchAvailable
-								? 'Only the memory you type is sent to OpenAI, with response storage disabled. Catalog records, provider metadata, and your account data stay inside Veud; the final five matches are retrieved and ranked locally.'
+								? 'Only the memory you type and selected media type are sent to OpenAI, with response storage disabled. OpenAI proposes five likely titles; Veud then matches them to five local catalog entries. Catalog records, provider metadata, and account data stay inside Veud.'
 								: data.isSignedIn
-									? 'AI expansion is not configured on this server, so Veud will search its local catalog without sending your description anywhere.'
-									: 'Veud will search its local catalog. Sign in to use AI clue expansion when it is available.'}
+									? 'AI identification is not configured on this server, so Veud will search its local catalog without sending your description anywhere.'
+									: 'Veud will search its local catalog. Sign in to use AI identification when it is available.'}
 						</p>
 						<small>Do not include personal or sensitive information.</small>
 					</div>
 				)}
 				<div className="discover-search-actions">
-					<Button type="submit" className="flex-1 lg:flex-none">
-						{data.filters.mode === 'memory'
-							? 'Find my five closest matches'
-							: 'Search catalog'}
+					<Button
+						type="submit"
+						className="flex-1 gap-2 lg:flex-none"
+						disabled={memorySearchPending}
+					>
+						{memorySearchPending ? (
+							<>
+								<Icon
+									name="update"
+									className="animate-spin"
+									aria-hidden="true"
+								/>
+								Finding five matches…
+							</>
+						) : data.filters.mode === 'memory' ? (
+							'Find my five closest matches'
+						) : (
+							'Search catalog'
+						)}
 					</Button>
 					<Button asChild type="button" variant="ghost">
 						<Link
@@ -467,6 +495,34 @@ export default function DiscoverRoute() {
 				</div>
 			</Form>
 
+			{memorySearchPending ? (
+				<section
+					className="discover-memory-loading"
+					role="status"
+					aria-live="polite"
+					aria-label="Tip of My Tongue search in progress"
+				>
+					<div className="discover-memory-loading-reel" aria-hidden="true">
+						<Icon name="magic-wand" />
+					</div>
+					<div>
+						<p className="discover-memory-loading-eyebrow">
+							Tip of My Tongue is searching
+						</p>
+						<h2>Finding your five closest matches…</h2>
+						<p>
+							AI is identifying five likely titles. Veud will then connect each
+							suggestion to a real entry in the local catalog.
+						</p>
+						<div className="discover-memory-loading-steps" aria-hidden="true">
+							<span>Identify likely titles</span>
+							<span>Match local catalog entries</span>
+							<span>Prepare five result cards</span>
+						</div>
+					</div>
+				</section>
+			) : null}
+
 			{data.recommendationGraph ? (
 				<RecommendationLanes
 					graph={data.recommendationGraph}
@@ -477,28 +533,28 @@ export default function DiscoverRoute() {
 
 			{data.recommendationGraph ? null : (
 				<section
-					className="space-y-4"
+					className={`space-y-4 ${memorySearchPending ? 'discover-results--pending' : ''}`}
 					aria-labelledby="discovery-results-heading"
 				>
 					<header className="flex flex-wrap items-end justify-between gap-3">
 						<div>
 							<h2
 								id="discovery-results-heading"
-								className="text-2xl font-black text-[#ffffb1]"
+								className="text-2xl font-black text-veud-yellow"
 							>
 								{data.filters.mode === 'memory'
 									? 'Closest matches'
 									: sortLabels[data.filters.sort]}
 							</h2>
 							{data.filters.sort === 'for-you' ? (
-								<p className="mt-1 text-sm text-[#a2ffd5]">
+								<p className="mt-1 text-sm text-veud-mint">
 									{data.preferredGenres.length
 										? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
 										: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
 								</p>
 							) : null}
 						</div>
-						<p className="text-sm text-[#a2ffd5]">
+						<p className="text-sm text-veud-mint">
 							{data.filters.mode === 'memory'
 								? `${data.total} of 5 possible matches · ${memorySearchStatus(data)}`
 								: resultSummary(data.total, data.filters)}
@@ -514,10 +570,10 @@ export default function DiscoverRoute() {
 								return (
 									<article
 										key={item.id}
-										className="group flex flex-col overflow-hidden rounded-2xl border border-[#54806c] bg-[#383040] transition hover:-translate-y-1 hover:border-[#a2ffd5] hover:shadow-xl"
+										className="group flex flex-col overflow-hidden rounded-2xl border border-veud-border/70 bg-veud-surface shadow-lg shadow-black/10 transition hover:-translate-y-1 hover:border-veud-mint hover:shadow-xl hover:shadow-black/20"
 									>
 										<Link to={`/media/${item.id}`} className="block flex-1">
-											<div className="aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+											<div className="aspect-[2/3] overflow-hidden bg-veud-ink">
 												{poster ? (
 													<img
 														src={poster}
@@ -526,14 +582,14 @@ export default function DiscoverRoute() {
 														className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
 													/>
 												) : (
-													<div className="flex h-full items-center justify-center px-6 text-center text-sm font-semibold text-[#8ca99d]">
+													<div className="flex h-full items-center justify-center px-6 text-center text-sm font-semibold text-veud-sage">
 														No poster available
 													</div>
 												)}
 											</div>
 											<div className="space-y-3 p-4">
 												<div>
-													<div className="flex flex-wrap gap-2 text-[0.7rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+													<div className="flex flex-wrap gap-2 text-[0.7rem] font-bold uppercase tracking-wide text-veud-mint">
 														<span>
 															{item.type ||
 																kindLabels[
@@ -546,11 +602,11 @@ export default function DiscoverRoute() {
 															<span>· {item.releaseStatus}</span>
 														) : null}
 													</div>
-													<h3 className="mt-1 text-lg font-black leading-6 text-[#ffffb1] group-hover:underline">
+													<h3 className="mt-1 text-lg font-black leading-6 text-veud-yellow group-hover:underline">
 														{item.title}
 													</h3>
 													{item.matchedTitle ? (
-														<p className="mt-1 text-xs text-[#a2ffd5]">
+														<p className="mt-1 text-xs text-veud-mint">
 															Also known as {item.matchedTitle}
 														</p>
 													) : null}
@@ -559,7 +615,7 @@ export default function DiscoverRoute() {
 															{item.providers.map(provider => (
 																<span
 																	key={provider}
-																	className="rounded bg-[#2e2f2b] px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-[#ffcc66]"
+																	className="rounded bg-veud-ink px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-veud-gold"
 																>
 																	{provider}
 																</span>
@@ -572,7 +628,7 @@ export default function DiscoverRoute() {
 														{item.genres.slice(0, 3).map(genre => (
 															<span
 																key={genre}
-																className="rounded-full bg-[#2e2f2b] px-2 py-1 text-xs text-[#c6ded2]"
+																className="rounded-full bg-veud-ink px-2 py-1 text-xs text-veud-copy"
 															>
 																{genre}
 															</span>
@@ -581,7 +637,7 @@ export default function DiscoverRoute() {
 												) : null}
 												{item.memoryMatch ? (
 													<div
-														className="rounded-xl border border-[#a2ffd5]/30 bg-[#211f24] p-3 text-sm leading-5 text-[#d7e9df]"
+														className="rounded-xl border border-veud-mint/30 bg-veud-ink p-3 text-sm leading-5 text-veud-copy"
 														aria-label="Memory match explanation"
 													>
 														<HighlightedMemorySummary
@@ -593,13 +649,13 @@ export default function DiscoverRoute() {
 																className="mt-2 flex flex-wrap items-center gap-1.5"
 																aria-label="Details matching your description"
 															>
-																<span className="mr-1 text-[0.68rem] font-bold uppercase tracking-wide text-[#8ca99d]">
+																<span className="mr-1 text-[0.68rem] font-bold uppercase tracking-wide text-veud-sage">
 																	Matches
 																</span>
 																{item.memoryMatch.matchedClues.map(clue => (
 																	<mark
 																		key={clue}
-																		className="rounded-full bg-[#a2ffd5] px-2 py-0.5 text-xs font-bold text-[#222]"
+																		className="rounded-full bg-veud-mint px-2 py-0.5 text-xs font-bold text-veud-ink"
 																	>
 																		{clue}
 																	</mark>
@@ -609,13 +665,13 @@ export default function DiscoverRoute() {
 													</div>
 												) : null}
 												{item.description ? (
-													<p className="line-clamp-3 text-sm leading-5 text-[#c6ded2]">
+													<p className="line-clamp-3 text-sm leading-5 text-veud-copy">
 														{item.description}
 													</p>
 												) : null}
-												<div className="border-t border-[#54806c]/60 pt-3 text-xs text-[#a2ffd5]">
+												<div className="border-t border-veud-border/60 pt-3 text-xs text-veud-mint">
 													{item.communityScore !== null ? (
-														<span className="font-bold text-[#ffcc66]">
+														<span className="font-bold text-veud-gold">
 															★ {item.communityScore.toFixed(1)} (
 															{item.ratingCount})
 														</span>
@@ -651,7 +707,7 @@ export default function DiscoverRoute() {
 												</div>
 											</div>
 										</Link>
-										<div className="border-t border-[#54806c]/60 p-3">
+										<div className="border-t border-veud-border/60 p-3">
 											<QuickTrackControl
 												item={item}
 												watchlists={data.watchlists}
@@ -700,7 +756,7 @@ export default function DiscoverRoute() {
 									Previous
 								</Button>
 							)}
-							<span className="text-sm font-semibold text-[#a2ffd5]">
+							<span className="text-sm font-semibold text-veud-mint">
 								Page {data.filters.page} of {data.pageCount}
 							</span>
 							{data.filters.page < data.pageCount ? (

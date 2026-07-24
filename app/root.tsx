@@ -325,7 +325,7 @@ function App() {
 							<div className="root-logo">
 								<Logo />
 							</div>
-							<div className="root-logo-separator" />
+							<span className="root-logo-projector-beam" aria-hidden="true" />
 						</div>
 						{/* <div className="ml-auto hidden max-w-sm flex-1 sm:block">
 							{searchBar}
