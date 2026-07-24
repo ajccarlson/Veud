@@ -32,7 +32,6 @@ import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
 import { SiteFooter } from './components/site-footer.tsx'
 import { SiteSearch } from './components/site-search.tsx'
-// import { SearchBar } from './components/search-bar.tsx'
 import { useToast } from './components/toaster.tsx'
 import { Button } from './components/ui/button.tsx'
 import {

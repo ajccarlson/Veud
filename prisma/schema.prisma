@@ -170,6 +170,7 @@ model Media {
   collectionItems        MediaCollectionItem[]
   releaseReminders       ReleaseReminder[]
   catalogFeedItems       CatalogFeedItem[]
+  catalogMetricSnapshots CatalogMetricSnapshot[]
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
   secondaryQualityIssues CatalogQualityIssue[]    @relation("CatalogQualitySecondaryMedia")
   recommendationFeedback RecommendationFeedback[]
@@ -207,6 +208,28 @@ model CatalogFeedItem {
   @@index([provider, kind, feed, rank])
   @@index([provider, kind, feed, observedAt, rankingScore])
   @@index([mediaId])
+  @@index([observedAt])
+}
+
+/// Historical provider measurements used to distinguish current momentum from
+/// all-time popularity. Samples are bucketed by the importer, so rerunning a
+/// refresh is idempotent.
+model CatalogMetricSnapshot {
+  id          String   @id @default(cuid())
+  provider    String
+  kind        String
+  observedAt  DateTime
+  audience    Int?
+  ratingCount Int?
+  sourceRank  Int?
+  chartRank   Int?
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([provider, kind, mediaId, observedAt])
+  @@index([provider, kind, observedAt])
+  @@index([provider, kind, mediaId, observedAt])
   @@index([observedAt])
 }
 

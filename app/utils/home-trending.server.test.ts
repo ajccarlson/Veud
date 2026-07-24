@@ -166,3 +166,116 @@ test('a stale trending chart falls back to normalized all-time popularity', asyn
 	expect(tv?.items[0]?.source).toBe('popular-fallback')
 	expect(tv?.items.some(item => item.id === rawOutlier.id)).toBe(false)
 })
+
+test('anime falls back to current-season MAL popularity instead of all-time titles', async () => {
+	const [seasonRankTwo, seasonRankOne, allTimeRankOne] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Summer Rank Two',
+				startSeason: 'Summer 2026',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Summer Rank One',
+				startSeason: 'Summer 2026',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'All-Time Rank One',
+				startSeason: 'Fall 1999',
+			},
+		}),
+	])
+	await prisma.catalogFeedItem.createMany({
+		data: [
+			{
+				provider: 'mal',
+				kind: 'anime',
+				feed: 'popular',
+				rank: 2,
+				rankingScore: 0.8,
+				observedAt: now,
+				mediaId: seasonRankTwo.id,
+			},
+			{
+				provider: 'mal',
+				kind: 'anime',
+				feed: 'popular',
+				rank: 1,
+				rankingScore: 0.7,
+				observedAt: now,
+				mediaId: seasonRankOne.id,
+			},
+			{
+				provider: 'mal',
+				kind: 'anime',
+				feed: 'popular',
+				rank: 1,
+				rankingScore: 1,
+				observedAt: now,
+				mediaId: allTimeRankOne.id,
+			},
+		],
+	})
+
+	const anime = (await getHomeTrending(null, { now, limit: 10 })).find(
+		rail => rail.kind === 'anime',
+	)
+	expect(anime?.title).toBe('Trending anime')
+	expect(anime?.signal).toBe('trending')
+	expect(anime?.items.map(item => item.title)).toEqual([
+		'Summer Rank One',
+		'Summer Rank Two',
+	])
+})
+
+test('popularity fallbacks exclude unranked anime and manga inventory', async () => {
+	const [rankedAnime, unrankedAnime, nullScoreFeedAnime, unrankedManga] =
+		await Promise.all([
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: 'Recognized Popular Anime',
+					catalogPopularity: 1,
+				},
+			}),
+			prisma.media.create({
+				data: { kind: 'anime', title: 'Unranked Anime Inventory' },
+			}),
+			prisma.media.create({
+				data: { kind: 'anime', title: 'Unscored Popular Feed Anime' },
+			}),
+			prisma.media.create({
+				data: { kind: 'manga', title: 'Unranked Manga Inventory' },
+			}),
+		])
+	await prisma.catalogFeedItem.create({
+		data: {
+			provider: 'mal',
+			kind: 'anime',
+			feed: 'popular',
+			rank: 1,
+			rankingScore: null,
+			observedAt: now,
+			mediaId: nullScoreFeedAnime.id,
+		},
+	})
+
+	const rails = await getHomeTrending(null, { now, limit: 10 })
+	const anime = rails.find(rail => rail.kind === 'anime')
+	const manga = rails.find(rail => rail.kind === 'manga')
+
+	expect(anime?.signal).toBe('legacy')
+	expect(anime?.items.map(item => item.id)).toEqual([rankedAnime.id])
+	expect(anime?.items.some(item => item.id === unrankedAnime.id)).toBe(false)
+	expect(anime?.items.some(item => item.id === nullScoreFeedAnime.id)).toBe(
+		false,
+	)
+	expect(manga).toBeUndefined()
+	expect(unrankedManga.catalogPopularity).toBeNull()
+})

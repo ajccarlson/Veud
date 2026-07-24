@@ -160,6 +160,66 @@ test('discovery searches canonical metadata and exposes normalized genres', asyn
 	])
 })
 
+test('anime and manga popularity use MAL rank without score or community reshuffling', async () => {
+	for (const kind of ['anime', 'manga'] as const) {
+		const [rankOne, rankTwo, unranked] = await Promise.all([
+			prisma.media.create({
+				data: {
+					kind,
+					title: `${kind} Z Rank One`,
+					catalogPopularity: 0.001,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind,
+					title: `${kind} M Rank Two`,
+					catalogPopularity: 999,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind,
+					title: `${kind} A Unranked`,
+					catalogPopularity: 10_000,
+				},
+			}),
+		])
+		await prisma.catalogFeedItem.createMany({
+			data: [
+				{
+					provider: 'mal',
+					kind,
+					feed: 'popular',
+					rank: 1,
+					rankingScore: 0,
+					observedAt: new Date('2026-07-24T00:00:00Z'),
+					mediaId: rankOne.id,
+				},
+				{
+					provider: 'mal',
+					kind,
+					feed: 'popular',
+					rank: 2,
+					rankingScore: 1,
+					observedAt: new Date('2026-07-24T00:00:00Z'),
+					mediaId: rankTwo.id,
+				},
+			],
+		})
+
+		const result = await getDiscoveryResults(
+			filters({ kind, sort: 'popular' }),
+			null,
+		)
+		expect(result.items.map(item => item.id)).toEqual([
+			rankOne.id,
+			rankTwo.id,
+			unranked.id,
+		])
+	}
+})
+
 test('natural discovery enforces locally stored episode bounds', async () => {
 	await prisma.media.createMany({
 		data: [

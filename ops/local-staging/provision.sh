@@ -82,9 +82,6 @@ VEUD_AI_IMAGE_TIP_OF_TONGUE_ENABLED="true"
 VEUD_AI_IMPORT_RECONCILIATION_ENABLED="true"
 VEUD_AI_REVIEW_ASSISTANCE_ENABLED="true"
 VEUD_AI_MODERATION_TRIAGE_ENABLED="true"
-GITHUB_CLIENT_ID="MOCK_GITHUB_CLIENT_ID"
-GITHUB_CLIENT_SECRET="MOCK_GITHUB_CLIENT_SECRET"
-GITHUB_TOKEN=""
 EOF
 	chmod 600 "$APPLICATION_CONFIG_FILE"
 fi
@@ -185,6 +182,8 @@ install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-hydration.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-inventory.timer" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-trending.service" "$unit_dir/"
+install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-mal-trending.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-hydration.service" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-hydration.timer" "$unit_dir/"
 install -m 600 "$REPO_ROOT/ops/local-staging/systemd/veud-staging-tmdb-inventory.service" "$unit_dir/"

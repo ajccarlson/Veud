@@ -7,7 +7,6 @@ import {
 } from '#app/routes/_auth+/onboarding_.$provider.tsx'
 import { type VerifyFunctionArgs } from '#app/routes/_auth+/verify.server.ts'
 import { verifySessionStorage } from '../verification.server.ts'
-import { getGitHubProviderUser, GitHubProvider } from './github.server.ts'
 import { getMALProviderUser, MALProvider } from './mal.server.ts'
 import { getTraktProviderUser } from './trakt.server.ts'
 
@@ -75,42 +74,6 @@ describe('OAuth provider profiles', () => {
 		expect(headers.get('trakt-api-key')).toBe('trakt-client-id')
 		expect(headers.get('trakt-api-version')).toBe('2')
 	})
-
-	test('uses GitHub primary verified email', async () => {
-		const fetcher = vi.fn<typeof fetch>()
-		fetcher
-			.mockResolvedValueOnce(
-				jsonResponse({
-					id: 21,
-					login: 'OctoCat',
-					name: 'Octo Cat',
-					avatar_url: 'https://github.com/avatar.png',
-					email: null,
-				}),
-			)
-			.mockResolvedValueOnce(
-				jsonResponse([
-					{ email: 'other@example.com', primary: false, verified: true },
-					{ email: 'Octo@Example.com', primary: true, verified: true },
-				]),
-			)
-
-		await expect(
-			getGitHubProviderUser('github-token', fetcher),
-		).resolves.toEqual({
-			id: '21',
-			email: 'octo@example.com',
-			username: 'OctoCat',
-			name: 'Octo Cat',
-			imageUrl: 'https://github.com/avatar.png',
-		})
-		expect(fetcher).toHaveBeenCalledTimes(2)
-		for (const [, init] of fetcher.mock.calls) {
-			expect(new Headers(init?.headers).get('authorization')).toBe(
-				'Bearer github-token',
-			)
-		}
-	})
 })
 
 describe('OAuth flow state', () => {
@@ -138,25 +101,6 @@ describe('OAuth flow state', () => {
 		expect(setCookie).toContain('en_oauth2_mal:')
 		expect(setCookie).toContain('HttpOnly')
 		expect(setCookie).toContain('SameSite=Lax')
-	})
-
-	test('starts GitHub with profile and email scopes', async () => {
-		vi.stubEnv('NODE_ENV', 'test')
-		vi.stubEnv('GITHUB_CLIENT_ID', 'github-client-id')
-		vi.stubEnv('GITHUB_CLIENT_SECRET', 'github-client-secret')
-
-		const result = await new GitHubProvider()
-			.getAuthStrategy()
-			.authenticate(
-				new Request('https://veud.test/auth/github', { method: 'POST' }),
-			)
-			.catch(error => error)
-		expect(result).toBeInstanceOf(Response)
-		if (!(result instanceof Response)) throw result
-
-		const location = new URL(result.headers.get('location') ?? '')
-		expect(location.searchParams.get('scope')).toBe('read:user user:email')
-		expect(result.headers.get('set-cookie')).toContain('en_oauth2_github=')
 	})
 })
 
