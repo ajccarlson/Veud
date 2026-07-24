@@ -288,6 +288,11 @@ export async function getDiscoveryResultsForPlan(
 					where,
 					page,
 					pageSize: DISCOVERY_PAGE_SIZE,
+					malKind:
+						plan.kinds.length === 1 &&
+						(plan.kinds[0] === 'anime' || plan.kinds[0] === 'manga')
+							? plan.kinds[0]
+							: null,
 				})
 			: sort === 'top-rated'
 				? await topRatedMediaPage({
@@ -686,7 +691,10 @@ async function popularMediaPage(input: {
 	where: Prisma.MediaWhereInput
 	page: number
 	pageSize: number
+	malKind?: 'anime' | 'manga' | null
 }) {
+	if (input.malKind)
+		return malPopularMediaPage({ ...input, kind: input.malKind })
 	const freshAfter = new Date(Date.now() - POPULAR_FEED_FRESHNESS_MS)
 	const feedSelect = {
 		mediaId: true,
@@ -758,6 +766,56 @@ async function popularMediaPage(input: {
 		take: remaining,
 	})
 	return [...rankedSlice, ...fallback]
+}
+
+async function malPopularMediaPage(input: {
+	where: Prisma.MediaWhereInput
+	page: number
+	pageSize: number
+	kind: 'anime' | 'manga'
+}) {
+	const feedWhere = {
+		provider: 'mal',
+		kind: input.kind,
+		feed: 'popular',
+		media: { is: input.where },
+	} satisfies Prisma.CatalogFeedItemWhereInput
+	const start = (input.page - 1) * input.pageSize
+	const rankedCount = await prisma.catalogFeedItem.count({ where: feedWhere })
+	const ranked =
+		start < rankedCount
+			? await prisma.catalogFeedItem.findMany({
+					where: feedWhere,
+					orderBy: [{ rank: 'asc' }, { mediaId: 'asc' }],
+					skip: start,
+					take: input.pageSize,
+					select: { media: { select: discoveryMediaSelect } },
+				})
+			: []
+	const rankedMedia = ranked.map(row => row.media)
+	const remaining = input.pageSize - rankedMedia.length
+	if (!remaining) return rankedMedia
+	const fallback = await prisma.media.findMany({
+		where: {
+			AND: [
+				input.where,
+				{
+					catalogFeedItems: {
+						none: {
+							provider: 'mal',
+							kind: input.kind,
+							feed: 'popular',
+						},
+					},
+				},
+			],
+		},
+		select: discoveryMediaSelect,
+		orderBy: [{ title: 'asc' }, { id: 'asc' }],
+		skip: Math.max(0, start - rankedCount),
+		take: remaining,
+	})
+	return [...rankedMedia, ...fallback]
 }
 
 async function topRatedMediaPage(input: {
@@ -902,6 +960,10 @@ export async function getDiscoveryResults(
 					where,
 					page,
 					pageSize: DISCOVERY_PAGE_SIZE,
+					malKind:
+						filters.kind === 'anime' || filters.kind === 'manga'
+							? filters.kind
+							: null,
 				})
 			: filters.sort === 'top-rated'
 				? await topRatedMediaPage({
