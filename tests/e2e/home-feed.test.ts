@@ -44,12 +44,12 @@ test('member dashboard preferences persist across reloads and stay calm on mobil
 		await expect(
 			page.getByRole('heading', { name: 'Recommendations', exact: true }),
 		).toBeVisible()
-    const recommendationsModule = page.locator(
-      ".home-dashboard-module--recommendations",
-    )
-    await expect(
-      recommendationsModule.getByText(recommendation.title!, { exact: true }),
-    ).toBeVisible()
+		const recommendationsModule = page.locator(
+			'.home-dashboard-module--recommendations',
+		)
+		await expect(
+			recommendationsModule.getByText(recommendation.title!, { exact: true }),
+		).toBeVisible()
 
 		await page.getByText('Customize home', { exact: true }).click()
 		await page.getByRole('button', { name: 'Compact' }).click()
@@ -64,10 +64,9 @@ test('member dashboard preferences persist across reloads and stay calm on mobil
 		).not.toBeVisible()
 		await expect
 			.poll(async () => {
-				const preference =
-					await prisma.homeDashboardPreference.findUnique({
-						where: { ownerId: viewer.id },
-					})
+				const preference = await prisma.homeDashboardPreference.findUnique({
+					where: { ownerId: viewer.id },
+				})
 				return {
 					density: preference?.density,
 					collapsed: preference?.collapsedModules,
@@ -236,15 +235,15 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 			}),
 		),
 	)
-	await prisma.catalogFeedItem.create({
-		data: {
+	await prisma.catalogFeedItem.createMany({
+		data: media.map((item, index) => ({
 			provider: 'tmdb',
 			kind: 'movie',
 			feed: 'trending',
-			rank: 1,
+			rank: index + 1,
 			observedAt: new Date(),
-			mediaId: media[0]!.id,
-		},
+			mediaId: item.id,
+		})),
 	})
 
 	try {

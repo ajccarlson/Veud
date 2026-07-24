@@ -4,9 +4,11 @@ import { prisma } from './db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
+	getDiscoveryResultsForPlan,
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 } from './discovery.server.ts'
+import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -158,6 +160,56 @@ test('discovery searches canonical metadata and exposes normalized genres', asyn
 	])
 })
 
+test('natural discovery enforces locally stored episode bounds', async () => {
+	await prisma.media.createMany({
+		data: [
+			{
+				kind: 'anime',
+				title: 'Compact Twelve Episode Series',
+				episodeCount: 12,
+			},
+			{
+				kind: 'anime',
+				title: 'Long Twenty Six Episode Series',
+				episodeCount: 26,
+			},
+			{
+				kind: 'movie',
+				title: 'Unrelated Short Movie',
+				runtimeMinutes: 90,
+			},
+		],
+	})
+	const plan: NaturalLanguageDiscoveryPlan = {
+		kinds: ['anime'],
+		includeGenres: [],
+		excludeGenres: [],
+		includeTerms: [],
+		excludeTerms: [],
+		yearFrom: null,
+		yearTo: null,
+		releaseStatus: null,
+		language: null,
+		toneTerms: [],
+		pace: null,
+		lengthUnit: 'episodes',
+		lengthFrom: null,
+		lengthTo: 23,
+		sort: 'title',
+		explanation: 'Anime series under 24 episodes.',
+		unsupportedConstraints: [],
+	}
+
+	const result = await getDiscoveryResultsForPlan(plan, null, {
+		page: 1,
+		filters: filters({ mode: 'describe', kind: 'anime' }),
+	})
+
+	expect(result.items.map(item => item.title)).toEqual([
+		'Compact Twelve Episode Series',
+	])
+})
+
 test('top-rated ranking tempers sparse scores and title pagination is stable', async () => {
 	const [firstRater, secondRater, thirdRater] = await Promise.all([
 		createUser('first_rater'),
@@ -214,6 +266,51 @@ test('top-rated ranking tempers sparse scores and title pagination is stable', a
 	expect(secondPage.total).toBe(25)
 	expect(secondPage.pageCount).toBe(2)
 	expect(secondPage.items.map(item => item.title)).toEqual(['Paged 25'])
+})
+
+test('top-rated pages use one stable global ranking without duplicates', async () => {
+	await Promise.all(
+		Array.from({ length: 30 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'tv',
+					title: `Stable Rated ${String(index + 1).padStart(2, '0')}`,
+					catalogScore: 6 + (index % 5),
+					externalIds: {
+						create: {
+							provider: 'tmdb',
+							kind: 'tv',
+							externalId: `stable-rated-${index + 1}`,
+							sourceAudience: 1_000 + index * 250,
+							sourceRatingCount: 100 + index * 25,
+						},
+					},
+				},
+			}),
+		),
+	)
+
+	const first = await getDiscoveryResults(
+		filters({ kind: 'tv', sort: 'top-rated', page: 1 }),
+		null,
+	)
+	const second = await getDiscoveryResults(
+		filters({ kind: 'tv', sort: 'top-rated', page: 2 }),
+		null,
+	)
+	const repeatedFirst = await getDiscoveryResults(
+		filters({ kind: 'tv', sort: 'top-rated', page: 1 }),
+		null,
+	)
+
+	expect(first.items).toHaveLength(24)
+	expect(second.items).toHaveLength(6)
+	expect(
+		new Set([...first.items, ...second.items].map(item => item.id)).size,
+	).toBe(30)
+	expect(repeatedFirst.items.map(item => item.id)).toEqual(
+		first.items.map(item => item.id),
+	)
 })
 
 test('private-list tracking stays personal and does not affect discovery aggregates', async () => {

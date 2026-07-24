@@ -2,12 +2,17 @@ import {
 	data as json,
 	Form,
 	Link,
+	redirect,
+	type ActionFunctionArgs,
 	type LoaderFunctionArgs,
 	type MetaFunction,
+	useActionData,
+	useFetcher,
 	useLoaderData,
 	useLocation,
 	useNavigation,
 } from 'react-router'
+import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
 import { RecommendationLanes } from '#app/components/recommendation-lanes.tsx'
@@ -20,17 +25,30 @@ import {
 	VeudPage,
 	VeudPageHeader,
 } from '#app/components/ui/veud-layout.tsx'
-import { getUserId } from '#app/utils/auth.server.ts'
+import { type action as imageTipOfTongueAction } from '#app/routes/resources+/image-tip-of-tongue.ts'
+import { isAiCapabilityConfigured } from '#app/utils/ai-gateway.server.ts'
+import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
 	getDiscoveryResultsForMediaIds,
+	getDiscoveryResultsForPlan,
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import {
+	createNaturalLanguageDiscoveryPlan,
+	naturalDiscoveryFallbackReason,
+	refineNaturalLanguageDiscoveryPlan,
+} from '#app/utils/natural-language-discovery.server.ts'
+import {
+	discoveryPlanChips,
+	NaturalLanguageDiscoveryPlanSchema,
+	type NaturalLanguageDiscoveryPlan,
+} from '#app/utils/natural-language-discovery.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 import '#app/styles/discover.scss'
@@ -57,9 +75,261 @@ const providerLabels: Record<DiscoveryQuery['provider'], string> = {
 	mal: 'MyAnimeList',
 }
 
+const DiscoveryActionSchema = z.discriminatedUnion('intent', [
+	z.object({
+		intent: z.literal('describe-start'),
+		q: z.string().trim().min(3).max(500),
+		kind: z.enum(['all', 'movie', 'tv', 'anime', 'manga']),
+	}),
+	z.object({
+		intent: z.literal('describe-refine'),
+		sessionId: z.string().min(1).max(100),
+		refinement: z.string().trim().min(1).max(500),
+	}),
+	z.object({
+		intent: z.literal('describe-undo'),
+		sessionId: z.string().min(1).max(100),
+	}),
+	z.object({
+		intent: z.literal('describe-remove'),
+		sessionId: z.string().min(1).max(100),
+		chipType: z.string().min(1).max(40),
+		chipValue: z.string().min(1).max(100),
+	}),
+	z.object({
+		intent: z.literal('describe-relax'),
+		sessionId: z.string().min(1).max(100),
+	}),
+])
+
+const DISCOVERY_SESSION_MS = 2 * 60 * 60 * 1_000
+
+function parseSessionValues(value: string) {
+	const parsed: unknown = JSON.parse(value)
+	if (!Array.isArray(parsed)) throw new Error('Invalid discovery session')
+	return parsed
+}
+
+function removeDiscoveryChip(
+	plan: NaturalLanguageDiscoveryPlan,
+	type: string,
+	value: string,
+) {
+	const next = structuredClone(plan)
+	if (type === 'kind' && next.kinds.length > 1) {
+		next.kinds = next.kinds.filter(item => item !== value)
+	} else if (type === 'genre') {
+		next.includeGenres = next.includeGenres.filter(item => item !== value)
+	} else if (type === 'excluded genre') {
+		next.excludeGenres = next.excludeGenres.filter(item => item !== value)
+	} else if (type === 'concept') {
+		next.includeTerms = next.includeTerms.filter(item => item !== value)
+	} else if (type === 'excluded concept') {
+		next.excludeTerms = next.excludeTerms.filter(item => item !== value)
+	} else if (type === 'years') {
+		next.yearFrom = null
+		next.yearTo = null
+	} else if (type === 'status') {
+		next.releaseStatus = null
+	} else if (type === 'language') {
+		next.language = null
+	} else if (type === 'tone') {
+		next.toneTerms = next.toneTerms.filter(item => item !== value)
+	} else if (type === 'pace') {
+		next.pace = null
+	} else if (['minutes', 'episodes', 'chapters', 'volumes'].includes(type)) {
+		next.lengthUnit = null
+		next.lengthFrom = null
+		next.lengthTo = null
+	} else if (type === 'sort') {
+		next.sort = 'popular'
+	}
+	next.explanation = 'Refined discovery filters.'
+	return NaturalLanguageDiscoveryPlanSchema.parse(next)
+}
+
+function relaxDiscoveryPlan(plan: NaturalLanguageDiscoveryPlan) {
+	const chips = discoveryPlanChips(plan).filter(chip => chip.type !== 'kind')
+	const preferredOrder = [
+		'concept',
+		'tone',
+		'pace',
+		'genre',
+		'years',
+		'minutes',
+		'episodes',
+		'chapters',
+		'volumes',
+		'excluded concept',
+		'excluded genre',
+	]
+	const chip = preferredOrder.flatMap(type =>
+		chips.filter(candidate => candidate.type === type),
+	)[0]
+	return chip ? removeDiscoveryChip(plan, chip.type, chip.value) : plan
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const parsed = DiscoveryActionSchema.safeParse(
+		Object.fromEntries(await request.formData()),
+	)
+	if (!parsed.success) {
+		throw new Response('Invalid discovery assistant action', { status: 400 })
+	}
+	const now = new Date()
+	if (parsed.data.intent === 'describe-start') {
+		const plan = await createNaturalLanguageDiscoveryPlan(
+			{ memberRequest: parsed.data.q, kind: parsed.data.kind },
+			{ rateLimitKey: `viewer:${ownerId}` },
+		).catch(error => {
+			throw new Response(
+				`Discovery assistant unavailable: ${naturalDiscoveryFallbackReason(error)}`,
+				{ status: 503 },
+			)
+		})
+		const session = await prisma.aiDiscoverySession.create({
+			data: {
+				ownerId,
+				phrases: JSON.stringify([parsed.data.q]),
+				plans: JSON.stringify([plan]),
+				expiresAt: new Date(now.getTime() + DISCOVERY_SESSION_MS),
+			},
+			select: { id: true },
+		})
+		throw redirect(`/discover?mode=describe&session=${session.id}`)
+	}
+	const session = await prisma.aiDiscoverySession.findFirst({
+		where: {
+			id: parsed.data.sessionId,
+			ownerId,
+			expiresAt: { gt: now },
+		},
+	})
+	if (!session) throw new Response('Discovery session expired', { status: 404 })
+	const phrases = z
+		.array(z.string().max(500))
+		.parse(parseSessionValues(session.phrases))
+	const plans = z
+		.array(NaturalLanguageDiscoveryPlanSchema)
+		.parse(parseSessionValues(session.plans))
+	if (parsed.data.intent === 'describe-undo') {
+		await prisma.aiDiscoverySession.update({
+			where: { id: session.id },
+			data: {
+				currentStep: Math.max(0, session.currentStep - 1),
+				expiresAt: new Date(now.getTime() + DISCOVERY_SESSION_MS),
+			},
+		})
+		throw redirect(`/discover?mode=describe&session=${session.id}`)
+	}
+	const currentPlan = plans[session.currentStep]
+	if (!currentPlan)
+		throw new Response('Discovery session is invalid', { status: 409 })
+	if (
+		parsed.data.intent === 'describe-remove' ||
+		parsed.data.intent === 'describe-relax'
+	) {
+		const nextPlan =
+			parsed.data.intent === 'describe-remove'
+				? removeDiscoveryChip(
+						currentPlan,
+						parsed.data.chipType,
+						parsed.data.chipValue,
+					)
+				: relaxDiscoveryPlan(currentPlan)
+		if (JSON.stringify(nextPlan) === JSON.stringify(currentPlan)) {
+			throw new Response('That constraint cannot be relaxed safely.', {
+				status: 409,
+			})
+		}
+		const phrase =
+			parsed.data.intent === 'describe-remove'
+				? `Removed ${parsed.data.chipType}: ${parsed.data.chipValue}`
+				: 'Relaxed one constraint'
+		const nextPhrases = [...phrases.slice(0, session.currentStep + 1), phrase]
+		const nextPlans = [...plans.slice(0, session.currentStep + 1), nextPlan]
+		await prisma.aiDiscoverySession.update({
+			where: { id: session.id },
+			data: {
+				phrases: JSON.stringify(nextPhrases),
+				plans: JSON.stringify(nextPlans),
+				currentStep: nextPlans.length - 1,
+				expiresAt: new Date(now.getTime() + DISCOVERY_SESSION_MS),
+			},
+		})
+		throw redirect(`/discover?mode=describe&session=${session.id}`)
+	}
+	const nextPhrase = parsed.data.refinement
+	const nextPlan = await refineNaturalLanguageDiscoveryPlan(
+		{
+			memberPhrases: [...phrases.slice(0, session.currentStep + 1), nextPhrase],
+			currentPlan,
+			newRequest: nextPhrase,
+		},
+		{ rateLimitKey: `viewer:${ownerId}` },
+	).catch(() => null as null | NaturalLanguageDiscoveryPlan)
+	if (!nextPlan) {
+		return json(
+			{
+				ok: false as const,
+				error:
+					'Refinement is temporarily unavailable. Your last valid filters and results are unchanged.',
+			},
+			{ status: 503 },
+		)
+	}
+	const nextPhrases = [...phrases.slice(0, session.currentStep + 1), nextPhrase]
+	const nextPlans = [...plans.slice(0, session.currentStep + 1), nextPlan]
+	await prisma.aiDiscoverySession.update({
+		where: { id: session.id },
+		data: {
+			phrases: JSON.stringify(nextPhrases),
+			plans: JSON.stringify(nextPlans),
+			currentStep: nextPlans.length - 1,
+			expiresAt: new Date(now.getTime() + DISCOVERY_SESSION_MS),
+		},
+	})
+	throw redirect(`/discover?mode=describe&session=${session.id}`)
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
-	const filters = parseDiscoveryQuery(new URL(request.url).searchParams)
+	if (viewerId) {
+		await prisma.aiDiscoverySession.deleteMany({
+			where: { ownerId: viewerId, expiresAt: { lte: new Date() } },
+		})
+	}
+	const searchParams = new URL(request.url).searchParams
+	const filters = parseDiscoveryQuery(searchParams)
+	const requestedSessionId = searchParams.get('session')
+	const discoverySession =
+		viewerId && filters.mode === 'describe' && requestedSessionId
+			? await prisma.aiDiscoverySession.findFirst({
+					where: {
+						id: requestedSessionId,
+						ownerId: viewerId,
+						expiresAt: { gt: new Date() },
+					},
+				})
+			: null
+	const sessionPhrases = discoverySession
+		? z
+				.array(z.string().max(500))
+				.parse(parseSessionValues(discoverySession.phrases))
+		: []
+	const sessionPlans = discoverySession
+		? z
+				.array(NaturalLanguageDiscoveryPlanSchema)
+				.parse(parseSessionValues(discoverySession.plans))
+		: []
+	const naturalPlan = discoverySession
+		? (sessionPlans[discoverySession.currentStep] ?? null)
+		: null
+	const previousNaturalPlan =
+		discoverySession && discoverySession.currentStep > 0
+			? (sessionPlans[discoverySession.currentStep - 1] ?? null)
+			: null
 	const recommendationGraphPromise =
 		viewerId &&
 		filters.mode === 'standard' &&
@@ -108,20 +378,37 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						fallbackReason: null,
 					}
 				: null
-	const [discovery, genres, statuses, watchlists, recommendationGraph] =
-		await Promise.all([
-			memorySearch
+	const [
+		discovery,
+		genres,
+		statuses,
+		watchlists,
+		recommendationGraph,
+		previousNaturalResults,
+	] = await Promise.all([
+		naturalPlan
+			? getDiscoveryResultsForPlan(naturalPlan, viewerId, {
+					page: filters.page,
+					filters,
+				})
+			: memorySearch
 				? getDiscoveryResultsForMediaIds(
 						filters,
 						viewerId,
 						memorySearch.matches.map(match => match.mediaId),
 					)
 				: getDiscoveryResults(filters, viewerId),
-			genresPromise,
-			statusesPromise,
-			watchlistsPromise,
-			recommendationGraphPromise,
-		])
+		genresPromise,
+		statusesPromise,
+		watchlistsPromise,
+		recommendationGraphPromise,
+		previousNaturalPlan
+			? getDiscoveryResultsForPlan(previousNaturalPlan, viewerId, {
+					page: 1,
+					filters,
+				})
+			: Promise.resolve(null),
+	])
 	if (memorySearch) {
 		const matchByMediaId = new Map(
 			memorySearch.matches.map(match => [match.mediaId, match]),
@@ -141,12 +428,30 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		memorySearchSource: memorySearch?.source ?? null,
 		memorySearchFallbackReason: memorySearch?.fallbackReason ?? null,
 		memoryQueryTooShort,
-		aiSearchAvailable: Boolean(viewerId && process.env.OPENAI_API_KEY?.trim()),
+		aiSearchAvailable: Boolean(
+			viewerId && isAiCapabilityConfigured('tip-of-tongue'),
+		),
+		naturalDiscoveryAvailable: Boolean(
+			viewerId && isAiCapabilityConfigured('natural-language-discovery'),
+		),
+		imageSearchAvailable: Boolean(
+			viewerId && isAiCapabilityConfigured('image-tip-of-tongue'),
+		),
 		genres,
 		statuses,
 		watchlists,
 		recommendationGraph,
 		isSignedIn: Boolean(viewerId),
+		naturalPlan,
+		naturalPlanChips: naturalPlan ? discoveryPlanChips(naturalPlan) : [],
+		discoverySession: discoverySession
+			? {
+					id: discoverySession.id,
+					currentStep: discoverySession.currentStep,
+					phrases: sessionPhrases,
+				}
+			: null,
+		previousNaturalTotal: previousNaturalResults?.total ?? null,
 	})
 }
 
@@ -180,7 +485,11 @@ function memorySearchStatus(data: {
 	}
 }
 
-function discoveryHref(filters: DiscoveryQuery, page: number) {
+function discoveryHref(
+	filters: DiscoveryQuery,
+	page: number,
+	sessionId?: string | null,
+) {
 	const searchParams = new URLSearchParams()
 	if (filters.q) searchParams.set('q', filters.q)
 	if (filters.kind !== 'all') searchParams.set('kind', filters.kind)
@@ -191,6 +500,7 @@ function discoveryHref(filters: DiscoveryQuery, page: number) {
 	if (filters.provider !== 'all') searchParams.set('provider', filters.provider)
 	if (filters.sort !== 'popular') searchParams.set('sort', filters.sort)
 	if (page > 1) searchParams.set('page', String(page))
+	if (sessionId) searchParams.set('session', sessionId)
 	const search = searchParams.toString()
 	return search ? `/discover?${search}` : '/discover'
 }
@@ -241,8 +551,10 @@ function HighlightedMemorySummary({
 
 export default function DiscoverRoute() {
 	const data = useLoaderData<typeof loader>()
+	const actionData = useActionData<typeof action>()
 	const location = useLocation()
 	const navigation = useNavigation()
+	const imageFetcher = useFetcher<typeof imageTipOfTongueAction>()
 	const pendingSearchParams = navigation.location
 		? new URLSearchParams(navigation.location.search)
 		: null
@@ -250,6 +562,11 @@ export default function DiscoverRoute() {
 		navigation.state !== 'idle' &&
 		(navigation.formData?.get('mode') === 'memory' ||
 			pendingSearchParams?.get('mode') === 'memory')
+	const describePending =
+		navigation.state !== 'idle' &&
+		String(navigation.formData?.get('intent') ?? '').startsWith('describe-')
+	const aiSearchPending = memorySearchPending || describePending
+	const imageSearchPending = imageFetcher.state !== 'idle'
 	const loginRedirectTo = `${location.pathname}${location.search}`
 	const filterKey = [
 		data.filters.q,
@@ -263,7 +580,7 @@ export default function DiscoverRoute() {
 	].join(':')
 
 	return (
-		<VeudPage aria-busy={memorySearchPending}>
+		<VeudPage aria-busy={aiSearchPending}>
 			<VeudPageHeader
 				eyebrow="Canonical catalog"
 				title="Discover"
@@ -288,33 +605,50 @@ export default function DiscoverRoute() {
 				>
 					<Link to="/discover?mode=memory">Tip of My Tongue</Link>
 				</Button>
+				<Button
+					asChild
+					variant={data.filters.mode === 'describe' ? 'default' : 'outline'}
+				>
+					<Link to="/discover?mode=describe">Describe what you want</Link>
+				</Button>
 			</nav>
 
 			<Form
 				key={filterKey}
-				method="get"
-				className={`discover-search-panel ${data.filters.mode === 'memory' ? 'discover-search-panel--memory' : ''}`}
+				method={data.filters.mode === 'describe' ? 'post' : 'get'}
+				className={`discover-search-panel ${data.filters.mode !== 'standard' ? 'discover-search-panel--memory' : ''}`}
 				aria-describedby={
-					data.filters.mode === 'memory' ? 'discover-memory-privacy' : undefined
+					data.filters.mode !== 'standard'
+						? 'discover-memory-privacy'
+						: undefined
 				}
 			>
 				{data.filters.mode === 'memory' ? (
 					<input type="hidden" name="mode" value="memory" />
 				) : null}
+				{data.filters.mode === 'describe' ? (
+					<input type="hidden" name="intent" value="describe-start" />
+				) : null}
 				<div
-					className={`space-y-2 ${data.filters.mode === 'memory' ? 'discover-memory-prompt' : ''}`}
+					className={`space-y-2 ${data.filters.mode !== 'standard' ? 'discover-memory-prompt' : ''}`}
 				>
 					<Label htmlFor="discover-query">
 						{data.filters.mode === 'memory'
 							? 'What do you remember?'
-							: 'Title or keyword'}
+							: data.filters.mode === 'describe'
+								? 'What would you like to discover?'
+								: 'Title or keyword'}
 					</Label>
-					{data.filters.mode === 'memory' ? (
+					{data.filters.mode !== 'standard' ? (
 						<textarea
 							id="discover-query"
 							name="q"
 							defaultValue={data.filters.q}
-							placeholder="A hand-drawn movie where a girl follows a white rabbit into a city that changes shape…"
+							placeholder={
+								data.filters.mode === 'memory'
+									? 'A hand-drawn movie where a girl follows a white rabbit into a city that changes shape…'
+									: 'A psychological anime from the 1990s, under 30 episodes, without much romance…'
+							}
 							minLength={3}
 							maxLength={500}
 							rows={5}
@@ -443,7 +777,7 @@ export default function DiscoverRoute() {
 							</select>
 						</div>
 					</>
-				) : (
+				) : data.filters.mode === 'memory' ? (
 					<div id="discover-memory-privacy" className="discover-memory-privacy">
 						<strong>
 							{data.aiSearchAvailable
@@ -459,24 +793,55 @@ export default function DiscoverRoute() {
 						</p>
 						<small>Do not include personal or sensitive information.</small>
 					</div>
+				) : (
+					<div id="discover-memory-privacy" className="discover-memory-privacy">
+						<strong>
+							{data.naturalDiscoveryAvailable
+								? 'Private natural-language discovery is ready'
+								: 'Natural-language discovery is currently disabled'}
+						</strong>
+						<p>
+							{data.naturalDiscoveryAvailable
+								? 'Only the request you write and selected media type are sent to OpenAI. Veud converts the request into visible filters, then searches and ranks the local catalog without sending titles, descriptions, provider metadata, or account history externally.'
+								: 'Standard catalog search remains available and sends nothing to OpenAI. An operator can enable this private filter compiler independently from other AI features.'}
+						</p>
+						<small>
+							Sign-in is required. Sessions expire automatically after two
+							hours.
+						</small>
+					</div>
 				)}
 				<div className="discover-search-actions">
 					<Button
 						type="submit"
 						className="flex-1 gap-2 lg:flex-none"
-						disabled={memorySearchPending}
+						disabled={
+							aiSearchPending ||
+							(data.filters.mode === 'describe' &&
+								(!data.isSignedIn || !data.naturalDiscoveryAvailable))
+						}
 					>
-						{memorySearchPending ? (
+						{aiSearchPending ? (
 							<>
 								<Icon
 									name="update"
 									className="animate-spin"
 									aria-hidden="true"
 								/>
-								Finding five matches…
+								{data.filters.mode === 'describe'
+									? 'Building local search…'
+									: 'Finding five matches…'}
 							</>
 						) : data.filters.mode === 'memory' ? (
 							'Find my five closest matches'
+						) : data.filters.mode === 'describe' ? (
+							data.isSignedIn && data.naturalDiscoveryAvailable ? (
+								'Build my discovery search'
+							) : data.isSignedIn ? (
+								'Discovery assistant disabled'
+							) : (
+								'Sign in to describe a search'
+							)
 						) : (
 							'Search catalog'
 						)}
@@ -486,7 +851,9 @@ export default function DiscoverRoute() {
 							to={
 								data.filters.mode === 'memory'
 									? '/discover?mode=memory'
-									: '/discover'
+									: data.filters.mode === 'describe'
+										? '/discover?mode=describe'
+										: '/discover'
 							}
 						>
 							Clear
@@ -494,6 +861,267 @@ export default function DiscoverRoute() {
 					</Button>
 				</div>
 			</Form>
+
+			{data.filters.mode === 'memory' && data.isSignedIn ? (
+				<section
+					className="discover-image-memory"
+					aria-labelledby="discover-image-memory-heading"
+				>
+					<div>
+						<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">
+							Image-assisted identification
+						</p>
+						<h2
+							id="discover-image-memory-heading"
+							className="mt-1 text-xl font-black text-veud-cream"
+						>
+							Search from a screenshot or cover
+						</h2>
+						<p className="mt-2 max-w-3xl text-sm text-veud-copy">
+							Veud validates and re-encodes your JPEG, PNG, or WebP upload to
+							remove metadata, then sends that image and the optional note below
+							to OpenAI. The image is never stored by Veud.
+						</p>
+					</div>
+					<imageFetcher.Form
+						method="post"
+						action="/resources/image-tip-of-tongue"
+						encType="multipart/form-data"
+						className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.35fr)_auto]"
+					>
+						<div className="space-y-2">
+							<Label htmlFor="tomt-image">Image</Label>
+							<Input
+								id="tomt-image"
+								name="image"
+								type="file"
+								accept="image/jpeg,image/png,image/webp"
+								required
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="tomt-image-kind">Media type</Label>
+							<select
+								id="tomt-image-kind"
+								name="kind"
+								defaultValue={data.filters.kind}
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+							>
+								{Object.entries(kindLabels).map(([value, label]) => (
+									<option key={value} value={value}>
+										{label}
+									</option>
+								))}
+							</select>
+						</div>
+						<Button
+							type="submit"
+							className="self-end"
+							disabled={imageSearchPending || !data.imageSearchAvailable}
+						>
+							{imageSearchPending
+								? 'Reading image…'
+								: data.imageSearchAvailable
+									? 'Identify image'
+									: 'Image identification disabled'}
+						</Button>
+						<div className="space-y-2 lg:col-span-3">
+							<Label htmlFor="tomt-image-prompt">
+								Optional remembered context
+							</Label>
+							<Input
+								id="tomt-image-prompt"
+								name="prompt"
+								maxLength={500}
+								placeholder="I remember this character standing beside a red train…"
+							/>
+						</div>
+					</imageFetcher.Form>
+					{imageSearchPending ? (
+						<div className="discover-image-progress" role="status">
+							<Icon name="update" className="animate-spin" aria-hidden="true" />
+							<span>
+								Safely processing the upload, identifying five titles, and
+								matching them to Veud’s catalog…
+							</span>
+						</div>
+					) : imageFetcher.data && !imageFetcher.data.ok ? (
+						<p
+							className="mt-4 rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-red-100"
+							role="alert"
+						>
+							{imageFetcher.data.error}
+						</p>
+					) : imageFetcher.data?.ok ? (
+						<div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+							{imageFetcher.data.items.map(item => {
+								const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
+								return (
+									<article key={item.id} className="discover-image-result">
+										<Link to={`/media/${item.id}`}>
+											<div className="aspect-[2/3] overflow-hidden rounded-xl bg-veud-ink">
+												{poster ? (
+													<img
+														src={poster}
+														alt=""
+														className="h-full w-full object-cover"
+													/>
+												) : (
+													<span className="flex h-full items-center justify-center p-4 text-center text-sm text-veud-sage">
+														No poster available
+													</span>
+												)}
+											</div>
+											<h3 className="mt-3 font-black text-veud-cream">
+												{item.title}
+											</h3>
+										</Link>
+										{item.memoryMatch ? (
+											<HighlightedMemorySummary
+												summary={item.memoryMatch.summary}
+												clues={item.memoryMatch.matchedClues}
+											/>
+										) : null}
+										<div className="mt-auto pt-3">
+											<QuickTrackControl
+												item={item}
+												watchlists={data.watchlists}
+												isSignedIn
+												loginRedirectTo={loginRedirectTo}
+												layout="stacked"
+											/>
+										</div>
+									</article>
+								)
+							})}
+						</div>
+					) : null}
+				</section>
+			) : null}
+
+			{data.naturalPlan && data.discoverySession ? (
+				<section className="rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:p-5">
+					{actionData && !actionData.ok ? (
+						<p
+							role="alert"
+							className="mb-4 rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-sm text-red-100"
+						>
+							{actionData.error}
+						</p>
+					) : null}
+					<div className="flex flex-wrap items-start justify-between gap-3">
+						<div>
+							<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">
+								Veud understood
+							</p>
+							<h2 className="mt-1 text-xl font-black text-veud-cream">
+								{data.naturalPlan.explanation}
+							</h2>
+						</div>
+						{data.discoverySession.currentStep > 0 ? (
+							<Form method="post">
+								<input type="hidden" name="intent" value="describe-undo" />
+								<input
+									type="hidden"
+									name="sessionId"
+									value={data.discoverySession!.id}
+								/>
+								<Button
+									type="submit"
+									variant="outline"
+									disabled={describePending}
+								>
+									Undo last refinement
+								</Button>
+							</Form>
+						) : null}
+					</div>
+					<div className="mt-4 grid gap-3 rounded-xl border border-veud-border/60 bg-black/10 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+						<ol className="grid gap-1 text-sm text-veud-copy">
+							{data.discoverySession.phrases.map((phrase, index) => (
+								<li
+									key={`${index}:${phrase}`}
+									className={
+										index === data.discoverySession!.currentStep
+											? 'font-bold text-veud-cream'
+											: ''
+									}
+								>
+									<span className="mr-2 text-veud-mint">{index + 1}.</span>
+									{phrase}
+								</li>
+							))}
+						</ol>
+						<p className="text-sm font-black text-veud-mint">
+							{data.total} result{data.total === 1 ? '' : 's'}
+							{data.previousNaturalTotal === null
+								? ''
+								: ` · ${data.total - data.previousNaturalTotal >= 0 ? '+' : ''}${data.total - data.previousNaturalTotal} this turn`}
+						</p>
+					</div>
+					<div
+						className="mt-4 flex flex-wrap gap-2"
+						aria-label="Active search constraints"
+					>
+						{data.naturalPlanChips.map(chip => (
+							<Form key={`${chip.type}:${chip.value}`} method="post">
+								<input type="hidden" name="intent" value="describe-remove" />
+								<input
+									type="hidden"
+									name="sessionId"
+									value={data.discoverySession!.id}
+								/>
+								<input type="hidden" name="chipType" value={chip.type} />
+								<input type="hidden" name="chipValue" value={chip.value} />
+								<button
+									type="submit"
+									className="min-h-9 rounded-full border border-veud-border bg-veud-canvas/70 px-3 py-1 text-sm text-veud-copy transition hover:border-red-300 hover:text-red-100"
+									aria-label={`Remove ${chip.type} ${chip.value}`}
+									title="Remove this constraint"
+								>
+									<strong>{chip.type}:</strong> {chip.value}{' '}
+									<span aria-hidden="true">×</span>
+								</button>
+							</Form>
+						))}
+					</div>
+					{data.naturalPlan.unsupportedConstraints.length ? (
+						<div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-950/20 p-3 text-sm text-amber-100">
+							<strong>Not directly applied:</strong>{' '}
+							{data.naturalPlan.unsupportedConstraints.join('; ')}
+						</div>
+					) : null}
+					<Form method="post" className="mt-4 flex flex-col gap-3 sm:flex-row">
+						<input type="hidden" name="intent" value="describe-refine" />
+						<input
+							type="hidden"
+							name="sessionId"
+							value={data.discoverySession.id}
+						/>
+						<Input
+							name="refinement"
+							required
+							maxLength={500}
+							placeholder="Refine it: less disturbing, series only, newer than 2010…"
+							aria-label="Refine this discovery search"
+						/>
+						<Button type="submit" disabled={describePending}>
+							{describePending ? 'Updating…' : 'Refine results'}
+						</Button>
+					</Form>
+					<Form method="post" className="mt-3">
+						<input type="hidden" name="intent" value="describe-relax" />
+						<input
+							type="hidden"
+							name="sessionId"
+							value={data.discoverySession.id}
+						/>
+						<Button type="submit" variant="ghost" disabled={describePending}>
+							Relax one constraint
+						</Button>
+					</Form>
+				</section>
+			) : null}
 
 			{memorySearchPending ? (
 				<section
@@ -551,6 +1179,20 @@ export default function DiscoverRoute() {
 									{data.preferredGenres.length
 										? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
 										: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
+								</p>
+							) : data.filters.sort === 'popular' ? (
+								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
+									Normalized provider popularity combines chart rank and
+									audience size within each media type. It does not compare raw
+									TMDB popularity with MAL rank. Veud uses provider observations
+									from the last eight days when available, then the most recent
+									normalized snapshot and a stable alphabetical catalog tail.
+								</p>
+							) : data.filters.sort === 'top-rated' ? (
+								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
+									Bayesian weighting combines rating quality with public rating
+									or audience counts, so a tiny sample cannot outrank an
+									established title by score alone.
 								</p>
 							) : null}
 						</div>
@@ -747,7 +1389,13 @@ export default function DiscoverRoute() {
 						>
 							{data.filters.page > 1 ? (
 								<Button asChild variant="outline">
-									<Link to={discoveryHref(data.filters, data.filters.page - 1)}>
+									<Link
+										to={discoveryHref(
+											data.filters,
+											data.filters.page - 1,
+											data.discoverySession?.id,
+										)}
+									>
 										Previous
 									</Link>
 								</Button>
@@ -761,7 +1409,13 @@ export default function DiscoverRoute() {
 							</span>
 							{data.filters.page < data.pageCount ? (
 								<Button asChild variant="outline">
-									<Link to={discoveryHref(data.filters, data.filters.page + 1)}>
+									<Link
+										to={discoveryHref(
+											data.filters,
+											data.filters.page + 1,
+											data.discoverySession?.id,
+										)}
+									>
 										Next
 									</Link>
 								</Button>

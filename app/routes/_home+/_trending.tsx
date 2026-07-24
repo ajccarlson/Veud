@@ -133,6 +133,13 @@ function TrendingRail({
 					<h3 id={headingId} className="text-xl font-black text-[#ffffb1]">
 						{rail.title}
 					</h3>
+					<span className="text-xs text-[#c6ded2]">
+						{rail.signal === 'trending'
+							? `Current provider chart${rail.observedAt ? ` · refreshed ${new Date(rail.observedAt).toLocaleDateString()}` : ''}`
+							: rail.signal === 'popular'
+								? `Normalized all-time popularity${rail.observedAt ? ` · refreshed ${new Date(rail.observedAt).toLocaleDateString()}` : ''}`
+								: 'Legacy catalog ordering · awaiting provider refresh'}
+					</span>
 					<Link
 						to={`/discover?kind=${rail.kind}&sort=popular`}
 						className="text-xs font-bold text-[#a2ffd5] hover:underline"
@@ -233,7 +240,11 @@ export function TrendingData({
 						id="home-trending-heading"
 						className="mt-1 text-3xl font-black text-[#ff9900] sm:text-4xl"
 					>
-						Trending now
+						{selectedRail?.signal === 'trending'
+							? 'Trending now'
+							: selectedRail?.signal === 'popular'
+								? 'Popular titles'
+								: 'Catalog highlights'}
 					</h2>
 					<p className="mt-2 max-w-2xl text-sm text-[#c6ded2]">
 						Fresh provider charts backed by Veud’s canonical catalog, with

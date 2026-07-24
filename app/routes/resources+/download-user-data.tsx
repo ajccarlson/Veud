@@ -40,6 +40,8 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			libraryImportBatches: {
 				include: { items: true },
 			},
+			aiDiscoverySessions: true,
+			trackingCommandPreviews: true,
 			moderationReportsSubmitted: {
 				select: {
 					id: true,

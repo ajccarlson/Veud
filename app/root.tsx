@@ -1,6 +1,7 @@
 // import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
+import { useEffect } from 'react'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -44,6 +45,7 @@ import {
 import { Icon, href as iconsHref } from './components/ui/icon.tsx'
 import { EpicToaster } from './components/ui/sonner.tsx'
 import tailwindStyleSheetUrl from './styles/tailwind.css?url'
+import { isAiCapabilityConfigured } from './utils/ai-gateway.server.ts'
 import { getUserId, logout } from './utils/auth.server.ts'
 import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx'
 import { prisma } from './utils/db.server.ts'
@@ -177,7 +179,12 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			user,
 			unreadNotificationCount,
 			listTypes,
-			aiSearchAvailable: Boolean(userId && process.env.OPENAI_API_KEY?.trim()),
+			aiSearchAvailable: Boolean(
+				userId && isAiCapabilityConfigured('tip-of-tongue'),
+			),
+			aiDiscoveryAvailable: Boolean(
+				userId && isAiCapabilityConfigured('natural-language-discovery'),
+			),
 			requestInfo: {
 				hints: getHints(request),
 				origin: getDomainUrl(request),
@@ -307,6 +314,20 @@ function App() {
 	// const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	// const searchBar = isOnSearchPage ? null : <SearchBar status="idle" />
 	useToast(data.toast)
+	useEffect(() => {
+		const updateVisibility = () => {
+			document.documentElement.classList.toggle(
+				'veud-document-hidden',
+				document.hidden,
+			)
+		}
+		updateVisibility()
+		document.addEventListener('visibilitychange', updateVisibility)
+		return () => {
+			document.removeEventListener('visibilitychange', updateVisibility)
+			document.documentElement.classList.remove('veud-document-hidden')
+		}
+	}, [])
 
 	return (
 		<Document nonce={nonce} theme={theme} env={data.ENV}>
@@ -336,6 +357,7 @@ function App() {
 						<MobileNavigation />
 						<SiteSearch
 							aiAvailable={data.aiSearchAvailable}
+							discoveryAiAvailable={data.aiDiscoveryAvailable}
 							isSignedIn={Boolean(data.user)}
 						/>
 						{user ? (
@@ -426,6 +448,10 @@ function MobileNavigation() {
 				{user ? (
 					<>
 						<span className="root-mobile-nav-divider" aria-hidden="true" />
+						<Link to="/assistant" prefetch="intent">
+							<Icon name="magic-wand" aria-hidden="true" />
+							Tracking assistant
+						</Link>
 						<Link to={`/lists/${user.username}`} prefetch="intent">
 							<Icon name="list-bullet" aria-hidden="true" />
 							My lists
@@ -492,6 +518,8 @@ function AppWithProviders() {
 export default AppWithProviders
 
 function CommunityDropdown() {
+	const user = useOptionalUser()
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -515,6 +543,19 @@ function CommunityDropdown() {
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
+					{user ? (
+						<DropdownMenuItem asChild>
+							<Link
+								className="root-community-link-item"
+								prefetch="intent"
+								to="/assistant"
+							>
+								<Icon className="text-body-md" name="magic-wand">
+									Assistant
+								</Icon>
+							</Link>
+						</DropdownMenuItem>
+					) : null}
 					<DropdownMenuItem asChild>
 						<Link
 							className="root-community-link-item"

@@ -143,6 +143,9 @@ export async function upsertCatalogIdentity(
 		sourceUpdatedAt?: Date | null
 		sourceTitle?: string | null
 		sourcePopularity?: number | null
+		sourceRank?: number | null
+		sourceAudience?: number | null
+		sourceRatingCount?: number | null
 		sourceIsAdult?: boolean | null
 		sourceIsVideo?: boolean | null
 		seenAt?: Date
@@ -170,6 +173,15 @@ export async function upsertCatalogIdentity(
 			...(input.sourcePopularity === undefined
 				? {}
 				: { sourcePopularity: input.sourcePopularity }),
+			...(input.sourceRank === undefined
+				? {}
+				: { sourceRank: input.sourceRank }),
+			...(input.sourceAudience === undefined
+				? {}
+				: { sourceAudience: input.sourceAudience }),
+			...(input.sourceRatingCount === undefined
+				? {}
+				: { sourceRatingCount: input.sourceRatingCount }),
 			...(input.sourceIsAdult === undefined
 				? {}
 				: { sourceIsAdult: input.sourceIsAdult }),
@@ -194,6 +206,9 @@ export async function upsertCatalogIdentity(
 			sourceUpdatedAt: input.sourceUpdatedAt,
 			sourceTitle,
 			sourcePopularity: input.sourcePopularity,
+			sourceRank: input.sourceRank,
+			sourceAudience: input.sourceAudience,
+			sourceRatingCount: input.sourceRatingCount,
 			sourceIsAdult: input.sourceIsAdult,
 			sourceIsVideo: input.sourceIsVideo,
 			media: {

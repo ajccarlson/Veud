@@ -11,8 +11,10 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { Button } from '#app/components/ui/button.tsx'
+import { AiGatewayError } from '#app/utils/ai-gateway.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { assistLibraryImportReconciliation } from '#app/utils/library-import-ai.server.ts'
 import {
 	applyLibraryImportBatch,
 	LibraryImportError,
@@ -68,6 +70,22 @@ function candidates(value: string) {
 						: [],
 				)
 			: []
+	} catch {
+		return []
+	}
+}
+
+function aiHypotheses(value: string | null) {
+	if (!value) return []
+	try {
+		return z
+			.array(
+				z.object({
+					title: z.string(),
+					uncertainty: z.enum(['low', 'medium', 'high']),
+				}),
+			)
+			.parse(JSON.parse(value) as unknown)
 	} catch {
 		return []
 	}
@@ -168,6 +186,8 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 						mediaTitle: item.media?.title ?? null,
 						mediaThumbnail: item.media?.thumbnail ?? null,
 						appliedAt: item.appliedAt,
+						aiHypotheses: aiHypotheses(item.aiHypotheses),
+						aiPromptVersion: item.aiPromptVersion,
 					})),
 					page,
 					pageCount: Math.max(1, Math.ceil(selected.itemCount / 100)),
@@ -432,6 +452,18 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			.safeParse(formData.get('batchId'))
 		if (!batchId.success)
 			throw new LibraryImportError('Import batch not found.')
+		if (intent === 'ai-reconcile') {
+			const result = await assistLibraryImportReconciliation(prisma, {
+				ownerId,
+				batchId: batchId.data,
+				rateLimitKey: `viewer:${ownerId}`,
+			})
+			return json({
+				ok: true as const,
+				message: `Prepared local candidates for ${entriesLabel(result.assistedCount)}. Review every suggestion before importing.`,
+				batchId: batchId.data,
+			})
+		}
 		if (intent === 'apply') {
 			const result = await prisma.$transaction(
 				tx => applyLibraryImportBatch(tx, { ownerId, batchId: batchId.data }),
@@ -480,6 +512,27 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			return json(
 				{ ok: false as const, error: error.message },
 				{ status: error.status },
+			)
+		}
+		if (error instanceof Response) {
+			return json(
+				{
+					ok: false as const,
+					error: await error.text(),
+				},
+				{ status: error.status },
+			)
+		}
+		if (error instanceof AiGatewayError) {
+			return json(
+				{
+					ok: false as const,
+					error:
+						error.reason === 'rate-limited'
+							? 'AI title assistance has reached its temporary limit. Deterministic import matching remains available.'
+							: 'AI title assistance is temporarily unavailable. Your preview is unchanged.',
+				},
+				{ status: error.reason === 'rate-limited' ? 429 : 503 },
 			)
 		}
 		throw error
@@ -589,6 +642,35 @@ export default function ProfileImportRoute() {
 						<div className="flex flex-wrap gap-2">
 							{selected.status === 'previewed' ? (
 								<>
+									{selected.ambiguousCount + selected.unmatchedCount > 0 ? (
+										<div className="max-w-sm">
+											<Form method="post">
+												<input
+													type="hidden"
+													name="intent"
+													value="ai-reconcile"
+												/>
+												<input
+													type="hidden"
+													name="batchId"
+													value={selected.id}
+												/>
+												<Button type="submit" variant="outline">
+													Assist up to{' '}
+													{Math.min(
+														25,
+														selected.ambiguousCount + selected.unmatchedCount,
+													)}{' '}
+													unresolved titles
+												</Button>
+											</Form>
+											<p className="mt-1 text-xs leading-5 text-veud-copy">
+												Opt-in: sends only each unresolved imported title, media
+												kind, and provider label to OpenAI. Catalog candidates
+												and your tracking history stay local.
+											</p>
+										</div>
+									) : null}
 									{selected.conflictCount ? (
 										<Form
 											method="post"
@@ -701,6 +783,24 @@ export default function ProfileImportRoute() {
 														? ' This item already has Veud tracking data; choose merge, replace, or skip.'
 														: ''}
 												</p>
+												{item.aiHypotheses.length ? (
+													<div className="mt-2 rounded-lg border border-veud-mint/25 bg-veud-mint/5 p-2 text-xs text-veud-copy">
+														<strong className="text-veud-mint">
+															AI title hypotheses:
+														</strong>{' '}
+														{item.aiHypotheses
+															.map(
+																hypothesis =>
+																	`${hypothesis.title} (${hypothesis.uncertainty} uncertainty)`,
+															)
+															.join(' · ')}
+														<p className="mt-1">
+															Veud matched these phrases locally. No catalog
+															candidate was sent to OpenAI and nothing is
+															selected automatically.
+														</p>
+													</div>
+												) : null}
 											</div>
 										</div>
 										<span className="rounded-full border border-veud-border px-3 py-1 text-xs font-black capitalize text-veud-mint">
