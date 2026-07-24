@@ -13,6 +13,11 @@ import {
 	VeudPageHeader,
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
+import {
+	aiCapabilities,
+	getAiGatewayTelemetry,
+	isAiCapabilityConfigured,
+} from '#app/utils/ai-gateway.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getRuntimeOperationsSnapshot } from '#app/utils/operations-observability.server.ts'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
@@ -79,6 +84,36 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				  runtime.requests.p95Ms >= 1_500
 				? 'degraded'
 				: 'healthy'
+	const aiEvents = getAiGatewayTelemetry()
+	const ai = aiCapabilities.map(capability => {
+		const events = aiEvents.filter(event => event.capability === capability)
+		const durations = events
+			.map(event => event.durationMs)
+			.sort((left, right) => left - right)
+		return {
+			capability,
+			enabled: isAiCapabilityConfigured(capability),
+			requests: events.length,
+			successes: events.filter(event => event.outcome === 'success').length,
+			fallbacks: events.filter(event => event.outcome !== 'success').length,
+			p95Ms: durations.length
+				? durations[
+						Math.min(
+							durations.length - 1,
+							Math.ceil(durations.length * 0.95) - 1,
+						)
+					]!
+				: null,
+			inputTokens: events.reduce(
+				(sum, event) => sum + (event.inputTokens ?? 0),
+				0,
+			),
+			outputTokens: events.reduce(
+				(sum, event) => sum + (event.outputTokens ?? 0),
+				0,
+			),
+		}
+	})
 
 	return json(
 		{
@@ -93,6 +128,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				canonicalOrigin: Boolean(process.env.VEUD_ORIGIN),
 			},
 			incidents,
+			ai,
 		},
 		{ headers: { 'Cache-Control': 'private, no-store' } },
 	)
@@ -352,6 +388,65 @@ export default function OperationsAdminRoute() {
 					</dl>
 				</VeudPanel>
 			</section>
+
+			<VeudPanel aria-labelledby="ai-operations-heading">
+				<div>
+					<h2
+						id="ai-operations-heading"
+						className="text-xl font-black text-veud-yellow"
+					>
+						AI capability health
+					</h2>
+					<p className="mt-1 text-sm text-veud-copy">
+						Process-local, privacy-safe telemetry only: capability, outcome,
+						latency, and token counts. Prompts, drafts, reports, and images are
+						never logged here. Set VEUD_AI_ENABLED=false for the global kill
+						switch.
+					</p>
+				</div>
+				<div className="mt-4 overflow-x-auto">
+					<table className="w-full min-w-[680px] text-left text-sm">
+						<thead className="text-xs uppercase tracking-wide text-veud-mint">
+							<tr>
+								{[
+									'Capability',
+									'State',
+									'Requests',
+									'Success',
+									'Fallback',
+									'p95',
+									'Tokens in / out',
+								].map(label => (
+									<th key={label} className="px-3 py-2">
+										{label}
+									</th>
+								))}
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-veud-border/60">
+							{snapshot.ai.map(item => (
+								<tr key={item.capability}>
+									<td className="px-3 py-2 font-black text-veud-cream">
+										{item.capability.replaceAll('-', ' ')}
+									</td>
+									<td className="px-3 py-2">
+										{item.enabled ? 'enabled' : 'disabled'}
+									</td>
+									<td className="px-3 py-2">{item.requests}</td>
+									<td className="px-3 py-2">{item.successes}</td>
+									<td className="px-3 py-2">{item.fallbacks}</td>
+									<td className="px-3 py-2">
+										{item.p95Ms === null ? '—' : `${item.p95Ms} ms`}
+									</td>
+									<td className="px-3 py-2">
+										{item.inputTokens} / {item.outputTokens}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</VeudPanel>
 
 			<VeudPanel aria-labelledby="recent-errors-heading">
 				<div className="flex flex-wrap items-end justify-between gap-3">

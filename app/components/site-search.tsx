@@ -1,11 +1,13 @@
-import { Form, useLocation } from 'react-router'
+import { Form, Link, useLocation } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 
 export function SiteSearch({
 	aiAvailable,
+	discoveryAiAvailable,
 	isSignedIn,
 }: {
 	aiAvailable: boolean
+	discoveryAiAvailable: boolean
 	isSignedIn: boolean
 }) {
 	const location = useLocation()
@@ -17,7 +19,8 @@ export function SiteSearch({
 		? requestedKind
 		: 'all'
 	const isMemoryMode = isDiscover && searchParams.get('mode') === 'memory'
-	const stateKey = `${query}:${kind}:${isMemoryMode ? 'memory' : 'standard'}`
+	const isDescribeMode = isDiscover && searchParams.get('mode') === 'describe'
+	const stateKey = `${query}:${kind}:${isMemoryMode ? 'memory' : isDescribeMode ? 'describe' : 'standard'}`
 
 	return (
 		<Form
@@ -56,7 +59,7 @@ export function SiteSearch({
 			</button>
 			<details
 				className="site-search-advanced"
-				data-active={isMemoryMode || undefined}
+				data-active={isMemoryMode || isDescribeMode || undefined}
 			>
 				<summary aria-label="Advanced search settings" title="Advanced search">
 					<Icon name="magic-wand" aria-hidden="true" />
@@ -82,6 +85,22 @@ export function SiteSearch({
 							</small>
 						</span>
 					</label>
+					{isSignedIn ? (
+						<Link
+							to="/discover?mode=describe"
+							className="site-search-discovery-link"
+						>
+							<Icon name="chat-bubble" aria-hidden="true" />
+							<span>
+								<strong>Describe what you want</strong>
+								<small>
+									{discoveryAiAvailable
+										? 'Turn a natural-language request into private local catalog filters.'
+										: 'Natural-language filter compilation is currently disabled; standard search remains available.'}
+								</small>
+							</span>
+						</Link>
+					) : null}
 				</div>
 			</details>
 		</Form>

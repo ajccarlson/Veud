@@ -38,6 +38,8 @@ const commonFields = [
 	'synopsis',
 	'mean',
 	'popularity',
+	'num_list_users',
+	'num_scoring_users',
 	'nsfw',
 	'updated_at',
 	'media_type',
@@ -82,6 +84,9 @@ export type NormalizedMalDetails = {
 	sourceTitle: string
 	sourceUpdatedAt: Date | null
 	sourcePopularity: number | null
+	sourceRank: number | null
+	sourceAudience: number | null
+	sourceRatingCount: number | null
 	sourceIsAdult: boolean | null
 	catalog: Record<string, unknown>
 	titles: Array<{
@@ -180,10 +185,7 @@ function titleCase(value: string | null) {
 		.replace(/\b\w/g, character => character.toUpperCase())
 }
 
-function statusConfirmsNoUpcomingRelease(
-	value: unknown,
-	kind: MalCatalogKind,
-) {
+function statusConfirmsNoUpcomingRelease(value: unknown, kind: MalCatalogKind) {
 	const status = optionalString(value)?.toLowerCase()
 	if (!status) return false
 	return kind === 'anime'
@@ -407,6 +409,11 @@ export function normalizeMalDetails(
 					? `${titleCase(seasonName)} ${seasonYear}`
 					: null,
 			length: animeLength(payload),
+			episodeCount: optionalPositiveInteger(payload.num_episodes),
+			runtimeMinutes: (() => {
+				const seconds = optionalNumber(payload.average_episode_duration)
+				return seconds === null ? null : Math.max(1, Math.round(seconds / 60))
+			})(),
 			rating: contentRating(payload.rating),
 			studios: studios.length ? JSON.stringify(studios) : null,
 		})
@@ -427,6 +434,8 @@ export function normalizeMalDetails(
 		Object.assign(catalog, {
 			chapters: chapters ? String(chapters) : null,
 			volumes: volumes ? String(volumes) : null,
+			chapterCount: chapters,
+			volumeCount: volumes,
 			serialization: serialization.length
 				? JSON.stringify(serialization)
 				: null,
@@ -438,6 +447,9 @@ export function normalizeMalDetails(
 		sourceTitle: title,
 		sourceUpdatedAt: optionalDate(payload.updated_at),
 		sourcePopularity: malCatalogPopularity(popularityRank),
+		sourceRank: popularityRank,
+		sourceAudience: optionalPositiveInteger(payload.num_list_users),
+		sourceRatingCount: optionalPositiveInteger(payload.num_scoring_users),
 		sourceIsAdult: malSourceIsAdult(optionalString(payload.nsfw)),
 		catalog,
 		titles: [
@@ -876,6 +888,17 @@ export async function hydrateMalCatalog(
 							...(result.details.sourcePopularity === null
 								? {}
 								: { sourcePopularity: result.details.sourcePopularity }),
+							...(result.details.sourceRank === null
+								? {}
+								: { sourceRank: result.details.sourceRank }),
+							...(result.details.sourceAudience === null
+								? {}
+								: { sourceAudience: result.details.sourceAudience }),
+							...(result.details.sourceRatingCount === null
+								? {}
+								: {
+										sourceRatingCount: result.details.sourceRatingCount,
+									}),
 							...(result.details.sourceIsAdult === null
 								? {}
 								: { sourceIsAdult: result.details.sourceIsAdult }),

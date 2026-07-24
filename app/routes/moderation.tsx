@@ -18,7 +18,9 @@ import {
 	VeudPageHeader,
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
+import { AiGatewayError } from '#app/utils/ai-gateway.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { assessModerationReport } from '#app/utils/moderation-ai.server.ts'
 import {
 	findModerationTarget,
 	moderateAccount,
@@ -57,6 +59,14 @@ function displayTime(value: Date | string) {
 	})
 }
 
+function storedStringArray(value: string) {
+	try {
+		return z.array(z.string()).parse(JSON.parse(value) as unknown)
+	} catch {
+		return []
+	}
+}
+
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	const actorId = await requireUserWithPermission(request, 'read:report:any', {
 		url,
@@ -71,132 +81,139 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				? { status: { in: ['open', 'in_review'] } }
 				: { status: filters.status }
 
-	const [
-		reportCounts,
-		reports,
-		recentActions,
-		staff,
-		members,
-		actor,
-	] = await Promise.all([
-		prisma.moderationReport.groupBy({
-			by: ['status'],
-			_count: { _all: true },
-		}),
-		prisma.moderationReport.findMany({
-			where: reportWhere,
-			orderBy: [
-				{ priority: 'asc' },
-				{ createdAt: 'asc' },
-				{ id: 'asc' },
-			],
-			take: 60,
-			select: {
-				id: true,
-				targetType: true,
-				targetId: true,
-				reasonCategory: true,
-				details: true,
-				status: true,
-				priority: true,
-				resolutionNote: true,
-				createdAt: true,
-				reporter: { select: { username: true } },
-				subject: {
-					select: {
-						id: true,
-						username: true,
-						accountStatus: true,
-						roles: { select: { name: true } },
+	const [reportCounts, reports, recentActions, staff, members, actor] =
+		await Promise.all([
+			prisma.moderationReport.groupBy({
+				by: ['status'],
+				_count: { _all: true },
+			}),
+			prisma.moderationReport.findMany({
+				where: reportWhere,
+				orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+				take: 60,
+				select: {
+					id: true,
+					targetType: true,
+					targetId: true,
+					reasonCategory: true,
+					details: true,
+					status: true,
+					priority: true,
+					resolutionNote: true,
+					createdAt: true,
+					reporter: { select: { username: true } },
+					subject: {
+						select: {
+							id: true,
+							username: true,
+							accountStatus: true,
+							roles: { select: { name: true } },
+						},
+					},
+					assignedTo: { select: { username: true } },
+					appealOfAction: {
+						select: {
+							action: true,
+							reason: true,
+							createdAt: true,
+						},
+					},
+					aiAssessments: {
+						orderBy: { createdAt: 'desc' },
+						take: 1,
+						select: {
+							id: true,
+							categories: true,
+							severity: true,
+							confidence: true,
+							evidence: true,
+							uncertainty: true,
+							recommendedQueue: true,
+							model: true,
+							promptVersion: true,
+							policyVersion: true,
+							createdAt: true,
+						},
 					},
 				},
-				assignedTo: { select: { username: true } },
-				appealOfAction: {
-					select: {
-						action: true,
-						reason: true,
-						createdAt: true,
+			}),
+			prisma.moderationAction.findMany({
+				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+				take: filters.view === 'audit' ? 100 : 12,
+				select: {
+					id: true,
+					action: true,
+					targetType: true,
+					targetId: true,
+					reason: true,
+					details: true,
+					previousStatus: true,
+					nextStatus: true,
+					createdAt: true,
+					actor: { select: { username: true } },
+					subject: { select: { username: true } },
+				},
+			}),
+			prisma.user.findMany({
+				where: {
+					roles: {
+						some: {
+							name: { in: ['moderator', 'community-admin', 'admin'] },
+						},
 					},
 				},
-			},
-		}),
-		prisma.moderationAction.findMany({
-			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-			take: filters.view === 'audit' ? 100 : 12,
-			select: {
-				id: true,
-				action: true,
-				targetType: true,
-				targetId: true,
-				reason: true,
-				details: true,
-				previousStatus: true,
-				nextStatus: true,
-				createdAt: true,
-				actor: { select: { username: true } },
-				subject: { select: { username: true } },
-			},
-		}),
-		prisma.user.findMany({
-			where: {
-				roles: {
-					some: {
-						name: { in: ['moderator', 'community-admin', 'admin'] },
-					},
+				orderBy: [{ username: 'asc' }],
+				select: {
+					id: true,
+					username: true,
+					name: true,
+					accountStatus: true,
+					lastActiveAt: true,
+					roles: { select: { name: true } },
 				},
-			},
-			orderBy: [{ username: 'asc' }],
-			select: {
-				id: true,
-				username: true,
-				name: true,
-				accountStatus: true,
-				lastActiveAt: true,
-				roles: { select: { name: true } },
-			},
-		}),
-		filters.q
-			? prisma.user.findMany({
-					where: {
-						OR: [
-							{ username: { contains: filters.q } },
-							{ name: { contains: filters.q } },
-						],
-					},
-					orderBy: [{ lastActiveAt: 'desc' }, { username: 'asc' }],
-					take: 30,
-					select: {
-						id: true,
-						username: true,
-						name: true,
-						accountStatus: true,
-						suspensionEndsAt: true,
-						roles: { select: { name: true } },
-						_count: {
-							select: {
-								reviews: true,
-								collectionComments: true,
-								commentsAuthored: true,
+			}),
+			filters.q
+				? prisma.user.findMany({
+						where: {
+							OR: [
+								{ username: { contains: filters.q } },
+								{ name: { contains: filters.q } },
+							],
+						},
+						orderBy: [{ lastActiveAt: 'desc' }, { username: 'asc' }],
+						take: 30,
+						select: {
+							id: true,
+							username: true,
+							name: true,
+							accountStatus: true,
+							suspensionEndsAt: true,
+							roles: { select: { name: true } },
+							_count: {
+								select: {
+									reviews: true,
+									collectionComments: true,
+									commentsAuthored: true,
+								},
+							},
+						},
+					})
+				: [],
+			prisma.user.findUniqueOrThrow({
+				where: { id: actorId },
+				select: {
+					roles: {
+						select: {
+							name: true,
+							permissions: {
+								where: { action: 'assign', entity: 'role', access: 'any' },
+								select: { id: true },
 							},
 						},
 					},
-				})
-			: [],
-		prisma.user.findUniqueOrThrow({
-			where: { id: actorId },
-			select: {
-				roles: {
-					select: {
-						name: true,
-						permissions: {
-							where: { action: 'assign', entity: 'role', access: 'any' },
-							select: { id: true },
-						},
-					},
 				},
-			},
-		}),
-	])
+			}),
+		])
 	const targets = await prisma.$transaction(tx =>
 		Promise.all(
 			reports.map(report =>
@@ -216,6 +233,13 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			reports: reports.map((report, index) => ({
 				...report,
 				target: targets[index],
+				aiAssessment: report.aiAssessments[0]
+					? {
+							...report.aiAssessments[0],
+							categories: storedStringArray(report.aiAssessments[0].categories),
+							evidence: storedStringArray(report.aiAssessments[0].evidence),
+						}
+					: null,
 			})),
 			recentActions,
 			staff,
@@ -236,11 +260,60 @@ export async function action({ request, url }: ActionFunctionArgs) {
 	const base = BaseActionSchema.safeParse(formData)
 	if (!base.success) {
 		return json(
-			{ ok: false as const, error: 'A clear reason of at least 3 characters is required.' },
+			{
+				ok: false as const,
+				error: 'A clear reason of at least 3 characters is required.',
+			},
 			{ status: 400 },
 		)
 	}
 	const { intent, reason } = base.data
+	if (intent === 'ai-triage') {
+		const actorId = await requireUserWithPermission(
+			request,
+			'update:report:any',
+			{ url },
+		)
+		const parsed = z
+			.object({ reportId: z.string().min(1).max(100) })
+			.safeParse(formData)
+		if (!parsed.success) {
+			throw new Response('Invalid report triage action', { status: 400 })
+		}
+		try {
+			await assessModerationReport(prisma, {
+				actorId,
+				reportId: parsed.data.reportId,
+				rateLimitKey: `staff:${actorId}`,
+			})
+		} catch (error) {
+			return json(
+				{
+					ok: false as const,
+					error:
+						error instanceof Response
+							? await error.text()
+							: error instanceof AiGatewayError &&
+								  error.reason === 'rate-limited'
+								? 'Machine triage has reached its temporary limit. The report remains available for normal human review.'
+								: 'Machine triage is temporarily unavailable. The report and all human moderation controls are unchanged.',
+				},
+				{
+					status:
+						error instanceof Response
+							? error.status
+							: error instanceof AiGatewayError &&
+								  error.reason === 'rate-limited'
+								? 429
+								: 503,
+				},
+			)
+		}
+		return json({
+			ok: true as const,
+			message: 'Machine triage refreshed. A human decision is still required.',
+		})
+	}
 	if (
 		intent === 'assign-self' ||
 		intent === 'resolve' ||
@@ -255,7 +328,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		const parsed = z
 			.object({ reportId: z.string().min(1).max(100) })
 			.safeParse(formData)
-		if (!parsed.success) throw new Response('Invalid report action', { status: 400 })
+		if (!parsed.success)
+			throw new Response('Invalid report action', { status: 400 })
 		const result = await prisma.$transaction(tx =>
 			updateReportWorkflow(tx, {
 				actorId,
@@ -264,7 +338,10 @@ export async function action({ request, url }: ActionFunctionArgs) {
 				note: reason,
 			}),
 		)
-		return json({ ok: true as const, message: `Report marked ${result.status}.` })
+		return json({
+			ok: true as const,
+			message: `Report marked ${result.status}.`,
+		})
 	}
 	if (intent === 'hide-content' || intent === 'restore-content') {
 		const actorId = await requireUserWithPermission(
@@ -285,7 +362,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 				reportId: z.string().max(100).optional(),
 			})
 			.safeParse(formData)
-		if (!parsed.success) throw new Response('Invalid content action', { status: 400 })
+		if (!parsed.success)
+			throw new Response('Invalid content action', { status: 400 })
 		await prisma.$transaction(tx =>
 			moderateContent(tx, {
 				actorId,
@@ -297,7 +375,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		)
 		return json({
 			ok: true as const,
-			message: intent === 'hide-content' ? 'Content hidden.' : 'Content restored.',
+			message:
+				intent === 'hide-content' ? 'Content hidden.' : 'Content restored.',
 		})
 	}
 	if (intent === 'warn' || intent === 'suspend' || intent === 'restore') {
@@ -313,7 +392,8 @@ export async function action({ request, url }: ActionFunctionArgs) {
 				suspensionDays: z.coerce.number().int().min(1).max(365).optional(),
 			})
 			.safeParse(formData)
-		if (!parsed.success) throw new Response('Invalid account action', { status: 400 })
+		if (!parsed.success)
+			throw new Response('Invalid account action', { status: 400 })
 		await prisma.$transaction(tx =>
 			moderateAccount(tx, {
 				actorId,
@@ -324,16 +404,24 @@ export async function action({ request, url }: ActionFunctionArgs) {
 				reason,
 			}),
 		)
-		return json({ ok: true as const, message: `Account action “${intent}” recorded.` })
+		return json({
+			ok: true as const,
+			message: `Account action “${intent}” recorded.`,
+		})
 	}
 	if (intent === 'grant-moderator' || intent === 'revoke-moderator') {
-		const actorId = await requireUserWithPermission(request, 'assign:role:any', {
-			url,
-		})
+		const actorId = await requireUserWithPermission(
+			request,
+			'assign:role:any',
+			{
+				url,
+			},
+		)
 		const parsed = z
 			.object({ username: z.string().trim().min(1).max(40) })
 			.safeParse(formData)
-		if (!parsed.success) throw new Response('Invalid role action', { status: 400 })
+		if (!parsed.success)
+			throw new Response('Invalid role action', { status: 400 })
 		const result = await prisma.$transaction(tx =>
 			setModeratorRole(tx, {
 				actorId,
@@ -414,7 +502,11 @@ function ActionForm({
 			<Button
 				type="submit"
 				size="sm"
-				variant={intent.includes('suspend') || intent.includes('hide') ? 'destructive' : 'outline'}
+				variant={
+					intent.includes('suspend') || intent.includes('hide')
+						? 'destructive'
+						: 'outline'
+				}
 				disabled={navigation.state !== 'idle'}
 			>
 				{children}
@@ -443,13 +535,15 @@ export default function ModerationDashboard() {
 				title="Moderation"
 				description={
 					<p>
-						Triage member reports, apply reversible enforcement, and keep
-						every staff decision accountable.
+						Triage member reports, apply reversible enforcement, and keep every
+						staff decision accountable.
 					</p>
 				}
 				actions={
 					<div className="rounded-xl border border-veud-border bg-veud-surface px-4 py-3 text-center">
-						<p className="text-2xl font-black text-veud-yellow">{activeCount}</p>
+						<p className="text-2xl font-black text-veud-yellow">
+							{activeCount}
+						</p>
 						<p className="text-xs font-bold uppercase tracking-wide text-veud-mint">
 							active reports
 						</p>
@@ -494,10 +588,16 @@ export default function ModerationDashboard() {
 			</nav>
 
 			{data.filters.view === 'queue' ? (
-				<section className="space-y-4" aria-labelledby="moderation-queue-heading">
+				<section
+					className="space-y-4"
+					aria-labelledby="moderation-queue-heading"
+				>
 					<div className="flex flex-wrap items-end justify-between gap-3">
 						<div>
-							<h2 id="moderation-queue-heading" className="text-2xl font-black text-veud-yellow">
+							<h2
+								id="moderation-queue-heading"
+								className="text-2xl font-black text-veud-yellow"
+							>
 								Report queue
 							</h2>
 							<p className="text-sm text-veud-copy">
@@ -505,20 +605,27 @@ export default function ModerationDashboard() {
 							</p>
 						</div>
 						<div className="flex flex-wrap gap-2">
-							{['active', 'open', 'in_review', 'resolved', 'dismissed', 'all'].map(
-								status => (
-									<Button
-										key={status}
-										asChild
-										size="sm"
-										variant={data.filters.status === status ? 'secondary' : 'ghost'}
-									>
-										<Link to={dashboardHref('queue', status)}>
-											{status.replace('_', ' ')}
-										</Link>
-									</Button>
-								),
-							)}
+							{[
+								'active',
+								'open',
+								'in_review',
+								'resolved',
+								'dismissed',
+								'all',
+							].map(status => (
+								<Button
+									key={status}
+									asChild
+									size="sm"
+									variant={
+										data.filters.status === status ? 'secondary' : 'ghost'
+									}
+								>
+									<Link to={dashboardHref('queue', status)}>
+										{status.replace('_', ' ')}
+									</Link>
+								</Button>
+							))}
 						</div>
 					</div>
 					{data.reports.length ? (
@@ -530,7 +637,11 @@ export default function ModerationDashboard() {
 									: null
 								const href =
 									targetType && target
-										? moderationTargetHref(targetType, target.id, target.context)
+										? moderationTargetHref(
+												targetType,
+												target.id,
+												target.context,
+											)
 										: null
 								return (
 									<VeudPanel
@@ -604,6 +715,73 @@ export default function ModerationDashboard() {
 												? `@${report.assignedTo.username}`
 												: 'nobody'}
 										</p>
+										<div className="rounded-xl border border-violet-300/25 bg-violet-950/15 p-3">
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<div>
+													<p className="text-xs font-black uppercase tracking-wide text-violet-200">
+														Machine-assisted triage
+													</p>
+													<p className="mt-1 text-xs text-veud-copy">
+														Advisory only. It cannot dismiss, hide, warn,
+														suspend, or change roles.
+													</p>
+												</div>
+												<Form method="post">
+													<input
+														type="hidden"
+														name="intent"
+														value="ai-triage"
+													/>
+													<input
+														type="hidden"
+														name="reportId"
+														value={report.id}
+													/>
+													<input
+														type="hidden"
+														name="reason"
+														value="Requested machine triage"
+													/>
+													<Button type="submit" size="sm" variant="outline">
+														{report.aiAssessment
+															? 'Refresh triage'
+															: 'Run triage'}
+													</Button>
+												</Form>
+											</div>
+											{report.aiAssessment ? (
+												<div className="mt-3 grid gap-2 text-sm text-veud-copy">
+													<p>
+														<strong className="text-veud-cream">
+															{report.aiAssessment.severity.toUpperCase()}
+														</strong>{' '}
+														· {Math.round(report.aiAssessment.confidence * 100)}
+														% confidence · queue{' '}
+														{report.aiAssessment.recommendedQueue}
+													</p>
+													<p>
+														{report.aiAssessment.categories.join(' · ') ||
+															'No supported category'}
+													</p>
+													{report.aiAssessment.evidence.length ? (
+														<ul className="grid gap-1">
+															{report.aiAssessment.evidence.map(evidence => (
+																<li key={evidence}>Evidence: “{evidence}”</li>
+															))}
+														</ul>
+													) : null}
+													{report.aiAssessment.uncertainty ? (
+														<p>
+															Uncertainty: {report.aiAssessment.uncertainty}
+														</p>
+													) : null}
+													<p className="text-xs text-veud-mint">
+														Policy {report.aiAssessment.policyVersion} ·{' '}
+														{displayTime(report.aiAssessment.createdAt)}
+													</p>
+												</div>
+											) : null}
+										</div>
 										{report.status === 'open' ? (
 											<ActionForm
 												intent="assign-self"
@@ -666,14 +844,30 @@ export default function ModerationDashboard() {
 														method="post"
 														className="grid gap-2 rounded-xl border border-red-400/30 bg-red-950/20 p-3 sm:grid-cols-[1fr_6rem_auto] sm:items-end"
 														onSubmit={event => {
-															if (!window.confirm('Suspend this account and revoke its active sessions?')) {
+															if (
+																!window.confirm(
+																	'Suspend this account and revoke its active sessions?',
+																)
+															) {
 																event.preventDefault()
 															}
 														}}
 													>
-														<input type="hidden" name="intent" value="suspend" />
-														<input type="hidden" name="reportId" value={report.id} />
-														<input type="hidden" name="subjectId" value={report.subject.id} />
+														<input
+															type="hidden"
+															name="intent"
+															value="suspend"
+														/>
+														<input
+															type="hidden"
+															name="reportId"
+															value={report.id}
+														/>
+														<input
+															type="hidden"
+															name="subjectId"
+															value={report.subject.id}
+														/>
 														<label className="grid gap-1 text-xs font-bold text-veud-mint">
 															Reason
 															<input
@@ -696,7 +890,11 @@ export default function ModerationDashboard() {
 																className="h-10 rounded-md border border-veud-border bg-veud-canvas px-3 text-sm"
 															/>
 														</label>
-														<Button type="submit" variant="destructive" size="sm">
+														<Button
+															type="submit"
+															variant="destructive"
+															size="sm"
+														>
 															Suspend
 														</Button>
 													</Form>
@@ -749,7 +947,9 @@ export default function ModerationDashboard() {
 				<section className="space-y-5">
 					<div>
 						<h2 className="text-2xl font-black text-veud-yellow">
-							{data.filters.view === 'team' ? 'Moderation team' : 'Member actions'}
+							{data.filters.view === 'team'
+								? 'Moderation team'
+								: 'Member actions'}
 						</h2>
 						<p className="text-sm text-veud-copy">
 							Search exact or partial usernames and display names.
@@ -818,9 +1018,7 @@ export default function ModerationDashboard() {
 										{data.canAssignRoles ? (
 											<ActionForm
 												intent={
-													isModerator
-														? 'revoke-moderator'
-														: 'grant-moderator'
+													isModerator ? 'revoke-moderator' : 'grant-moderator'
 												}
 												hidden={{ username: member.username }}
 												confirm={
@@ -829,9 +1027,7 @@ export default function ModerationDashboard() {
 														: undefined
 												}
 											>
-												{isModerator
-													? 'Revoke moderator'
-													: 'Grant moderator'}
+												{isModerator ? 'Revoke moderator' : 'Grant moderator'}
 											</ActionForm>
 										) : null}
 										{member.accountStatus === 'suspended' ? (
@@ -863,9 +1059,15 @@ export default function ModerationDashboard() {
 			) : null}
 
 			{data.filters.view === 'audit' ? (
-				<section className="space-y-4" aria-labelledby="moderation-audit-heading">
+				<section
+					className="space-y-4"
+					aria-labelledby="moderation-audit-heading"
+				>
 					<div>
-						<h2 id="moderation-audit-heading" className="text-2xl font-black text-veud-yellow">
+						<h2
+							id="moderation-audit-heading"
+							className="text-2xl font-black text-veud-yellow"
+						>
 							Immutable action log
 						</h2>
 						<p className="text-sm text-veud-copy">
@@ -890,7 +1092,9 @@ export default function ModerationDashboard() {
 											{displayTime(event.createdAt)}
 										</td>
 										<td className="px-4 py-3 font-bold text-veud-yellow">
-											{event.actor ? `@${event.actor.username}` : 'Deleted staff'}
+											{event.actor
+												? `@${event.actor.username}`
+												: 'Deleted staff'}
 										</td>
 										<td className="px-4 py-3">
 											{event.action.replaceAll('_', ' ')}

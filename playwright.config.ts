@@ -43,6 +43,7 @@ export default defineConfig({
 		env: {
 			PORT,
 			DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+			VEUD_E2E: '1',
 			// Production-mode browser tests must generate verification links that
 			// point back to their isolated local origin, never the real site.
 			VEUD_ORIGIN: BASE_URL,

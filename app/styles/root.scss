@@ -80,7 +80,7 @@
 		display: flex;
 		min-width: 0;
 		min-height: 0;
-		flex: 0 0 auto;
+		flex: 1 0 auto;
 		flex-direction: column;
 	}
 
@@ -147,7 +147,12 @@
 		flex-direction: row;
 		flex-wrap: nowrap;
 		align-items: center;
-		gap: 1rem;
+		gap: clamp(0.1rem, 0.35vw, 0.35rem);
+	}
+
+	.root-logo {
+		flex: 0 0 auto;
+		transition: transform 150ms ease;
 	}
 
 	.root-logo img {
@@ -161,20 +166,40 @@
 
 	.root-logo-projector-beam {
 		position: relative;
-		width: 2.75rem;
+		width: clamp(3.75rem, 5.5vw, 6.75rem);
+		min-width: 3.75rem;
 		height: 0.72rem;
-		flex: 0 0 auto;
+		flex: 0 1 6.75rem;
+		overflow: hidden;
 		background: linear-gradient(
 			to right,
 			rgb(var(--veud-amber) / 0.98),
 			rgb(var(--veud-gold) / 0.78) 52%,
 			rgb(var(--veud-cream) / 0.12)
 		);
+		background-size: 135% 100%;
 		border-radius: 999rem;
 		box-shadow:
 			0 0 0.8rem rgb(var(--veud-amber) / 0.26),
 			0 0 1.4rem rgb(var(--veud-gold) / 0.12);
 		clip-path: polygon(0 31%, 100% 0, 100% 100%, 0 69%);
+		transform-origin: left center;
+		animation: veud-projector-breathe 4.8s ease-in-out infinite;
+	}
+
+	.root-logo-projector-beam::before {
+		position: absolute;
+		inset: 0;
+		content: '';
+		background: linear-gradient(
+			105deg,
+			transparent 0 34%,
+			rgb(var(--veud-cream) / 0.68) 46%,
+			rgb(var(--veud-gold) / 0.32) 54%,
+			transparent 68% 100%
+		);
+		transform: translateX(-120%);
+		animation: veud-projector-sweep 3.9s ease-in-out infinite;
 	}
 
 	.root-logo-projector-beam::after {
@@ -184,6 +209,51 @@
 		content: '';
 		background: rgb(var(--veud-cream) / 0.7);
 		border-radius: 999rem;
+	}
+
+	.veud-document-hidden & .root-logo-projector-beam,
+	.veud-document-hidden & .root-logo-projector-beam::before {
+		animation-play-state: paused;
+	}
+
+	@keyframes veud-projector-breathe {
+		0%,
+		100% {
+			opacity: 0.78;
+			background-position: 0% 50%;
+			filter: brightness(0.92);
+		}
+
+		48% {
+			opacity: 1;
+			background-position: 100% 50%;
+			filter: brightness(1.12);
+		}
+	}
+
+	@keyframes veud-projector-sweep {
+		0%,
+		18% {
+			transform: translateX(-120%);
+		}
+
+		72%,
+		100% {
+			transform: translateX(145%);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.root-logo-projector-beam {
+			animation: none;
+			opacity: 0.9;
+			filter: none;
+		}
+
+		.root-logo-projector-beam::before {
+			display: none;
+			animation: none;
+		}
 	}
 
 	.root-logo:hover {
@@ -301,6 +371,29 @@
 	.site-search-advanced-panel span,
 	.site-search-advanced-panel small {
 		display: block;
+	}
+
+	.site-search-discovery-link {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.65rem;
+		margin-top: 0.65rem;
+		padding-top: 0.65rem;
+		color: rgb(var(--veud-cream));
+		border-top: 1px solid rgb(var(--veud-border) / 0.55);
+		text-decoration: none;
+	}
+
+	.site-search-discovery-link > svg {
+		width: 1rem;
+		height: 1rem;
+		margin-top: 0.15rem;
+		color: rgb(var(--veud-gold));
+	}
+
+	.site-search-discovery-link:hover strong,
+	.site-search-discovery-link:focus-visible strong {
+		color: rgb(var(--veud-gold));
 	}
 
 	.site-search-advanced-panel small {

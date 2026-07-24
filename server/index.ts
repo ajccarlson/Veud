@@ -25,6 +25,7 @@ import {
 	writeStructuredLog,
 } from '../app/utils/operations-observability.server.ts'
 import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
+import { assertSafeMockProductionRuntime } from './test-runtime-guard.js'
 
 type ServerContextModule = {
 	cspNonceContext: typeof CspNonceContext
@@ -32,6 +33,8 @@ type ServerContextModule = {
 }
 
 const MODE = process.env.NODE_ENV ?? 'development'
+
+assertSafeMockProductionRuntime(process.env)
 
 const viteDevServer =
 	MODE === 'production'

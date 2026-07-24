@@ -2,8 +2,9 @@ import { faker } from '@faker-js/faker'
 import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { type NaturalLanguageDiscoveryPlan } from '#app/utils/natural-language-discovery.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader } from './discover.tsx'
+import { action, loader } from './discover.tsx'
 
 afterEach(() => {
 	vi.unstubAllEnvs()
@@ -182,4 +183,113 @@ test('anonymous memory search stays catalog-local even when AI is configured', a
 			}),
 		]),
 	)
+})
+
+test('discovery refinement is owner-scoped and undo restores the exact prior plan', async () => {
+	const [owner, other] = await Promise.all([
+		createUser('discovery_session_owner'),
+		createUser('discovery_session_other'),
+	])
+	const plan: NaturalLanguageDiscoveryPlan = {
+		kinds: ['anime'],
+		includeGenres: ['Psychological'],
+		excludeGenres: ['Romance'],
+		includeTerms: [],
+		excludeTerms: [],
+		yearFrom: null,
+		yearTo: null,
+		releaseStatus: null,
+		language: null,
+		toneTerms: [],
+		pace: null,
+		lengthUnit: 'episodes',
+		lengthFrom: null,
+		lengthTo: 23,
+		sort: 'popular',
+		explanation: 'Short psychological anime.',
+		unsupportedConstraints: [],
+	}
+	const session = await prisma.aiDiscoverySession.create({
+		data: {
+			ownerId: owner.id,
+			phrases: JSON.stringify(['short psychological anime']),
+			plans: JSON.stringify([plan]),
+			expiresAt: new Date(Date.now() + 60_000),
+		},
+	})
+	const otherCookie = await cookieFor(other.id)
+	const ownerCookie = await cookieFor(owner.id)
+	const form = new URLSearchParams({
+		intent: 'describe-remove',
+		sessionId: session.id,
+		chipType: 'excluded genre',
+		chipValue: 'Romance',
+	})
+
+	await expect(
+		action({
+			request: new Request(`${BASE_URL}/discover`, {
+				method: 'POST',
+				headers: {
+					cookie: otherCookie,
+					'content-type': 'application/x-www-form-urlencoded',
+				},
+				body: form,
+			}),
+			params: {},
+		} as any),
+	).rejects.toMatchObject({ status: 404 })
+	expect(
+		await prisma.aiDiscoverySession.findUniqueOrThrow({
+			where: { id: session.id },
+		}),
+	).toEqual(
+		expect.objectContaining({ currentStep: 0, plans: JSON.stringify([plan]) }),
+	)
+
+	await expect(
+		action({
+			request: new Request(`${BASE_URL}/discover`, {
+				method: 'POST',
+				headers: {
+					cookie: ownerCookie,
+					'content-type': 'application/x-www-form-urlencoded',
+				},
+				body: form,
+			}),
+			params: {},
+		} as any),
+	).rejects.toMatchObject({ status: 302 })
+	const refined = await prisma.aiDiscoverySession.findUniqueOrThrow({
+		where: { id: session.id },
+	})
+	expect(refined.currentStep).toBe(1)
+	expect(
+		(JSON.parse(refined.plans) as NaturalLanguageDiscoveryPlan[])[1]
+			?.excludeGenres,
+	).toEqual([])
+
+	await expect(
+		action({
+			request: new Request(`${BASE_URL}/discover`, {
+				method: 'POST',
+				headers: {
+					cookie: ownerCookie,
+					'content-type': 'application/x-www-form-urlencoded',
+				},
+				body: new URLSearchParams({
+					intent: 'describe-undo',
+					sessionId: session.id,
+				}),
+			}),
+			params: {},
+		} as any),
+	).rejects.toMatchObject({ status: 302 })
+	const undone = await prisma.aiDiscoverySession.findUniqueOrThrow({
+		where: { id: session.id },
+	})
+	expect(undone.currentStep).toBe(0)
+	expect(
+		(JSON.parse(undone.plans) as NaturalLanguageDiscoveryPlan[])[0],
+	).toEqual(plan)
 })
