@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { currentMalSeason } from './mal-trending.server.ts'
 
 export const HOME_TRENDING_LIMIT = 18
 const FEED_FRESHNESS_MS = 8 * 24 * 60 * 60 * 1_000
@@ -73,54 +74,109 @@ async function candidatesForRail(input: {
 	kind: HomeTrendingRail['kind']
 	limit: number
 	freshAfter: Date
+	now: Date
 }) {
-	const [feedItems, popularFeedItems, popular] = await Promise.all([
-		prisma.catalogFeedItem.findMany({
-			where: {
-				kind: input.kind,
-				feed: 'trending',
-				observedAt: { gte: input.freshAfter },
-				media: { is: { title: { not: null } } },
-			},
-			orderBy: [{ observedAt: 'desc' }, { rank: 'asc' }],
-			take: input.limit,
-			select: {
-				observedAt: true,
-				media: { select: homeTrendingMediaSelect },
-			},
-		}),
-		prisma.catalogFeedItem.findMany({
-			where: {
-				kind: input.kind,
-				feed: 'popular',
-				media: { is: { title: { not: null } } },
-			},
-			orderBy: [{ rankingScore: 'desc' }, { rank: 'asc' }, { mediaId: 'asc' }],
-			take: input.limit,
-			select: {
-				observedAt: true,
-				media: { select: homeTrendingMediaSelect },
-			},
-		}),
-		prisma.media.findMany({
-			where: { kind: input.kind, title: { not: null } },
-			orderBy: [
-				{ catalogPopularity: 'desc' },
-				{ releaseStart: 'desc' },
-				{ title: 'asc' },
-			],
-			take: input.limit,
-			select: homeTrendingMediaSelect,
-		}),
-	])
+	const provider =
+		input.kind === 'anime' || input.kind === 'manga' ? 'mal' : 'tmdb'
+	const currentSeason = currentMalSeason(input.now)
+	const currentSeasonLabel = `${currentSeason.season[0]!.toUpperCase()}${currentSeason.season.slice(1)} ${currentSeason.year}`
+	const [feedItems, seasonalAnimeItems, popularFeedItems, popular] =
+		await Promise.all([
+			prisma.catalogFeedItem.findMany({
+				where: {
+					provider,
+					kind: input.kind,
+					feed: 'trending',
+					...(provider === 'mal'
+						? {
+								rankingScore: { not: null },
+								rankingVersion: { gte: 3 },
+							}
+						: {}),
+					observedAt: { gte: input.freshAfter },
+					media: { is: { title: { not: null } } },
+				},
+				orderBy: [{ observedAt: 'desc' }, { rank: 'asc' }],
+				take: input.limit,
+				select: {
+					observedAt: true,
+					media: { select: homeTrendingMediaSelect },
+				},
+			}),
+			input.kind === 'anime'
+				? prisma.catalogFeedItem.findMany({
+						where: {
+							provider: 'mal',
+							kind: 'anime',
+							feed: 'popular',
+							rankingScore: { not: null },
+							media: {
+								is: {
+									title: { not: null },
+									startSeason: currentSeasonLabel,
+								},
+							},
+						},
+						orderBy: [{ rank: 'asc' }, { mediaId: 'asc' }],
+						take: input.limit,
+						select: {
+							observedAt: true,
+							media: { select: homeTrendingMediaSelect },
+						},
+					})
+				: Promise.resolve([]),
+			prisma.catalogFeedItem.findMany({
+				where: {
+					provider,
+					kind: input.kind,
+					feed: 'popular',
+					rankingScore: { not: null },
+					media: { is: { title: { not: null } } },
+				},
+				orderBy: [
+					{ rankingScore: 'desc' },
+					{ rank: 'asc' },
+					{ mediaId: 'asc' },
+				],
+				take: input.limit,
+				select: {
+					observedAt: true,
+					media: { select: homeTrendingMediaSelect },
+				},
+			}),
+			prisma.media.findMany({
+				where: {
+					kind: input.kind,
+					title: { not: null },
+					catalogPopularity: { not: null },
+				},
+				orderBy: [
+					{ catalogPopularity: 'desc' },
+					{ releaseStart: 'desc' },
+					{ title: 'asc' },
+				],
+				take: input.limit,
+				select: homeTrendingMediaSelect,
+			}),
+		])
 	const uniqueFeedItems = [
 		...new Map(feedItems.map(item => [item.media.id, item])).values(),
 	]
 	const uniquePopularFeedItems = [
 		...new Map(popularFeedItems.map(item => [item.media.id, item])).values(),
 	]
+	const uniqueSeasonalAnimeItems = [
+		...new Map(seasonalAnimeItems.map(item => [item.media.id, item])).values(),
+	]
 	if (uniqueFeedItems.length) {
 		return uniqueFeedItems.slice(0, input.limit).map(item => ({
+			media: item.media,
+			source: 'provider-feed' as const,
+			observedAt: item.observedAt,
+		}))
+	}
+	if (uniqueSeasonalAnimeItems.length) {
+		return uniqueSeasonalAnimeItems.slice(0, input.limit).map(item => ({
 			media: item.media,
 			source: 'provider-feed' as const,
 			observedAt: item.observedAt,
@@ -153,7 +209,12 @@ export async function getHomeTrending(
 	const candidates = await Promise.all(
 		railDefinitions.map(async rail => ({
 			...rail,
-			items: await candidatesForRail({ kind: rail.kind, limit, freshAfter }),
+			items: await candidatesForRail({
+				kind: rail.kind,
+				limit,
+				freshAfter,
+				now,
+			}),
 		})),
 	)
 	const mediaIds = candidates.flatMap(rail =>
@@ -179,11 +240,13 @@ export async function getHomeTrending(
 			{
 				kind: rail.kind,
 				title:
-					rail.items[0]?.source === 'provider-feed'
+					rail.kind === 'anime' || rail.kind === 'manga'
 						? rail.title
-						: rail.items[0]?.source === 'popular-fallback'
-							? `Popular ${rail.kind === 'tv' ? 'TV' : rail.kind}`
-							: `Catalog ${rail.kind === 'tv' ? 'TV' : rail.kind}`,
+						: rail.items[0]?.source === 'provider-feed'
+							? rail.title
+							: rail.items[0]?.source === 'popular-fallback'
+								? `Popular ${rail.kind === 'tv' ? 'TV' : rail.kind}`
+								: `Catalog ${rail.kind === 'tv' ? 'TV' : rail.kind}`,
 				signal:
 					rail.items[0]?.source === 'provider-feed'
 						? ('trending' as const)
