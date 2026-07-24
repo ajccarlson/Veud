@@ -13,4 +13,5 @@ exec "$NPM_BIN" run catalog:mal-hydrate -- \
 	--commit \
 	--limit "${VEUD_PRODUCTION_MAL_HYDRATION_LIMIT:-100000}" \
 	--delay-ms "${VEUD_PRODUCTION_MAL_DELAY_MS:-1000}" \
+	--lease-seconds "${VEUD_PRODUCTION_CATALOG_LEASE_SECONDS:-30}" \
 	--worker-id "production-mal:${HOSTNAME:-host}:$$"
