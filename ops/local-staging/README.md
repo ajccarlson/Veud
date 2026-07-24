@@ -56,14 +56,11 @@ account-verification mail. The command remains a read-only preview unless
 against `STAGING_LOAD_DATABASE_URL`, not the separate public application
 database. It reports coverage, queues, failures, and rate limits after checking
 the services and HTTPS application dependency. See
-[`docs/catalog-operations-monitoring.md`](../../docs/catalog-operations-monitoring.md)
-for thresholds and machine-readable CLI usage.
+[Catalog operations](../../docs/catalog-operations.md) for health thresholds and
+machine-readable CLI usage.
 
 For restart-on-boot before an interactive login, an administrator must run the
 one-time command `sudo loginctl enable-linger acarl`. This is optional for an
 interactive workstation but recommended for an unattended staging origin.
 
-The Cloudflare tunnel remains a separate manual boundary. Add the public
-hostname `staging.veud.net` with service `http://localhost:4022` to the existing
-remotely managed tunnel. Do not expose ports 4022 or 5433 through the router or
-host firewall.
+Do not expose ports 4022 or 5433 directly through the router or host firewall.
