@@ -44,6 +44,7 @@ export const confirmedSeedAccounts = [
 		username: 'ck_aylin_christianse',
 		email: 'ck_aylin_christianse@example.com',
 		createdAt: '2024-06-22T21:22:02.426Z',
+		imageId: 'clxqml5q3000iuj2rh8qfs3ut',
 		watchlists: 4,
 		trackingStates: 24,
 	},
@@ -52,6 +53,7 @@ export const confirmedSeedAccounts = [
 		username: 'q6_kody_parisian33',
 		email: 'q6_kody_parisian33@example.com',
 		createdAt: '2024-06-22T21:22:04.671Z',
+		imageId: 'clxqml7ge000juj2rz57uxhw1',
 		watchlists: 3,
 		trackingStates: 17,
 	},
@@ -60,6 +62,7 @@ export const confirmedSeedAccounts = [
 		username: 'vf_velma_kris30',
 		email: 'vf_velma_kris30@example.com',
 		createdAt: '2024-06-22T21:22:06.288Z',
+		imageId: 'clxqml8pc000kuj2r8zm0p3mx',
 		watchlists: 2,
 		trackingStates: 9,
 	},
@@ -68,6 +71,7 @@ export const confirmedSeedAccounts = [
 		username: 'am_carmelo_ullrich29',
 		email: 'am_carmelo_ullrich29@example.com',
 		createdAt: '2024-06-22T21:22:06.956Z',
+		imageId: 'clxqml97w000luj2rlgg2zkl2',
 		watchlists: 5,
 		trackingStates: 19,
 	},
@@ -76,6 +80,7 @@ export const confirmedSeedAccounts = [
 		username: 'pi_wallace_leuschke2',
 		email: 'pi_wallace_leuschke2@example.com',
 		createdAt: '2024-06-22T21:22:08.696Z',
+		imageId: 'clxqmlak8000muj2rq966cryq',
 		watchlists: 4,
 		trackingStates: 13,
 	},
@@ -84,6 +89,7 @@ export const confirmedSeedAccounts = [
 		username: 'u9_bryana_ebert',
 		email: 'u9_bryana_ebert@example.com',
 		createdAt: '2026-07-20T22:42:03.492Z',
+		imageId: null,
 		watchlists: 0,
 		trackingStates: 0,
 	},
@@ -92,6 +98,7 @@ export const confirmedSeedAccounts = [
 		username: 'jg_arvid_nader23',
 		email: 'jg_arvid_nader23@example.com',
 		createdAt: '2026-07-20T22:42:04.768Z',
+		imageId: null,
 		watchlists: 0,
 		trackingStates: 0,
 	},
@@ -472,7 +479,7 @@ export async function removeConfirmedSeedAccounts(prisma: PrismaClient) {
 				)
 				const hasOnlyExpectedProfile =
 					Boolean(account.password) &&
-					!account.image &&
+					(account.image?.id ?? null) === expected.imageId &&
 					!account.banner &&
 					!account.homeDashboardPreference &&
 					!account.notificationPreference &&
