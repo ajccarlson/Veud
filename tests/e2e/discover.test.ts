@@ -89,7 +89,9 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		await page.getByLabel('Release year').fill('2026')
 		await page.getByLabel('Release status').selectOption('Released')
 		await page.getByLabel('Provider').selectOption('tmdb')
-		await page.getByRole('button', { name: 'Discover', exact: true }).click()
+		await page
+			.getByRole('button', { name: 'Search catalog', exact: true })
+			.click()
 		await expect(page).toHaveURL(/q=Browser\+Amour/)
 		await expect(page.getByText('Browser Romance Film')).toBeVisible()
 		await expect(
@@ -103,7 +105,9 @@ test('member can filter the catalog and discover an unseen personalized title', 
 		await page.getByLabel('Release status').selectOption('')
 		await page.getByLabel('Provider').selectOption('all')
 		await page.getByLabel('Rank by').selectOption('for-you')
-		await page.getByRole('button', { name: 'Discover', exact: true }).click()
+		await page
+			.getByRole('button', { name: 'Search catalog', exact: true })
+			.click()
 		await expect(page).toHaveURL(/sort=for-you/)
 		await expect(page.getByText('Browser Fantasy Match')).toBeVisible()
 		await expect(page.getByText('Browser Discovery Seed')).not.toBeVisible()

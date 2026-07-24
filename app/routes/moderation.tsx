@@ -771,7 +771,7 @@ export default function ModerationDashboard() {
 							{data.staff.map(member => (
 								<VeudPanel key={member.id} className="space-y-2">
 									<h3 className="font-black text-veud-yellow">
-										{member.name ?? `@${member.username}`}
+										@{member.username}
 									</h3>
 									<p className="text-sm text-veud-mint">@{member.username}</p>
 									<div className="flex flex-wrap gap-2">
@@ -800,7 +800,7 @@ export default function ModerationDashboard() {
 											<div>
 												<h3 className="text-lg font-black text-veud-yellow">
 													<Link to={`/users/${member.username}`}>
-														{member.name ?? member.username}
+														{member.username}
 													</Link>
 												</h3>
 												<p className="text-sm text-veud-mint">

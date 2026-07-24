@@ -34,8 +34,15 @@ export const NewPasswordSchema = z
 
 export const NameSchema = z
 	.string({ required_error: 'Name is required' })
+	.trim()
 	.min(3, { message: 'Name is too short' })
 	.max(40, { message: 'Name is too long' })
+
+export const OptionalNameSchema = z.preprocess(
+	value =>
+		typeof value === 'string' && value.trim().length === 0 ? undefined : value,
+	NameSchema.optional(),
+)
 export const EmailSchema = z
 	.string({ required_error: 'Email is required' })
 	.email({ message: 'Email is invalid' })
