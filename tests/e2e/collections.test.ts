@@ -25,7 +25,9 @@ test('member can curate, reorder, and publish a media collection', async ({
 
 	try {
 		await page.goto('/collections/new')
-		await page.getByLabel('Title').fill('Browser Science Fiction Picks')
+		await page
+			.getByLabel('Title', { exact: true })
+			.fill('Browser Science Fiction Picks')
 		await page
 			.getByLabel('Description')
 			.fill('A browser-tested collection of thoughtful science fiction.')

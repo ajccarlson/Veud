@@ -253,3 +253,34 @@ test('global advanced search returns five grounded memory matches without AI', a
 			.catch(() => {})
 	}
 })
+
+test('Tip of My Tongue makes its multi-stage loading state unmistakable', async ({
+	page,
+}) => {
+	await page.goto('/discover?mode=memory')
+	await page.route('**/discover*', async route => {
+		if (route.request().resourceType() !== 'image') {
+			await new Promise(resolve => setTimeout(resolve, 1_000))
+		}
+		await route.continue()
+	})
+	await page
+		.getByLabel('What do you remember?')
+		.fill('A red balloon follows a child through Paris')
+	await page.locator('#discover-kind').selectOption('movie')
+
+	const submission = page
+		.getByRole('button', { name: 'Find my five closest matches' })
+		.click({ noWaitAfter: true })
+	const loading = page.getByRole('status', {
+		name: 'Tip of My Tongue search in progress',
+	})
+	await expect(loading).toBeVisible()
+	await expect(loading).toContainText('Finding your five closest matches')
+	await expect(loading).toContainText('Identify likely titles')
+	await expect(loading).toContainText('Match local catalog entries')
+	await expect(
+		page.getByRole('button', { name: 'Finding five matches…' }),
+	).toBeDisabled()
+	await submission
+})
