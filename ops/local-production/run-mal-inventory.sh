@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+source "$(dirname "$0")/common.sh"
+
+prepare_worker
+[[ -n "${MAL_CLIENT_ID:-}" ]] || die 'MAL_CLIENT_ID is not configured'
+[[ -n "${MAL_CATALOG_POLICY_APPROVAL_REF:-}" ]] ||
+	die 'MAL_CATALOG_POLICY_APPROVAL_REF is not configured'
+acquire_provider_lock mal
+
+exec "$NPM_BIN" run catalog:mal-inventory -- \
+	--kind all \
+	--commit \
+	--page-size 500 \
+	--delay-ms "${VEUD_PRODUCTION_MAL_DELAY_MS:-1000}" \
+	--worker-id "production-mal-inventory:${HOSTNAME:-host}:$$"
