@@ -102,7 +102,6 @@ export type ProfileDiaryItem = {
 /** A user's public profile header data. */
 export type ProfileUser = {
 	id: string
-	name: string | null
 	username: string
 	bio: string | null
 	createdAt: Date | string
@@ -118,7 +117,6 @@ export type ProfileCommentItem = {
 	createdAtDisplay: string
 	author: {
 		id: string
-		name: string | null
 		username: string
 		image: { id: string } | null
 	}

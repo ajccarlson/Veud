@@ -57,7 +57,6 @@ export async function loader({ params }: LoaderFunctionArgs) {
 				author: {
 					select: {
 						id: true,
-						name: true,
 						username: true,
 						image: { select: { id: true } },
 					},
@@ -111,7 +110,7 @@ function CommentRow({
 							prefetch="intent"
 							className="user-landing-social-author"
 						>
-							{comment.author.name ?? comment.author.username}
+							{comment.author.username}
 						</Link>
 						<span>@{comment.author.username}</span>
 						<time dateTime={new Date(comment.createdAt).toISOString()}>
@@ -236,12 +235,7 @@ export default function ProfileSocial() {
 			<ProfilePageHeader
 				eyebrow="Community"
 				title="Guestbook"
-				description={
-					<>
-						Leave a message for{' '}
-						{profileData.user.name ?? profileData.user.username}.
-					</>
-				}
+				description={<>Leave a message for {profileData.user.username}.</>}
 				meta={`${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`}
 			/>
 

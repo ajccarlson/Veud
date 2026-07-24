@@ -300,7 +300,7 @@ export default function ReviewsRoute() {
 													to={`/users/${review.author.username}`}
 													className="font-bold text-[#ffffb1] hover:underline"
 												>
-													{review.author.name ?? review.author.username}
+													{review.author.username}
 												</Link>
 											</span>
 											<span>·</span>
@@ -365,8 +365,7 @@ export default function ReviewsRoute() {
 											>
 												Read and discuss
 											</Link>
-											{data.viewerId &&
-											data.viewerId !== review.author.id ? (
+											{data.viewerId && data.viewerId !== review.author.id ? (
 												<ReportContentButton
 													targetType="review"
 													targetId={review.id}
@@ -392,8 +391,7 @@ export default function ReviewsRoute() {
 																			to={`/users/${comment.author.username}`}
 																			className="font-bold text-[#ffffb1] hover:underline"
 																		>
-																			{comment.author.name ??
-																				comment.author.username}
+																			{comment.author.username}
 																		</Link>
 																		<time>
 																			{displayDate(comment.createdAt)}

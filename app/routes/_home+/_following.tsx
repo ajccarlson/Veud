@@ -61,7 +61,7 @@ function Suggestions({ members }: { members: SuggestedMember[] }) {
 						/>
 						<div className="min-w-0">
 							<div className="truncate font-semibold text-[#ffefcc]">
-								{member.name ?? member.username}
+								{member.username}
 							</div>
 							<div className="truncate text-xs text-[#a2ffd5]">
 								@{member.username}
@@ -158,7 +158,7 @@ export function FollowingFeed({
 														to={`/users/${item.actor.username}`}
 														className="font-bold text-[#ffffb1] hover:underline"
 													>
-														{item.actor.name ?? item.actor.username}
+														{item.actor.username}
 													</Link>{' '}
 													<span className="text-[#a2ffd5]">
 														{item.action.toLowerCase()}

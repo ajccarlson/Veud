@@ -54,7 +54,7 @@ export async function findModerationTarget(
 					id: user.id,
 					type: targetType,
 					subjectId: user.id,
-					label: user.name ?? user.username,
+					label: user.username,
 					excerpt: excerpt(user.bio ?? `@${user.username}`),
 					status: user.accountStatus,
 					context: { username: user.username },

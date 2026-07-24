@@ -198,9 +198,7 @@ export default function NotificationsRoute() {
 								<li
 									key={notification.id}
 									className={
-										notification.readAt
-											? 'p-4'
-											: 'bg-amber-400/10 p-4'
+										notification.readAt ? 'p-4' : 'bg-amber-400/10 p-4'
 									}
 								>
 									{notification.readAt ? (
@@ -255,7 +253,7 @@ export default function NotificationsRoute() {
 						) : (
 							<>
 								<span className="font-semibold">
-									{notification.actor?.name ?? notification.actor?.username}
+									{notification.actor?.username}
 								</span>{' '}
 								{notificationAction(notification.type)}{' '}
 								<span className="font-semibold">{subject}</span>
