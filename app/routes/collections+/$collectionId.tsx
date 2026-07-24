@@ -17,6 +17,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -362,11 +367,11 @@ export default function CollectionDetail() {
 	const navigation = useNavigation()
 	const busy = navigation.state !== 'idle'
 	return (
-		<main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 text-[#ffefcc] sm:px-6 lg:px-8">
-			<header className="space-y-5 rounded-2xl border border-[#54806c] bg-[#383040] p-6">
+		<VeudPage width="default" className="space-y-8">
+			<VeudPanel className="space-y-5 p-6">
 				<div className="flex flex-wrap items-start justify-between gap-5">
 					<div className="max-w-3xl space-y-2">
-						<div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.16em] text-[#a2ffd5]">
+						<div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-[0.16em] text-veud-mint">
 							<span>
 								{data.collection.items.length}{' '}
 								{data.collection.items.length === 1 ? 'title' : 'titles'}
@@ -374,20 +379,20 @@ export default function CollectionDetail() {
 							<span>· {data.collection._count.likes} likes</span>
 							<span>· {data.collection._count.comments} comments</span>
 							{!data.collection.isPublic ? (
-								<span className="rounded-full border border-[#ffcc66] px-2 py-0.5 text-[#ffcc66]">
+								<span className="rounded-full border border-veud-gold px-2 py-0.5 text-veud-gold">
 									Private
 								</span>
 							) : null}
 							{data.collection.featuredAt ? (
-								<span className="rounded-full border border-[#ff9900] px-2 py-0.5 text-[#ffffb1]">
+								<span className="rounded-full border border-veud-amber px-2 py-0.5 text-veud-yellow">
 									Staff pick
 								</span>
 							) : null}
 						</div>
-						<h1 className="text-4xl font-black text-[#ff9900]">
+						<h1 className="text-4xl font-black text-veud-amber">
 							{data.collection.title}
 						</h1>
-						<p className="text-sm text-[#a2ffd5]">
+						<p className="text-sm text-veud-mint">
 							by{' '}
 							<Link
 								className="font-bold underline"
@@ -462,7 +467,7 @@ export default function CollectionDetail() {
 					</div>
 				</div>
 				{data.collection.description ? (
-					<p className="whitespace-pre-wrap leading-7 text-[#c6ded2]">
+					<p className="whitespace-pre-wrap leading-7 text-veud-copy">
 						{data.collection.description}
 					</p>
 				) : null}
@@ -472,20 +477,20 @@ export default function CollectionDetail() {
 							<Link
 								key={tag.slug}
 								to={`/collections?tag=${encodeURIComponent(tag.slug)}`}
-								className="rounded-full border border-[#54806c] bg-[#2e2f2b] px-3 py-1 text-xs font-bold text-[#a2ffd5] hover:border-[#a2ffd5]"
+								className="rounded-full border border-veud-border bg-veud-ink px-3 py-1 text-xs font-bold text-veud-mint hover:border-veud-mint"
 							>
 								#{tag.name}
 							</Link>
 						))}
 					</nav>
 				) : null}
-			</header>
+			</VeudPanel>
 
 			{data.isOwner ? (
-				<section className="space-y-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5">
+				<VeudPanel className="space-y-4">
 					<div>
-						<h2 className="text-xl font-black text-[#ffffb1]">Add a title</h2>
-						<p className="text-sm text-[#c6ded2]">
+						<h2 className="text-xl font-black text-veud-yellow">Add a title</h2>
+						<p className="text-sm text-veud-copy">
 							Search the canonical catalog, then add any result.
 						</p>
 					</div>
@@ -512,7 +517,7 @@ export default function CollectionDetail() {
 									return (
 										<article
 											key={media.id}
-											className="flex gap-3 rounded-xl bg-[#2e2f2b] p-3"
+											className="flex gap-3 rounded-xl bg-veud-ink p-3"
 										>
 											{poster ? (
 												<img
@@ -521,16 +526,16 @@ export default function CollectionDetail() {
 													className="h-20 w-14 rounded object-cover"
 												/>
 											) : (
-												<div className="h-20 w-14 rounded bg-[#383040]" />
+												<div className="h-20 w-14 rounded bg-veud-surface" />
 											)}
 											<div className="min-w-0 flex-1">
 												<Link
 													to={`/media/${media.id}`}
-													className="font-bold text-[#ffffb1] hover:underline"
+													className="font-bold text-veud-yellow hover:underline"
 												>
 													{media.title?.trim() || `Untitled ${media.kind}`}
 												</Link>
-												<p className="text-xs uppercase text-[#a2ffd5]">
+												<p className="text-xs uppercase text-veud-mint">
 													{media.type || media.kind}
 												</p>
 											</div>
@@ -551,16 +556,16 @@ export default function CollectionDetail() {
 								})}
 							</div>
 						) : (
-							<p className="text-sm text-[#a2ffd5]">
+							<p className="text-sm text-veud-mint">
 								No additional titles match “{data.query}”.
 							</p>
 						)
 					) : null}
-				</section>
+				</VeudPanel>
 			) : null}
 
 			<section className="space-y-4">
-				<h2 className="text-2xl font-black text-[#ffffb1]">The list</h2>
+				<h2 className="text-2xl font-black text-veud-yellow">The list</h2>
 				{data.collection.items.length ? (
 					<ol className="space-y-3">
 						{data.collection.items.map((item, index) => {
@@ -569,9 +574,9 @@ export default function CollectionDetail() {
 							return (
 								<li
 									key={item.id}
-									className="flex gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-4"
+									className="flex gap-4 rounded-2xl border border-veud-border bg-veud-surface p-4"
 								>
-									<div className="flex w-9 shrink-0 items-center justify-center text-2xl font-black text-[#ff9900]">
+									<div className="flex w-9 shrink-0 items-center justify-center text-2xl font-black text-veud-amber">
 										{index + 1}
 									</div>
 									{poster ? (
@@ -582,14 +587,14 @@ export default function CollectionDetail() {
 											className="h-28 w-20 shrink-0 rounded-lg object-cover"
 										/>
 									) : (
-										<div className="h-28 w-20 shrink-0 rounded-lg bg-[#2e2f2b]" />
+										<div className="h-28 w-20 shrink-0 rounded-lg bg-veud-ink" />
 									)}
 									<div className="min-w-0 flex-1">
-										<p className="text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
+										<p className="text-xs font-bold uppercase tracking-wide text-veud-mint">
 											{item.media.type || item.media.kind}
 											{year ? ` · ${year}` : ''}
 										</p>
-										<h3 className="mt-1 text-xl font-black text-[#ffffb1]">
+										<h3 className="mt-1 text-xl font-black text-veud-yellow">
 											<Link
 												to={`/media/${item.media.id}`}
 												className="hover:underline"
@@ -599,18 +604,18 @@ export default function CollectionDetail() {
 											</Link>
 										</h3>
 										{item.media.description ? (
-											<p className="mt-2 line-clamp-2 text-sm leading-6 text-[#c6ded2]">
+											<p className="mt-2 line-clamp-2 text-sm leading-6 text-veud-copy">
 												{item.media.description}
 											</p>
 										) : null}
 										{item.note ? (
-											<blockquote className="mt-3 border-l-2 border-[#ff9900] pl-3 text-sm italic leading-6 text-[#ffefcc]">
+											<blockquote className="mt-3 border-l-2 border-veud-amber pl-3 text-sm italic leading-6 text-veud-cream">
 												{item.note}
 											</blockquote>
 										) : null}
 										{data.isOwner ? (
 											<details className="mt-3 text-sm">
-												<summary className="cursor-pointer font-bold text-[#a2ffd5]">
+												<summary className="cursor-pointer font-bold text-veud-mint">
 													{item.note ? 'Edit curator note' : 'Add curator note'}
 												</summary>
 												<Form method="post" className="mt-3 space-y-2">
@@ -698,26 +703,20 @@ export default function CollectionDetail() {
 						})}
 					</ol>
 				) : (
-					<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-14 text-center">
-						<h3 className="text-xl font-black text-[#ffffb1]">
-							This collection is empty
-						</h3>
-						<p className="mt-2 text-[#a2ffd5]">
+					<VeudEmptyState title="This collection is empty">
+						<p>
 							{data.isOwner
 								? 'Search above to add its first title.'
 								: 'The curator has not added any titles yet.'}
 						</p>
-					</div>
+					</VeudEmptyState>
 				)}
 			</section>
 
-			<section
-				id="discussion"
-				className="space-y-5 rounded-2xl border border-[#54806c] bg-[#383040] p-6"
-			>
+			<VeudPanel id="discussion" className="space-y-5 p-6">
 				<header>
-					<h2 className="text-2xl font-black text-[#ffffb1]">Discussion</h2>
-					<p className="mt-1 text-sm text-[#a2ffd5]">
+					<h2 className="text-2xl font-black text-veud-yellow">Discussion</h2>
+					<p className="mt-1 text-sm text-veud-mint">
 						{data.collection._count.comments}{' '}
 						{data.collection._count.comments === 1 ? 'comment' : 'comments'}
 					</p>
@@ -739,7 +738,7 @@ export default function CollectionDetail() {
 						</Button>
 					</Form>
 				) : (
-					<p className="text-sm text-[#c6ded2]">
+					<p className="text-sm text-veud-copy">
 						<Link
 							to={`/login?redirectTo=${encodeURIComponent(`/collections/${data.collection.id}#discussion`)}`}
 							className="font-bold underline"
@@ -756,17 +755,17 @@ export default function CollectionDetail() {
 							<li
 								key={comment.id}
 								id={`collection-comment-${comment.id}`}
-								className="rounded-xl bg-[#2e2f2b] p-4"
+								className="rounded-xl bg-veud-ink p-4"
 							>
 								<div className="flex flex-wrap items-start justify-between gap-3">
 									<div>
 										<Link
 											to={`/users/${comment.author.username}`}
-											className="font-bold text-[#ffffb1] hover:underline"
+											className="font-bold text-veud-yellow hover:underline"
 										>
 											{comment.author.username}
 										</Link>
-										<time className="ml-2 text-xs text-[#8ca99d]">
+										<time className="ml-2 text-xs text-veud-sage">
 											{displayDateTime(comment.createdAt)}
 										</time>
 									</div>
@@ -798,24 +797,24 @@ export default function CollectionDetail() {
 										/>
 									) : null}
 								</div>
-								<p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#c6ded2]">
+								<p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-veud-copy">
 									{comment.body}
 								</p>
 							</li>
 						))}
 					</ul>
 				) : (
-					<p className="rounded-xl bg-[#2e2f2b] p-5 text-sm text-[#a2ffd5]">
+					<p className="rounded-xl bg-veud-ink p-5 text-sm text-veud-mint">
 						No comments yet.
 					</p>
 				)}
 				{data.collection._count.comments > data.collection.comments.length ? (
-					<p className="text-xs text-[#8ca99d]">
+					<p className="text-xs text-veud-sage">
 						Showing the first {data.collection.comments.length} comments.
 					</p>
 				) : null}
-			</section>
-		</main>
+			</VeudPanel>
+		</VeudPage>
 	)
 }
 
