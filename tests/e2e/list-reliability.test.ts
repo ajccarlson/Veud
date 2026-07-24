@@ -1064,10 +1064,18 @@ test('desktop list keeps the detailed grid with readable poster thumbnails', asy
 	await expect(grid).toBeVisible()
 	await expect(mobileCards).toBeHidden()
 	await expect(poster).toBeVisible()
-	const bounds = await poster.boundingBox()
-	expect(bounds).not.toBeNull()
-	expect(bounds!.width).toBeGreaterThanOrEqual(64)
-	expect(bounds!.height).toBeGreaterThanOrEqual(96)
+	const compactBounds = await poster.boundingBox()
+	expect(compactBounds).not.toBeNull()
+	expect(compactBounds!.width).toBeGreaterThanOrEqual(88)
+	expect(compactBounds!.height).toBeGreaterThanOrEqual(132)
+
+	await page.setViewportSize({ width: 1920, height: 1080 })
+	const largeBounds = await poster.boundingBox()
+	expect(largeBounds).not.toBeNull()
+	expect(largeBounds!.width).toBeGreaterThan(compactBounds!.width * 1.4)
+	expect(largeBounds!.height).toBeGreaterThan(compactBounds!.height * 1.4)
+	expect(largeBounds!.width).toBeLessThanOrEqual(160)
+	expect(largeBounds!.height).toBeLessThanOrEqual(240)
 })
 
 test('member can save a default list sort without changing manual positions', async ({
