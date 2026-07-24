@@ -6,6 +6,7 @@ import {
 	type LabelHTMLAttributes,
 	type TextareaHTMLAttributes,
 } from 'react'
+import { cn } from '#app/utils/misc.tsx'
 import { Checkbox, type CheckboxProps } from './ui/checkbox.tsx'
 import { Input } from './ui/input.tsx'
 import { Label } from './ui/label.tsx'
@@ -56,9 +57,11 @@ export function Field({
 				aria-describedby={errorId}
 				{...inputProps}
 			/>
-			<div className="min-h-[32px] px-4 pb-3 pt-1">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
+			{errorId ? (
+				<div className="px-1 pb-2 pt-1">
+					<ErrorList id={errorId} errors={errors} />
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -86,9 +89,11 @@ export function TextareaField({
 				aria-describedby={errorId}
 				{...textareaProps}
 			/>
-			<div className="min-h-[32px] px-4 pb-3 pt-1">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
+			{errorId ? (
+				<div className="px-1 pb-2 pt-1">
+					<ErrorList id={errorId} errors={errors} />
+				</div>
+			) : null}
 		</div>
 	)
 }
@@ -146,12 +151,17 @@ export function CheckboxField({
 				<label
 					htmlFor={id}
 					{...labelProps}
-					className="self-center text-body-xs text-muted-foreground"
+					className={cn(
+						'self-center text-body-xs text-muted-foreground',
+						labelProps.className,
+					)}
 				/>
 			</div>
-			<div className="px-4 pb-3 pt-1">
-				{errorId ? <ErrorList id={errorId} errors={errors} /> : null}
-			</div>
+			{errorId ? (
+				<div className="px-1 pb-2 pt-1">
+					<ErrorList id={errorId} errors={errors} />
+				</div>
+			) : null}
 		</div>
 	)
 }

@@ -12,6 +12,7 @@ import {
 
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthShell } from '#app/components/auth-shell.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
@@ -115,56 +116,46 @@ export default function ForgotPasswordRoute() {
 	})
 
 	return (
-		<div className="container pb-32 pt-20">
-			<div className="flex flex-col justify-center">
-				<div className="text-center">
-					<h1 className="text-h1">Forgot Password</h1>
-					<p className="mt-3 text-body-md text-muted-foreground">
-						No worries, we'll send you reset instructions.
-					</p>
-				</div>
-				<div className="mx-auto mt-16 min-w-full max-w-sm sm:min-w-[368px]">
-					<forgotPassword.Form method="POST" {...getFormProps(form)}>
-						<HoneypotInputs />
-						<div>
-							<Field
-								labelProps={{
-									htmlFor: fields.usernameOrEmail.id,
-									children: 'Username or Email',
-								}}
-								inputProps={{
-									autoFocus: true,
-									...getInputProps(fields.usernameOrEmail, { type: 'text' }),
-								}}
-								errors={fields.usernameOrEmail.errors}
-							/>
-						</div>
-						<ErrorList errors={form.errors} id={form.errorId} />
-
-						<div className="mt-6">
-							<StatusButton
-								className="w-full"
-								status={
-									forgotPassword.state === 'submitting'
-										? 'pending'
-										: (form.status ?? 'idle')
-								}
-								type="submit"
-								disabled={forgotPassword.state !== 'idle'}
-							>
-								Recover password
-							</StatusButton>
-						</div>
-					</forgotPassword.Form>
-					<Link
-						to="/login"
-						className="mt-11 text-center text-body-sm font-bold"
-					>
-						Back to Login
-					</Link>
-				</div>
-			</div>
-		</div>
+		<AuthShell
+			title="Reset your password"
+			description="We’ll email you a verification code."
+		>
+			<forgotPassword.Form
+				method="POST"
+				className="space-y-4"
+				{...getFormProps(form)}
+			>
+				<HoneypotInputs />
+				<Field
+					labelProps={{
+						htmlFor: fields.usernameOrEmail.id,
+						children: 'Username or email',
+					}}
+					inputProps={{
+						autoFocus: true,
+						autoComplete: 'username',
+						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+					}}
+					errors={fields.usernameOrEmail.errors}
+				/>
+				<ErrorList errors={form.errors} id={form.errorId} />
+				<StatusButton
+					className="w-full"
+					status={
+						forgotPassword.state === 'submitting'
+							? 'pending'
+							: (form.status ?? 'idle')
+					}
+					type="submit"
+					disabled={forgotPassword.state !== 'idle'}
+				>
+					Send reset code
+				</StatusButton>
+			</forgotPassword.Form>
+			<Link to="/login" className="mt-6 block text-center text-sm font-bold">
+				Back to login
+			</Link>
+		</AuthShell>
 	)
 }
 
