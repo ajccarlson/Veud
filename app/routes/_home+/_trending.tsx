@@ -247,8 +247,7 @@ export function TrendingData({
 								: 'Catalog highlights'}
 					</h2>
 					<p className="mt-2 max-w-2xl text-sm text-[#c6ded2]">
-						Fresh provider charts backed by Veud’s canonical catalog, with
-						popular fallbacks whenever a chart has not refreshed yet.
+						Current provider charts, matched to Veud’s catalog.
 					</p>
 				</div>
 				<Button asChild variant="outline">
@@ -289,8 +288,7 @@ export function TrendingData({
 						Catalog charts are warming up
 					</h3>
 					<p className="mt-1 text-sm text-[#a2ffd5]">
-						Trending titles will appear after the first catalog inventory or
-						feed refresh.
+						Charts will appear after the next catalog refresh.
 					</p>
 				</div>
 			)}

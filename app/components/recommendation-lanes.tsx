@@ -36,9 +36,7 @@ export function RecommendationLanes({
 					Recommendations for you
 				</h2>
 				<p className="mt-2 max-w-3xl text-sm leading-6 text-[#c6ded2]">
-					Rate or favorite a few titles, revisit something you love, follow
-					members, or like a public collection. Veud will explain which of those
-					private signals shaped every recommendation.
+					Rate or favorite a few titles to shape recommendations.
 				</p>
 				{graph.hiddenItems.length ? (
 					<details className="mt-4 rounded-xl border border-[#54806c]/60 bg-[#242525] p-3">
@@ -74,7 +72,7 @@ export function RecommendationLanes({
 			<header className="flex flex-wrap items-end justify-between gap-4">
 				<div>
 					<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffcc66]">
-						Explainable, private ranking
+						Personal discovery
 					</p>
 					<h2
 						id="recommendation-lanes-heading"
@@ -83,8 +81,7 @@ export function RecommendationLanes({
 						Recommendations for you
 					</h2>
 					<p className="mt-2 max-w-3xl text-sm leading-6 text-[#c6ded2]">
-						Separate lanes preserve why each title surfaced. Feedback affects
-						only your recommendations and never changes community scores.
+						Organized by why each title was recommended.
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2 text-xs text-[#a2ffd5]">

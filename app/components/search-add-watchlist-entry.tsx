@@ -567,10 +567,7 @@ export function MediaSearchBar(params: any) {
 						) : (
 							<div className="watchlist-search-empty">
 								<h3>Search the catalog</h3>
-								<p>
-									Results include posters and can be sent to any compatible
-									list.
-								</p>
+								<p>Find a title to add.</p>
 							</div>
 						)}
 					</div>

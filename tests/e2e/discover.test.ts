@@ -223,8 +223,8 @@ test('global advanced search returns five grounded memory matches without AI', a
 		await expect(
 			page.getByRole('heading', { name: 'Closest matches' }),
 		).toBeVisible()
-		await expect(page.getByText(/5 of 5 possible matches/)).toBeVisible()
-		await expect(page.getByText(/Catalog matched/)).toBeVisible()
+		await expect(page.getByText(/5 of 5 matches/)).toBeVisible()
+		await expect(page.getByText(/Local match/)).toBeVisible()
 		await expect(
 			siteSearch.getByLabel('Enable Tip of My Tongue search'),
 		).toBeChecked()
@@ -254,7 +254,21 @@ test('global advanced search returns five grounded memory matches without AI', a
 	}
 })
 
-test('Tip of My Tongue makes its multi-stage loading state unmistakable', async ({
+test('Tip of My Tongue keeps text and image clues in one prompt', async ({
+	page,
+	login,
+}) => {
+	await login()
+	await page.goto('/discover?mode=memory')
+	const prompt = page.locator('.discover-memory-input')
+	await expect(prompt.getByLabel('What do you remember?')).toBeVisible()
+	await expect(prompt.getByLabel('Add a screenshot or cover')).toBeVisible()
+	await expect(
+		page.getByRole('heading', { name: 'Search from a screenshot or cover' }),
+	).toHaveCount(0)
+})
+
+test('Tip of My Tongue makes its loading state unmistakable', async ({
 	page,
 }) => {
 	await page.goto('/discover?mode=memory')
@@ -270,17 +284,16 @@ test('Tip of My Tongue makes its multi-stage loading state unmistakable', async 
 	await page.locator('#discover-kind').selectOption('movie')
 
 	const submission = page
-		.getByRole('button', { name: 'Find my five closest matches' })
+		.getByRole('button', { name: 'Find matches' })
 		.click({ noWaitAfter: true })
 	const loading = page.getByRole('status', {
 		name: 'Tip of My Tongue search in progress',
 	})
 	await expect(loading).toBeVisible()
-	await expect(loading).toContainText('Finding your five closest matches')
-	await expect(loading).toContainText('Identify likely titles')
-	await expect(loading).toContainText('Match local catalog entries')
+	await expect(loading).toContainText('Finding five matches')
+	await expect(loading).toContainText('Checking your clues')
 	await expect(
-		page.getByRole('button', { name: 'Finding five matches…' }),
+		page.getByRole('button', { name: 'Finding matches…' }),
 	).toBeDisabled()
 	await submission
 })
