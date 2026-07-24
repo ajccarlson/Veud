@@ -26,8 +26,7 @@ This creates:
 - verified off-drive copies under `/media/sdd/veud-production-backups`.
 
 Both databases reject `PUBLIC` connections. The PostgreSQL listener remains
-bound to `127.0.0.1:5433`; no database port is exposed through the router or
-Cloudflare tunnel.
+bound to `127.0.0.1:5433`; no database port is exposed publicly.
 
 ## Prepare the production target
 
@@ -62,8 +61,8 @@ and hydration workers. Package the exact clean release with:
 npm run production:catalog:deploy
 ```
 
-Installation, pacing, timer ownership, monitoring, and recovery are documented
-in [Production catalog workers](../../docs/production-catalog-workers.md).
+Installation, pacing, monitoring, and recovery are summarized in
+[Catalog operations](../../docs/catalog-operations.md).
 
 ## Write cutover boundary
 
