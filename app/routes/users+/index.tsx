@@ -1,5 +1,6 @@
 import {
 	data as json,
+	Form,
 	redirect,
 	type LoaderFunctionArgs,
 	Link,
@@ -9,11 +10,17 @@ import {
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList } from '#app/components/forms.tsx'
-import { SearchBar } from '#app/components/search-bar.tsx'
+import { Button } from '#app/components/ui/button.tsx'
+import { Input } from '#app/components/ui/input.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
 import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
-import '#app/styles/users.scss'
 
 const UserSearchResultSchema = z.object({
 	id: z.string(),
@@ -38,7 +45,11 @@ export async function loader({ url }: LoaderFunctionArgs) {
 			status: 400,
 		})
 	}
-	return json({ status: 'idle', users: result.data } as const)
+	return json({
+		status: 'idle',
+		users: result.data,
+		query: searchTerm ?? '',
+	} as const)
 }
 
 export default function UsersRoute() {
@@ -53,48 +64,66 @@ export default function UsersRoute() {
 	}
 
 	return (
-    <main className="users">
-      <div className="users-main">
-        <h1 className="users-header">Users</h1>
-        <div className="users-search">
-          <SearchBar status={data.status} autoFocus autoSubmit />
-        </div>
-        <main>
-          {data.status === 'idle' ? (
-            data.users.length ? (
-              <ul
-                className={cn(
-                  'users-list',
-                  { 'opacity-50': isPending },
-                )}
-              >
-                {data.users.map(user => (
-                  <li key={user.id}>
-                    <Link
-                      to={user.username}
-                      className="users-item"
-                    >
-                      <img
-                        alt={user.username}
-                        src={getUserImgSrc(user.imageId)}
-                        className="users-image"
-                      />
-                      <span className="users-name">
-                        {user.username}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No users found</p>
-            )
-          ) : data.status === 'error' ? (
-            <ErrorList errors={['There was an error parsing the results']} />
-          ) : null}
-        </main>
-      </div>
-    </main>
+		<VeudPage width="narrow">
+			<VeudPageHeader
+				eyebrow="Community"
+				title="Members"
+				description="Find people to follow."
+			/>
+			<VeudPanel>
+				<Form
+					method="get"
+					action="/users"
+					role="search"
+					className="flex flex-col gap-3 sm:flex-row"
+				>
+					<Input
+						name="search"
+						type="search"
+						defaultValue={data.status === 'idle' ? data.query : ''}
+						placeholder="Search usernames"
+						aria-label="Search usernames"
+						autoFocus
+						className="flex-1"
+					/>
+					<Button type="submit">Search</Button>
+				</Form>
+			</VeudPanel>
+			{data.status === 'idle' ? (
+				data.users.length ? (
+					<ul
+						className={cn(
+							'grid gap-4 transition-opacity sm:grid-cols-2 lg:grid-cols-3',
+							{ 'opacity-50': isPending },
+						)}
+					>
+						{data.users.map(user => (
+							<li key={user.id}>
+								<Link
+									to={user.username}
+									className="group flex min-h-28 items-center gap-4 rounded-2xl border border-veud-border/70 bg-veud-surface p-4 shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:border-veud-mint"
+								>
+									<img
+										alt=""
+										src={getUserImgSrc(user.imageId)}
+										className="size-16 rounded-2xl border border-veud-border object-cover"
+									/>
+									<span className="min-w-0 truncate text-lg font-black text-veud-yellow group-hover:underline">
+										@{user.username}
+									</span>
+								</Link>
+							</li>
+						))}
+					</ul>
+				) : (
+					<VeudEmptyState title="No members found">
+						Try another username.
+					</VeudEmptyState>
+				)
+			) : (
+				<ErrorList errors={['Search results could not be loaded.']} />
+			)}
+		</VeudPage>
 	)
 }
 

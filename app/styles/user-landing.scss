@@ -28,18 +28,7 @@
 	overflow-x: clip;
 	overflow-y: visible;
 	color: var(--veud-cream);
-	background:
-		radial-gradient(
-			circle at 15% 0%,
-			rgba(84, 128, 108, 0.16),
-			transparent 28rem
-		),
-		radial-gradient(
-			circle at 85% 25rem,
-			rgba(56, 48, 64, 0.42),
-			transparent 30rem
-		),
-		var(--veud-bg);
+	background: transparent;
 
 	*,
 	*::before,

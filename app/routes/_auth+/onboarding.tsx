@@ -86,7 +86,11 @@ export async function action({ request }: ActionFunctionArgs) {
 			}).transform(async data => {
 				if (intent !== null) return { ...data, session: null }
 
-				const session = await signup({ ...data, name: data.name ?? null, email })
+				const session = await signup({
+					...data,
+					name: data.name ?? null,
+					email,
+				})
 				return { ...data, session }
 			}),
 		async: true,
@@ -180,7 +184,6 @@ export default function SignupRoute() {
 						inputProps={{
 							...getInputProps(fields.name, { type: 'text' }),
 							autoComplete: 'name',
-							placeholder: 'Never shown on your public profile',
 						}}
 						errors={fields.name.errors}
 					/>
@@ -233,7 +236,7 @@ export default function SignupRoute() {
 					<div className="flex items-center justify-between gap-6">
 						<StatusButton
 							className="w-full"
-							status={isPending ? 'pending' : form.status ?? 'idle'}
+							status={isPending ? 'pending' : (form.status ?? 'idle')}
 							type="submit"
 							disabled={isPending}
 						>

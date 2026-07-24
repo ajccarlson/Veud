@@ -596,7 +596,7 @@ function CommunityDropdown() {
 							to={`/users`}
 						>
 							<Icon className="text-body-md" name="person">
-								Users
+								Members
 							</Icon>
 						</Link>
 					</DropdownMenuItem>

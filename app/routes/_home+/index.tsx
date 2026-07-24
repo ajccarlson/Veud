@@ -158,9 +158,7 @@ export default function Index() {
 							<Icon name="magic-wand" aria-hidden="true" />
 							<span>
 								<strong>Can’t remember the title?</strong>
-								<small>
-									Describe a scene. Veud will find five close matches.
-								</small>
+								<small>Describe it or add an image.</small>
 							</span>
 							<span aria-hidden="true">→</span>
 						</Link>
