@@ -627,11 +627,6 @@ export default function DiscoverRoute() {
 				key={filterKey}
 				method={data.filters.mode === 'describe' ? 'post' : 'get'}
 				className={`discover-search-panel ${data.filters.mode !== 'standard' ? 'discover-search-panel--memory' : ''}`}
-				aria-describedby={
-					data.filters.mode !== 'standard'
-						? 'discover-memory-privacy'
-						: undefined
-				}
 				onSubmit={event => {
 					if (data.filters.mode !== 'memory' || !data.isSignedIn) return
 					event.preventDefault()
@@ -790,21 +785,7 @@ export default function DiscoverRoute() {
 							</select>
 						</div>
 					</>
-				) : data.filters.mode === 'memory' ? (
-					<div id="discover-memory-privacy" className="discover-memory-privacy">
-						{data.aiSearchAvailable
-							? 'AI-assisted · add details, an image, or both.'
-							: data.isSignedIn
-								? 'Local catalog search'
-								: 'Local search · sign in for AI and image matching'}
-					</div>
-				) : (
-					<div id="discover-memory-privacy" className="discover-memory-privacy">
-						{data.naturalDiscoveryAvailable
-							? 'AI turns your request into editable filters.'
-							: 'Discovery assistant unavailable.'}
-					</div>
-				)}
+				) : null}
 				<div className="discover-search-actions">
 					<Button
 						type="submit"
