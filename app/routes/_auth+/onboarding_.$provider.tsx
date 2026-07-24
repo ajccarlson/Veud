@@ -20,8 +20,8 @@ import {
 
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { z } from 'zod'
+import { AuthShell } from '#app/components/auth-shell.tsx'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import {
 	sessionKey,
@@ -199,93 +199,78 @@ export default function SignupRoute() {
 	})
 
 	return (
-		<div className="container flex min-h-full flex-col justify-center pb-32 pt-20">
-			<div className="mx-auto w-full max-w-lg">
-				<div className="flex flex-col gap-3 text-center">
-					<h1 className="text-h1">Welcome aboard {data.email}!</h1>
-					<p className="text-body-md text-muted-foreground">
-						Please enter your details.
-					</p>
-				</div>
-				<Spacer size="xs" />
-				<Form
-					method="POST"
-					className="mx-auto min-w-full max-w-sm sm:min-w-[368px]"
-					{...getFormProps(form)}
-				>
-					{fields.imageUrl.initialValue ? (
-						<div className="mb-4 flex flex-col items-center justify-center gap-4">
-							<img
-								src={fields.imageUrl.initialValue}
-								alt="Profile"
-								className="h-24 w-24 rounded-full"
-							/>
-							<p className="text-body-sm text-muted-foreground">
-								You can change your photo later
-							</p>
-							<input {...getInputProps(fields.imageUrl, { type: 'hidden' })} />
-						</div>
-					) : null}
-					<Field
-						labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
-						inputProps={{
-							...getInputProps(fields.username, { type: 'text' }),
-							autoComplete: 'username',
-							className: 'lowercase',
-						}}
-						errors={fields.username.errors}
-					/>
-					<Field
-						labelProps={{
-							htmlFor: fields.name.id,
-							children: 'Full name (private and optional)',
-						}}
-						inputProps={{
-							...getInputProps(fields.name, { type: 'text' }),
-							autoComplete: 'name',
-						}}
-						errors={fields.name.errors}
-					/>
-
-					<CheckboxField
-						labelProps={{
-							htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
-							children:
-								'Do you agree to our Terms of Service and Privacy Policy?',
-						}}
-						buttonProps={getInputProps(
-							fields.agreeToTermsOfServiceAndPrivacyPolicy,
-							{ type: 'checkbox' },
-						)}
-						errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
-					/>
-					<CheckboxField
-						labelProps={{
-							htmlFor: fields.remember.id,
-							children: 'Remember me',
-						}}
-						buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
-						errors={fields.remember.errors}
-					/>
-
-					{redirectTo ? (
-						<input type="hidden" name="redirectTo" value={redirectTo} />
-					) : null}
-
-					<ErrorList errors={form.errors} id={form.errorId} />
-
-					<div className="flex items-center justify-between gap-6">
-						<StatusButton
-							className="w-full"
-							status={isPending ? 'pending' : (form.status ?? 'idle')}
-							type="submit"
-							disabled={isPending}
-						>
-							Create an account
-						</StatusButton>
+		<AuthShell
+			title="Finish your account"
+			description={`Connected as ${data.email}.`}
+		>
+			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				{fields.imageUrl.initialValue ? (
+					<div className="flex items-center gap-4 rounded-xl border border-veud-border/60 bg-veud-ink/50 p-3">
+						<img
+							src={fields.imageUrl.initialValue}
+							alt=""
+							className="h-16 w-16 rounded-xl object-cover"
+						/>
+						<p className="text-sm text-veud-copy">Imported profile photo</p>
+						<input {...getInputProps(fields.imageUrl, { type: 'hidden' })} />
 					</div>
-				</Form>
-			</div>
-		</div>
+				) : null}
+				<Field
+					labelProps={{ htmlFor: fields.username.id, children: 'Username' }}
+					inputProps={{
+						...getInputProps(fields.username, { type: 'text' }),
+						autoComplete: 'username',
+						className: 'lowercase',
+					}}
+					errors={fields.username.errors}
+				/>
+				<Field
+					labelProps={{
+						htmlFor: fields.name.id,
+						children: 'Full name (private and optional)',
+					}}
+					inputProps={{
+						...getInputProps(fields.name, { type: 'text' }),
+						autoComplete: 'name',
+					}}
+					errors={fields.name.errors}
+				/>
+
+				<CheckboxField
+					labelProps={{
+						htmlFor: fields.agreeToTermsOfServiceAndPrivacyPolicy.id,
+						children: 'I agree to the Terms of Service and Privacy Policy.',
+					}}
+					buttonProps={getInputProps(
+						fields.agreeToTermsOfServiceAndPrivacyPolicy,
+						{ type: 'checkbox' },
+					)}
+					errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
+				/>
+				<CheckboxField
+					labelProps={{
+						htmlFor: fields.remember.id,
+						children: 'Remember me',
+					}}
+					buttonProps={getInputProps(fields.remember, { type: 'checkbox' })}
+					errors={fields.remember.errors}
+				/>
+
+				{redirectTo ? (
+					<input type="hidden" name="redirectTo" value={redirectTo} />
+				) : null}
+
+				<ErrorList errors={form.errors} id={form.errorId} />
+
+				<StatusButton
+					className="w-full"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+					type="submit"
+					disabled={isPending}
+				>
+					Create account
+				</StatusButton>
+			</Form>
+		</AuthShell>
 	)
 }

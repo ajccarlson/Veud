@@ -1,4 +1,9 @@
-import { getFormProps, getInputProps, getTextareaProps, useForm } from '@conform-to/react'
+import {
+	getFormProps,
+	getInputProps,
+	getTextareaProps,
+	useForm,
+} from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import * as E from 'react-email'
 import {
@@ -11,6 +16,7 @@ import {
 } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
+import { AuthShell } from '#app/components/auth-shell.tsx'
 import { ErrorList, Field, TextareaField } from '#app/components/forms.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { prisma } from '#app/utils/db.server.ts'
@@ -84,9 +90,7 @@ export async function action({ request }: ActionFunctionArgs) {
 	const response = await sendEmail({
 		to: user.email,
 		subject: 'Verify your Veud moderation appeal',
-		react: (
-			<ModerationAppealEmail verifyUrl={verifyUrl.toString()} otp={otp} />
-		),
+		react: <ModerationAppealEmail verifyUrl={verifyUrl.toString()} otp={otp} />,
 	})
 	if (response.status !== 'success') {
 		return json(
@@ -109,8 +113,8 @@ function ModerationAppealEmail({
 			<E.Container>
 				<E.Heading>Verify your Veud moderation appeal</E.Heading>
 				<E.Text>
-					Use verification code <strong>{otp}</strong>, or open the link
-					below. The code expires in 15 minutes.
+					Use verification code <strong>{otp}</strong>, or open the link below.
+					The code expires in 15 minutes.
 				</E.Text>
 				<E.Link href={verifyUrl}>{verifyUrl}</E.Link>
 				<E.Text>
@@ -133,61 +137,52 @@ export default function SuspensionAppealRoute() {
 		shouldRevalidate: 'onBlur',
 	})
 	return (
-		<main className="container flex min-h-full flex-col justify-center pb-32 pt-20">
-			<div className="mx-auto w-full max-w-lg">
-				<div className="text-center">
-					<h1 className="text-h1">Appeal an account suspension</h1>
-					<p className="mt-3 text-body-md text-muted-foreground">
-						Explain what the moderation team should reconsider. We will verify
-						your account email before placing the appeal in the private queue.
-					</p>
-				</div>
-				<fetcher.Form
-					method="post"
-					{...getFormProps(form)}
-					className="mt-10 space-y-5 rounded-2xl border border-veud-border bg-veud-surface p-5 sm:p-7"
+		<AuthShell
+			title="Appeal a suspension"
+			description="Tell the moderation team what should be reconsidered."
+		>
+			<fetcher.Form method="post" {...getFormProps(form)} className="space-y-5">
+				<HoneypotInputs />
+				<Field
+					labelProps={{
+						htmlFor: fields.usernameOrEmail.id,
+						children: 'Username or email',
+					}}
+					inputProps={{
+						...getInputProps(fields.usernameOrEmail, { type: 'text' }),
+						autoComplete: 'username',
+					}}
+					errors={fields.usernameOrEmail.errors}
+				/>
+				<TextareaField
+					labelProps={{
+						htmlFor: fields.details.id,
+						children: 'Appeal',
+					}}
+					textareaProps={{
+						...getTextareaProps(fields.details),
+						rows: 6,
+						maxLength: 1_000,
+						placeholder: 'Explain the relevant context.',
+					}}
+					errors={fields.details.errors}
+				/>
+				<ErrorList errors={form.errors} id={form.errorId} />
+				<StatusButton
+					type="submit"
+					className="w-full"
+					status={
+						fetcher.state !== 'idle' ? 'pending' : (form.status ?? 'idle')
+					}
+					disabled={fetcher.state !== 'idle'}
 				>
-					<HoneypotInputs />
-					<Field
-						labelProps={{
-							htmlFor: fields.usernameOrEmail.id,
-							children: 'Username or email',
-						}}
-						inputProps={{
-							...getInputProps(fields.usernameOrEmail, { type: 'text' }),
-							autoComplete: 'username',
-						}}
-						errors={fields.usernameOrEmail.errors}
-					/>
-					<TextareaField
-						labelProps={{
-							htmlFor: fields.details.id,
-							children: 'Appeal',
-						}}
-						textareaProps={{
-							...getTextareaProps(fields.details),
-							rows: 6,
-							maxLength: 1_000,
-							placeholder:
-								'Describe the relevant context and why the decision should change.',
-						}}
-						errors={fields.details.errors}
-					/>
-					<ErrorList errors={form.errors} id={form.errorId} />
-					<StatusButton
-						type="submit"
-						className="w-full"
-						status={fetcher.state !== 'idle' ? 'pending' : form.status ?? 'idle'}
-						disabled={fetcher.state !== 'idle'}
-					>
-						Email verification code
-					</StatusButton>
-				</fetcher.Form>
-				<Link to="/login" className="mt-6 block text-center font-bold">
-					Back to login
-				</Link>
-			</div>
-		</main>
+					Email verification code
+				</StatusButton>
+			</fetcher.Form>
+			<Link to="/login" className="mt-6 block text-center text-sm font-bold">
+				Back to login
+			</Link>
+		</AuthShell>
 	)
 }
 

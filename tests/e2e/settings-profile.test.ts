@@ -46,9 +46,7 @@ test('Users can update their password', async ({ page, login }) => {
 	await passwordForm.getByLabel(/^new password/i).fill(newPassword)
 	await passwordForm.getByLabel(/^confirm new password/i).fill(newPassword)
 
-	await passwordForm
-		.getByRole('button', { name: /^change password/i })
-		.click()
+	await passwordForm.getByRole('button', { name: /^change password/i }).click()
 
 	await expect(page).toHaveURL(`/settings/profile`)
 
@@ -68,7 +66,8 @@ test('Users can update their profile photo', async ({ page, login }) => {
 	await page.goto('/settings/profile')
 
 	const beforeSrc = await page
-		.getByRole('img', { name: user.username }).last()
+		.getByRole('img', { name: user.username })
+		.last()
 		.getAttribute('src')
 
 	await page.getByRole('link', { name: /change profile photo/i }).click()
@@ -87,7 +86,8 @@ test('Users can update their profile photo', async ({ page, login }) => {
 	).toHaveURL(`/settings/profile`)
 
 	const afterSrc = await page
-		.getByRole('img', { name: user.username }).last()
+		.getByRole('img', { name: user.username })
+		.last()
 		.getAttribute('src')
 
 	expect(beforeSrc).not.toEqual(afterSrc)
@@ -114,7 +114,7 @@ test('Users can change their email address', async ({ page, login }) => {
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Onboarding code not found')
 	await page.getByRole('textbox', { name: /code/i }).fill(code)
-	await page.getByRole('button', { name: /submit/i }).click()
+	await page.getByRole('button', { name: /verify/i }).click()
 	await expect(page.getByText(/email changed/i)).toBeVisible()
 
 	const updatedUser = await prisma.user.findUnique({
