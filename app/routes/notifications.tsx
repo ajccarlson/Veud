@@ -8,6 +8,12 @@ import {
 	useLoaderData,
 } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
@@ -158,54 +164,133 @@ function displayTime(value: Date | string) {
 export default function NotificationsRoute() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8">
-			<header className="flex flex-wrap items-end justify-between gap-3">
-				<div>
-					<h1 className="text-3xl font-black">Notifications</h1>
-					<p className="text-sm text-muted-foreground">
-						Release reminders, likes, and discussion on your activity.
-					</p>
-				</div>
-				<div className="flex flex-wrap gap-2">
-					<Button asChild variant="ghost" size="sm">
-						<Link to="/settings/profile/notifications">Preferences</Link>
-					</Button>
-					{data.unreadCount ? (
-						<Form method="post">
-							<input type="hidden" name="intent" value="read-all" />
-							<Button type="submit" variant="outline" size="sm">
-								Mark all read
-							</Button>
-						</Form>
-					) : null}
-				</div>
-			</header>
+		<VeudPage width="form">
+			<VeudPageHeader
+				eyebrow="Your signal desk"
+				title="Notifications"
+				description="Release reminders, likes, and discussion on your activity."
+				actions={
+					<div className="flex flex-wrap gap-2">
+						<Button asChild variant="ghost" size="sm">
+							<Link to="/settings/profile/notifications">Preferences</Link>
+						</Button>
+						{data.unreadCount ? (
+							<Form method="post">
+								<input type="hidden" name="intent" value="read-all" />
+								<Button type="submit" variant="outline" size="sm">
+									Mark all read
+								</Button>
+							</Form>
+						) : null}
+					</div>
+				}
+			/>
 
 			{data.notifications.length ? (
-				<ul className="divide-y overflow-hidden rounded-xl border bg-card">
-					{data.notifications.map(notification => {
-						if (
-							notification.type === 'moderation_notice' &&
-							notification.message
-						) {
-							const copy = (
+				<VeudPanel className="overflow-hidden p-0">
+					<ul className="divide-y divide-veud-border/60">
+						{data.notifications.map(notification => {
+							if (
+								notification.type === 'moderation_notice' &&
+								notification.message
+							) {
+								const copy = (
+									<>
+										<span className="font-semibold">Moderation notice:</span>{' '}
+										{notification.message}
+									</>
+								)
+								return (
+									<li
+										key={notification.id}
+										className={
+											notification.readAt
+												? 'p-4 sm:p-5'
+												: 'border-l-2 border-veud-gold bg-veud-gold/10 p-4 sm:p-5'
+										}
+									>
+										{notification.readAt ? (
+											<Link
+												to="/settings/profile"
+												className="block hover:underline"
+											>
+												{copy}
+											</Link>
+										) : (
+											<Form method="post">
+												<input type="hidden" name="intent" value="read" />
+												<input
+													type="hidden"
+													name="notificationId"
+													value={notification.id}
+												/>
+												<button
+													type="submit"
+													className="w-full text-left hover:underline"
+												>
+													{copy}
+												</button>
+											</Form>
+										)}
+										<time className="mt-2 block text-xs font-semibold text-veud-sage">
+											{displayTime(notification.availableAt)}
+										</time>
+									</li>
+								)
+							}
+							const collection = notification.collection
+							const review = notification.review
+							const releaseMedia = notification.releaseReminder?.media
+							if (!collection && !review && !releaseMedia) return null
+							const releaseSubject = releaseMedia
+								? releaseMedia.title?.trim() || `Untitled ${releaseMedia.kind}`
+								: null
+							const subject = collection
+								? collection.title
+								: review?.media.title?.trim() ||
+									`Untitled ${review?.media.kind ?? 'media'}`
+							const copy = releaseMedia ? (
 								<>
-									<span className="font-semibold">Moderation notice:</span>{' '}
-									{notification.message}
+									<span className="font-semibold">{releaseSubject}</span> is
+									coming up
+									{notification.releaseAt
+										? ` · ${displayTime(notification.releaseAt)}`
+										: ''}
+									.
+								</>
+							) : (
+								<>
+									<span className="font-semibold">
+										{notification.actor?.username}
+									</span>{' '}
+									{notificationAction(notification.type)}{' '}
+									<span className="font-semibold">{subject}</span>
 								</>
 							)
+							const href = releaseMedia
+								? `/media/${releaseMedia.id}`
+								: collection
+									? `/collections/${collection.id}#${
+											notification.collectionCommentId
+												? `collection-comment-${notification.collectionCommentId}`
+												: 'discussion'
+										}`
+									: `/media/${review!.media.id}#${
+											notification.reviewCommentId
+												? `comment-${notification.reviewCommentId}`
+												: `review-${review!.id}`
+										}`
 							return (
 								<li
 									key={notification.id}
 									className={
-										notification.readAt ? 'p-4' : 'bg-amber-400/10 p-4'
+										notification.readAt
+											? 'p-4 sm:p-5'
+											: 'border-l-2 border-veud-mint bg-veud-mint/10 p-4 sm:p-5'
 									}
 								>
 									{notification.readAt ? (
-										<Link
-											to="/settings/profile"
-											className="block hover:underline"
-										>
+										<Link to={href} className="block hover:underline">
 											{copy}
 										</Link>
 									) : (
@@ -224,91 +309,19 @@ export default function NotificationsRoute() {
 											</button>
 										</Form>
 									)}
-									<time className="mt-1 block text-xs text-muted-foreground">
+									<time className="mt-2 block text-xs font-semibold text-veud-sage">
 										{displayTime(notification.availableAt)}
 									</time>
 								</li>
 							)
-						}
-						const collection = notification.collection
-						const review = notification.review
-						const releaseMedia = notification.releaseReminder?.media
-						if (!collection && !review && !releaseMedia) return null
-						const releaseSubject = releaseMedia
-							? releaseMedia.title?.trim() || `Untitled ${releaseMedia.kind}`
-							: null
-						const subject = collection
-							? collection.title
-							: review?.media.title?.trim() ||
-								`Untitled ${review?.media.kind ?? 'media'}`
-						const copy = releaseMedia ? (
-							<>
-								<span className="font-semibold">{releaseSubject}</span> is
-								coming up
-								{notification.releaseAt
-									? ` · ${displayTime(notification.releaseAt)}`
-									: ''}
-								.
-							</>
-						) : (
-							<>
-								<span className="font-semibold">
-									{notification.actor?.username}
-								</span>{' '}
-								{notificationAction(notification.type)}{' '}
-								<span className="font-semibold">{subject}</span>
-							</>
-						)
-						const href = releaseMedia
-							? `/media/${releaseMedia.id}`
-							: collection
-								? `/collections/${collection.id}#${
-										notification.collectionCommentId
-											? `collection-comment-${notification.collectionCommentId}`
-											: 'discussion'
-									}`
-								: `/media/${review!.media.id}#${
-										notification.reviewCommentId
-											? `comment-${notification.reviewCommentId}`
-											: `review-${review!.id}`
-									}`
-						return (
-							<li
-								key={notification.id}
-								className={notification.readAt ? 'p-4' : 'bg-primary/5 p-4'}
-							>
-								{notification.readAt ? (
-									<Link to={href} className="block hover:underline">
-										{copy}
-									</Link>
-								) : (
-									<Form method="post">
-										<input type="hidden" name="intent" value="read" />
-										<input
-											type="hidden"
-											name="notificationId"
-											value={notification.id}
-										/>
-										<button
-											type="submit"
-											className="w-full text-left hover:underline"
-										>
-											{copy}
-										</button>
-									</Form>
-								)}
-								<time className="mt-1 block text-xs text-muted-foreground">
-									{displayTime(notification.availableAt)}
-								</time>
-							</li>
-						)
-					})}
-				</ul>
+						})}
+					</ul>
+				</VeudPanel>
 			) : (
-				<div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-					No notifications yet.
-				</div>
+				<VeudEmptyState title="Your inbox is clear">
+					New reminders and community activity will collect here.
+				</VeudEmptyState>
 			)}
-		</main>
+		</VeudPage>
 	)
 }

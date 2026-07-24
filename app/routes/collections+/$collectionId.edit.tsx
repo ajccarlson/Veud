@@ -17,6 +17,11 @@ import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
+import {
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireCollectionOwner } from '#app/utils/media-collections.server.ts'
 import {
@@ -106,94 +111,96 @@ export default function EditCollection() {
 	const navigation = useNavigation()
 	const busy = navigation.state !== 'idle'
 	return (
-		<main className="mx-auto w-full max-w-3xl space-y-7 px-4 py-8 text-[#ffefcc] sm:px-6">
-			<header>
-				<p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a2ffd5]">
-					Collection settings
-				</p>
-				<h1 className="mt-2 text-4xl font-black text-[#ff9900]">
-					Edit collection
-				</h1>
-			</header>
-			<Form
-				method="post"
-				className="space-y-6 rounded-2xl border border-[#54806c] bg-[#383040] p-6"
-			>
-				<input type="hidden" name="intent" value="save" />
-				<div className="space-y-2">
-					<Label htmlFor="title">Title</Label>
-					<Input
-						id="title"
-						name="title"
-						required
-						maxLength={COLLECTION_TITLE_MAX_LENGTH}
-						defaultValue={collection.title}
-					/>
-					{actionData?.errors.title?.[0] ? (
-						<p className="text-sm text-red-300">{actionData.errors.title[0]}</p>
-					) : null}
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="description">Description</Label>
-					<Textarea
-						id="description"
-						name="description"
-						maxLength={COLLECTION_DESCRIPTION_MAX_LENGTH}
-						rows={7}
-						defaultValue={collection.description ?? ''}
-					/>
-					{actionData?.errors.description?.[0] ? (
-						<p className="text-sm text-red-300">
-							{actionData.errors.description[0]}
-						</p>
-					) : null}
-				</div>
-				<div className="space-y-2">
-					<Label htmlFor="tags">Tags</Label>
-					<Input
-						id="tags"
-						name="tags"
-						maxLength={COLLECTION_TAG_INPUT_MAX_LENGTH}
-						defaultValue={collection.tags.map(({ tag }) => tag.name).join(', ')}
-						placeholder="science fiction, comfort watches, 1990s"
-					/>
-					<p className="text-xs text-[#a2ffd5]">
-						Up to {COLLECTION_TAG_MAX_COUNT} comma-separated discovery tags.
-					</p>
-					{actionData?.errors.tags?.[0] ? (
-						<p className="text-sm text-red-300">{actionData.errors.tags[0]}</p>
-					) : null}
-				</div>
-				<div className="flex items-start gap-3 rounded-xl border border-[#54806c] bg-[#2e2f2b] p-4">
-					<input
-						id="is-public"
-						type="checkbox"
-						name="isPublic"
-						defaultChecked={collection.isPublic}
-						className="mt-1 h-4 w-4"
-					/>
-					<div>
-						<Label htmlFor="is-public" className="block text-[#ffffb1]">
-							Public collection
-						</Label>
-						<span className="text-sm text-[#c6ded2]">
-							Anyone can discover and share it. Uncheck to keep it visible only
-							to you.
-						</span>
+		<VeudPage width="form">
+			<VeudPageHeader
+				eyebrow="Collection settings"
+				title="Edit collection"
+				description={`Control how “${collection.title}” appears and who can discover it.`}
+			/>
+			<VeudPanel className="p-5 sm:p-7">
+				<Form method="post" className="space-y-6">
+					<input type="hidden" name="intent" value="save" />
+					<div className="space-y-2">
+						<Label htmlFor="title">Title</Label>
+						<Input
+							id="title"
+							name="title"
+							required
+							maxLength={COLLECTION_TITLE_MAX_LENGTH}
+							defaultValue={collection.title}
+						/>
+						{actionData?.errors.title?.[0] ? (
+							<p className="text-sm text-red-300">
+								{actionData.errors.title[0]}
+							</p>
+						) : null}
 					</div>
-				</div>
-				<div className="flex flex-wrap gap-3">
-					<Button type="submit" disabled={busy}>
-						{busy ? 'Saving…' : 'Save changes'}
-					</Button>
-					<Button asChild variant="outline">
-						<Link to={`/collections/${collection.id}`}>Cancel</Link>
-					</Button>
-				</div>
-			</Form>
-			<section className="rounded-2xl border border-red-400/60 bg-[#383040] p-6">
+					<div className="space-y-2">
+						<Label htmlFor="description">Description</Label>
+						<Textarea
+							id="description"
+							name="description"
+							maxLength={COLLECTION_DESCRIPTION_MAX_LENGTH}
+							rows={7}
+							defaultValue={collection.description ?? ''}
+						/>
+						{actionData?.errors.description?.[0] ? (
+							<p className="text-sm text-red-300">
+								{actionData.errors.description[0]}
+							</p>
+						) : null}
+					</div>
+					<div className="space-y-2">
+						<Label htmlFor="tags">Tags</Label>
+						<Input
+							id="tags"
+							name="tags"
+							maxLength={COLLECTION_TAG_INPUT_MAX_LENGTH}
+							defaultValue={collection.tags
+								.map(({ tag }) => tag.name)
+								.join(', ')}
+							placeholder="science fiction, comfort watches, 1990s"
+						/>
+						<p className="text-xs text-veud-mint">
+							Up to {COLLECTION_TAG_MAX_COUNT} comma-separated discovery tags.
+						</p>
+						{actionData?.errors.tags?.[0] ? (
+							<p className="text-sm text-red-300">
+								{actionData.errors.tags[0]}
+							</p>
+						) : null}
+					</div>
+					<div className="flex items-start gap-3 rounded-xl border border-veud-border bg-veud-ink p-4">
+						<input
+							id="is-public"
+							type="checkbox"
+							name="isPublic"
+							defaultChecked={collection.isPublic}
+							className="mt-1 h-4 w-4"
+						/>
+						<div>
+							<Label htmlFor="is-public" className="block text-veud-yellow">
+								Public collection
+							</Label>
+							<span className="text-sm text-veud-copy">
+								Anyone can discover and share it. Uncheck to keep it visible
+								only to you.
+							</span>
+						</div>
+					</div>
+					<div className="flex flex-wrap gap-3">
+						<Button type="submit" disabled={busy}>
+							{busy ? 'Saving…' : 'Save changes'}
+						</Button>
+						<Button asChild variant="outline">
+							<Link to={`/collections/${collection.id}`}>Cancel</Link>
+						</Button>
+					</div>
+				</Form>
+			</VeudPanel>
+			<VeudPanel className="border-red-400/60">
 				<h2 className="text-xl font-black text-red-200">Delete collection</h2>
-				<p className="mt-2 text-sm text-[#c6ded2]">
+				<p className="mt-2 text-sm text-veud-copy">
 					This removes the curated list, but never deletes media or changes
 					tracking data.
 				</p>
@@ -208,8 +215,8 @@ export default function EditCollection() {
 						Delete permanently
 					</Button>
 				</Form>
-			</section>
-		</main>
+			</VeudPanel>
+		</VeudPage>
 	)
 }
 
