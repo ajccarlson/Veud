@@ -19,10 +19,6 @@ const schema = z.object({
 		.url()
 		.refine(value => ['http:', 'https:'].includes(new URL(value).protocol))
 		.optional(),
-	// If you plan to use GitHub auth, remove the default:
-	GITHUB_CLIENT_ID: z.string().default('MOCK_GITHUB_CLIENT_ID'),
-	GITHUB_CLIENT_SECRET: z.string().default('MOCK_GITHUB_CLIENT_SECRET'),
-	GITHUB_TOKEN: z.string(),
 
 	TMDB_API_KEY: z.string(),
 

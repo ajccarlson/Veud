@@ -240,11 +240,7 @@ export function TrendingData({
 						id="home-trending-heading"
 						className="mt-1 text-3xl font-black text-[#ff9900] sm:text-4xl"
 					>
-						{selectedRail?.signal === 'trending'
-							? 'Trending now'
-							: selectedRail?.signal === 'popular'
-								? 'Popular titles'
-								: 'Catalog highlights'}
+						Trending now
 					</h2>
 					<p className="mt-2 max-w-2xl text-sm text-[#c6ded2]">
 						Current provider charts, matched to Veud’s catalog.

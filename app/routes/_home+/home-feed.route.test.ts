@@ -26,6 +26,7 @@ test('signed-in home feed contains activity only from followed members', async (
 		data: {
 			kind: 'movie',
 			title: 'Personalized Home Fixture',
+			catalogPopularity: 1,
 			releaseStart: new Date(Date.now() + 24 * 60 * 60 * 1_000),
 		},
 	})
@@ -139,6 +140,13 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([])
 	expect(result.data.upcomingCalendar).toBeNull()
+	expect(result.data.anonymousHomeProof).toEqual({
+		catalogTotal: 0,
+		reviewTotal: 0,
+		publicCollectionTotal: 0,
+		kinds: [],
+		activity: [],
+	})
 })
 
 test('new members receive discovery suggestions that exclude themselves', async () => {

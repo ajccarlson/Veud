@@ -189,6 +189,9 @@ export default [
 	appRoute('routes/resources+/image-tip-of-tongue.ts', {
 		path: 'resources/image-tip-of-tongue',
 	}),
+	appRoute('routes/resources+/home-memory-search.ts', {
+		path: 'resources/home-memory-search',
+	}),
 	appRoute('routes/resources+/review-assistance.ts', {
 		path: 'resources/review-assistance',
 	}),

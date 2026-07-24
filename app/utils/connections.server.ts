@@ -1,6 +1,5 @@
 import { createCookieSessionStorage } from 'react-router'
 import { type ProviderName } from './connections.tsx'
-// import { GitHubProvider } from './providers/github.server.ts'
 import { MALProvider } from './providers/mal.server.ts'
 import { type AuthProvider } from './providers/provider.ts'
 import { TraktProvider } from './providers/trakt.server.ts'
@@ -19,9 +18,8 @@ export const connectionSessionStorage = createCookieSessionStorage({
 })
 
 export const providers: Record<ProviderName, AuthProvider> = {
-	// github: new GitHubProvider(),
-  mal: new MALProvider(),
-  trakt: new TraktProvider(),
+	mal: new MALProvider(),
+	trakt: new TraktProvider(),
 }
 
 export function handleMockAction(providerName: ProviderName, request: Request) {
