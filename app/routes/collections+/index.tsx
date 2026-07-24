@@ -11,6 +11,12 @@ import { MediaCollectionCard } from '#app/components/media-collection-card.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
+import {
+	VeudEmptyState,
+	VeudPage,
+	VeudPageHeader,
+	VeudPanel,
+} from '#app/components/ui/veud-layout.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import {
 	getPersonalizedCollectionRanking,
@@ -244,38 +250,33 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function CollectionsIndex() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<main className="mx-auto w-full max-w-7xl space-y-7 px-4 py-8 text-[#ffefcc] sm:px-6 lg:px-8">
-			<header className="flex flex-wrap items-end justify-between gap-5">
-				<div className="max-w-3xl space-y-2">
-					<p className="text-sm font-bold uppercase tracking-[0.2em] text-[#a2ffd5]">
-						Community picks
-					</p>
-					<h1 className="text-4xl font-black text-[#ff9900]">Collections</h1>
-					<p className="leading-7 text-[#c6ded2]">
-						Explore themed lists, personal favorites, and recommendations built
-						from Veud’s shared catalog.
-					</p>
-				</div>
-				<Button asChild>
-					<Link
-						to={
-							data.isSignedIn
-								? '/collections/new'
-								: '/login?redirectTo=%2Fcollections%2Fnew'
-						}
-					>
-						Create a collection
-					</Link>
-				</Button>
-			</header>
+		<VeudPage>
+			<VeudPageHeader
+				eyebrow="Community picks"
+				title="Collections"
+				description="Explore themed lists, personal favorites, and recommendations built from Veud’s shared catalog."
+				actions={
+					<Button asChild>
+						<Link
+							to={
+								data.isSignedIn
+									? '/collections/new'
+									: '/login?redirectTo=%2Fcollections%2Fnew'
+							}
+						>
+							Create a collection
+						</Link>
+					</Button>
+				}
+			/>
 
 			{data.featuredCollections.length ? (
-				<section className="space-y-4 rounded-2xl border border-[#ff9900]/60 bg-[#383040] p-5">
+				<VeudPanel tone="warm" className="space-y-4">
 					<div>
-						<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9900]">
+						<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-amber">
 							Editorial
 						</p>
-						<h2 className="mt-1 text-2xl font-black text-[#ffffb1]">
+						<h2 className="mt-1 text-2xl font-[var(--veud-font-display)] font-black text-veud-yellow">
 							Staff picks
 						</h2>
 					</div>
@@ -287,12 +288,12 @@ export default function CollectionsIndex() {
 							/>
 						))}
 					</div>
-				</section>
+				</VeudPanel>
 			) : null}
 
 			<Form
 				method="get"
-				className="grid max-w-3xl gap-3 rounded-2xl border border-[#54806c] bg-[#383040] p-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end"
+				className="grid max-w-3xl gap-3 rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end"
 			>
 				{data.activeTag ? (
 					<input type="hidden" name="tag" value={data.activeTag.slug} />
@@ -313,7 +314,7 @@ export default function CollectionsIndex() {
 						id="collection-sort"
 						name="sort"
 						defaultValue={data.sort}
-						className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+						className="h-10 w-full rounded-xl border border-veud-border/65 bg-veud-ink/65 px-3 text-sm text-veud-cream shadow-inner shadow-black/15 focus:border-veud-mint focus:outline-none focus:ring-2 focus:ring-veud-mint/35"
 					>
 						{data.isSignedIn ? <option value="for-you">For you</option> : null}
 						<option value="trending">Trending now</option>
@@ -335,8 +336,8 @@ export default function CollectionsIndex() {
 						to={collectionsHref(data.query, data.sort, 1, '')}
 						className={`rounded-full border px-3 py-1 text-sm font-bold ${
 							data.activeTag
-								? 'border-[#54806c] text-[#a2ffd5]'
-								: 'border-[#ff9900] bg-[#ff9900]/10 text-[#ffffb1]'
+								? 'border-veud-border text-veud-mint hover:border-veud-mint'
+								: 'border-veud-amber bg-veud-amber/10 text-veud-yellow'
 						}`}
 					>
 						All tags
@@ -347,8 +348,8 @@ export default function CollectionsIndex() {
 							to={collectionsHref(data.query, data.sort, 1, tag.slug)}
 							className={`rounded-full border px-3 py-1 text-sm font-bold ${
 								data.activeTag?.slug === tag.slug
-									? 'border-[#ff9900] bg-[#ff9900]/10 text-[#ffffb1]'
-									: 'border-[#54806c] text-[#a2ffd5] hover:border-[#a2ffd5]'
+									? 'border-veud-amber bg-veud-amber/10 text-veud-yellow'
+									: 'border-veud-border text-veud-mint hover:border-veud-mint'
 							}`}
 						>
 							#{tag.name}
@@ -359,19 +360,19 @@ export default function CollectionsIndex() {
 
 			<section className="space-y-4">
 				{data.personalization ? (
-					<div className="rounded-2xl border border-[#a2ffd5]/60 bg-[#383040] px-5 py-4">
-						<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#a2ffd5]">
+					<VeudPanel className="px-5 py-4">
+						<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">
 							Personalized discovery
 						</p>
-						<h2 className="mt-1 text-2xl font-black text-[#ffffb1]">
+						<h2 className="mt-1 text-2xl font-[var(--veud-font-display)] font-black text-veud-yellow">
 							Picked for you
 						</h2>
-						<p className="mt-1 text-sm leading-6 text-[#c6ded2]">
+						<p className="mt-1 text-sm leading-6 text-veud-copy">
 							{personalizationSummary(data.personalization)}
 						</p>
-					</div>
+					</VeudPanel>
 				) : null}
-				<p className="text-sm font-semibold text-[#a2ffd5]">
+				<p className="text-sm font-semibold text-veud-mint">
 					{data.total} {data.total === 1 ? 'collection' : 'collections'}
 					{data.activeTag ? ` tagged #${data.activeTag.name}` : ''}
 				</p>
@@ -385,14 +386,9 @@ export default function CollectionsIndex() {
 						))}
 					</div>
 				) : (
-					<div className="rounded-2xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-16 text-center">
-						<h2 className="text-xl font-black text-[#ffffb1]">
-							No collections found
-						</h2>
-						<p className="mt-2 text-[#a2ffd5]">
-							Try a broader search or start the first one.
-						</p>
-					</div>
+					<VeudEmptyState title="No collections found">
+						<p>Try a broader search or start the first one.</p>
+					</VeudEmptyState>
 				)}
 			</section>
 
@@ -421,7 +417,7 @@ export default function CollectionsIndex() {
 							<span>Previous</span>
 						)}
 					</Button>
-					<span className="text-sm font-semibold text-[#a2ffd5]">
+					<span className="text-sm font-semibold text-veud-mint">
 						Page {data.page} of {data.pageCount}
 					</span>
 					<Button
@@ -446,7 +442,7 @@ export default function CollectionsIndex() {
 					</Button>
 				</nav>
 			) : null}
-		</main>
+		</VeudPage>
 	)
 }
 
