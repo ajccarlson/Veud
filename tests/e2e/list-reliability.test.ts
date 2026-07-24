@@ -1027,6 +1027,49 @@ test('mobile list defers desktop grid, catalog search, and advanced editor asset
 	expect(requestedAsset('watchlist-grid')).toBe(false)
 })
 
+test('desktop list keeps the detailed grid with readable poster thumbnails', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'desktop-poster-scale',
+			header: 'Desktop poster scale',
+			position: 1,
+			displayedColumns: 'position, thumbnail, title, type',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			thumbnail: '/favicons/favicon.png|/discover',
+			title: 'Readable desktop poster',
+			type: 'TV Series',
+		},
+	})
+
+	await page.setViewportSize({ width: 1280, height: 900 })
+	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+
+	const grid = page.locator('.ag-theme-custom-react')
+	const mobileCards = page.getByRole('region', { name: 'Mobile list' })
+	const poster = grid.locator('.ag-thumbnail-image')
+	await expect(grid).toBeVisible()
+	await expect(mobileCards).toBeHidden()
+	await expect(poster).toBeVisible()
+	const bounds = await poster.boundingBox()
+	expect(bounds).not.toBeNull()
+	expect(bounds!.width).toBeGreaterThanOrEqual(64)
+	expect(bounds!.height).toBeGreaterThanOrEqual(96)
+})
+
 test('member can save a default list sort without changing manual positions', async ({
 	page,
 	login,
