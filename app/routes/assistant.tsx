@@ -127,13 +127,7 @@ export default function AssistantRoute() {
 			<VeudPageHeader
 				eyebrow="Private command palette"
 				title="Tracking assistant"
-				description={
-					<p>
-						Describe a library change naturally. Veud resolves every title and
-						destination locally, shows the exact result, and waits for your
-						confirmation before writing anything.
-					</p>
-				}
+				description="Describe a change, review it, then apply."
 			/>
 
 			<VeudPanel>
@@ -155,8 +149,8 @@ export default function AssistantRoute() {
 					</div>
 					<div className="rounded-xl border border-veud-border/70 bg-veud-canvas/70 p-3 text-sm text-veud-copy">
 						{data.enabled
-							? 'Only this command is sent to OpenAI. Catalog records, list contents, account identifiers, and resolved results remain local.'
-							: 'The tracking assistant is currently disabled by the site operator. Your normal lists and tracking controls remain available.'}
+							? 'AI-assisted · nothing changes until you approve the preview.'
+							: 'Assistant unavailable.'}
 					</div>
 					<Button type="submit" disabled={busy || !data.enabled}>
 						{busy && navigation.formData?.get('intent') === 'preview'

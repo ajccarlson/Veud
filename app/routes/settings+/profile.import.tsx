@@ -556,9 +556,7 @@ export default function ProfileImportRoute() {
 					Import another library
 				</h2>
 				<p className="mt-2 text-sm leading-6 text-veud-copy">
-					Preview matches and choose how conflicts are handled before Veud
-					changes anything. Provider files stay in this request and are never
-					sent to an AI service.
+					Preview matches and resolve conflicts before importing.
 				</p>
 			</div>
 			<Form
@@ -665,9 +663,7 @@ export default function ProfileImportRoute() {
 												</Button>
 											</Form>
 											<p className="mt-1 text-xs leading-5 text-veud-copy">
-												Opt-in: sends only each unresolved imported title, media
-												kind, and provider label to OpenAI. Catalog candidates
-												and your tracking history stay local.
+												AI suggests title variants for unresolved items.
 											</p>
 										</div>
 									) : null}
@@ -786,7 +782,7 @@ export default function ProfileImportRoute() {
 												{item.aiHypotheses.length ? (
 													<div className="mt-2 rounded-lg border border-veud-mint/25 bg-veud-mint/5 p-2 text-xs text-veud-copy">
 														<strong className="text-veud-mint">
-															AI title hypotheses:
+															Suggested title variants:
 														</strong>{' '}
 														{item.aiHypotheses
 															.map(
@@ -794,11 +790,6 @@ export default function ProfileImportRoute() {
 																	`${hypothesis.title} (${hypothesis.uncertainty} uncertainty)`,
 															)
 															.join(' · ')}
-														<p className="mt-1">
-															Veud matched these phrases locally. No catalog
-															candidate was sent to OpenAI and nothing is
-															selected automatically.
-														</p>
 													</div>
 												) : null}
 											</div>
@@ -912,10 +903,8 @@ export default function ProfileImportRoute() {
 						</nav>
 					) : null}
 					<p className="mt-5 rounded-xl border border-dashed border-veud-border p-4 text-sm text-veud-copy">
-						Apply is transactional: every selected row succeeds together or no
-						rows change. Rollback is available until a subsequently edited item
-						would be overwritten. Any status lists created by this import start
-						private.
+						Imports apply together. Rollback remains available until an imported
+						item is edited. New status lists start private.
 					</p>
 				</section>
 			) : null}

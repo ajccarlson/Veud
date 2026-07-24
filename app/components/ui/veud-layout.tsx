@@ -3,7 +3,7 @@ import * as React from 'react'
 import { cn } from '#app/utils/misc.tsx'
 
 const pageVariants = cva(
-	'mx-auto w-full space-y-7 px-4 py-6 text-veud-cream sm:px-6 sm:py-8 lg:px-8',
+	'veud-page mx-auto w-full space-y-7 px-4 py-6 text-veud-cream sm:px-6 sm:py-8 lg:px-8',
 	{
 		variants: {
 			width: {
@@ -49,7 +49,7 @@ export function VeudPageHeader({
 	return (
 		<header
 			className={cn(
-				'flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
+				'veud-page-header flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between',
 				className,
 			)}
 		>
