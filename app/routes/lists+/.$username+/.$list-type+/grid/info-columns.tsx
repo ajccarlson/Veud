@@ -19,8 +19,9 @@ export function infoColumns() {
 				setterFunction(params)
 			},
 			sortable: false,
-			minWidth: 96,
-			maxWidth: 128,
+			width: 176,
+			minWidth: 112,
+			maxWidth: 192,
 			cellRenderer: (params: any) =>
 				hyperlinkRenderer(params.value, 'thumbnail', params.data.mediaId),
 			cellClass: 'ag-thumbnail-cell',

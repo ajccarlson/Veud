@@ -513,11 +513,11 @@
 
 	.ag-thumbnail-image {
 		display: block;
-		width: 4rem;
-		height: 6rem;
+		width: clamp(5.5rem, 7vw, 10rem);
+		height: clamp(8.25rem, 10.5vw, 15rem);
 		object-fit: cover;
 		border: 1px solid rgba(255, 255, 255, 0.16);
-		border-radius: 0.4rem;
+		border-radius: clamp(0.4rem, 0.35vw, 0.65rem);
 	}
 
 	.ag-thumbnail-cell:hover {

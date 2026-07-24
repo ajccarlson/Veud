@@ -8,7 +8,10 @@ const MAX_CANDIDATES = 72
 const MAX_MATCHES = 5
 const AI_REQUEST_LIMIT = 5
 const AI_REQUEST_WINDOW_MS = 10 * 60 * 1_000
+const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
+const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
 const aiRequestHistory = new Map<string, number[]>()
+const globalAiCircuit = { unavailableUntil: 0 }
 const STOP_WORDS = new Set([
 	'about',
 	'and',
@@ -92,9 +95,40 @@ export type TipOfTongueResults = {
 		| 'not-configured'
 		| 'sign-in-required'
 		| 'rate-limited'
+		| 'ai-unavailable'
 		| 'ai-error'
 		| 'ai-empty'
 		| null
+}
+
+type AiCircuit = {
+	unavailableUntil: number
+}
+
+class AiServiceError extends Error {
+	constructor(
+		readonly status: number,
+		readonly code: string | null,
+	) {
+		super(`AI search failed (${status})`)
+		this.name = 'AiServiceError'
+	}
+
+	get opensCircuit() {
+		return (
+			this.status === 401 ||
+			this.status === 403 ||
+			this.status === 429 ||
+			this.status >= 500
+		)
+	}
+
+	get cooldownMs() {
+		return this.code === 'insufficient_quota' ||
+			this.code === 'billing_hard_limit_reached'
+			? AI_QUOTA_COOLDOWN_MS
+			: AI_UNAVAILABLE_COOLDOWN_MS
+	}
 }
 
 function memoryTerms(memory: string) {
@@ -270,6 +304,7 @@ function localMatches(
 				)
 			return { candidate, originalIndex, matchedClues, score }
 		})
+		.filter(result => result.score > 0)
 		.sort(
 			(left, right) =>
 				right.score - left.score || left.originalIndex - right.originalIndex,
@@ -372,8 +407,19 @@ async function aiCluePlan(
 		}),
 		signal: AbortSignal.timeout(20_000),
 	})
-	if (!response.ok) throw new Error(`AI search failed (${response.status})`)
-	const text = responseText(await response.json())
+	const payload = await response.json().catch(() => null)
+	if (!response.ok) {
+		const parsedError = z
+			.object({
+				error: z.object({ code: z.string().nullable().optional() }).optional(),
+			})
+			.safeParse(payload)
+		throw new AiServiceError(
+			response.status,
+			parsedError.success ? (parsedError.data.error?.code ?? null) : null,
+		)
+	}
+	const text = responseText(payload)
 	if (!text) throw new Error('AI search returned no structured text')
 	return AiCluePlanSchema.parse(JSON.parse(text))
 }
@@ -385,11 +431,14 @@ export async function getTipOfTongueMatches(
 		allowAi?: boolean
 		rateLimitKey?: string
 		now?: number
+		aiCircuit?: AiCircuit
 	} = {},
 ): Promise<TipOfTongueResults> {
 	const memory = input.memory.trim().slice(0, 500)
 	const kind = discoveryKinds.includes(input.kind) ? input.kind : 'all'
 	const apiKey = process.env.OPENAI_API_KEY?.trim()
+	const now = options.now ?? Date.now()
+	const aiCircuit = options.aiCircuit ?? globalAiCircuit
 	const fallback = async (
 		fallbackReason: TipOfTongueResults['fallbackReason'],
 	) => {
@@ -402,9 +451,10 @@ export async function getTipOfTongueMatches(
 	}
 	if (!apiKey) return fallback('not-configured')
 	if (options.allowAi !== true) return fallback('sign-in-required')
+	if (aiCircuit.unavailableUntil > now) return fallback('ai-unavailable')
 	if (
 		options.rateLimitKey &&
-		!consumeAiRequest(options.rateLimitKey, options.now ?? Date.now())
+		!consumeAiRequest(options.rateLimitKey, now)
 	) {
 		return fallback('rate-limited')
 	}
@@ -426,6 +476,16 @@ export async function getTipOfTongueMatches(
 			fallbackReason: null,
 		}
 	} catch (error) {
+		if (error instanceof AiServiceError && error.opensCircuit) {
+			aiCircuit.unavailableUntil = Math.max(
+				aiCircuit.unavailableUntil,
+				now + error.cooldownMs,
+			)
+			console.error(
+				`[tip-of-tongue] AI service unavailable (${error.status}, ${error.code ?? 'unknown'}); using catalog match`,
+			)
+			return fallback('ai-unavailable')
+		}
 		console.error(
 			'[tip-of-tongue] AI clue expansion failed; using catalog match',
 			error,
