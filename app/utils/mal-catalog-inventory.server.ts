@@ -769,55 +769,56 @@ export async function importMalInventory(
 			complete: true,
 			reconciled: currentCursor.reconciled || shouldReconcile,
 		}
-		await prisma.$transaction(async tx => {
-			if (shouldReconcile) {
-				const [observedCount, activeCount] = await Promise.all([
-					tx.mediaExternalId.count({
-						where: {
-							provider: 'mal',
-							kind: options.kind,
-							lastSeenAt: { gte: scanStartedAt },
-							tombstonedAt: null,
-						},
-					}),
-					tx.mediaExternalId.count({
-						where: {
-							provider: 'mal',
-							kind: options.kind,
-							tombstonedAt: null,
-						},
-					}),
-				])
-				if (observedCount < minimumRecords) {
-					throw new Error(
-						`Refusing MAL ${options.kind} reconciliation: observed ${observedCount} unique records, below minimum ${minimumRecords}`,
-					)
-				}
-				if (activeCount > 0 && observedCount / activeCount < 0.9) {
-					throw new Error(
-						`Refusing MAL ${options.kind} reconciliation: observed ${observedCount} of ${activeCount} active records`,
-					)
-				}
-				const result = await tombstoneCatalogSourcesNotSeenSince(tx, {
-					provider: 'mal',
-					kind: options.kind,
-					missingBefore: scanStartedAt,
-					now: clock(),
-				})
-				tombstoned = result.count
-				await tx.catalogFeedItem.deleteMany({
-					where: {
+		await prisma.$transaction(
+			async tx => {
+				if (shouldReconcile) {
+					const [observedCount, activeCount] = await Promise.all([
+						tx.mediaExternalId.count({
+							where: {
+								provider: 'mal',
+								kind: options.kind,
+								lastSeenAt: { gte: scanStartedAt },
+								tombstonedAt: null,
+							},
+						}),
+						tx.mediaExternalId.count({
+							where: {
+								provider: 'mal',
+								kind: options.kind,
+								tombstonedAt: null,
+							},
+						}),
+					])
+					if (observedCount < minimumRecords) {
+						throw new Error(
+							`Refusing MAL ${options.kind} reconciliation: observed ${observedCount} unique records, below minimum ${minimumRecords}`,
+						)
+					}
+					if (activeCount > 0 && observedCount / activeCount < 0.9) {
+						throw new Error(
+							`Refusing MAL ${options.kind} reconciliation: observed ${observedCount} of ${activeCount} active records`,
+						)
+					}
+					const result = await tombstoneCatalogSourcesNotSeenSince(tx, {
 						provider: 'mal',
 						kind: options.kind,
-						feed: 'popular',
-						observedAt: { lt: scanStartedAt },
-					},
-				})
-			}
-			await tx.$executeRaw`
-				WITH "normalized" AS (
-					SELECT
-						"id",
+						missingBefore: scanStartedAt,
+						now: clock(),
+					})
+					tombstoned = result.count
+					await tx.catalogFeedItem.deleteMany({
+						where: {
+							provider: 'mal',
+							kind: options.kind,
+							feed: 'popular',
+							observedAt: { lt: scanStartedAt },
+						},
+					})
+				}
+				await tx.$executeRaw`
+					WITH "normalized" AS (
+						SELECT
+							"id",
 						1.0 - PERCENT_RANK() OVER (ORDER BY "rank" ASC) AS "rankScore",
 						CASE
 							WHEN "audience" IS NULL THEN 0.0
@@ -833,28 +834,29 @@ export async function importMalInventory(
 						AND "kind" = ${options.kind}
 						AND "feed" = 'popular'
 				)
-				UPDATE "CatalogFeedItem"
-				SET
-					"rankingScore" = (
-						SELECT
-							"rankScore" * 0.35 + "audienceScore" * 0.65
-						FROM "normalized"
-						WHERE "normalized"."id" = "CatalogFeedItem"."id"
-					),
-					"rankingVersion" = 2
-				WHERE "id" IN (SELECT "id" FROM "normalized")
-			`
-			await completeCatalogSyncRun(tx, {
-				runId: lease.run.id,
-				leaseOwner,
-				progress: {
-					...progress(),
-					cursor: serializeMalInventoryCursor(finalCursor),
-				},
-				telemetry: telemetry(),
-				now: clock(),
-			})
-		})
+					UPDATE "CatalogFeedItem" AS "target"
+					SET
+						"rankingScore" = (
+							"normalized"."rankScore" * 0.35 +
+							"normalized"."audienceScore" * 0.65
+						),
+						"rankingVersion" = 2
+					FROM "normalized"
+					WHERE "target"."id" = "normalized"."id"
+				`
+				await completeCatalogSyncRun(tx, {
+					runId: lease.run.id,
+					leaseOwner,
+					progress: {
+						...progress(),
+						cursor: serializeMalInventoryCursor(finalCursor),
+					},
+					telemetry: telemetry(),
+					now: clock(),
+				})
+			},
+			{ maxWait: 5_000, timeout: 120_000 },
+		)
 		currentCursor = finalCursor
 		providerRetryAfter = null
 	}
