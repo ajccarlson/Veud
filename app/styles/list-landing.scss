@@ -10,14 +10,7 @@
 	width: 100%;
 	overflow: hidden;
 	color: #ffefcc;
-	background: linear-gradient(
-		to right,
-		#403530 0 1%,
-		#383040 1% 10%,
-		#2e2f2b 10% 90%,
-		#54806c 90% 99%,
-		#403530 99% 100%
-	);
+	background: rgb(var(--veud-canvas) / 0.3);
 	font-family: var(--veud-font-sans);
 
 	.list-landing-sidebar-container {
@@ -88,8 +81,9 @@
 		min-height: 100%;
 		margin-inline: auto;
 		padding: clamp(1rem, 3vw, 2.25rem);
-		background: rgb(var(--veud-ink) / 92%);
+		background: rgb(var(--veud-ink) / 84%);
 		box-shadow: 0 0 3rem rgb(0 0 0 / 35%);
+		backdrop-filter: blur(0.9rem);
 
 		> form {
 			min-width: 0;

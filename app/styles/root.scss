@@ -77,17 +77,86 @@
 	}
 
 	.root-content {
+		position: relative;
+		isolation: isolate;
 		display: flex;
 		min-width: 0;
 		min-height: 0;
 		flex: 1 0 auto;
 		flex-direction: column;
+		background:
+			linear-gradient(90deg, rgb(129 84 58 / 0.3) 0 0.22rem, transparent 0) left
+				4.5vw top / 0.22rem 100% no-repeat,
+			linear-gradient(90deg, rgb(121 91 161 / 0.34) 0 0.22rem, transparent 0)
+				left 5.4vw top / 0.22rem 100% no-repeat,
+			linear-gradient(
+					90deg,
+					rgb(var(--veud-mint) / 0.25) 0 0.22rem,
+					transparent 0
+				)
+				right 4.5vw top / 0.22rem 100% no-repeat,
+			radial-gradient(
+				circle at 11% 5%,
+				rgb(105 66 127 / 0.19),
+				transparent 29rem
+			),
+			radial-gradient(
+				circle at 88% 12%,
+				rgb(45 123 89 / 0.15),
+				transparent 32rem
+			),
+			rgb(var(--veud-canvas));
+	}
+
+	.root-content::before {
+		position: absolute;
+		z-index: -1;
+		inset: 0;
+		content: '';
+		pointer-events: none;
+		background-image:
+			linear-gradient(rgb(var(--veud-border) / 0.025) 1px, transparent 1px),
+			linear-gradient(
+				90deg,
+				rgb(var(--veud-border) / 0.025) 1px,
+				transparent 1px
+			);
+		background-size: 2rem 2rem;
+		mask-image: linear-gradient(to bottom, black, transparent 55rem);
 	}
 
 	.root-content > * {
+		position: relative;
+		z-index: 0;
 		width: 100%;
 		min-width: 0;
 		flex: 0 0 auto;
+	}
+
+	.veud-page-header {
+		position: relative;
+		padding: clamp(1rem, 2.5vw, 1.5rem);
+		overflow: hidden;
+		background:
+			linear-gradient(112deg, rgb(var(--veud-surface) / 0.76), transparent 62%),
+			rgb(var(--veud-ink) / 0.68);
+		border: 1px solid rgb(var(--veud-border) / 0.25);
+		border-radius: 0.35rem 1.15rem 1.15rem 0.35rem;
+		box-shadow: 0 1.1rem 2.7rem rgb(0 0 0 / 0.16);
+		backdrop-filter: blur(0.8rem);
+	}
+
+	.veud-page-header::before {
+		position: absolute;
+		inset: 0 auto 0 0;
+		width: 0.25rem;
+		content: '';
+		background: linear-gradient(
+			to bottom,
+			rgb(var(--veud-amber)),
+			rgb(var(--veud-mint)) 55%,
+			rgb(121 91 161)
+		);
 	}
 
 	@media (max-width: 42.5rem) {
@@ -198,7 +267,7 @@
 			rgb(var(--veud-gold) / 0.32) 54%,
 			transparent 68% 100%
 		);
-		transform: translateX(-120%);
+		transform: translateX(145%);
 		animation: veud-projector-sweep 3.9s ease-in-out infinite;
 	}
 
@@ -234,12 +303,12 @@
 	@keyframes veud-projector-sweep {
 		0%,
 		18% {
-			transform: translateX(-120%);
+			transform: translateX(145%);
 		}
 
 		72%,
 		100% {
-			transform: translateX(145%);
+			transform: translateX(-120%);
 		}
 	}
 

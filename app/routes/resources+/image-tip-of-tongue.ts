@@ -12,6 +12,7 @@ import {
 } from '#app/utils/discovery.server.ts'
 import {
 	getImageTipOfTongueMatches,
+	getTipOfTongueMatches,
 	TipOfTongueImageError,
 } from '#app/utils/tip-of-tongue.server.ts'
 
@@ -34,7 +35,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		formData = await parseFormData(request, {
 			maxFiles: 1,
 			maxFileSize: 6 * 1024 * 1024,
-			maxParts: 4,
+			maxParts: 5,
 			maxTotalSize: 6 * 1024 * 1024 + 64 * 1024,
 		})
 	} catch (error) {
@@ -56,21 +57,32 @@ export async function action({ request }: ActionFunctionArgs) {
 		throw error
 	}
 	const fields = FieldsSchema.safeParse({
-		prompt: formData.get('prompt'),
+		prompt: formData.get('q') ?? formData.get('prompt'),
 		kind: formData.get('kind'),
 	})
 	const image = formData.get('image')
-	if (!fields.success || !(image instanceof File)) {
+	const hasImage = image instanceof File && image.size > 0
+	if (
+		!fields.success ||
+		(!hasImage &&
+			String(formData.get('q') ?? formData.get('prompt') ?? '').trim().length <
+				3)
+	) {
 		return json(
-			{ ok: false as const, error: 'Choose a valid image and media type.' },
+			{ ok: false as const, error: 'Add a few details or an image.' },
 			{ status: 400 },
 		)
 	}
 	try {
-		const result = await getImageTipOfTongueMatches(
-			{ image, ...fields.data },
-			{ rateLimitKey: `viewer:${ownerId}` },
-		)
+		const result = hasImage
+			? await getImageTipOfTongueMatches(
+					{ image, ...fields.data },
+					{ rateLimitKey: `viewer:${ownerId}` },
+				)
+			: await getTipOfTongueMatches(
+					{ memory: fields.data.prompt, kind: fields.data.kind },
+					{ allowAi: true, rateLimitKey: `viewer:${ownerId}` },
+				)
 		const filters = parseDiscoveryQuery(
 			new URLSearchParams({ kind: fields.data.kind, mode: 'memory' }),
 		)
@@ -88,7 +100,9 @@ export async function action({ request }: ActionFunctionArgs) {
 				...item,
 				memoryMatch: explanations.get(item.id) ?? null,
 			})),
-			upload: result.upload,
+			source: result.source,
+			fallbackReason: result.fallbackReason,
+			upload: 'upload' in result ? result.upload : null,
 		})
 	} catch (error) {
 		const status = error instanceof TipOfTongueImageError ? error.status : 503
@@ -98,7 +112,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				error:
 					error instanceof TipOfTongueImageError
 						? error.message
-						: 'Image identification is temporarily unavailable.',
+						: 'Search is temporarily unavailable.',
 			},
 			{ status },
 		)
