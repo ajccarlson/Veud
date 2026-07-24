@@ -75,10 +75,10 @@ export function SiteSearch({
 							<strong>Tip of My Tongue</strong>
 							<small>
 								{aiAvailable
-									? 'AI expands your clues; Veud privately retrieves and ranks five local catalog matches.'
+									? 'AI proposes five likely titles; Veud privately matches each one to its local catalog.'
 									: isSignedIn
-										? 'Use local catalog matching; AI clue expansion is not configured.'
-										: 'Use local catalog matching, or sign in for configured AI clue expansion.'}
+										? 'Use local catalog matching; AI identification is not configured.'
+										: 'Use local catalog matching, or sign in for AI identification.'}
 							</small>
 						</span>
 					</label>

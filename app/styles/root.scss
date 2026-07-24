@@ -91,15 +91,14 @@
 	}
 
 	@media (max-width: 42.5rem) {
-		.root-logo-separator {
-			visibility: hidden;
-			position: absolute;
+		.root-logo-projector-beam {
+			display: none;
 		}
 	}
 
 	@media (min-width: 42.5rem) {
-		.root-logo-separator {
-			visibility: visible;
+		.root-logo-projector-beam {
+			display: block;
 		}
 	}
 
@@ -160,16 +159,31 @@
 			filter 150ms ease;
 	}
 
-	.root-logo-separator {
-		height: 2.1rem;
-		width: 1px;
+	.root-logo-projector-beam {
+		position: relative;
+		width: 2.75rem;
+		height: 0.72rem;
+		flex: 0 0 auto;
 		background: linear-gradient(
-			to bottom,
-			transparent,
-			rgb(var(--veud-amber)),
-			rgb(var(--veud-mint)),
-			transparent
+			to right,
+			rgb(var(--veud-amber) / 0.98),
+			rgb(var(--veud-gold) / 0.78) 52%,
+			rgb(var(--veud-cream) / 0.12)
 		);
+		border-radius: 999rem;
+		box-shadow:
+			0 0 0.8rem rgb(var(--veud-amber) / 0.26),
+			0 0 1.4rem rgb(var(--veud-gold) / 0.12);
+		clip-path: polygon(0 31%, 100% 0, 100% 100%, 0 69%);
+	}
+
+	.root-logo-projector-beam::after {
+		position: absolute;
+		inset: 42% 7% auto 8%;
+		height: 0.08rem;
+		content: '';
+		background: rgb(var(--veud-cream) / 0.7);
+		border-radius: 999rem;
 	}
 
 	.root-logo:hover {
