@@ -14,6 +14,7 @@ import { HomeRecommendations } from '#app/routes/_home+/_recommendations.tsx'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
+import { getAnonymousHomeProof } from '#app/utils/anonymous-home.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
 import { prisma } from '#app/utils/db.server.ts'
@@ -30,6 +31,7 @@ import {
 	getReleaseCalendar,
 } from '#app/utils/release-calendar.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
+import { AnonymousHome } from './anonymous-home.tsx'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
@@ -41,6 +43,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		!userId || expanded('trending')
 			? getHomeTrending(userId)
 			: Promise.resolve([])
+	const anonymousHomeProofPromise = userId
+		? Promise.resolve(null)
+		: getAnonymousHomeProof()
 	const librarySummaryPromise =
 		userId && expanded('library')
 			? getHomeLibrarySummary(userId)
@@ -112,11 +117,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					},
 				})
 			: []
-	const [trendingRails, watchlists, librarySummary] = await Promise.all([
-		trendingPromise,
-		watchlistsPromise,
-		librarySummaryPromise,
-	])
+	const [trendingRails, watchlists, librarySummary, anonymousHomeProof] =
+		await Promise.all([
+			trendingPromise,
+			watchlistsPromise,
+			librarySummaryPromise,
+			anonymousHomeProofPromise,
+		])
 
 	return json({
 		trendingRails,
@@ -130,6 +137,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		dashboardConfig,
 		continuationQueue,
 		recommendationGraph,
+		anonymousHomeProof,
 	})
 }
 
@@ -140,69 +148,70 @@ export default function Index() {
 	return (
 		<div className="home">
 			<main className="home-main">
-				<h1 className="sr-only">
-					Track movies, television, anime, and manga with Veud
-				</h1>
 				<div className="home-container">
-					<section
-						className="home-intro-strip"
-						aria-labelledby="home-intro-title"
-					>
-						<div>
-							<p>One archive · every medium</p>
-							<h2 id="home-intro-title">
-								Your films, series, anime, and manga—kept in context.
-							</h2>
-						</div>
-						<Link to="/discover?mode=memory" className="home-memory-cta">
-							<Icon name="magic-wand" aria-hidden="true" />
-							<span>
-								<strong>Can’t remember the title?</strong>
-								<small>Describe it or add an image.</small>
-							</span>
-							<span aria-hidden="true">→</span>
-						</Link>
-					</section>
 					{currentUser ? (
-						<HomeDashboard
-							initialConfig={data.dashboardConfig}
-							modules={{
-								trending: (
-									<TrendingData
-										rails={data.trendingRails}
-										watchlists={data.watchlists}
-										isSignedIn
-									/>
-								),
-								continue: <HomeContinuation items={data.continuationQueue} />,
-								recommendations: (
-									<HomeRecommendations
-										graph={data.recommendationGraph}
-										watchlists={data.watchlists}
-									/>
-								),
-								following: (
-									<FollowingFeed
-										items={data.followingFeed}
-										followingCount={data.followingCount}
-										suggestedMembers={data.suggestedMembers}
-									/>
-								),
-								library: data.librarySummary ? (
-									<HomeLibrary
-										username={currentUser.username}
-										summary={data.librarySummary}
-										destinationCount={data.watchlists.length}
-									/>
-								) : null,
-								upcoming: <UpcomingData calendar={data.upcomingCalendar} />,
-							}}
-						/>
+						<>
+							<h1 className="sr-only">
+								Your films, television, anime, and manga on Veud
+							</h1>
+							<section
+								className="home-intro-strip"
+								aria-labelledby="home-intro-title"
+							>
+								<div>
+									<p>One archive · every medium</p>
+									<h2 id="home-intro-title">
+										Your films, series, anime, and manga—kept in context.
+									</h2>
+								</div>
+								<Link to="/discover?mode=memory" className="home-memory-cta">
+									<Icon name="magic-wand" aria-hidden="true" />
+									<span>
+										<strong>Can’t remember the title?</strong>
+										<small>Describe it or add an image.</small>
+									</span>
+									<span aria-hidden="true">→</span>
+								</Link>
+							</section>
+							<HomeDashboard
+								initialConfig={data.dashboardConfig}
+								modules={{
+									trending: (
+										<TrendingData
+											rails={data.trendingRails}
+											watchlists={data.watchlists}
+											isSignedIn
+										/>
+									),
+									continue: <HomeContinuation items={data.continuationQueue} />,
+									recommendations: (
+										<HomeRecommendations
+											graph={data.recommendationGraph}
+											watchlists={data.watchlists}
+										/>
+									),
+									following: (
+										<FollowingFeed
+											items={data.followingFeed}
+											followingCount={data.followingCount}
+											suggestedMembers={data.suggestedMembers}
+										/>
+									),
+									library: data.librarySummary ? (
+										<HomeLibrary
+											username={currentUser.username}
+											summary={data.librarySummary}
+											destinationCount={data.watchlists.length}
+										/>
+									) : null,
+									upcoming: <UpcomingData calendar={data.upcomingCalendar} />,
+								}}
+							/>
+						</>
 					) : (
-						<TrendingData
+						<AnonymousHome
 							rails={data.trendingRails}
-							watchlists={data.watchlists}
-							isSignedIn={false}
+							proof={data.anonymousHomeProof!}
 						/>
 					)}
 				</div>

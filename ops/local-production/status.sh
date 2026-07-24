@@ -44,6 +44,7 @@ DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
 systemctl --user --no-pager status \
 	veud-production-mal-inventory.timer \
 	veud-production-mal-hydration.timer \
+	veud-production-mal-trending.timer \
 	veud-production-tmdb-inventory.timer \
 	veud-production-tmdb-hydration.timer || true
 

@@ -13,12 +13,8 @@ npm run build
 npm run bundle:check
 ```
 
-Vitest uses a disposable SQLite database. If the generated Prisma client
-currently targets PostgreSQL, regenerate the SQLite client first:
-
-```sh
-npm run prisma:generate:sqlite
-```
+Vitest, browser tests, and `npm run dev` automatically select the SQLite client.
+`npm start` automatically selects the PostgreSQL client.
 
 ## Browser tests
 

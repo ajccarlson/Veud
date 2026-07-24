@@ -36,13 +36,23 @@ async function generateIconFiles() {
 		.catch(() => '')
 
 	const iconNames = files.map(file => iconName(file))
-
-	const spriteUpToDate = iconNames.every(name =>
-		currentSprite.includes(`id=${name}`),
-	)
-	const typesUpToDate = iconNames.every(name =>
-		currentTypes.includes(`"${name}"`),
-	)
+	const spriteNames = [
+		...currentSprite.matchAll(/<symbol\b[^>]*\bid=["']([^"']+)["']/g),
+	]
+		.map(match => match[1])
+		.sort((a, b) => a.localeCompare(b))
+	const typeNames = [...currentTypes.matchAll(/\|\s*["']([^"']+)["']/g)]
+		.map(match => match[1])
+		.sort((a, b) => a.localeCompare(b))
+	const expectedNames = new Set(iconNames)
+	const namesMatch = (currentNames: string[]) =>
+		currentNames.length === expectedNames.size &&
+		currentNames.every(name => expectedNames.has(name))
+	const spriteUpToDate =
+		namesMatch(spriteNames) &&
+		!currentSprite.includes('\r') &&
+		!/[ \t]+$/m.test(currentSprite)
+	const typesUpToDate = namesMatch(typeNames)
 
 	if (spriteUpToDate && typesUpToDate) {
 		logVerbose(`Icons are up to date`)
@@ -124,7 +134,11 @@ async function generateSvgSprite({
 			svg.removeAttribute('width')
 			svg.removeAttribute('height')
 
-			return svg.toString().trim()
+			return svg
+				.toString()
+				.trim()
+				.replace(/\r\n?/g, '\n')
+				.replace(/[ \t]+$/gm, '')
 		}),
 	)
 
