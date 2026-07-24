@@ -107,6 +107,14 @@ function optionalPositiveInteger(value: unknown, label: string) {
 	return Number(value)
 }
 
+function optionalNonNegativeInteger(value: unknown, label: string) {
+	if (value === null || value === undefined) return null
+	if (!Number.isSafeInteger(value) || Number(value) < 0) {
+		throw new Error(`${label} must be a non-negative safe integer`)
+	}
+	return Number(value)
+}
+
 function optionalDate(value: unknown, label: string) {
 	const raw = optionalString(value, label)
 	if (!raw) return null
@@ -212,11 +220,11 @@ export function parseMalTrendPage(
 				node.popularity,
 				'MAL node popularity',
 			),
-			audience: optionalPositiveInteger(
+			audience: optionalNonNegativeInteger(
 				node.num_list_users,
 				'MAL node num_list_users',
 			),
-			ratingCount: optionalPositiveInteger(
+			ratingCount: optionalNonNegativeInteger(
 				node.num_scoring_users,
 				'MAL node num_scoring_users',
 			),
