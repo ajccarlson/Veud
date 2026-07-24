@@ -65,8 +65,8 @@ test.describe('mobile route audit', () => {
 		['collections', '/collections', /Collections/i],
 		['credits', '/credits', /Data sources & credits/i],
 		['login', '/login', /Welcome back/i],
-		['signup', '/signup', /start your journey/i],
-		['password recovery', '/forgot-password', /Forgot Password/i],
+		['signup', '/signup', /Start your library/i],
+		['password recovery', '/forgot-password', /Reset your password/i],
 	] as const
 
 	for (const [name, path, heading] of publicRoutes) {

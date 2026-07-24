@@ -11,6 +11,7 @@ import {
 	useLoaderData,
 } from 'react-router'
 
+import { AuthShell } from '#app/components/auth-shell.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ErrorList, Field } from '#app/components/forms.tsx'
 import { PasswordRequirements } from '#app/components/password-requirements.tsx'
@@ -86,53 +87,48 @@ export default function ResetPasswordPage() {
 	})
 
 	return (
-		<div className="container flex flex-col justify-center pb-32 pt-20">
-			<div className="text-center">
-				<h1 className="text-h1">Password Reset</h1>
-				<p className="mt-3 text-body-md text-muted-foreground">
-					Hi, {data.resetPasswordUsername}. No worries. It happens all the time.
-				</p>
-			</div>
-			<div className="mx-auto mt-16 min-w-full max-w-sm sm:min-w-[368px]">
-				<Form method="POST" {...getFormProps(form)}>
-					<Field
-						labelProps={{
-							htmlFor: fields.password.id,
-							children: 'New Password',
-						}}
-						inputProps={{
-							...getInputProps(fields.password, { type: 'password' }),
-							autoComplete: 'new-password',
-							autoFocus: true,
-						}}
-						errors={fields.password.errors}
-					/>
-					<PasswordRequirements />
-					<Field
-						labelProps={{
-							htmlFor: fields.confirmPassword.id,
-							children: 'Confirm Password',
-						}}
-						inputProps={{
-							...getInputProps(fields.confirmPassword, { type: 'password' }),
-							autoComplete: 'new-password',
-						}}
-						errors={fields.confirmPassword.errors}
-					/>
+		<AuthShell
+			title="Choose a new password"
+			description={`Resetting the password for @${data.resetPasswordUsername}.`}
+		>
+			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
+				<Field
+					labelProps={{
+						htmlFor: fields.password.id,
+						children: 'New password',
+					}}
+					inputProps={{
+						...getInputProps(fields.password, { type: 'password' }),
+						autoComplete: 'new-password',
+						autoFocus: true,
+					}}
+					errors={fields.password.errors}
+				/>
+				<PasswordRequirements />
+				<Field
+					labelProps={{
+						htmlFor: fields.confirmPassword.id,
+						children: 'Confirm password',
+					}}
+					inputProps={{
+						...getInputProps(fields.confirmPassword, { type: 'password' }),
+						autoComplete: 'new-password',
+					}}
+					errors={fields.confirmPassword.errors}
+				/>
 
-					<ErrorList errors={form.errors} id={form.errorId} />
+				<ErrorList errors={form.errors} id={form.errorId} />
 
-					<StatusButton
-						className="w-full"
-						status={isPending ? 'pending' : form.status ?? 'idle'}
-						type="submit"
-						disabled={isPending}
-					>
-						Reset password
-					</StatusButton>
-				</Form>
-			</div>
-		</div>
+				<StatusButton
+					className="w-full"
+					status={isPending ? 'pending' : (form.status ?? 'idle')}
+					type="submit"
+					disabled={isPending}
+				>
+					Reset password
+				</StatusButton>
+			</Form>
+		</AuthShell>
 	)
 }
 

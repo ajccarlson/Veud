@@ -1,6 +1,7 @@
-import { redirect, type ActionFunctionArgs } from 'react-router'
+import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { cache } from '#app/utils/cache.server.ts'
+import { isInternalCommandAuthorized } from '#app/utils/internal-command.server.ts'
 import { getInstanceInfo } from '#app/utils/litefs.server'
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -10,12 +11,14 @@ export async function action({ request }: ActionFunctionArgs) {
 			`${request.url} should only be called on the primary instance (${primaryInstance})}`,
 		)
 	}
-	const token = process.env.INTERNAL_COMMAND_TOKEN
-	const isAuthorized =
-		request.headers.get('Authorization') === `Bearer ${token}`
-	if (!isAuthorized) {
-		// nah, you can't be here...
-		return redirect('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+	if (!isInternalCommandAuthorized(request)) {
+		return Response.json(
+			{ success: false, error: 'Unauthorized' },
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer' },
+			},
+		)
 	}
 	const { key, cacheValue } = z
 		.object({ key: z.string(), cacheValue: z.unknown().optional() })

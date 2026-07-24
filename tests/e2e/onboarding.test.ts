@@ -51,9 +51,9 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 	await emailTextbox.click()
 	await emailTextbox.fill(onboardingData.email)
 
-	await page.getByRole('button', { name: /submit/i }).click()
+	await page.getByRole('button', { name: /continue/i }).click()
 	await expect(
-		page.getByRole('button', { name: /submit/i, disabled: true }),
+		page.getByRole('button', { name: /continue/i, disabled: true }),
 	).toBeVisible()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
 
@@ -70,7 +70,7 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 
 	await page
 		.getByRole('main')
-		.getByRole('button', { name: /submit/i })
+		.getByRole('button', { name: /verify/i })
 		.click()
 
 	await expect(page).toHaveURL(`/onboarding`)
@@ -85,9 +85,9 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 		.getByRole('textbox', { name: 'Full name (private and optional)' })
 		.fill(onboardingData.name)
 
-	await page.getByRole('textbox', { name: 'Password', exact: true }).fill(
-		onboardingData.password,
-	)
+	await page
+		.getByRole('textbox', { name: 'Password', exact: true })
+		.fill(onboardingData.password)
 
 	await page.getByLabel(/^confirm password/i).fill(onboardingData.password)
 
@@ -95,7 +95,7 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 
 	await page.getByLabel(/remember me/i).check()
 
-	await page.getByRole('button', { name: /Create an account/i }).click()
+	await page.getByRole('button', { name: /Create account/i }).click()
 
 	await expect(page).toHaveURL(`/`)
 
@@ -106,7 +106,9 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 	await expect(
 		page.getByRole('heading', { name: onboardingData.username, exact: true }),
 	).toBeVisible()
-	await expect(page.getByText(onboardingData.name, { exact: true })).toHaveCount(0)
+	await expect(
+		page.getByText(onboardingData.name, { exact: true }),
+	).toHaveCount(0)
 	await expect(page.getByRole('progressbar')).toHaveCount(0)
 
 	await page.getByRole('button', { name: /account menu/i }).click()
@@ -125,9 +127,9 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
 	await emailTextbox.click()
 	await emailTextbox.fill(onboardingData.email)
 
-	await page.getByRole('button', { name: /submit/i }).click()
+	await page.getByRole('button', { name: /continue/i }).click()
 	await expect(
-		page.getByRole('button', { name: /submit/i, disabled: true }),
+		page.getByRole('button', { name: /continue/i, disabled: true }),
 	).toBeVisible()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
 
@@ -140,7 +142,7 @@ test('onboarding with a short code', async ({ page, getOnboardingData }) => {
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Onboarding code not found')
 	await page.getByRole('textbox', { name: /code/i }).fill(code)
-	await page.getByRole('button', { name: /submit/i }).click()
+	await page.getByRole('button', { name: /verify/i }).click()
 
 	await expect(page).toHaveURL(`/onboarding`)
 })
@@ -155,7 +157,9 @@ test('login as existing user', async ({ page, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: user.username }).first(),
+	).toBeVisible()
 })
 
 test('login as existing user with email', async ({ page, insertNewUser }) => {
@@ -169,7 +173,9 @@ test('login as existing user with email', async ({ page, insertNewUser }) => {
 	await page.getByRole('button', { name: /log in/i }).click()
 
 	await expect(page).toHaveURL(`/`)
-	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: user.username }).first(),
+	).toBeVisible()
 })
 
 test('reset password with a link', async ({ page, insertNewUser }) => {
@@ -182,12 +188,12 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 	await expect(page).toHaveURL('/forgot-password')
 
 	await expect(
-		page.getByRole('heading', { name: /forgot password/i }),
+		page.getByRole('heading', { name: /reset your password/i }),
 	).toBeVisible()
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
-	await page.getByRole('button', { name: /recover password/i }).click()
+	await page.getByRole('button', { name: /send reset code/i }).click()
 	await expect(
-		page.getByRole('button', { name: /recover password/i, disabled: true }),
+		page.getByRole('button', { name: /send reset code/i, disabled: true }),
 	).toBeVisible()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
 
@@ -204,7 +210,7 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 
 	await page
 		.getByRole('main')
-		.getByRole('button', { name: /submit/i })
+		.getByRole('button', { name: /verify/i })
 		.click()
 
 	await expect(page).toHaveURL(`/reset-password`)
@@ -231,7 +237,9 @@ test('reset password with a link', async ({ page, insertNewUser }) => {
 
 	await expect(page).toHaveURL(`/`)
 
-	await expect(page.getByRole('link', { name: user.username }).first()).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: user.username }).first(),
+	).toBeVisible()
 })
 
 test('reset password with a short code', async ({ page, insertNewUser }) => {
@@ -242,12 +250,12 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
 	await expect(page).toHaveURL('/forgot-password')
 
 	await expect(
-		page.getByRole('heading', { name: /forgot password/i }),
+		page.getByRole('heading', { name: /reset your password/i }),
 	).toBeVisible()
 	await page.getByRole('textbox', { name: /username/i }).fill(user.username)
-	await page.getByRole('button', { name: /recover password/i }).click()
+	await page.getByRole('button', { name: /send reset code/i }).click()
 	await expect(
-		page.getByRole('button', { name: /recover password/i, disabled: true }),
+		page.getByRole('button', { name: /send reset code/i, disabled: true }),
 	).toBeVisible()
 	await expect(page.getByText(/check your email/i)).toBeVisible()
 
@@ -260,7 +268,7 @@ test('reset password with a short code', async ({ page, insertNewUser }) => {
 	const code = codeMatch?.groups?.code
 	invariant(code, 'Reset Password code not found')
 	await page.getByRole('textbox', { name: /code/i }).fill(code)
-	await page.getByRole('button', { name: /submit/i }).click()
+	await page.getByRole('button', { name: /verify/i }).click()
 
 	await expect(page).toHaveURL(`/reset-password`)
 })
