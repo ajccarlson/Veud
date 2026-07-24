@@ -96,13 +96,9 @@ export function ReviewEditor({
 			<section className="rounded-xl border border-veud-border/70 bg-black/10 p-4">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div>
-						<h3 className="font-black text-veud-cream">
-							Optional writing assistant
-						</h3>
+						<h3 className="font-black text-veud-cream">Writing tools</h3>
 						<p className="mt-1 text-xs leading-5 text-veud-copy">
-							Only your current draft and selected edit are sent to OpenAI. The
-							title, rating, catalog data, and account identity stay local.
-							Suggestions never save or publish themselves.
+							AI suggestions never save or publish automatically.
 						</p>
 					</div>
 					{assisting ? (
@@ -155,9 +151,6 @@ export function ReviewEditor({
 							{assistance.spoilerReason
 								? ` — ${assistance.spoilerReason}`
 								: null}
-							<p className="mt-1 text-xs">
-								This is advisory and never clears your spoiler selection.
-							</p>
 						</div>
 						{assistance.findings.map((finding, index) => (
 							<div

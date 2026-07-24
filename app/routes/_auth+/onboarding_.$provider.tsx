@@ -243,7 +243,6 @@ export default function SignupRoute() {
 						inputProps={{
 							...getInputProps(fields.name, { type: 'text' }),
 							autoComplete: 'name',
-							placeholder: 'Never shown on your public profile',
 						}}
 						errors={fields.name.errors}
 					/>
