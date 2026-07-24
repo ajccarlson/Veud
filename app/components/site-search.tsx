@@ -78,10 +78,10 @@ export function SiteSearch({
 							<strong>Tip of My Tongue</strong>
 							<small>
 								{aiAvailable
-									? 'AI proposes five likely titles; Veud privately matches each one to its local catalog.'
+									? 'Describe it or add an image.'
 									: isSignedIn
-										? 'Use local catalog matching; AI identification is not configured.'
-										: 'Use local catalog matching, or sign in for AI identification.'}
+										? 'Search from remembered details.'
+										: 'Search details · sign in for AI.'}
 							</small>
 						</span>
 					</label>
@@ -95,8 +95,8 @@ export function SiteSearch({
 								<strong>Describe what you want</strong>
 								<small>
 									{discoveryAiAvailable
-										? 'Turn a natural-language request into private local catalog filters.'
-										: 'Natural-language filter compilation is currently disabled; standard search remains available.'}
+										? 'Turn a request into editable filters.'
+										: 'Currently unavailable.'}
 								</small>
 							</span>
 						</Link>

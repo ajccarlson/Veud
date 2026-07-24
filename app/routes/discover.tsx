@@ -466,22 +466,22 @@ function memorySearchStatus(data: {
 		| 'ai-empty'
 		| null
 }) {
-	if (data.memorySearchSource === 'ai') return 'AI-assisted catalog match'
+	if (data.memorySearchSource === 'ai') return 'AI match'
 	switch (data.memorySearchFallbackReason) {
 		case 'sign-in-required':
-			return 'Catalog matched · sign in for AI identification'
+			return 'Local match · sign in for AI'
 		case 'rate-limited':
-			return 'Catalog matched · AI limit reached'
+			return 'Local match · AI limit reached'
 		case 'ai-unavailable':
-			return 'Catalog matched · AI capacity temporarily unavailable'
+			return 'Local match · AI unavailable'
 		case 'ai-error':
-			return 'Catalog matched · AI temporarily unavailable'
+			return 'Local match · AI unavailable'
 		case 'ai-empty':
-			return 'Catalog matched · AI returned no usable title suggestions'
+			return 'Local match'
 		case 'not-configured':
-			return 'Catalog matched · AI not configured'
+			return 'Local match'
 		default:
-			return 'Catalog matched'
+			return 'Local match'
 	}
 }
 
@@ -558,15 +558,30 @@ export default function DiscoverRoute() {
 	const pendingSearchParams = navigation.location
 		? new URLSearchParams(navigation.location.search)
 		: null
-	const memorySearchPending =
+	const navigationMemorySearchPending =
 		navigation.state !== 'idle' &&
 		(navigation.formData?.get('mode') === 'memory' ||
 			pendingSearchParams?.get('mode') === 'memory')
 	const describePending =
 		navigation.state !== 'idle' &&
 		String(navigation.formData?.get('intent') ?? '').startsWith('describe-')
-	const aiSearchPending = memorySearchPending || describePending
 	const imageSearchPending = imageFetcher.state !== 'idle'
+	const memorySearchPending =
+		navigationMemorySearchPending || imageSearchPending
+	const aiSearchPending = memorySearchPending || describePending
+	const fetchedMemoryItems =
+		data.filters.mode === 'memory' && imageFetcher.data?.ok
+			? imageFetcher.data.items
+			: null
+	const displayedItems = fetchedMemoryItems ?? data.items
+	const displayedTotal = fetchedMemoryItems?.length ?? data.total
+	const displayedMemoryStatus =
+		data.filters.mode === 'memory' && imageFetcher.data?.ok
+			? memorySearchStatus({
+					memorySearchSource: imageFetcher.data.source,
+					memorySearchFallbackReason: imageFetcher.data.fallbackReason,
+				})
+			: memorySearchStatus(data)
 	const loginRedirectTo = `${location.pathname}${location.search}`
 	const filterKey = [
 		data.filters.q,
@@ -584,12 +599,7 @@ export default function DiscoverRoute() {
 			<VeudPageHeader
 				eyebrow="Canonical catalog"
 				title="Discover"
-				description={
-					<p>
-						Search every shared title, explore what the community is tracking,
-						or find something shaped by your own taste.
-					</p>
-				}
+				description="Search titles or describe what you’re looking for."
 			/>
 
 			<nav className="discover-mode-switch" aria-label="Search mode">
@@ -622,6 +632,15 @@ export default function DiscoverRoute() {
 						? 'discover-memory-privacy'
 						: undefined
 				}
+				onSubmit={event => {
+					if (data.filters.mode !== 'memory' || !data.isSignedIn) return
+					event.preventDefault()
+					imageFetcher.submit(new FormData(event.currentTarget), {
+						method: 'post',
+						action: '/resources/image-tip-of-tongue',
+						encType: 'multipart/form-data',
+					})
+				}}
 			>
 				{data.filters.mode === 'memory' ? (
 					<input type="hidden" name="mode" value="memory" />
@@ -640,20 +659,33 @@ export default function DiscoverRoute() {
 								: 'Title or keyword'}
 					</Label>
 					{data.filters.mode !== 'standard' ? (
-						<textarea
-							id="discover-query"
-							name="q"
-							defaultValue={data.filters.q}
-							placeholder={
-								data.filters.mode === 'memory'
-									? 'A hand-drawn movie where a girl follows a white rabbit into a city that changes shape…'
-									: 'A psychological anime from the 1990s, under 30 episodes, without much romance…'
-							}
-							minLength={3}
-							maxLength={500}
-							rows={5}
-							autoFocus
-						/>
+						<div className="discover-memory-input">
+							<textarea
+								id="discover-query"
+								name="q"
+								defaultValue={data.filters.q}
+								placeholder={
+									data.filters.mode === 'memory'
+										? 'A hand-drawn movie where a girl follows a white rabbit into a city that changes shape…'
+										: 'A psychological anime from the 1990s, under 30 episodes, without much romance…'
+								}
+								minLength={data.filters.mode === 'memory' ? undefined : 3}
+								maxLength={500}
+								rows={5}
+								autoFocus
+							/>
+							{data.filters.mode === 'memory' && data.isSignedIn ? (
+								<label className="discover-memory-attachment">
+									<span>Add an image</span>
+									<input
+										name="image"
+										type="file"
+										accept="image/jpeg,image/png,image/webp"
+										aria-label="Add a screenshot or cover"
+									/>
+								</label>
+							) : null}
+						</div>
 					) : (
 						<Input
 							id="discover-query"
@@ -663,25 +695,6 @@ export default function DiscoverRoute() {
 							maxLength={100}
 						/>
 					)}
-					{data.filters.mode === 'memory' ? (
-						<div className="discover-memory-guidance">
-							<p>
-								Include any scene, object, character, setting, era, art style,
-								or line fragment you remember—even if details may be wrong.
-							</p>
-							<div aria-label="Example memory searches">
-								<Link to="/discover?mode=memory&q=a+red+balloon+following+a+child+through+Paris">
-									Red balloon in Paris
-								</Link>
-								<Link to="/discover?mode=memory&q=friends+find+a+clock+that+repeats+the+same+summer+day">
-									Repeating summer day
-								</Link>
-								<Link to="/discover?mode=memory&q=a+lantern+guides+someone+through+a+mirrored+forest">
-									Mirrored forest
-								</Link>
-							</div>
-						</div>
-					) : null}
 				</div>
 				<div className="space-y-2">
 					<Label htmlFor="discover-kind">Media type</Label>
@@ -779,36 +792,17 @@ export default function DiscoverRoute() {
 					</>
 				) : data.filters.mode === 'memory' ? (
 					<div id="discover-memory-privacy" className="discover-memory-privacy">
-						<strong>
-							{data.aiSearchAvailable
-								? 'AI title identification is ready'
-								: 'Local catalog matching is ready'}
-						</strong>
-						<p>
-							{data.aiSearchAvailable
-								? 'Only the memory you type and selected media type are sent to OpenAI, with response storage disabled. OpenAI proposes five likely titles; Veud then matches them to five local catalog entries. Catalog records, provider metadata, and account data stay inside Veud.'
-								: data.isSignedIn
-									? 'AI identification is not configured on this server, so Veud will search its local catalog without sending your description anywhere.'
-									: 'Veud will search its local catalog. Sign in to use AI identification when it is available.'}
-						</p>
-						<small>Do not include personal or sensitive information.</small>
+						{data.aiSearchAvailable
+							? 'AI-assisted · add details, an image, or both.'
+							: data.isSignedIn
+								? 'Local catalog search'
+								: 'Local search · sign in for AI and image matching'}
 					</div>
 				) : (
 					<div id="discover-memory-privacy" className="discover-memory-privacy">
-						<strong>
-							{data.naturalDiscoveryAvailable
-								? 'Private natural-language discovery is ready'
-								: 'Natural-language discovery is currently disabled'}
-						</strong>
-						<p>
-							{data.naturalDiscoveryAvailable
-								? 'Only the request you write and selected media type are sent to OpenAI. Veud converts the request into visible filters, then searches and ranks the local catalog without sending titles, descriptions, provider metadata, or account history externally.'
-								: 'Standard catalog search remains available and sends nothing to OpenAI. An operator can enable this private filter compiler independently from other AI features.'}
-						</p>
-						<small>
-							Sign-in is required. Sessions expire automatically after two
-							hours.
-						</small>
+						{data.naturalDiscoveryAvailable
+							? 'AI turns your request into editable filters.'
+							: 'Discovery assistant unavailable.'}
 					</div>
 				)}
 				<div className="discover-search-actions">
@@ -829,14 +823,14 @@ export default function DiscoverRoute() {
 									aria-hidden="true"
 								/>
 								{data.filters.mode === 'describe'
-									? 'Building local search…'
-									: 'Finding five matches…'}
+									? 'Building search…'
+									: 'Finding matches…'}
 							</>
 						) : data.filters.mode === 'memory' ? (
-							'Find my five closest matches'
+							'Find matches'
 						) : data.filters.mode === 'describe' ? (
 							data.isSignedIn && data.naturalDiscoveryAvailable ? (
-								'Build my discovery search'
+								'Build search'
 							) : data.isSignedIn ? (
 								'Discovery assistant disabled'
 							) : (
@@ -846,157 +840,37 @@ export default function DiscoverRoute() {
 							'Search catalog'
 						)}
 					</Button>
-					<Button asChild type="button" variant="ghost">
-						<Link
-							to={
-								data.filters.mode === 'memory'
-									? '/discover?mode=memory'
-									: data.filters.mode === 'describe'
-										? '/discover?mode=describe'
-										: '/discover'
-							}
+					{data.filters.mode === 'memory' ? (
+						<Button
+							type="reset"
+							variant="ghost"
+							onClick={() => imageFetcher.reset()}
 						>
 							Clear
-						</Link>
-					</Button>
+						</Button>
+					) : (
+						<Button asChild type="button" variant="ghost">
+							<Link
+								to={
+									data.filters.mode === 'describe'
+										? '/discover?mode=describe'
+										: '/discover'
+								}
+							>
+								Clear
+							</Link>
+						</Button>
+					)}
 				</div>
 			</Form>
 
-			{data.filters.mode === 'memory' && data.isSignedIn ? (
-				<section
-					className="discover-image-memory"
-					aria-labelledby="discover-image-memory-heading"
+			{imageFetcher.data && !imageFetcher.data.ok ? (
+				<p
+					className="rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-red-100"
+					role="alert"
 				>
-					<div>
-						<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">
-							Image-assisted identification
-						</p>
-						<h2
-							id="discover-image-memory-heading"
-							className="mt-1 text-xl font-black text-veud-cream"
-						>
-							Search from a screenshot or cover
-						</h2>
-						<p className="mt-2 max-w-3xl text-sm text-veud-copy">
-							Veud validates and re-encodes your JPEG, PNG, or WebP upload to
-							remove metadata, then sends that image and the optional note below
-							to OpenAI. The image is never stored by Veud.
-						</p>
-					</div>
-					<imageFetcher.Form
-						method="post"
-						action="/resources/image-tip-of-tongue"
-						encType="multipart/form-data"
-						className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.35fr)_auto]"
-					>
-						<div className="space-y-2">
-							<Label htmlFor="tomt-image">Image</Label>
-							<Input
-								id="tomt-image"
-								name="image"
-								type="file"
-								accept="image/jpeg,image/png,image/webp"
-								required
-							/>
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="tomt-image-kind">Media type</Label>
-							<select
-								id="tomt-image-kind"
-								name="kind"
-								defaultValue={data.filters.kind}
-								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-							>
-								{Object.entries(kindLabels).map(([value, label]) => (
-									<option key={value} value={value}>
-										{label}
-									</option>
-								))}
-							</select>
-						</div>
-						<Button
-							type="submit"
-							className="self-end"
-							disabled={imageSearchPending || !data.imageSearchAvailable}
-						>
-							{imageSearchPending
-								? 'Reading image…'
-								: data.imageSearchAvailable
-									? 'Identify image'
-									: 'Image identification disabled'}
-						</Button>
-						<div className="space-y-2 lg:col-span-3">
-							<Label htmlFor="tomt-image-prompt">
-								Optional remembered context
-							</Label>
-							<Input
-								id="tomt-image-prompt"
-								name="prompt"
-								maxLength={500}
-								placeholder="I remember this character standing beside a red train…"
-							/>
-						</div>
-					</imageFetcher.Form>
-					{imageSearchPending ? (
-						<div className="discover-image-progress" role="status">
-							<Icon name="update" className="animate-spin" aria-hidden="true" />
-							<span>
-								Safely processing the upload, identifying five titles, and
-								matching them to Veud’s catalog…
-							</span>
-						</div>
-					) : imageFetcher.data && !imageFetcher.data.ok ? (
-						<p
-							className="mt-4 rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-red-100"
-							role="alert"
-						>
-							{imageFetcher.data.error}
-						</p>
-					) : imageFetcher.data?.ok ? (
-						<div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-							{imageFetcher.data.items.map(item => {
-								const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
-								return (
-									<article key={item.id} className="discover-image-result">
-										<Link to={`/media/${item.id}`}>
-											<div className="aspect-[2/3] overflow-hidden rounded-xl bg-veud-ink">
-												{poster ? (
-													<img
-														src={poster}
-														alt=""
-														className="h-full w-full object-cover"
-													/>
-												) : (
-													<span className="flex h-full items-center justify-center p-4 text-center text-sm text-veud-sage">
-														No poster available
-													</span>
-												)}
-											</div>
-											<h3 className="mt-3 font-black text-veud-cream">
-												{item.title}
-											</h3>
-										</Link>
-										{item.memoryMatch ? (
-											<HighlightedMemorySummary
-												summary={item.memoryMatch.summary}
-												clues={item.memoryMatch.matchedClues}
-											/>
-										) : null}
-										<div className="mt-auto pt-3">
-											<QuickTrackControl
-												item={item}
-												watchlists={data.watchlists}
-												isSignedIn
-												loginRedirectTo={loginRedirectTo}
-												layout="stacked"
-											/>
-										</div>
-									</article>
-								)
-							})}
-						</div>
-					) : null}
-				</section>
+					{imageFetcher.data.error}
+				</p>
 			) : null}
 
 			{data.naturalPlan && data.discoverySession ? (
@@ -1134,19 +1008,8 @@ export default function DiscoverRoute() {
 						<Icon name="magic-wand" />
 					</div>
 					<div>
-						<p className="discover-memory-loading-eyebrow">
-							Tip of My Tongue is searching
-						</p>
-						<h2>Finding your five closest matches…</h2>
-						<p>
-							AI is identifying five likely titles. Veud will then connect each
-							suggestion to a real entry in the local catalog.
-						</p>
-						<div className="discover-memory-loading-steps" aria-hidden="true">
-							<span>Identify likely titles</span>
-							<span>Match local catalog entries</span>
-							<span>Prepare five result cards</span>
-						</div>
+						<h2>Finding five matches…</h2>
+						<p>Checking your clues against Veud’s catalog.</p>
 					</div>
 				</section>
 			) : null}
@@ -1159,7 +1022,10 @@ export default function DiscoverRoute() {
 				/>
 			) : null}
 
-			{data.recommendationGraph ? null : (
+			{data.recommendationGraph ||
+			(data.filters.mode === 'memory' &&
+				!data.filters.q &&
+				!imageFetcher.data?.ok) ? null : (
 				<section
 					className={`space-y-4 ${memorySearchPending ? 'discover-results--pending' : ''}`}
 					aria-labelledby="discovery-results-heading"
@@ -1174,40 +1040,37 @@ export default function DiscoverRoute() {
 									? 'Closest matches'
 									: sortLabels[data.filters.sort]}
 							</h2>
-							{data.filters.sort === 'for-you' ? (
+							{data.filters.mode === 'standard' &&
+							data.filters.sort === 'for-you' ? (
 								<p className="mt-1 text-sm text-veud-mint">
 									{data.preferredGenres.length
-										? `Built from your interest in ${data.preferredGenres.join(', ')}. Already tracked or favorited titles are hidden.`
-										: 'Track, rate, or favorite a few titles to teach Veud your taste. Until then, community favorites lead the way.'}
+										? `Inspired by ${data.preferredGenres.join(', ')}.`
+										: 'Rate or favorite a few titles to shape this page.'}
 								</p>
-							) : data.filters.sort === 'popular' ? (
+							) : data.filters.mode === 'standard' &&
+							  data.filters.sort === 'popular' ? (
 								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
-									Normalized provider popularity combines chart rank and
-									audience size within each media type. It does not compare raw
-									TMDB popularity with MAL rank. Veud uses provider observations
-									from the last eight days when available, then the most recent
-									normalized snapshot and a stable alphabetical catalog tail.
+									Popularity is normalized within each provider and media type.
 								</p>
-							) : data.filters.sort === 'top-rated' ? (
+							) : data.filters.mode === 'standard' &&
+							  data.filters.sort === 'top-rated' ? (
 								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
-									Bayesian weighting combines rating quality with public rating
-									or audience counts, so a tiny sample cannot outrank an
-									established title by score alone.
+									Ratings are weighted by audience size.
 								</p>
 							) : null}
 						</div>
 						<p className="text-sm text-veud-mint">
 							{data.filters.mode === 'memory'
-								? `${data.total} of 5 possible matches · ${memorySearchStatus(data)}`
+								? `${displayedTotal} of 5 matches · ${displayedMemoryStatus}`
 								: resultSummary(data.total, data.filters)}
 						</p>
 					</header>
 
-					{data.items.length ? (
+					{displayedItems.length ? (
 						<div
 							className={`grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${data.filters.mode === 'memory' ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}
 						>
-							{data.items.map(item => {
+							{displayedItems.map(item => {
 								const poster = splitLegacyThumbnail(item.thumbnail).imageUrl
 								return (
 									<article

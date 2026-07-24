@@ -243,6 +243,22 @@ test('projector beam scales, pauses, and has a static reduced-motion state', asy
 	expect(wide.width).toBeGreaterThan(60)
 	expect(wide.animation).toContain('veud-projector-breathe')
 	expect(wide.highlightAnimation).toContain('veud-projector-sweep')
+	const sweep = await beam.evaluate(element => {
+		const animation = element
+			.getAnimations({ subtree: true })
+			.find(
+				item =>
+					'animationName' in item &&
+					item.animationName === 'veud-projector-sweep',
+			)
+		const keyframes =
+			animation?.effect instanceof KeyframeEffect
+				? animation.effect.getKeyframes()
+				: []
+		return keyframes.map(frame => String(frame.transform))
+	})
+	expect(sweep.at(0)).toContain('145%')
+	expect(sweep.at(-1)).toContain('-120%')
 
 	await page.setViewportSize({ width: 760, height: 900 })
 	const narrowWidth = await beam.evaluate(element =>

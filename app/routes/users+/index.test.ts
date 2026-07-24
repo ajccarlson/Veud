@@ -30,6 +30,7 @@ test('user search uses portable quoted identifiers and case-insensitive matching
 
 	expect(result.data).toEqual({
 		status: 'idle',
+		query: 'postgres_portable',
 		users: [
 			{
 				id: user.id,

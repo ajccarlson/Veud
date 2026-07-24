@@ -52,3 +52,23 @@ test('login form retains its desktop shell and focus hierarchy', async ({
 	await page.evaluate(() => document.fonts.ready)
 	await expect(page).toHaveScreenshot('login-desktop.png', stableScreenshot)
 })
+
+test('Tip of My Tongue keeps its unified prompt composition', async ({
+	page,
+	login,
+}) => {
+	await login({
+		username: 'visual_member',
+		email: 'visual_member@example.com',
+		password: 'Visual-test-password-42',
+	})
+	await page.setViewportSize({ width: 1280, height: 900 })
+	await page.goto('/discover?mode=memory')
+	await expect(page.getByLabel('What do you remember?')).toBeVisible()
+	await expect(page.getByLabel('Add a screenshot or cover')).toBeVisible()
+	await page.evaluate(() => document.fonts.ready)
+	await expect(page).toHaveScreenshot('tomt-desktop.png', {
+		...stableScreenshot,
+		maxDiffPixelRatio: 0,
+	})
+})
