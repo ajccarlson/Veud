@@ -37,6 +37,9 @@ describe('release data integrity', () => {
 				account => account.email === `${account.username}@example.com`,
 			),
 		).toBe(true)
+		expect(
+			confirmedSeedAccounts.filter(account => account.imageId).length,
+		).toBe(5)
 	})
 
 	test('removes only exact isolated seed-account identities', async () => {
