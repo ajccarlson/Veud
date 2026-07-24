@@ -36,7 +36,10 @@ import { createModerationAppeal } from '#app/utils/moderation.server.ts'
 import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
-import { NameSchema, UsernameSchema } from '#app/utils/user-validation.ts'
+import {
+	OptionalNameSchema,
+	UsernameSchema,
+} from '#app/utils/user-validation.ts'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 export const handle: SEOHandle = {
@@ -44,7 +47,7 @@ export const handle: SEOHandle = {
 }
 
 export const ProfileFormSchema = z.object({
-	name: NameSchema.optional(),
+	name: OptionalNameSchema,
 	username: UsernameSchema,
 	bio: z
 		.string()
@@ -480,7 +483,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 		select: { username: true },
 		where: { id: userId },
 		data: {
-			name: data.name,
+			name: data.name ?? null,
 			username: data.username,
 			bio: data.bio === undefined ? undefined : data.bio || null,
 		},
@@ -524,8 +527,15 @@ function UpdateProfile() {
 				/>
 				<Field
 					className="sm:col-span-3"
-					labelProps={{ htmlFor: fields.name.id, children: 'Name' }}
-					inputProps={getInputProps(fields.name, { type: 'text' })}
+					labelProps={{
+						htmlFor: fields.name.id,
+						children: 'Full name (private and optional)',
+					}}
+					inputProps={{
+						...getInputProps(fields.name, { type: 'text' }),
+						placeholder: 'Only visible in your account settings',
+						autoComplete: 'name',
+					}}
 					errors={fields.name.errors}
 				/>
 				<TextareaField

@@ -68,7 +68,7 @@ test('member can engage with a review and open an unread notification', async ({
 		).toBeVisible()
 		await page
 			.getByRole('button', {
-				name: `${author.name ?? author.username} liked your review of Review Engagement Browser Test`,
+				name: `${author.username} liked your review of Review Engagement Browser Test`,
 			})
 			.click()
 		await expect(page).toHaveURL(

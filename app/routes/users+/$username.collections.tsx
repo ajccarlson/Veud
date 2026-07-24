@@ -20,16 +20,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const user = await prisma.user.findUnique({
 		where: { username: params.username },
-		select: { id: true, username: true, name: true },
+		select: { id: true, username: true },
 	})
 	invariantResponse(user, 'User not found', { status: 404 })
 	const isOwner = viewerId === user.id
 	const collections = await prisma.mediaCollection.findMany({
 		where: {
 			ownerId: user.id,
-			...(isOwner
-				? {}
-				: { isPublic: true, moderationStatus: 'visible' }),
+			...(isOwner ? {} : { isPublic: true, moderationStatus: 'visible' }),
 		},
 		orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
 		select: {
@@ -39,7 +37,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			isPublic: true,
 			featuredAt: true,
 			updatedAt: true,
-			owner: { select: { username: true, name: true } },
+			owner: { select: { username: true } },
 			_count: {
 				select: {
 					items: true,
@@ -97,7 +95,7 @@ export default function ProfileCollections() {
 					description={
 						data.isOwner
 							? 'Curate your first themed or ranked list.'
-							: `${data.user.name ?? data.user.username} has not published a collection.`
+							: `${data.user.username} has not published a collection.`
 					}
 				/>
 			)}

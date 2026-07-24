@@ -1,10 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { RouterContextProvider } from 'react-router'
 import { expect, test } from 'vitest'
-import {
-	action,
-	loader,
-} from '#app/routes/settings+/profile.index.tsx'
+import { action, loader } from '#app/routes/settings+/profile.index.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { PROFILE_BIO_MAX_LENGTH } from '#app/utils/profile.ts'
@@ -50,10 +47,12 @@ function profileRequest({
 	cookie,
 	username,
 	bio,
+	name = 'Updated Name',
 }: {
 	cookie?: string
 	username: string
 	bio: string
+	name?: string
 }) {
 	return new Request(`${BASE_URL}/settings/profile`, {
 		method: 'POST',
@@ -64,7 +63,7 @@ function profileRequest({
 		body: new URLSearchParams({
 			intent: 'update-profile',
 			username,
-			name: 'Updated Name',
+			name,
 			bio,
 		}),
 	})
@@ -99,6 +98,25 @@ test('clearing a bio stores null', async () => {
 	expect(
 		await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
 	).toMatchObject({ bio: null })
+})
+
+test('clearing an optional full name stores null', async () => {
+	const { user, cookie } = await createUserAndCookie()
+	const response = await action(
+		actionArgs(
+			profileRequest({
+				cookie,
+				username: user.username,
+				name: '   ',
+				bio: '',
+			}),
+		),
+	)
+
+	expect(getStatus(response)).toBe(200)
+	expect(
+		await prisma.user.findUniqueOrThrow({ where: { id: user.id } }),
+	).toMatchObject({ name: null })
 })
 
 test('an oversized bio is rejected without changing the user', async () => {

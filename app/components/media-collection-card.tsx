@@ -8,7 +8,7 @@ type CollectionCardData = {
 	isPublic: boolean
 	featuredAt: Date | string | null
 	updatedAt: Date | string
-	owner: { username: string; name: string | null }
+	owner: { username: string }
 	_count: { items: number; likes: number; comments: number }
 	tags: Array<{ tag: { name: string; slug: string } }>
 	items: Array<{
@@ -95,7 +95,7 @@ export function MediaCollectionCard({
 					) : null}
 					{showOwner ? (
 						<p className="text-sm text-[#a2ffd5]">
-							by {collection.owner.name ?? collection.owner.username}
+							by {collection.owner.username}
 						</p>
 					) : null}
 				</div>
