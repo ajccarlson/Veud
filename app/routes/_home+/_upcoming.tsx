@@ -75,8 +75,7 @@ export function UpcomingData({
 						Upcoming releases
 					</h2>
 					<p className="text-sm text-[#a2ffd5]">
-						Your tracked premieres and episodes for the next seven days ·{' '}
-						{calendar.timeZone}
+						Your tracked premieres and episodes for the next seven days
 					</p>
 				</div>
 				<Button asChild variant="outline" size="sm">
