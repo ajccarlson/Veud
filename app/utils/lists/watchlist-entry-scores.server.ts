@@ -25,6 +25,44 @@ type WatchlistEntryScores = {
 		| null
 }
 
+type NormalizedMedia<TMedia> = TMedia extends null
+	? null
+	: TMedia extends Record<string, unknown>
+		? Omit<TMedia, 'tmdbScore' | 'malScore'> & {
+				tmdbScore: number | null
+				malScore: number | null
+			}
+		: null
+
+type NormalizedTrackingState<TState> = TState extends null
+	? null
+	: TState extends Record<string, unknown>
+		? Omit<TState, 'score'> & { score: number | null }
+		: null
+
+export type NormalizedWatchlistEntryScores<
+	TEntry extends WatchlistEntryScores,
+> = Omit<
+	TEntry,
+	| 'averaged'
+	| 'personal'
+	| 'differencePersonal'
+	| 'differenceObjective'
+	| 'tmdbScore'
+	| 'malScore'
+	| 'media'
+	| 'trackingState'
+> & {
+	averaged: number | null
+	personal: number | null
+	differencePersonal: number | null
+	differenceObjective: number | null
+	tmdbScore: number | null
+	malScore: number | null
+	media: NormalizedMedia<TEntry['media']>
+	trackingState: NormalizedTrackingState<TEntry['trackingState']>
+}
+
 function scoreNumber(value: ScoreValue) {
 	if (value === null || value === undefined || value === '') return null
 	const number = Number(value)
@@ -47,7 +85,7 @@ function preferredScore(primary: ScoreValue, fallback: ScoreValue) {
  */
 export function normalizeWatchlistEntryScores<
 	TEntry extends WatchlistEntryScores,
->(entry: TEntry) {
+>(entry: TEntry): NormalizedWatchlistEntryScores<TEntry> {
 	const personal = preferredScore(
 		entry.trackingState?.score,
 		entry.personal,
@@ -76,5 +114,5 @@ export function normalizeWatchlistEntryScores<
 					score: scoreNumber(entry.trackingState.score),
 				}
 			: null,
-	}
+	} as unknown as NormalizedWatchlistEntryScores<TEntry>
 }

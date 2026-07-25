@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { currentMalSeason } from './mal-trending.server.ts'
+import { TMDB_FEED_RANKING_VERSION } from './tmdb-catalog-hydration.server.ts'
 
 export const HOME_TRENDING_LIMIT = 18
 const FEED_FRESHNESS_MS = 8 * 24 * 60 * 60 * 1_000
@@ -87,16 +88,18 @@ async function candidatesForRail(input: {
 					provider,
 					kind: input.kind,
 					feed: 'trending',
-					...(provider === 'mal'
-						? {
-								rankingScore: { not: null },
-								rankingVersion: { gte: 3 },
-							}
-						: {}),
+					rankingScore: { not: null },
+					rankingVersion: {
+						gte: provider === 'mal' ? 3 : TMDB_FEED_RANKING_VERSION,
+					},
 					observedAt: { gte: input.freshAfter },
 					media: { is: { title: { not: null } } },
 				},
-				orderBy: [{ observedAt: 'desc' }, { rank: 'asc' }],
+				orderBy: [
+					{ observedAt: 'desc' },
+					{ rankingScore: 'desc' },
+					{ rank: 'asc' },
+				],
 				take: input.limit,
 				select: {
 					observedAt: true,
@@ -131,6 +134,9 @@ async function candidatesForRail(input: {
 					kind: input.kind,
 					feed: 'popular',
 					rankingScore: { not: null },
+					rankingVersion: {
+						gte: provider === 'mal' ? 1 : TMDB_FEED_RANKING_VERSION,
+					},
 					media: { is: { title: { not: null } } },
 				},
 				orderBy: [
