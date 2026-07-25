@@ -651,8 +651,8 @@
 	.home-anon-product-row {
 		display: grid;
 		grid-template-columns:
-			minmax(15rem, 2.4fr) minmax(6rem, 0.8fr) minmax(5rem, 0.65fr)
-			minmax(4rem, 0.5fr) minmax(7rem, 0.8fr);
+			minmax(15rem, 2.4fr) minmax(5rem, 0.65fr) minmax(5rem, 0.58fr)
+			minmax(6rem, 0.68fr) minmax(6.5rem, 0.76fr);
 		align-items: center;
 		min-width: 46rem;
 	}
@@ -702,6 +702,21 @@
 		font-size: 0.78rem;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.home-anon-product-score {
+		justify-self: stretch;
+		margin-right: 0.45rem;
+		padding: 0.42rem 0.5rem;
+		border: 1px solid rgb(255 255 255 / 0.07);
+		border-radius: 0.32rem;
+		color: rgb(var(--veud-cream));
+		box-shadow:
+			inset 0 0.08rem 0 rgb(255 255 255 / 0.05),
+			0 0.2rem 0.55rem rgb(0 0 0 / 0.12);
+		font-variant-numeric: tabular-nums;
+		font-weight: 900;
+		text-align: center;
 	}
 
 	.home-anon-product-poster {
@@ -1469,8 +1484,9 @@
 		.home-anon-product-columns,
 		.home-anon-product-row {
 			grid-template-columns:
-				minmax(10rem, 2.4fr) minmax(4.5rem, 0.8fr) minmax(4.5rem, 0.7fr)
-				minmax(3.5rem, 0.5fr) minmax(5.5rem, 0.9fr);
+				minmax(10rem, 2.4fr) minmax(4.5rem, 0.65fr)
+				minmax(4.5rem, 0.58fr) minmax(5rem, 0.68fr)
+				minmax(5.5rem, 0.76fr);
 			min-width: 0;
 		}
 
@@ -1512,7 +1528,7 @@
 		}
 
 		.home-anon-product-row {
-			grid-template-columns: repeat(4, minmax(0, 1fr));
+			grid-template-columns: repeat(2, minmax(0, 1fr));
 			gap: 0.55rem;
 			min-width: 0;
 			padding: 0.75rem;
@@ -1524,13 +1540,26 @@
 		}
 
 		.home-anon-product-row > span:not(.home-anon-product-title) {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.35rem;
 			overflow: hidden;
-			padding: 0.35rem 0.2rem;
+			margin-right: 0;
+			padding: 0.42rem 0.5rem;
 			background: rgb(var(--veud-surface) / 0.45);
 			border-radius: 0.35rem;
-			text-align: center;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+
+		.home-anon-product-row > span:not(.home-anon-product-title)::before {
+			content: attr(data-label);
+			color: rgb(var(--veud-sage));
+			font-size: 0.56rem;
+			font-weight: 900;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
 		}
 	}
 
