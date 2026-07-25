@@ -24,6 +24,22 @@ test('provider credits live in the quiet site footer instead of community naviga
 	).toBeVisible()
 })
 
+test('account suspension appeals live in support instead of login', async ({
+	page,
+}) => {
+	await page.goto('/login?account=suspended')
+	await expect(page.getByText(/account is suspended/i)).toHaveCount(0)
+	await expect(
+		page.getByRole('link', { name: /appeal suspension/i }),
+	).toHaveCount(0)
+
+	await page.goto('/support')
+	await expect(page.getByRole('heading', { name: 'Support' })).toBeVisible()
+	await expect(
+		page.getByRole('link', { name: 'Appeal a suspension' }),
+	).toHaveAttribute('href', '/appeal')
+})
+
 test('shared visual foundations stay on-brand and overflow-free on mobile', async ({
 	page,
 }) => {

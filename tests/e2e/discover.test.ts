@@ -268,6 +268,56 @@ test('Tip of My Tongue keeps text and image clues in one prompt', async ({
 	).toHaveCount(0)
 })
 
+test('advanced search exposes mutually exclusive AI mode checkboxes', async ({
+	page,
+	login,
+}) => {
+	await login()
+	await page.goto('/discover?mode=memory')
+	const siteSearch = page.locator('form.site-search')
+	await siteSearch
+		.locator('summary[aria-label="Advanced search settings"]')
+		.click()
+	const memoryMode = siteSearch.getByLabel('Enable Tip of My Tongue search')
+	const describeMode = siteSearch.getByLabel(
+		'Enable Describe what you want search',
+	)
+
+	await expect(memoryMode).toBeChecked()
+	await expect(describeMode).not.toBeChecked()
+	await describeMode.check()
+	await expect(describeMode).toBeChecked()
+	await expect(memoryMode).not.toBeChecked()
+	await expect(siteSearch).toHaveAttribute('method', 'post')
+	await expect(
+		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+	).toHaveAttribute('minlength', '3')
+	await expect(
+		siteSearch.locator('input[name="intent"][value="describe-start"]'),
+	).toHaveCount(1)
+	await memoryMode.check()
+	await expect(memoryMode).toBeChecked()
+	await expect(describeMode).not.toBeChecked()
+	await expect(siteSearch).toHaveAttribute('method', 'get')
+	await expect(
+		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+	).toHaveAttribute('minlength', '2')
+})
+
+test('signed-out describe links do not turn the global catalog search into a POST', async ({
+	page,
+}) => {
+	await page.goto('/discover?mode=describe')
+	const siteSearch = page.locator('form.site-search')
+	await expect(siteSearch).toHaveAttribute('method', 'get')
+	await expect(
+		siteSearch.locator('input[name="intent"][value="describe-start"]'),
+	).toHaveCount(0)
+	await expect(
+		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+	).toHaveAttribute('minlength', '2')
+})
+
 test('Tip of My Tongue makes its loading state unmistakable', async ({
 	page,
 }) => {

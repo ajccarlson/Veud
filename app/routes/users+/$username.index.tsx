@@ -6,9 +6,10 @@ import {
 	useOutletContext,
 } from 'react-router'
 import { ProfileAbout } from '#app/components/profile-about.tsx'
-import { ProfileEmptyState } from '#app/components/profile-ui.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
-import { TypeSwitcher } from '#app/components/type-switcher.tsx'
+import {
+	ProfileEmptyState,
+	ProfilePeriodSelect,
+} from '#app/components/profile-ui.tsx'
 import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
 import {
 	ProfileVisualizationBoundary,
@@ -62,34 +63,46 @@ export default function ProfileOverview() {
 	)
 
 	const latestYear = completionYears[completionYears.length - 1]
-	const [completionMonths, setCompletionMonths] = useState(() =>
-		latestYear ? Object.keys(completionHistory.months[latestYear]) : [],
+	const latestMonths = latestYear
+		? Object.keys(completionHistory.months[latestYear])
+		: []
+	const [selectedYear, setSelectedYear] = useState(latestYear ?? '')
+	const [selectedMonth, setSelectedMonth] = useState(
+		latestMonths[latestMonths.length - 1] ?? '',
 	)
-	const [yearIndex, setYearIndex] = useState(
-		Math.max(0, completionYears.length - 1),
-	)
-	const [monthIndex, setMonthIndex] = useState(
-		Math.max(0, completionMonths.length - 1),
+	const completionMonths = useMemo(
+		() =>
+			selectedYear
+				? Object.keys(completionHistory.months[selectedYear] ?? {})
+				: [],
+		[completionHistory, selectedYear],
 	)
 
 	useEffect(() => {
 		if (!completionYears.length) {
-			setCompletionMonths([])
-			setYearIndex(0)
-			setMonthIndex(0)
+			setSelectedYear('')
+			setSelectedMonth('')
 			return
 		}
-		if (yearIndex >= completionYears.length) {
-			setYearIndex(completionYears.length - 1)
-			return
+		if (!completionYears.includes(selectedYear)) {
+			const nextYear = completionYears[completionYears.length - 1]
+			const nextMonths = Object.keys(completionHistory.months[nextYear] ?? {})
+			setSelectedYear(nextYear)
+			setSelectedMonth(nextMonths[nextMonths.length - 1] ?? '')
 		}
-		setMonthIndex(0)
-		setCompletionMonths(
-			Object.keys(completionHistory.months[completionYears[yearIndex]]),
-		)
-	}, [completionHistory, completionYears, yearIndex])
-	const selectedYear = completionYears[yearIndex]
-	const selectedMonth = completionMonths[monthIndex]
+	}, [completionHistory, completionYears, selectedYear])
+
+	useEffect(() => {
+		if (completionMonths.includes(selectedMonth)) return
+		setSelectedMonth(completionMonths[completionMonths.length - 1] ?? '')
+	}, [completionMonths, selectedMonth])
+
+	function selectYear(year: string) {
+		const months = Object.keys(completionHistory.months[year] ?? {})
+		setSelectedYear(year)
+		setSelectedMonth(months[months.length - 1] ?? '')
+	}
+
 	const selectedRange =
 		selectedYear && selectedMonth
 			? completionHistory.months[selectedYear]?.[selectedMonth]
@@ -100,54 +113,59 @@ export default function ProfileOverview() {
 			<ProfileAbout bio={loaderData.user.bio} />
 			<StatsOverview data={loaderData} />
 			<section className="user-landing-completion-history-container">
-				<header className="user-landing-section-heading">
-					<span>Timeline</span>
-					<h2>Completion History</h2>
-					<p>Finished titles and progress logged during the selected month.</p>
-				</header>
-				{selectedRange ? (
-					<>
-						<div className="user-landing-completion-history-chart">
-							<ProfileVisualizationBoundary
-								key={`${selectedYear}:${selectedMonth}`}
-							>
-								<Suspense
-									fallback={
-										<ProfileVisualizationLoading label="completion history" />
-									}
-								>
-									<DeferredCompletionHistoryChart
-										data={completionHistory.days}
-										from={selectedRange.from}
-										to={selectedRange.to}
-									/>
-								</Suspense>
-							</ProfileVisualizationBoundary>
-						</div>
-						<div className="user-landing-completion-history-controls">
-							<TypeSwitcher
-								variant="primary"
+				<div className="user-landing-completion-history-heading">
+					<header className="user-landing-section-heading">
+						<span>Timeline</span>
+						<h2>Completion History</h2>
+						<p>
+							Finished titles and progress logged during the selected month.
+						</p>
+					</header>
+					{selectedRange ? (
+						<div
+							className="user-landing-completion-history-controls"
+							role="group"
+							aria-label="Completion history period"
+						>
+							<ProfilePeriodSelect
+								label="Year"
+								value={selectedYear}
 								options={completionYears.map(year => ({
 									key: year,
 									label: year,
 								}))}
-								index={yearIndex}
-								onIndexChange={setYearIndex}
+								onValueChange={selectYear}
 							/>
-							<div className="user-landing-selection-secondary-nav-container">
-								<Spacer size="4xs" />
-								<TypeSwitcher
-									variant="secondary"
-									options={completionMonths.map(month => ({
-										key: month,
-										label: getMonthName(month),
-									}))}
-									index={monthIndex}
-									onIndexChange={setMonthIndex}
-								/>
-							</div>
+							<ProfilePeriodSelect
+								label="Month"
+								value={selectedMonth}
+								options={completionMonths.map(month => ({
+									key: month,
+									label: getMonthName(month),
+								}))}
+								onValueChange={setSelectedMonth}
+							/>
 						</div>
-					</>
+					) : null}
+				</div>
+				{selectedRange ? (
+					<div className="user-landing-completion-history-chart">
+						<ProfileVisualizationBoundary
+							key={`${selectedYear}:${selectedMonth}`}
+						>
+							<Suspense
+								fallback={
+									<ProfileVisualizationLoading label="completion history" />
+								}
+							>
+								<DeferredCompletionHistoryChart
+									data={completionHistory.days}
+									from={selectedRange.from}
+									to={selectedRange.to}
+								/>
+							</Suspense>
+						</ProfileVisualizationBoundary>
+					</div>
 				) : (
 					<ProfileEmptyState
 						icon="calendar"

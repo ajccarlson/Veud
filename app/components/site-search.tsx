@@ -1,4 +1,5 @@
-import { Form, Link, useLocation } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Form, useLocation } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 
 export function SiteSearch({
@@ -20,16 +21,29 @@ export function SiteSearch({
 		: 'all'
 	const isMemoryMode = isDiscover && searchParams.get('mode') === 'memory'
 	const isDescribeMode = isDiscover && searchParams.get('mode') === 'describe'
+	const canUseDescribe = isSignedIn && discoveryAiAvailable
+	const locationMode = isMemoryMode
+		? 'memory'
+		: isDescribeMode && canUseDescribe
+			? 'describe'
+			: 'standard'
+	const [selectedMode, setSelectedMode] = useState<
+		'standard' | 'memory' | 'describe'
+	>(locationMode)
+	useEffect(() => setSelectedMode(locationMode), [locationMode])
 	const stateKey = `${query}:${kind}:${isMemoryMode ? 'memory' : isDescribeMode ? 'describe' : 'standard'}`
 
 	return (
 		<Form
 			key={stateKey}
 			action="/discover"
-			method="get"
+			method={selectedMode === 'describe' ? 'post' : 'get'}
 			role="search"
 			className="site-search"
 		>
+			{selectedMode === 'describe' ? (
+				<input type="hidden" name="intent" value="describe-start" />
+			) : null}
 			<label className="sr-only" htmlFor="site-search-query">
 				Search movies, TV, anime, and manga
 			</label>
@@ -37,7 +51,7 @@ export function SiteSearch({
 				id="site-search-query"
 				name="q"
 				type="search"
-				minLength={2}
+				minLength={selectedMode === 'describe' ? 3 : 2}
 				maxLength={500}
 				required
 				placeholder="Search media…"
@@ -59,7 +73,7 @@ export function SiteSearch({
 			</button>
 			<details
 				className="site-search-advanced"
-				data-active={isMemoryMode || isDescribeMode || undefined}
+				data-active={selectedMode !== 'standard' || undefined}
 			>
 				<summary aria-label="Advanced search settings" title="Advanced search">
 					<Icon name="magic-wand" aria-hidden="true" />
@@ -72,7 +86,12 @@ export function SiteSearch({
 							type="checkbox"
 							name="mode"
 							value="memory"
-							defaultChecked={isMemoryMode}
+							checked={selectedMode === 'memory'}
+							onChange={event =>
+								setSelectedMode(
+									event.currentTarget.checked ? 'memory' : 'standard',
+								)
+							}
 						/>
 						<span>
 							<strong>Tip of My Tongue</strong>
@@ -86,11 +105,26 @@ export function SiteSearch({
 						</span>
 					</label>
 					{isSignedIn ? (
-						<Link
-							to="/discover?mode=describe"
-							className="site-search-discovery-link"
+						<label
+							htmlFor="site-search-describe-mode"
+							className="site-search-mode-option"
 						>
-							<Icon name="chat-bubble" aria-hidden="true" />
+							<span className="sr-only">
+								Enable Describe what you want search
+							</span>
+							<input
+								id="site-search-describe-mode"
+								type="checkbox"
+								name="mode"
+								value="describe"
+								checked={selectedMode === 'describe'}
+								disabled={!canUseDescribe}
+								onChange={event =>
+									setSelectedMode(
+										event.currentTarget.checked ? 'describe' : 'standard',
+									)
+								}
+							/>
 							<span>
 								<strong>Describe what you want</strong>
 								<small>
@@ -99,7 +133,7 @@ export function SiteSearch({
 										: 'Currently unavailable.'}
 								</small>
 							</span>
-						</Link>
+						</label>
 					) : null}
 				</div>
 			</details>
