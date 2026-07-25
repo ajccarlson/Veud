@@ -242,9 +242,6 @@ export function TrendingData({
 					>
 						Trending now
 					</h2>
-					<p className="mt-2 max-w-2xl text-sm text-[#c6ded2]">
-						Current provider charts, matched to Veud’s catalog.
-					</p>
 				</div>
 				<Button asChild variant="outline">
 					<Link to="/discover">Explore the catalog</Link>
