@@ -42,7 +42,7 @@ export async function saveHomeDashboardConfig(
 }
 
 export async function getContinuationQueue(ownerId: string) {
-	return prisma.trackingState.findMany({
+	const rows = await prisma.trackingState.findMany({
 		where: {
 			ownerId,
 			status: {
@@ -78,4 +78,8 @@ export async function getContinuationQueue(ownerId: string) {
 		orderBy: { updatedAt: 'desc' },
 		take: 8,
 	})
+	return rows.map(row => ({
+		...row,
+		score: row.score === null ? null : Number(row.score),
+	}))
 }

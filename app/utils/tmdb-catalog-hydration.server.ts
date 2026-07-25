@@ -20,6 +20,7 @@ const DEFAULT_REFRESH_DAYS = 150
 const MAX_CONCURRENCY = 10
 
 export const tmdbHydrationFeeds = ['upcoming', 'trending', 'popular'] as const
+export const TMDB_FEED_RANKING_VERSION = 2
 export type TmdbHydrationFeed = (typeof tmdbHydrationFeeds)[number]
 
 type TmdbHydrationCursor = {
@@ -530,10 +531,25 @@ export function providerFeedRankingScores(
 	)
 	return signals.map(signal => {
 		const rankScore = maxRank === 1 ? 1 : 1 - (signal.rank - 1) / (maxRank - 1)
+		const audience = Math.max(0, signal.audience ?? 0)
 		const audienceScore = maxAudienceLog
-			? Math.log1p(signal.audience ?? 0) / maxAudienceLog
+			? Math.log1p(audience) / maxAudienceLog
 			: 0
-		return Math.max(0, Math.min(1, rankScore * 0.35 + audienceScore * 0.65))
+		// Provider rank is useful, but a high raw position supported by only a
+		// handful of votes is too noisy to lead a Veud chart. Confidence reaches
+		// about 63% at 100 votes and approaches 1 smoothly, preserving genuinely
+		// new titles without letting single-digit samples dominate.
+		const audienceConfidence = 1 - Math.exp(-audience / 100)
+		const confidenceAdjustedRank = rankScore * audienceConfidence
+		return Math.max(
+			0,
+			Math.min(
+				1,
+				audienceScore * 0.55 +
+					confidenceAdjustedRank * 0.3 +
+					audienceConfidence * 0.15,
+			),
+		)
 	})
 }
 
@@ -720,7 +736,7 @@ async function applyPrioritySignals(
 					rank: signal.rank,
 					audience: signal.audience,
 					rankingScore: rankingScores[index],
-					rankingVersion: 1,
+					rankingVersion: TMDB_FEED_RANKING_VERSION,
 					observedAt: now,
 					mediaId,
 				},

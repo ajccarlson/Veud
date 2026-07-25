@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
 import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
+import { TMDB_FEED_RANKING_VERSION } from './tmdb-catalog-hydration.server.ts'
 
 export const DISCOVERY_PAGE_SIZE = 24
 const FOR_YOU_CANDIDATE_LIMIT = 500
@@ -703,7 +704,9 @@ async function popularMediaPage(input: {
 		media: { select: discoveryMediaSelect },
 	} satisfies Prisma.CatalogFeedItemSelect
 	const feedWhere = {
+		provider: 'tmdb',
 		feed: 'popular',
+		rankingVersion: { gte: TMDB_FEED_RANKING_VERSION },
 		media: { is: input.where },
 	} satisfies Prisma.CatalogFeedItemWhereInput
 	const freshFeedRows = await prisma.catalogFeedItem.findMany({
