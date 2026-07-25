@@ -294,6 +294,18 @@ export async function getReleaseCalendar(
 						},
 					},
 					{ nextRelease: { not: null } },
+					{
+						releaseOccurrences: {
+							some: {
+								status: 'scheduled',
+								expiresAt: { gt: now },
+								releaseAt: {
+									gte: addDays(start, -1),
+									lt: addDays(end, 1),
+								},
+							},
+						},
+					},
 				],
 			},
 		],
@@ -310,6 +322,30 @@ export async function getReleaseCalendar(
 			releaseEnd: true,
 			releaseStatus: true,
 			nextRelease: true,
+			releaseOccurrences: {
+				where: {
+					status: 'scheduled',
+					expiresAt: { gt: now },
+					releaseAt: {
+						gte: addDays(start, -1),
+						lt: addDays(end, 1),
+					},
+				},
+				orderBy: [{ releaseAt: 'asc' }, { id: 'asc' }],
+				select: {
+					id: true,
+					source: true,
+					releaseAt: true,
+					allDay: true,
+					observedAt: true,
+					episode: true,
+					season: true,
+					chapter: true,
+					volume: true,
+					name: true,
+					eventType: true,
+				},
+			},
 			trackingStates: {
 				select: {
 					statusWatchlistId: true,
@@ -377,7 +413,48 @@ export async function getReleaseCalendar(
 			viewerTracking: viewerTracking.get(item.id) ?? null,
 			viewerReminder: viewerReminders.get(item.id) ?? null,
 		}
-		const parsedNext = parseStoredNextRelease(item.nextRelease)
+		const occurrenceDates = new Set<string>()
+		for (const occurrence of item.releaseOccurrences) {
+			const release: NextRelease = {
+				releaseAt: occurrence.releaseAt,
+				allDay: occurrence.allDay,
+				source: occurrence.source as NextRelease['source'],
+				observedAt: occurrence.observedAt,
+				episode: occurrence.episode,
+				season: occurrence.season,
+				chapter: occurrence.chapter,
+				volume: occurrence.volume,
+				name: occurrence.name,
+			}
+			const occurrenceDate = eventDateKey(
+				occurrence.releaseAt,
+				occurrence.allDay,
+				timeZone,
+			)
+			if (
+				isPlausibleNextRelease(release, item, now) &&
+				dateIsInRange(occurrenceDate, startKey, endKey)
+			) {
+				occurrenceDates.add(occurrenceDate)
+				items.push({
+					...common,
+					id: occurrence.id,
+					releaseAt: occurrence.releaseAt,
+					allDay: occurrence.allDay,
+					eventType: ['episode', 'chapter', 'release'].includes(
+						occurrence.eventType,
+					)
+						? (occurrence.eventType as 'episode' | 'chapter' | 'release')
+						: 'release',
+					eventLabel: nextReleaseLabel(release),
+					eventName: occurrence.name,
+				})
+			}
+		}
+		const parsedNext =
+			item.releaseOccurrences.length === 0
+				? parseStoredNextRelease(item.nextRelease)
+				: null
 		const next =
 			parsedNext && isPlausibleNextRelease(parsedNext, item, now)
 				? parsedNext
@@ -401,6 +478,7 @@ export async function getReleaseCalendar(
 				eventLabel: nextReleaseLabel(next),
 				eventName: next.name,
 			})
+			occurrenceDates.add(nextDate)
 		}
 		const premiereAllDay = Boolean(
 			item.releaseStart &&
@@ -415,7 +493,7 @@ export async function getReleaseCalendar(
 			item.releaseStart &&
 			premiereDate &&
 			dateIsInRange(premiereDate, startKey, endKey) &&
-			(!nextDate || nextDate !== premiereDate)
+			!occurrenceDates.has(premiereDate)
 		) {
 			items.push({
 				...common,

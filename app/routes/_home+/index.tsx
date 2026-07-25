@@ -30,6 +30,7 @@ import {
 	dateKeyInTimeZone,
 	getReleaseCalendar,
 } from '#app/utils/release-calendar.server.ts'
+import { excludedUserIdsFor } from '#app/utils/user-safety.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { AnonymousHome } from './anonymous-home.tsx'
 
@@ -37,6 +38,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
 	const timeZone = getHints(request).timeZone
 	const dashboardConfig = await getHomeDashboardConfig(userId)
+	const excludedUserIds = userId ? await excludedUserIdsFor(prisma, userId) : []
 	const expanded = (module: HomeDashboardModule) =>
 		!dashboardConfig.collapsedModules.includes(module)
 	const trendingPromise =
@@ -74,7 +76,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		? await Promise.all([
 				expanded('following')
 					? prisma.follow.findMany({
-							where: { followerId: userId },
+							where: {
+								followerId: userId,
+								followingId: { notIn: excludedUserIds },
+							},
 							select: { followingId: true },
 						})
 					: Promise.resolve([]),
@@ -106,7 +111,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		expanded('following') &&
 		(!followedUserIds.length || !followingFeed.length)
 			? await prisma.user.findMany({
-					where: { id: { notIn: [userId, ...followedUserIds] } },
+					where: {
+						id: {
+							notIn: [userId, ...followedUserIds, ...excludedUserIds],
+						},
+					},
 					orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
 					take: 6,
 					select: {

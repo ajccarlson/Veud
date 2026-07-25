@@ -23,6 +23,12 @@
 			'Segoe UI', sans-serif;
 		--veud-font-display:
 			Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia, serif;
+		--veud-radius-sm: 0.5rem;
+		--veud-radius-md: 0.8rem;
+		--veud-radius-lg: 1.15rem;
+		--veud-shadow-soft: 0 0.85rem 2.25rem rgb(0 0 0 / 0.16);
+		--veud-shadow-dialog: 0 1.5rem 5rem rgb(0 0 0 / 0.68);
+		--veud-focus-ring: 0 0 0 0.2rem rgb(var(--veud-mint) / 0.2);
 
 		--foreground-destructive: 10 100% 72.4%;
 		--background: 160 12% 8%;
@@ -70,6 +76,11 @@
 	::selection {
 		color: rgb(var(--veud-ink));
 		background: rgb(var(--veud-mint) / 0.82);
+	}
+
+	:where(button, a, input, select, textarea, summary):focus-visible {
+		outline: 2px solid rgb(var(--veud-mint));
+		outline-offset: 2px;
 	}
 
 	@media (pointer: coarse) {

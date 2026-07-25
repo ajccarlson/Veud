@@ -197,12 +197,47 @@ export function AdvancedEntryEditor({
 				Number(formData.get(`progress:${unit}`)),
 			]),
 		)
+		const installmentNumber = Number(formData.get('installmentNumber') ?? 0)
+		const installmentUnit = String(
+			formData.get('installmentUnit') ?? progressUnits[0],
+		)
+		if (installmentNumber > 0) {
+			delete (fields.progress as Record<string, unknown>)[installmentUnit]
+		}
 
 		try {
 			await mutateList('advanced-edit-entry', {
 				entryId: data.id,
 				fields,
 			})
+			if (
+				data.mediaId &&
+				Number.isSafeInteger(installmentNumber) &&
+				installmentNumber > 0
+			) {
+				const seasonNumber = Number(formData.get('seasonNumber') ?? 0)
+				const absoluteNumber = Number(formData.get('absoluteNumber') ?? 0)
+				const response = await fetch('/resources/consumption/v1', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						mediaId: data.mediaId,
+						unit: installmentUnit,
+						number: installmentNumber,
+						seasonNumber: Number.isSafeInteger(seasonNumber) ? seasonNumber : 0,
+						absoluteNumber:
+							Number.isSafeInteger(absoluteNumber) && absoluteNumber > 0
+								? absoluteNumber
+								: null,
+					}),
+				})
+				if (!response.ok) {
+					throw new Error(
+						(await response.text().catch(() => '')) ||
+							'Could not save this check-in',
+					)
+				}
+			}
 			dialogRef.current?.close()
 			await refreshGrid(columnParams)
 		} catch (submitError) {
@@ -285,29 +320,93 @@ export function AdvancedEntryEditor({
 							</label>
 						</div>
 						{progressUnits.length ? (
-							<div className="ag-advanced-edit-progress-grid">
-								{progressUnits.map(unit => {
-									const saved = progressByUnit.get(unit) as
-										{ current?: number; total?: number | null } | undefined
-									const total = saved?.total ?? legacyTotal(data, unit)
-									return (
-										<label key={unit}>
-											<span>
-												{progressLabel(unit)}
-												{total ? ` (of ${total})` : ''}
-											</span>
-											<Input
-												name={`progress:${unit}`}
-												type="number"
-												min="0"
-												max={total ?? 1000000}
-												step="1"
-												defaultValue={saved?.current ?? 0}
-											/>
-										</label>
-									)
-								})}
-							</div>
+							<>
+								<div className="ag-advanced-edit-progress-grid">
+									{progressUnits.map(unit => {
+										const saved = progressByUnit.get(unit) as
+											{ current?: number; total?: number | null } | undefined
+										const total = saved?.total ?? legacyTotal(data, unit)
+										return (
+											<label key={unit}>
+												<span>
+													{progressLabel(unit)}
+													{total ? ` (of ${total})` : ''}
+												</span>
+												<Input
+													name={`progress:${unit}`}
+													type="number"
+													min="0"
+													max={total ?? 1000000}
+													step="1"
+													defaultValue={saved?.current ?? 0}
+												/>
+											</label>
+										)
+									})}
+								</div>
+								{data.mediaId ? (
+									<details className="ag-advanced-edit-check-in">
+										<summary>Log a specific installment</summary>
+										<div className="ag-advanced-edit-progress-grid">
+											{progressUnits.length > 1 ? (
+												<label>
+													<span>Type</span>
+													<select name="installmentUnit">
+														{progressUnits.map(unit => (
+															<option key={unit} value={unit}>
+																{fieldLabel(unit)}
+															</option>
+														))}
+													</select>
+												</label>
+											) : (
+												<input
+													type="hidden"
+													name="installmentUnit"
+													value={progressUnits[0]}
+												/>
+											)}
+											{progressUnits.includes('episode') ? (
+												<label>
+													<span>Season</span>
+													<Input
+														name="seasonNumber"
+														type="number"
+														min="0"
+														max="10000"
+														step="1"
+														defaultValue="0"
+													/>
+												</label>
+											) : null}
+											<label>
+												<span>Number</span>
+												<Input
+													name="installmentNumber"
+													type="number"
+													min="1"
+													max="1000000"
+													step="1"
+													placeholder="—"
+												/>
+											</label>
+											{progressUnits.includes('episode') ? (
+												<label>
+													<span>Overall number</span>
+													<Input
+														name="absoluteNumber"
+														type="number"
+														min="1"
+														max="1000000"
+														step="1"
+														placeholder="Optional"
+													/>
+												</label>
+											) : null}
+										</div>
+									</details>
+								) : null}
+							</>
 						) : null}
 					</fieldset>
 

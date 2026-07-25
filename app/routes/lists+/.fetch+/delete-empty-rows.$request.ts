@@ -1,6 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
 import { normalizeEntryPositions } from '#app/utils/lists/entry-order.server.ts'
 import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 import {
@@ -8,13 +9,11 @@ import {
 	reconcileTrackingStateBeforeEntryDeletion,
 } from '#app/utils/tracking-state.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const searchParams = new URLSearchParams(params.request)
-
-	const { watchlist } = await requireWatchlistOwner(
-		request,
-		searchParams.get('watchlistId')?.toLowerCase(),
-	)
+export async function deleteEmptyEntriesCommand(
+	ownerId: string,
+	watchlistId: string | null,
+) {
+	const watchlist = await requireOwnedWatchlist(ownerId, watchlistId)
 
 	const entries = await prisma.entry.findMany({
 		where: {
@@ -54,4 +53,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	}
 
 	return removedEntries
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	return deleteEmptyEntriesCommand(
+		ownerId,
+		searchParams.get('watchlistId')?.toLowerCase() ?? null,
+	)
 }

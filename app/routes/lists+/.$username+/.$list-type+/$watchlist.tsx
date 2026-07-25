@@ -81,7 +81,19 @@ export async function loader(params: LoaderFunctionArgs) {
 			},
 			include: {
 				media: {
-					select: { kind: true, tmdbScore: true, malScore: true },
+					select: {
+						kind: true,
+						tmdbScore: true,
+						malScore: true,
+						externalIds: {
+							orderBy: { provider: 'asc' },
+							select: {
+								provider: true,
+								kind: true,
+								externalId: true,
+							},
+						},
+					},
 				},
 				trackingState: {
 					select: {
@@ -158,7 +170,7 @@ export async function loader(params: LoaderFunctionArgs) {
 
 	return json({
 		watchList: params['params']['watchlist'],
-		username: params['params']['username'],
+		username: listOwner.username,
 		listType: params['params']['list-type'],
 		listTypes,
 		listTypeData,

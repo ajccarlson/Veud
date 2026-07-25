@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { prisma } from './db.server.ts'
 
 const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
@@ -74,10 +75,32 @@ function responseText(payload: unknown) {
 	return { text: null, usage: parsed.data.usage ?? null }
 }
 
-function recordTelemetry(event: AiGatewayTelemetry) {
+async function recordTelemetry(event: AiGatewayTelemetry, persist: boolean) {
 	telemetry.push(event)
 	if (telemetry.length > MAX_TELEMETRY_EVENTS) {
 		telemetry.splice(0, telemetry.length - MAX_TELEMETRY_EVENTS)
+	}
+	if (!persist) return
+	try {
+		await prisma.aiUsageEvent.create({
+			data: {
+				capability: event.capability,
+				model: event.model,
+				promptVersion: event.promptVersion,
+				outcome: event.outcome,
+				fallbackReason: event.fallbackReason,
+				status: event.status,
+				durationMs: Math.round(event.durationMs),
+				inputTokens: event.inputTokens,
+				outputTokens: event.outputTokens,
+				createdAt: event.startedAt,
+			},
+		})
+	} catch (error) {
+		console.warn(
+			'Unable to persist privacy-safe AI operations telemetry',
+			error instanceof Error ? error.name : 'DatabaseError',
+		)
 	}
 }
 
@@ -108,6 +131,50 @@ function consumeRequest(input: {
 		}
 	}
 	return true
+}
+
+async function consumeDurableRequest(input: {
+	capability: AiCapability
+	key: string
+	now: number
+	limit: number
+	windowMs: number
+}) {
+	const subjectHash = createHash('sha256')
+		.update(`veud-ai-limit:${input.key}`)
+		.digest('hex')
+	const windowStartedAtMs =
+		Math.floor(input.now / input.windowMs) * input.windowMs
+	const id = createHash('sha256')
+		.update(
+			`${input.capability}:${subjectHash}:${windowStartedAtMs}:${input.windowMs}`,
+		)
+		.digest('hex')
+	try {
+		const bucket = await prisma.aiRateLimitBucket.upsert({
+			where: { id },
+			create: {
+				id,
+				capability: input.capability,
+				subjectHash,
+				windowStartedAt: new Date(windowStartedAtMs),
+				windowMs: input.windowMs,
+				count: 1,
+				expiresAt: new Date(windowStartedAtMs + input.windowMs * 2),
+			},
+			update: { count: { increment: 1 } },
+			select: { count: true },
+		})
+		return bucket.count <= input.limit
+	} catch (error) {
+		// Availability wins over cross-process quota coordination when the
+		// database is briefly unavailable. The in-process limiter still applies.
+		console.warn(
+			'Unable to coordinate durable AI rate limit',
+			error instanceof Error ? error.name : 'DatabaseError',
+		)
+		return true
+	}
 }
 
 export class AiGatewayError extends Error {
@@ -167,6 +234,31 @@ export function getAiGatewayTelemetry() {
 	return telemetry.map(event => ({ ...event }))
 }
 
+export async function getAiGatewayOperationsTelemetry(since: Date) {
+	try {
+		const events = await prisma.aiUsageEvent.findMany({
+			where: { createdAt: { gte: since } },
+			orderBy: { createdAt: 'desc' },
+			take: 5_000,
+		})
+		return events.map(event => ({
+			capability: event.capability as AiCapability,
+			model: event.model,
+			promptVersion: event.promptVersion,
+			startedAt: event.createdAt,
+			durationMs: event.durationMs,
+			outcome: event.outcome as AiGatewayTelemetry['outcome'],
+			fallbackReason:
+				event.fallbackReason as AiGatewayTelemetry['fallbackReason'],
+			status: event.status,
+			inputTokens: event.inputTokens,
+			outputTokens: event.outputTokens,
+		}))
+	} catch {
+		return getAiGatewayTelemetry().filter(event => event.startedAt >= since)
+	}
+}
+
 export function resetAiGatewayStateForTests() {
 	requestHistory.clear()
 	circuits.clear()
@@ -212,17 +304,22 @@ export async function requestStructuredAi<Output>(options: {
 		promptVersion: options.promptVersion,
 		startedAt,
 	}
+	const persistOperations =
+		process.env.NODE_ENV === 'production' && options.fetchImpl === undefined
 	const apiKey = process.env.OPENAI_API_KEY?.trim()
 	if (!apiKey || !isAiCapabilityConfigured(options.capability)) {
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: 0,
-			outcome: 'unavailable',
-			fallbackReason: 'not-configured',
-			status: null,
-			inputTokens: null,
-			outputTokens: null,
-		})
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'unavailable',
+				fallbackReason: 'not-configured',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
 		throw new AiGatewayError(
 			'not-configured',
 			'This AI capability is not configured.',
@@ -242,39 +339,52 @@ export async function requestStructuredAi<Output>(options: {
 		circuits.get(options.capability) ?? { unavailableUntil: 0 }
 	circuits.set(options.capability, circuit)
 	if (circuit.unavailableUntil > startedAtMs) {
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: 0,
-			outcome: 'unavailable',
-			fallbackReason: 'unavailable',
-			status: null,
-			inputTokens: null,
-			outputTokens: null,
-		})
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'unavailable',
+				fallbackReason: 'unavailable',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
 		throw new AiGatewayError(
 			'unavailable',
 			'AI capability is temporarily unavailable.',
 		)
 	}
-	if (
-		options.rateLimitKey &&
-		!consumeRequest({
-			capability: options.capability,
-			key: options.rateLimitKey,
-			now: startedAtMs,
-			limit: options.rateLimit ?? 5,
-			windowMs: options.rateLimitWindowMs ?? 10 * 60 * 1_000,
-		})
-	) {
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: 0,
-			outcome: 'rate-limited',
-			fallbackReason: 'rate-limited',
-			status: null,
-			inputTokens: null,
-			outputTokens: null,
-		})
+	const rateLimitInput = options.rateLimitKey
+		? {
+				capability: options.capability,
+				key: options.rateLimitKey,
+				now: startedAtMs,
+				limit: options.rateLimit ?? 5,
+				windowMs: options.rateLimitWindowMs ?? 10 * 60 * 1_000,
+			}
+		: null
+	const withinLocalLimit = rateLimitInput
+		? consumeRequest(rateLimitInput)
+		: true
+	const withinDurableLimit =
+		withinLocalLimit && rateLimitInput && persistOperations
+			? await consumeDurableRequest(rateLimitInput)
+			: true
+	if (!withinLocalLimit || !withinDurableLimit) {
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'rate-limited',
+				fallbackReason: 'rate-limited',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
 		throw new AiGatewayError('rate-limited', 'AI request limit reached.')
 	}
 	const configuredConcurrency = Number.parseInt(
@@ -285,15 +395,18 @@ export async function requestStructuredAi<Output>(options: {
 		? Math.min(20, Math.max(1, configuredConcurrency))
 		: 4
 	if (activeRequests >= maxConcurrency) {
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: 0,
-			outcome: 'unavailable',
-			fallbackReason: 'concurrency',
-			status: null,
-			inputTokens: null,
-			outputTokens: null,
-		})
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'unavailable',
+				fallbackReason: 'concurrency',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
 		throw new AiGatewayError(
 			'unavailable',
 			'AI concurrency capacity is temporarily full.',
@@ -384,15 +497,18 @@ export async function requestStructuredAi<Output>(options: {
 		const result = options.outputSchema.parse(
 			JSON.parse(parsedResponse.text) as unknown,
 		)
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-			outcome: 'success',
-			fallbackReason: null,
-			status,
-			inputTokens: parsedResponse.usage?.input_tokens ?? null,
-			outputTokens: parsedResponse.usage?.output_tokens ?? null,
-		})
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome: 'success',
+				fallbackReason: null,
+				status,
+				inputTokens: parsedResponse.usage?.input_tokens ?? null,
+				outputTokens: parsedResponse.usage?.output_tokens ?? null,
+			},
+			persistOperations,
+		)
 		return result
 	} catch (error) {
 		const gatewayError =
@@ -403,20 +519,23 @@ export async function requestStructuredAi<Output>(options: {
 						error instanceof Error ? error.message : 'AI request failed.',
 						status,
 					)
-		recordTelemetry({
-			...baseTelemetry,
-			durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-			outcome:
-				gatewayError.reason === 'rate-limited'
-					? 'rate-limited'
-					: gatewayError.reason === 'unavailable'
-						? 'unavailable'
-						: 'error',
-			fallbackReason: gatewayError.reason,
-			status: gatewayError.status,
-			inputTokens: null,
-			outputTokens: null,
-		})
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome:
+					gatewayError.reason === 'rate-limited'
+						? 'rate-limited'
+						: gatewayError.reason === 'unavailable'
+							? 'unavailable'
+							: 'error',
+				fallbackReason: gatewayError.reason,
+				status: gatewayError.status,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
 		throw gatewayError
 	} finally {
 		activeRequests = Math.max(0, activeRequests - 1)

@@ -114,11 +114,9 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 
 	const destinations = [
 		['Reviews', 'Reviews'],
-		['Diary', 'Diary'],
+		['Journal', 'Recent Activity'],
 		['Collections', 'Collections'],
 		['Stats', 'Stats'],
-		['Favorites', 'Favorites'],
-		['Activity', 'Recent Activity'],
 		['Social', 'Guestbook'],
 	] as const
 

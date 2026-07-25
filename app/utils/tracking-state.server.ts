@@ -23,6 +23,18 @@ export async function ensureTrackingStateForEntry(
 		recordActivity?: boolean
 	},
 ) {
+	const existingState = await tx.trackingState.findUnique({
+		where: {
+			ownerId_mediaId: {
+				ownerId: input.ownerId,
+				mediaId: input.mediaId,
+			},
+		},
+		select: {
+			id: true,
+			progress: { select: { unit: true, current: true } },
+		},
+	})
 	const before = input.recordActivity
 		? await getTrackingActivityState(tx, input.ownerId, input.mediaId)
 		: null
@@ -99,6 +111,33 @@ export async function ensureTrackingStateForEntry(
 					current: progress.current,
 					total: progress.total,
 				},
+			})
+		}
+	}
+
+	if (input.recordActivity && (mode === 'all' || !existingState)) {
+		const previousProgress = new Map(
+			existingState?.progress.map(item => [item.unit, item.current]) ?? [],
+		)
+		const changedProgress = snapshot.progress.filter(
+			item => item.current !== (previousProgress.get(item.unit) ?? 0),
+		)
+		if (changedProgress.length) {
+			await tx.consumptionEvent.createMany({
+				data: changedProgress.map(progress => {
+					const previous = previousProgress.get(progress.unit) ?? 0
+					return {
+						ownerId: input.ownerId,
+						mediaId: input.mediaId,
+						trackingStateId: state.id,
+						unit: progress.unit,
+						eventType: progress.current >= previous ? 'progress' : 'correction',
+						progressFrom: previous,
+						progressTo: progress.current,
+						repeatNumber: snapshot.repeatCount,
+						source: 'watchlist',
+					}
+				}),
 			})
 		}
 	}

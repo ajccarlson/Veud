@@ -53,6 +53,19 @@ export const ListMutationRequestSchema = z.discriminatedUnion('intent', [
 	}),
 	z.object({
 		version: z.literal(1),
+		intent: z.literal('bulk-delete-entries'),
+		input: z.object({ entryIds: z.array(id).min(1).max(500) }),
+	}),
+	z.object({
+		version: z.literal(1),
+		intent: z.literal('bulk-move-entries'),
+		input: z.object({
+			entryIds: z.array(id).min(1).max(500),
+			destinationWatchlistId: id,
+		}),
+	}),
+	z.object({
+		version: z.literal(1),
 		intent: z.literal('touch-watchlist'),
 		input: z.object({ watchlistId: id }),
 	}),
@@ -61,11 +74,12 @@ export const ListMutationRequestSchema = z.discriminatedUnion('intent', [
 		intent: z.literal('create-watchlist'),
 		input: z.object({
 			typeId: id,
-			position: z.number().int().positive(),
-			name: z.string().max(100),
-			header: z.string().max(100),
-			displayedColumns: z.string().min(1).max(5_000),
+			position: z.number().int().positive().optional(),
+			name: z.string().trim().min(1).max(100).optional(),
+			header: z.string().trim().min(3).max(100),
+			displayedColumns: z.string().min(1).max(5_000).optional(),
 			description: z.string().max(5_000).default(''),
+			isPublic: z.boolean().default(true),
 		}),
 	}),
 	z.object({

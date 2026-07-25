@@ -21,6 +21,19 @@ type ReminderMedia = {
 	releaseEnd: Date | null
 	releaseStatus: string | null
 	nextRelease: string | null
+	releaseOccurrences?: Array<{
+		releaseAt: Date
+		allDay: boolean
+		source: string
+		observedAt: Date
+		expiresAt: Date
+		status: string
+		episode: number | null
+		season: number | null
+		chapter: number | null
+		volume: number | null
+		name: string | null
+	}>
 }
 
 export type CanonicalReminderRelease = {
@@ -49,6 +62,34 @@ export function getNextCanonicalReminderRelease(
 	now = new Date(),
 ): CanonicalReminderRelease | null {
 	const candidates: CanonicalReminderRelease[] = []
+	for (const occurrence of media.releaseOccurrences ?? []) {
+		const release: NonNullable<ReturnType<typeof parseStoredNextRelease>> = {
+			releaseAt: occurrence.releaseAt,
+			allDay: occurrence.allDay,
+			source:
+				occurrence.source === 'anilist' || occurrence.source === 'tmdb'
+					? occurrence.source
+					: null,
+			observedAt: occurrence.observedAt,
+			episode: occurrence.episode,
+			season: occurrence.season,
+			chapter: occurrence.chapter,
+			volume: occurrence.volume,
+			name: occurrence.name,
+		}
+		if (
+			occurrence.status === 'scheduled' &&
+			occurrence.expiresAt > now &&
+			release.releaseAt > now &&
+			isPlausibleNextRelease(release, media, now)
+		) {
+			candidates.push({
+				releaseAt: release.releaseAt,
+				allDay: release.allDay,
+				label: nextReleaseLabel(release),
+			})
+		}
+	}
 	const parsedNext = parseStoredNextRelease(media.nextRelease)
 	const next =
 		parsedNext && isPlausibleNextRelease(parsedNext, media, now)
@@ -176,6 +217,28 @@ export async function syncReleaseRemindersForUser(
 					releaseEnd: true,
 					releaseStatus: true,
 					nextRelease: true,
+					releaseOccurrences: {
+						where: {
+							status: 'scheduled',
+							expiresAt: { gt: now },
+							releaseAt: { gt: now },
+						},
+						orderBy: { releaseAt: 'asc' },
+						take: 5,
+						select: {
+							releaseAt: true,
+							allDay: true,
+							source: true,
+							observedAt: true,
+							expiresAt: true,
+							status: true,
+							episode: true,
+							season: true,
+							chapter: true,
+							volume: true,
+							name: true,
+						},
+					},
 				},
 			},
 			notifications: {
@@ -219,6 +282,28 @@ export async function saveReleaseReminder(
 					releaseEnd: true,
 					releaseStatus: true,
 					nextRelease: true,
+					releaseOccurrences: {
+						where: {
+							status: 'scheduled',
+							expiresAt: { gt: now },
+							releaseAt: { gt: now },
+						},
+						orderBy: { releaseAt: 'asc' },
+						take: 5,
+						select: {
+							releaseAt: true,
+							allDay: true,
+							source: true,
+							observedAt: true,
+							expiresAt: true,
+							status: true,
+							episode: true,
+							season: true,
+							chapter: true,
+							volume: true,
+							name: true,
+						},
+					},
 				},
 			},
 			notifications: {

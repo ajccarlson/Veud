@@ -7,16 +7,7 @@ import {
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-
-	let favorite: unknown
-	try {
-		favorite = JSON.parse(searchParams.get('favorite') ?? '')
-	} catch {
-		throw new Response('Invalid favorite payload', { status: 400 })
-	}
+export async function addFavoriteCommand(ownerId: string, favorite: unknown) {
 	if (!favorite || typeof favorite !== 'object' || Array.isArray(favorite)) {
 		throw new Response('Invalid favorite payload', { status: 400 })
 	}
@@ -36,6 +27,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		listType.name,
 		typeof favoriteObj.thumbnail === 'string' ? favoriteObj.thumbnail : null,
 	)
+	if (!mediaIdentity) {
+		throw new Response('Choose a catalog title before adding a favorite', {
+			status: 400,
+		})
+	}
 
 	// Identity, relations, and ownership are server-managed.
 	const data = {
@@ -48,7 +44,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			'ownerId',
 			'type',
 		]),
-		ownerId: userId,
+		ownerId,
 	}
 
 	return await prisma.$transaction(async tx => {
@@ -61,12 +57,26 @@ export async function action({ request, params }: ActionFunctionArgs) {
 					? { startYear: favoriteObj.startYear }
 					: { airYear: favoriteObj.startYear }),
 		}
-		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity, favoriteCatalog)
-			: undefined
+		const mediaId = await ensureMediaForIdentity(
+			tx,
+			mediaIdentity,
+			favoriteCatalog,
+		)
 
 		// `data` is a runtime-validated object; Prisma's create input can't be inferred from
 		// arbitrary client JSON, so the shape is asserted here.
 		return tx.userFavorite.create({ data: { ...data, mediaId } as any })
 	})
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	let favorite: unknown
+	try {
+		favorite = JSON.parse(searchParams.get('favorite') ?? '')
+	} catch {
+		throw new Response('Invalid favorite payload', { status: 400 })
+	}
+	return addFavoriteCommand(ownerId, favorite)
 }
