@@ -9,6 +9,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
+import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
 
@@ -69,7 +70,9 @@ export async function loader(params: LoaderFunctionArgs) {
 				watchlistId: watchListData.id,
 			},
 			include: {
-				media: { select: { kind: true } },
+				media: {
+					select: { kind: true, tmdbScore: true, malScore: true },
+				},
 				trackingState: {
 					select: {
 						status: true,
@@ -113,9 +116,9 @@ export async function loader(params: LoaderFunctionArgs) {
 			: Promise.resolve([]),
 	])
 
-	const listEntriesSorted = listEntries.sort(
-		(a: any, b: any) => a.position - b.position,
-	)
+	const listEntriesSorted = listEntries
+		.map(normalizeWatchlistEntryScores)
+		.sort((a, b) => a.position - b.position)
 
 	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
 		(x, y) => {
