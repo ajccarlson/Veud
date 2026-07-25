@@ -137,16 +137,7 @@ export default function ReviewsRoute() {
 
 	return (
 		<VeudPage>
-			<VeudPageHeader
-				eyebrow="Community criticism"
-				title="Reviews"
-				description={
-					<p>
-						Find thoughtful takes across movies, television, anime, and manga,
-						then join the discussion on each title.
-					</p>
-				}
-			/>
+			<VeudPageHeader eyebrow="Community perspectives" title="Reviews" />
 
 			<Form
 				key={filterKey}

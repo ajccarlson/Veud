@@ -1,8 +1,9 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { data as json, type LoaderFunctionArgs } from 'react-router'
-import { useLoaderData, useNavigate } from 'react-router'
+import { useLoaderData, useNavigate, useRevalidator } from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
+import { TrackingAssistantDialog } from '#app/components/tracking-assistant-dialog.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
@@ -171,6 +172,7 @@ export default function WatchList() {
 	const currentUserId = currentUser ? currentUser.id : null
 	const loaderData = useLoaderData<typeof loader>()
 	const navigate = useNavigate()
+	const revalidator = useRevalidator()
 
 	return (
 		<main className="user-watchlist">
@@ -178,6 +180,18 @@ export default function WatchList() {
 				{loaderData.watchListData.header} · {loaderData.listTypeData.header}{' '}
 				list for {loaderData.listOwner.username}
 			</h1>
+			<header className="watchlist-context-bar">
+				<div>
+					<span>{loaderData.listTypeData.header}</span>
+					<strong>{loaderData.watchListData.header}</strong>
+				</div>
+				{currentUserId === loaderData.listOwner.id ? (
+					<TrackingAssistantDialog
+						watchlistLabel={loaderData.watchListData.header}
+						onLibraryChanged={() => revalidator.revalidate()}
+					/>
+				) : null}
+			</header>
 			<ResponsiveWatchlist
 				listEntries={loaderData.listEntries}
 				watchListData={loaderData.watchListData}

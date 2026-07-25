@@ -195,6 +195,9 @@ export default [
 	appRoute('routes/resources+/review-assistance.ts', {
 		path: 'resources/review-assistance',
 	}),
+	appRoute('routes/resources+/tracking-assistant.ts', {
+		path: 'resources/tracking-assistant',
+	}),
 	appRoute('routes/resources+/home-dashboard-preferences.ts', {
 		path: 'resources/home-dashboard-preferences',
 	}),
