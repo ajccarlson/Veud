@@ -13,6 +13,17 @@ test('audience size prevents a low-audience raw outlier from leading popularity'
 	expect(scores.every(score => score >= 0 && score <= 1)).toBe(true)
 })
 
+test('single-digit audiences receive an absolute confidence penalty', () => {
+	const scores = providerFeedRankingScores([
+		{ rank: 1, audience: 6 },
+		{ rank: 8, audience: 1_000 },
+		{ rank: 20, audience: 500 },
+	])
+
+	expect(scores[1]).toBeGreaterThan(scores[0]!)
+	expect(scores[2]).toBeGreaterThan(scores[0]!)
+})
+
 test('raw TV popularity outliers cannot outrank a normalized popular-feed leader', async () => {
 	const [leader, tagesschau, roteRosen] = await Promise.all([
 		prisma.media.create({
@@ -45,7 +56,7 @@ test('raw TV popularity outliers cannot outrank a normalized popular-feed leader
 			rank: 1,
 			audience: 500_000,
 			rankingScore: 1,
-			rankingVersion: 1,
+			rankingVersion: 2,
 			observedAt: new Date(),
 			mediaId: leader.id,
 		},
