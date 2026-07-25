@@ -34,6 +34,8 @@ module.exports = {
       NODE_ENV: "production",
       VEUD_ENVIRONMENT: "production",
       VEUD_RELEASE: release,
+      HOST: "127.0.0.1",
+      PORT: "4021",
     },
     env_development: {
       args : "dev",
