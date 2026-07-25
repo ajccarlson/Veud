@@ -9,6 +9,10 @@ export function SiteFooter() {
 				Metadata from TMDB, MyAnimeList, AniList, and Trakt.
 			</p>
 			<span>
+				<Link prefetch="intent" to="/support">
+					Support
+				</Link>
+				<span aria-hidden="true"> · </span>
 				<Link prefetch="intent" to="/status">
 					Service status
 				</Link>

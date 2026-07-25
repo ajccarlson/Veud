@@ -1,5 +1,9 @@
 import { type Prisma, type PrismaClient } from '@prisma/client'
 import {
+	catalogRefreshDays,
+	catalogRefreshIsOverdue,
+} from './catalog-refresh-policy.ts'
+import {
 	acquireCatalogSyncLease,
 	catalogHydrationPriorities,
 	CatalogSyncLeaseError,
@@ -17,6 +21,7 @@ import {
 	type MalCatalogKind,
 	MalRequestError,
 } from './mal-catalog-inventory.server.ts'
+import { entryCatalogMetadataFields } from './media-catalog.ts'
 import { syncMediaRelations } from './media-relations.server.ts'
 import {
 	type MediaRelationCandidate,
@@ -77,6 +82,12 @@ type MalHydrationCandidate = {
 	externalId: string
 	failureCount: number
 	sourceUpdatedAt: Date | null
+	media: {
+		releaseStatus: string | null
+		releaseEnd: Date | null
+		nextRelease: string | null
+		_count: { entries: number }
+	}
 }
 
 export type NormalizedMalDetails = {
@@ -600,6 +611,14 @@ async function findHydrationCandidates(
 			externalId: true,
 			failureCount: true,
 			sourceUpdatedAt: true,
+			media: {
+				select: {
+					releaseStatus: true,
+					releaseEnd: true,
+					nextRelease: true,
+					_count: { select: { entries: true } },
+				},
+			},
 		},
 	})
 }
@@ -614,7 +633,6 @@ async function prioritizeUserDemand(
 			provider: 'mal',
 			kind,
 			tombstonedAt: null,
-			hydrationPriority: { lt: catalogHydrationPriorities.userDemand },
 			media: {
 				is: {
 					OR: [
@@ -627,18 +645,59 @@ async function prioritizeUserDemand(
 				},
 			},
 		},
-		select: { id: true },
+		select: {
+			id: true,
+			hydrationPriority: true,
+			fetchStatus: true,
+			lastFetchedAt: true,
+			refreshAfter: true,
+			media: {
+				select: {
+					releaseStatus: true,
+					releaseEnd: true,
+					nextRelease: true,
+					_count: { select: { entries: true } },
+				},
+			},
+		},
 	})
 	if (!sources.length) return 0
+	const priorityIds = sources
+		.filter(
+			source =>
+				source.hydrationPriority < catalogHydrationPriorities.userDemand,
+		)
+		.map(source => source.id)
+	const dueIds = sources
+		.filter(
+			source =>
+				source.fetchStatus === 'fresh' &&
+				source.media._count.entries > 0 &&
+				catalogRefreshIsOverdue({
+					defaultDays: DEFAULT_REFRESH_DAYS,
+					entryCount: source.media._count.entries,
+					releaseStatus: source.media.releaseStatus,
+					releaseEnd: source.media.releaseEnd,
+					nextRelease: source.media.nextRelease,
+					lastFetchedAt: source.lastFetchedAt,
+					refreshAfter: source.refreshAfter,
+					now,
+				}),
+		)
+		.map(source => source.id)
 	const updated = await tx.mediaExternalId.updateMany({
-		where: { id: { in: sources.map(source => source.id) } },
+		where: { id: { in: priorityIds } },
 		data: {
 			hydrationPriority: catalogHydrationPriorities.userDemand,
 			hydrationReason: 'user-demand',
 			hydrationRequestedAt: now,
 		},
 	})
-	return updated.count
+	const expedited = await tx.mediaExternalId.updateMany({
+		where: { id: { in: dueIds } },
+		data: { refreshAfter: now },
+	})
+	return Math.max(updated.count, expedited.count)
 }
 
 async function fetchDetails(
@@ -858,7 +917,7 @@ export async function hydrateMalCatalog(
 						{
 							overwrite: true,
 							authoritativeFields: ['nextRelease'],
-							syncLegacyFields: ['nextRelease'],
+							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)
 					await replaceCatalogTitles(tx, {
@@ -912,7 +971,24 @@ export async function hydrateMalCatalog(
 						kind: options.kind,
 						externalId: candidate.externalId,
 						fetchedAt: batchNow,
-						refreshAfter: new Date(batchNow.getTime() + refreshDays * DAY_MS),
+						refreshAfter: new Date(
+							batchNow.getTime() +
+								catalogRefreshDays({
+									defaultDays: refreshDays,
+									entryCount: candidate.media._count.entries,
+									releaseStatus:
+										result.details.catalog.releaseStatus ??
+										candidate.media.releaseStatus,
+									releaseEnd:
+										result.details.catalog.releaseEnd ??
+										candidate.media.releaseEnd,
+									nextRelease:
+										result.details.catalog.nextRelease ??
+										candidate.media.nextRelease,
+									now: batchNow,
+								}) *
+									DAY_MS,
+						),
 					})
 					recordsHandled++
 				} else {

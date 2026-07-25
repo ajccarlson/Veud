@@ -15,6 +15,7 @@
     "catalog:mal-hydrate": "tsx scripts/hydrate-mal-catalog.ts",
     "catalog:mal-inventory": "tsx scripts/import-mal-inventory.ts",
     "catalog:mal-trending": "tsx scripts/refresh-mal-trending.ts",
+    "catalog:sync-watchlist-metadata": "tsx scripts/sync-watchlist-metadata.ts",
     "catalog:status": "tsx scripts/catalog-status.ts",
     "catalog:quality-scan": "tsx scripts/scan-catalog-quality.ts",
     "catalog:tmdb-hydrate": "tsx scripts/hydrate-tmdb-catalog.ts",

@@ -1,5 +1,9 @@
 import { type Prisma, type PrismaClient } from '@prisma/client'
 import {
+	catalogRefreshDays,
+	catalogRefreshIsOverdue,
+} from './catalog-refresh-policy.ts'
+import {
 	acquireCatalogSyncLease,
 	catalogHydrationPriorities,
 	CatalogSyncLeaseError,
@@ -12,6 +16,7 @@ import {
 	requestCatalogHydration,
 	upsertCatalogIdentity,
 } from './catalog-sync.server.ts'
+import { entryCatalogMetadataFields } from './media-catalog.ts'
 import { hydrateMediaCatalog } from './media.server.ts'
 import { type TmdbCatalogKind } from './tmdb-catalog-inventory.server.ts'
 
@@ -34,6 +39,12 @@ type TmdbHydrationCandidate = {
 	mediaId: string
 	externalId: string
 	failureCount: number
+	media: {
+		releaseStatus: string | null
+		releaseEnd: Date | null
+		nextRelease: string | null
+		_count: { entries: number }
+	}
 }
 
 type TmdbPrioritySignal = {
@@ -647,6 +658,14 @@ async function findHydrationCandidates(
 			mediaId: true,
 			externalId: true,
 			failureCount: true,
+			media: {
+				select: {
+					releaseStatus: true,
+					releaseEnd: true,
+					nextRelease: true,
+					_count: { select: { entries: true } },
+				},
+			},
 		},
 	})
 }
@@ -661,7 +680,6 @@ async function prioritizeUserDemand(
 			provider: 'tmdb',
 			kind,
 			tombstonedAt: null,
-			hydrationPriority: { lt: catalogHydrationPriorities.userDemand },
 			media: {
 				is: {
 					OR: [
@@ -674,18 +692,59 @@ async function prioritizeUserDemand(
 				},
 			},
 		},
-		select: { id: true },
+		select: {
+			id: true,
+			hydrationPriority: true,
+			fetchStatus: true,
+			lastFetchedAt: true,
+			refreshAfter: true,
+			media: {
+				select: {
+					releaseStatus: true,
+					releaseEnd: true,
+					nextRelease: true,
+					_count: { select: { entries: true } },
+				},
+			},
+		},
 	})
 	if (!sources.length) return 0
+	const priorityIds = sources
+		.filter(
+			source =>
+				source.hydrationPriority < catalogHydrationPriorities.userDemand,
+		)
+		.map(source => source.id)
+	const dueIds = sources
+		.filter(
+			source =>
+				source.fetchStatus === 'fresh' &&
+				source.media._count.entries > 0 &&
+				catalogRefreshIsOverdue({
+					defaultDays: DEFAULT_REFRESH_DAYS,
+					entryCount: source.media._count.entries,
+					releaseStatus: source.media.releaseStatus,
+					releaseEnd: source.media.releaseEnd,
+					nextRelease: source.media.nextRelease,
+					lastFetchedAt: source.lastFetchedAt,
+					refreshAfter: source.refreshAfter,
+					now,
+				}),
+		)
+		.map(source => source.id)
 	const updated = await tx.mediaExternalId.updateMany({
-		where: { id: { in: sources.map(source => source.id) } },
+		where: { id: { in: priorityIds } },
 		data: {
 			hydrationPriority: catalogHydrationPriorities.userDemand,
 			hydrationReason: 'user-demand',
 			hydrationRequestedAt: now,
 		},
 	})
-	return updated.count
+	const expedited = await tx.mediaExternalId.updateMany({
+		where: { id: { in: dueIds } },
+		data: { refreshAfter: now },
+	})
+	return Math.max(updated.count, expedited.count)
 }
 
 async function applyPrioritySignals(
@@ -1081,7 +1140,7 @@ export async function hydrateTmdbCatalog(
 							{
 								overwrite: true,
 								authoritativeFields: ['nextRelease'],
-								syncLegacyFields: ['nextRelease'],
+								syncLegacyFields: entryCatalogMetadataFields,
 							},
 						)
 						await replaceCatalogTitles(tx, {
@@ -1120,7 +1179,24 @@ export async function hydrateTmdbCatalog(
 							kind: options.kind,
 							externalId: result.candidate.externalId,
 							fetchedAt: batchNow,
-							refreshAfter: new Date(batchNow.getTime() + refreshDays * DAY_MS),
+							refreshAfter: new Date(
+								batchNow.getTime() +
+									catalogRefreshDays({
+										defaultDays: refreshDays,
+										entryCount: result.candidate.media._count.entries,
+										releaseStatus:
+											result.details.catalog.releaseStatus ??
+											result.candidate.media.releaseStatus,
+										releaseEnd:
+											result.details.catalog.releaseEnd ??
+											result.candidate.media.releaseEnd,
+										nextRelease:
+											result.details.catalog.nextRelease ??
+											result.candidate.media.nextRelease,
+										now: batchNow,
+									}) *
+										DAY_MS,
+							),
 						})
 						recordsHandled += 1
 					} else {

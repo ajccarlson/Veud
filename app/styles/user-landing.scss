@@ -326,6 +326,7 @@
 
 	.user-landing-page-header {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: flex-end;
 		justify-content: space-between;
 		gap: 1.25rem;
@@ -368,7 +369,11 @@
 	.user-landing-page-actions {
 		display: flex;
 		flex: 0 0 auto;
+		max-width: 100%;
+		margin-left: auto;
+		flex-wrap: wrap;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 0.75rem;
 	}
 
@@ -381,6 +386,54 @@
 		background: rgba(33, 31, 36, 0.48);
 		font-size: 0.75rem;
 		font-weight: 700;
+	}
+
+	.user-landing-segmented-filter {
+		display: flex;
+		max-width: min(100%, 34rem);
+		padding: 0.2rem;
+		overflow-x: auto;
+		border: 1px solid var(--profile-border);
+		border-radius: 0.8rem;
+		background: rgba(20, 24, 23, 0.72);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+		scrollbar-width: none;
+	}
+
+	.user-landing-segmented-filter::-webkit-scrollbar {
+		display: none;
+	}
+
+	.user-landing-segmented-filter-option {
+		flex: 0 0 auto;
+		min-height: 2.25rem;
+		padding: 0.45rem 0.75rem;
+		border-radius: 0.6rem;
+		white-space: nowrap;
+		color: var(--profile-text-muted);
+		font-size: 0.78rem;
+		font-weight: 750;
+		transition:
+			color 140ms ease,
+			background-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+
+	.user-landing-segmented-filter-option:hover {
+		color: var(--profile-highlight);
+		background: rgba(162, 255, 213, 0.08);
+	}
+
+	.user-landing-segmented-filter-option[data-active] {
+		color: #121613;
+		background: var(--profile-mint);
+		box-shadow: 0 0.25rem 0.75rem rgba(9, 14, 11, 0.22);
+	}
+
+	.user-landing-segmented-filter-option:focus-visible,
+	.user-landing-period-field select:focus-visible {
+		outline: 0.15rem solid var(--profile-mint);
+		outline-offset: 0.12rem;
 	}
 
 	.user-landing-section-heading {
@@ -676,6 +729,19 @@
 		border-radius: 1.25rem;
 	}
 
+	.user-landing-completion-history-heading {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: 1rem;
+	}
+
+	.user-landing-completion-history-heading .user-landing-section-heading {
+		margin-bottom: 0;
+	}
+
 	.user-landing-completion-history-chart,
 	.user-landing-stats-calendar-chart {
 		height: 16rem;
@@ -694,9 +760,58 @@
 	.user-landing-completion-history-controls {
 		display: flex;
 		flex-wrap: wrap;
-		justify-content: center;
-		gap: 0.65rem;
-		margin-top: 0.9rem;
+		justify-content: flex-end;
+		gap: 0.55rem;
+	}
+
+	.user-landing-period-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		color: var(--profile-text-muted);
+		font-size: 0.67rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.user-landing-period-select-shell {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.user-landing-period-select-shell select {
+		min-width: 7.5rem;
+		min-height: 2.5rem;
+		padding: 0.48rem 2rem 0.48rem 0.75rem;
+		appearance: none;
+		border: 1px solid var(--profile-border);
+		border-radius: 0.7rem;
+		color: var(--profile-highlight);
+		background: rgba(20, 24, 23, 0.72);
+		font-size: 0.82rem;
+		font-weight: 750;
+		cursor: pointer;
+	}
+
+	.user-landing-period-select-shell select:hover {
+		border-color: var(--profile-border-strong);
+		background: var(--profile-surface-soft);
+	}
+
+	.user-landing-period-select-shell select option {
+		color: var(--profile-cream);
+		background: var(--profile-surface-alt);
+	}
+
+	.user-landing-period-select-shell svg {
+		position: absolute;
+		right: 0.7rem;
+		width: 0.7rem;
+		height: 0.7rem;
+		pointer-events: none;
+		color: var(--profile-mint);
 	}
 
 	.user-landing-selection-nav-items {
@@ -891,10 +1006,6 @@
 		flex-direction: column;
 		gap: 0.9rem;
 		padding: 0;
-	}
-
-	.user-landing-feed-controls {
-		align-self: flex-start;
 	}
 
 	.user-landing-feed {
@@ -1450,7 +1561,17 @@
 
 		.user-landing-page-actions {
 			width: 100%;
-			justify-content: space-between;
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.user-landing-page-meta {
+			align-self: flex-start;
+		}
+
+		.user-landing-segmented-filter {
+			width: 100%;
+			max-width: none;
 		}
 
 		.user-landing-stats-overview,
@@ -1470,8 +1591,19 @@
 		}
 
 		.user-landing-completion-history-controls {
-			align-items: center;
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			width: 100%;
+		}
+
+		.user-landing-completion-history-heading {
+			align-items: stretch;
 			flex-direction: column;
+		}
+
+		.user-landing-period-select-shell,
+		.user-landing-period-select-shell select {
+			width: 100%;
 		}
 
 		.user-landing-selection-nav-items {
