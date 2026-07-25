@@ -132,6 +132,11 @@ export type ProfileShellData = {
 	followerCount: number
 	followingCount: number
 	isFollowing: boolean
+	safetyState: {
+		isMuted: boolean
+		isBlocked: boolean
+		isBlockedByTarget: boolean
+	}
 }
 
 /** Heavy chart inputs, loaded only for Overview and Stats. */

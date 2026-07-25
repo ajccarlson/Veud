@@ -247,6 +247,56 @@ test('ownership failures use a structured not-found response', async () => {
 	})
 })
 
+test('bulk list commands move and delete only owned entries', async () => {
+	const { source, destination, entry, cookie } = await fixture()
+	const second = await prisma.entry.create({
+		data: {
+			watchlistId: source.id,
+			position: 2,
+			title: 'Second bulk fixture',
+		},
+	})
+	const moved = await action({
+		request: mutationRequest(
+			'bulk-move-entries',
+			{
+				entryIds: [entry.id, second.id],
+				destinationWatchlistId: destination.id,
+			},
+			cookie,
+		),
+	} as any)
+	expect(moved.data).toEqual({
+		ok: true,
+		data: expect.objectContaining({ moved: 2 }),
+	})
+	expect(
+		await prisma.entry.findMany({
+			where: { id: { in: [entry.id, second.id] } },
+			orderBy: { position: 'asc' },
+			select: { watchlistId: true, position: true },
+		}),
+	).toEqual([
+		{ watchlistId: destination.id, position: 1 },
+		{ watchlistId: destination.id, position: 2 },
+	])
+
+	const deleted = await action({
+		request: mutationRequest(
+			'bulk-delete-entries',
+			{ entryIds: [entry.id, second.id] },
+			cookie,
+		),
+	} as any)
+	expect(deleted.data).toEqual({
+		ok: true,
+		data: { deleted: 2 },
+	})
+	expect(
+		await prisma.entry.count({ where: { id: { in: [entry.id, second.id] } } }),
+	).toBe(0)
+})
+
 test('the v1 entries resource returns a consistently ordered envelope', async () => {
 	const { source } = await fixture()
 	const result = await entriesLoader({

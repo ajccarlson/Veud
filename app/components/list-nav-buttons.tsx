@@ -1,3 +1,4 @@
+import { type ListType, type Watchlist } from '@prisma/client'
 import { Link } from 'react-router'
 import {
 	DropdownMenu,
@@ -8,12 +9,18 @@ import {
 import { Icon } from '#app/components/ui/icon.tsx'
 import '#app/styles/list-nav-buttons.scss'
 
+type WatchlistNavItem = Pick<
+	Watchlist,
+	'id' | 'name' | 'header' | 'position' | 'typeId' | 'isPublic'
+>
+type ListTypeNavItem = Pick<ListType, 'id' | 'name' | 'header'>
+
 export function listNavButtons(
-	typedWatchlists: any,
-	username: any,
-	listTypes: any,
-	listTypeData: any,
-	watchListData: any,
+	typedWatchlists: Record<string, WatchlistNavItem[]>,
+	username: string,
+	listTypes: ListTypeNavItem[],
+	listTypeData: ListTypeNavItem,
+	watchListData: Pick<WatchlistNavItem, 'id'>,
 ) {
 	const watchlists = typedWatchlists[listTypeData.id] ?? []
 	const hasOtherListTypes = Object.keys(typedWatchlists).length > 1
@@ -23,7 +30,7 @@ export function listNavButtons(
 			<div className="list-nav-buttons-main" id="list-nav">
 				<div className="list-nav-list-scroller">
 					<div className="list-nav-buttons-container">
-						{watchlists.map((list: any) => (
+						{watchlists.map(list => (
 							<Link
 								key={list.id}
 								prefetch="intent"
@@ -62,16 +69,14 @@ export function listNavButtons(
 								<DropdownMenuContent sideOffset={8} align="start">
 									{Object.entries(typedWatchlists)
 										.filter(([typeId]) => typeId !== listTypeData.id)
-										.map(([typeId, lists]: [string, any]) => {
+										.map(([typeId, lists]) => {
 											const targetType = listTypes.find(
-												(listType: any) => listType.id === typeId,
+												listType => listType.id === typeId,
 											)
-											const firstList = lists.reduce(
-												(previous: any, current: any) =>
-													previous.position < current.position
-														? previous
-														: current,
-											)
+											const firstList = [...lists].sort(
+												(first, second) => first.position - second.position,
+											)[0]
+											if (!targetType || !firstList) return null
 											return (
 												<DropdownMenuItem key={typeId} asChild>
 													<Link

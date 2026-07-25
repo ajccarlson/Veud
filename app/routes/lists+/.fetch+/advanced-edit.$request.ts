@@ -1,7 +1,8 @@
 import { type Prisma } from '@prisma/client'
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireEntryOwner } from '#app/utils/lists/authorization.server.ts'
+import { requireOwnedEntry } from '#app/utils/lists/authorization.server.ts'
 import {
 	EntryOrderError,
 	moveEntryToWatchlist,
@@ -110,80 +111,81 @@ function mediaKindForEntry(entry: {
 	return /eps?\b/i.test(entry.length ?? '') ? 'tv' : 'movie'
 }
 
-function progressTotal(entry: {
-	length?: unknown
-	chapters?: unknown
-	volumes?: unknown
-}, unit: string) {
+function progressTotal(
+	entry: {
+		length?: unknown
+		chapters?: unknown
+		volumes?: unknown
+	},
+	unit: string,
+) {
 	if (unit === 'episode') return totalFromLegacyCounter(entry.length)
 	if (unit === 'chapter') return totalFromLegacyCounter(entry.chapters)
 	if (unit === 'volume') return totalFromLegacyCounter(entry.volumes)
 	return null
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-	let entryId: unknown
-	let fields: Record<string, unknown>
-	try {
-		const payload: unknown = await request.json()
-		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-			throw new Error('Invalid payload')
-		}
-		entryId = (payload as Record<string, unknown>).entryId
-		const parsed = (payload as Record<string, unknown>).fields
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			throw new Error('Invalid fields')
-		}
-		fields = parsed as Record<string, unknown>
-	} catch {
+export async function advancedEditEntryCommand(
+	ownerId: string,
+	entryId: unknown,
+	fields: unknown,
+) {
+	if (
+		typeof entryId !== 'string' ||
+		!fields ||
+		typeof fields !== 'object' ||
+		Array.isArray(fields)
+	) {
 		throw new Response('Invalid advanced edit payload', { status: 400 })
 	}
-	if (typeof entryId !== 'string') {
-		throw new Response('Invalid advanced edit payload', { status: 400 })
-	}
-	const { userId, entry, watchlist } = await requireEntryOwner(request, entryId)
-	const unknownField = Object.keys(fields).find(field => !editableFields.has(field))
+	const editable = fields as Record<string, unknown>
+	const { entry, watchlist } = await requireOwnedEntry(ownerId, entryId)
+	const unknownField = Object.keys(editable).find(
+		field => !editableFields.has(field),
+	)
 	if (unknownField) {
-		throw new Response(`Field ${unknownField} cannot be edited`, { status: 400 })
+		throw new Response(`Field ${unknownField} cannot be edited`, {
+			status: 400,
+		})
 	}
 
 	const data: Record<string, unknown> = {}
 	for (const field of categoryScoreFields) {
-		if (Object.hasOwn(fields, field)) {
-			data[field] = parseScore(fields[field], true)
+		if (Object.hasOwn(editable, field)) {
+			data[field] = parseScore(editable[field], true)
 		}
 	}
-	if (Object.hasOwn(fields, 'personal')) {
-		data.personal = parseScore(fields.personal, false)
+	if (Object.hasOwn(editable, 'personal')) {
+		data.personal = parseScore(editable.personal, false)
 	}
-	if (Object.hasOwn(fields, 'priority')) {
+	if (Object.hasOwn(editable, 'priority')) {
 		if (
-			typeof fields.priority !== 'string' ||
-			!['', 'Low', 'Medium', 'High'].includes(fields.priority)
+			typeof editable.priority !== 'string' ||
+			!['', 'Low', 'Medium', 'High'].includes(editable.priority)
 		) {
 			throw new Response('Invalid priority', { status: 400 })
 		}
-		data.priority = fields.priority.trim() || null
+		data.priority = editable.priority.trim() || null
 	}
-	if (Object.hasOwn(fields, 'notes')) {
-		if (typeof fields.notes !== 'string' || fields.notes.length > 5000) {
+	if (Object.hasOwn(editable, 'notes')) {
+		if (typeof editable.notes !== 'string' || editable.notes.length > 5000) {
 			throw new Response('Notes must be 5,000 characters or fewer', {
 				status: 400,
 			})
 		}
-		data.notes = fields.notes
+		data.notes = editable.notes
 	}
-	const repeatCount = Object.hasOwn(fields, 'repeatCount')
-		? parseWholeNumber(fields.repeatCount, 'Repeat count')
+	const repeatCount = Object.hasOwn(editable, 'repeatCount')
+		? parseWholeNumber(editable.repeatCount, 'Repeat count')
 		: null
-	const progress = Object.hasOwn(fields, 'progress')
-		? parseProgress(fields.progress)
+	const progress = Object.hasOwn(editable, 'progress')
+		? parseProgress(editable.progress)
 		: null
 	const destinationWatchlistId = Object.hasOwn(
-		fields,
+		editable,
 		'destinationWatchlistId',
 	)
-		? fields.destinationWatchlistId
+		? editable.destinationWatchlistId
 		: null
 	if (
 		destinationWatchlistId !== null &&
@@ -193,16 +195,16 @@ export async function action({ request }: ActionFunctionArgs) {
 	}
 
 	if (
-		Object.hasOwn(fields, 'started') ||
-		Object.hasOwn(fields, 'finished') ||
+		Object.hasOwn(editable, 'started') ||
+		Object.hasOwn(editable, 'finished') ||
 		repeatCount !== null
 	) {
 		const history = parseHistory(entry.history)
-		if (Object.hasOwn(fields, 'started')) {
-			history.started = parseDate(fields.started)
+		if (Object.hasOwn(editable, 'started')) {
+			history.started = parseDate(editable.started)
 		}
-		if (Object.hasOwn(fields, 'finished')) {
-			history.finished = parseDate(fields.finished)
+		if (Object.hasOwn(editable, 'finished')) {
+			history.finished = parseDate(editable.finished)
 		}
 		if (repeatCount !== null) history.repeatCount = repeatCount
 		history.lastUpdated = Date.now()
@@ -236,7 +238,7 @@ export async function action({ request }: ActionFunctionArgs) {
 					},
 				},
 			})
-			if (!current || current.watchlist.ownerId !== userId) {
+			if (!current || current.watchlist.ownerId !== ownerId) {
 				throw new Response('Not found', { status: 404 })
 			}
 
@@ -287,7 +289,7 @@ export async function action({ request }: ActionFunctionArgs) {
 				destinationWatchlistId !== current.watchlistId
 			) {
 				return moveEntryToWatchlist(tx, {
-					ownerId: userId,
+					ownerId,
 					entryId: current.id,
 					destinationWatchlistId,
 					position: null,
@@ -307,4 +309,19 @@ export async function action({ request }: ActionFunctionArgs) {
 		}
 		throw error
 	}
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	let payload: unknown
+	try {
+		payload = await request.json()
+	} catch {
+		throw new Response('Invalid advanced edit payload', { status: 400 })
+	}
+	if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+		throw new Response('Invalid advanced edit payload', { status: 400 })
+	}
+	const input = payload as Record<string, unknown>
+	return advancedEditEntryCommand(ownerId, input.entryId, input.fields)
 }

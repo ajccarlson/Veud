@@ -5,8 +5,13 @@ type RootLoaderData = NonNullable<
 	ReturnType<typeof useRouteLoaderData<typeof rootLoader>>
 >
 
-function isUser(user: any): user is RootLoaderData['user'] {
-	return user && typeof user === 'object' && typeof user.id === 'string'
+function isUser(user: unknown): user is NonNullable<RootLoaderData['user']> {
+	return Boolean(
+		user &&
+		typeof user === 'object' &&
+		'id' in user &&
+		typeof user.id === 'string',
+	)
 }
 
 export function useOptionalUser() {

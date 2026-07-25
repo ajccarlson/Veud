@@ -10,7 +10,12 @@ export type DataIntegrityFinding = {
 		| 'PERSONAL_SCORE_NOT_NORMALIZED'
 		| 'PERSONAL_SCORE_CONFLICT'
 		| 'ENTRY_WITHOUT_MEDIA'
+		| 'ENTRY_WITHOUT_TRACKING_STATE'
 		| 'TRACKING_STATE_WITHOUT_ENTRY'
+		| 'CONSUMPTION_OWNER_MISMATCH'
+		| 'CONSUMPTION_MEDIA_MISMATCH'
+		| 'CONSUMPTION_INSTALLMENT_MEDIA_MISMATCH'
+		| 'RELEASE_OCCURRENCE_INVALID'
 	severity: DataIntegritySeverity
 	count: number
 	samples: Array<{
@@ -34,49 +39,70 @@ function scoreMatches(left: unknown, right: unknown) {
 }
 
 export async function auditDataIntegrity(prisma: PrismaClient) {
-	const [entries, trackingStates] = await Promise.all([
-		prisma.entry.findMany({
-			select: {
-				id: true,
-				title: true,
-				personal: true,
-				tmdbScore: true,
-				malScore: true,
-				mediaId: true,
-				trackingStateId: true,
-				watchlist: {
-					select: {
-						ownerId: true,
-						type: { select: { name: true } },
+	const [entries, trackingStates, consumptionEvents, releaseOccurrences] =
+		await Promise.all([
+			prisma.entry.findMany({
+				select: {
+					id: true,
+					title: true,
+					personal: true,
+					tmdbScore: true,
+					malScore: true,
+					mediaId: true,
+					trackingStateId: true,
+					watchlist: {
+						select: {
+							ownerId: true,
+							type: { select: { name: true } },
+						},
+					},
+					media: {
+						select: {
+							kind: true,
+							tmdbScore: true,
+							malScore: true,
+						},
+					},
+					trackingState: {
+						select: {
+							ownerId: true,
+							mediaId: true,
+							score: true,
+							statusWatchlist: { select: { ownerId: true } },
+						},
 					},
 				},
-				media: {
-					select: {
-						kind: true,
-						tmdbScore: true,
-						malScore: true,
-					},
+			}),
+			prisma.trackingState.findMany({
+				select: {
+					id: true,
+					ownerId: true,
+					mediaId: true,
+					statusWatchlist: { select: { ownerId: true } },
+					_count: { select: { entries: true } },
 				},
-				trackingState: {
-					select: {
-						ownerId: true,
-						mediaId: true,
-						score: true,
-						statusWatchlist: { select: { ownerId: true } },
-					},
+			}),
+			prisma.consumptionEvent.findMany({
+				select: {
+					id: true,
+					ownerId: true,
+					mediaId: true,
+					trackingState: { select: { ownerId: true, mediaId: true } },
+					installment: { select: { mediaId: true, title: true } },
 				},
-			},
-		}),
-		prisma.trackingState.findMany({
-			select: {
-				id: true,
-				ownerId: true,
-				mediaId: true,
-				statusWatchlist: { select: { ownerId: true } },
-				_count: { select: { entries: true } },
-			},
-		}),
-	])
+			}),
+			prisma.releaseOccurrence.findMany({
+				select: {
+					id: true,
+					source: true,
+					status: true,
+					releaseAt: true,
+					observedAt: true,
+					expiresAt: true,
+					media: { select: { title: true } },
+				},
+			}),
+		])
 
 	const findingMap = new Map<
 		DataIntegrityFinding['code'],
@@ -132,6 +158,13 @@ export async function auditDataIntegrity(prisma: PrismaClient) {
 				detail: 'Entry is not linked to canonical Media.',
 			})
 		}
+		if (entry.mediaId && !entry.trackingStateId) {
+			record('ENTRY_WITHOUT_TRACKING_STATE', 'error', {
+				id: entry.id,
+				title: entry.title,
+				detail: 'Canonical entry is not linked to a TrackingState.',
+			})
+		}
 		if (personal !== null && normalized === null) {
 			record('PERSONAL_SCORE_NOT_NORMALIZED', 'error', {
 				id: entry.id,
@@ -160,10 +193,7 @@ export async function auditDataIntegrity(prisma: PrismaClient) {
 				detail: 'Entry owner differs from its TrackingState owner.',
 			})
 		}
-		if (
-			entry.trackingState &&
-			entry.mediaId !== entry.trackingState.mediaId
-		) {
+		if (entry.trackingState && entry.mediaId !== entry.trackingState.mediaId) {
 			record('ENTRY_TRACKING_MEDIA_MISMATCH', 'error', {
 				id: entry.id,
 				title: entry.title,
@@ -203,6 +233,45 @@ export async function auditDataIntegrity(prisma: PrismaClient) {
 		}
 	}
 
+	for (const event of consumptionEvents) {
+		if (event.trackingState && event.trackingState.ownerId !== event.ownerId) {
+			record('CONSUMPTION_OWNER_MISMATCH', 'error', {
+				id: event.id,
+				title: event.installment?.title ?? null,
+				detail: 'Consumption event owner differs from its TrackingState owner.',
+			})
+		}
+		if (event.trackingState && event.trackingState.mediaId !== event.mediaId) {
+			record('CONSUMPTION_MEDIA_MISMATCH', 'error', {
+				id: event.id,
+				title: event.installment?.title ?? null,
+				detail: 'Consumption event media differs from its TrackingState media.',
+			})
+		}
+		if (event.installment && event.installment.mediaId !== event.mediaId) {
+			record('CONSUMPTION_INSTALLMENT_MEDIA_MISMATCH', 'error', {
+				id: event.id,
+				title: event.installment.title,
+				detail: 'Consumption event media differs from its installment media.',
+			})
+		}
+	}
+
+	for (const occurrence of releaseOccurrences) {
+		const invalid =
+			!['anilist', 'tmdb'].includes(occurrence.source) ||
+			!['scheduled', 'cancelled'].includes(occurrence.status) ||
+			occurrence.expiresAt <= occurrence.observedAt ||
+			!Number.isFinite(occurrence.releaseAt.getTime())
+		if (invalid) {
+			record('RELEASE_OCCURRENCE_INVALID', 'error', {
+				id: occurrence.id,
+				title: occurrence.media.title,
+				detail: 'Release occurrence has invalid provenance or chronology.',
+			})
+		}
+	}
+
 	const findings = [...findingMap.values()].sort(
 		(left, right) =>
 			(left.severity === right.severity
@@ -226,6 +295,8 @@ export async function auditDataIntegrity(prisma: PrismaClient) {
 		summary: {
 			entries: entries.length,
 			trackingStates: trackingStates.length,
+			consumptionEvents: consumptionEvents.length,
+			releaseOccurrences: releaseOccurrences.length,
 			entriesWithPositivePersonalScore,
 			entriesWithNormalizedScore,
 			entriesWithTmdbScore,

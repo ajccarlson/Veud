@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	requireEntryOwner,
+	requireOwnedEntry,
 	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 import {
@@ -14,23 +15,12 @@ import {
 	ensureTrackingStateForEntry,
 } from '#app/utils/tracking-state.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const searchParams = new URLSearchParams(params.request)
-
-	const rowIndex = searchParams.get('rowIndex')
-
-	// The entry must belong to a watchlist the current user owns.
-	const { userId, entry, watchlist } = await requireEntryOwner(
-		request,
-		rowIndex,
-	)
-
-	let row: unknown
-	try {
-		row = JSON.parse(searchParams.get('row') ?? '')
-	} catch {
-		throw new Response('Invalid row payload', { status: 400 })
-	}
+export async function updateEntryCommand(
+	ownerId: string,
+	entryId: string | null,
+	row: unknown,
+) {
+	const { entry, watchlist } = await requireOwnedEntry(ownerId, entryId)
 	if (!row || typeof row !== 'object' || Array.isArray(row)) {
 		throw new Response('Invalid row payload', { status: 400 })
 	}
@@ -84,7 +74,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const trackingStateId =
 			mediaId && mediaKind
 				? await ensureTrackingStateForEntry(tx, {
-						ownerId: userId,
+						ownerId,
 						mediaId,
 						mediaKind,
 						status: watchlist.name,
@@ -96,7 +86,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				: undefined
 
 		const updated = await tx.entry.update({
-			where: { id: rowIndex as string },
+			where: { id: entry.id },
 			data: {
 				...data,
 				...(mediaId ? { mediaId } : {}),
@@ -108,4 +98,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 		return updated
 	})
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	let row: unknown
+	try {
+		row = JSON.parse(searchParams.get('row') ?? '')
+	} catch {
+		throw new Response('Invalid row payload', { status: 400 })
+	}
+	return updateEntryCommand(ownerId, searchParams.get('rowIndex'), row)
 }

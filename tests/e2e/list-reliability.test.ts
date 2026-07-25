@@ -777,7 +777,7 @@ test('member can quick edit fields that are hidden from the grid', async ({
 	await expect(page.getByText('Row actions', { exact: true })).toBeVisible()
 	await expect(
 		page.getByRole('menuitem', { name: 'Insert 1 row above' }),
-	).toBeVisible()
+	).toHaveCount(0)
 	await expect(page.getByRole('menuitem', { name: 'Delete row' })).toBeVisible()
 	await page.getByRole('menuitem', { name: 'Advanced edit' }).click()
 	await expect(dialog).toBeVisible()
@@ -1223,10 +1223,14 @@ test('member can make a list private and visitors cannot open or discover it', a
 
 	await page.goto(listLanding)
 	await page.getByRole('button', { name: 'Settings' }).click()
-	await page.getByLabel('Visibility').selectOption('private')
+	await page.getByLabel('Visibility', { exact: true }).selectOption('private')
 	await page.getByRole('button', { name: 'Submit' }).click()
 
-	await expect(page.getByText('Private', { exact: true })).toBeVisible()
+	await expect(
+		page
+			.getByLabel('Privacy settings list', { exact: true })
+			.getByText('Private', { exact: true }),
+	).toBeVisible()
 	await expect
 		.poll(() =>
 			prisma.watchlist
