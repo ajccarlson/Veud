@@ -109,6 +109,11 @@ test('account export includes private recommendation feedback but omits password
 	const exported = (await response.json()) as {
 		user: {
 			password?: unknown
+			sessions: Array<{
+				id?: string
+				userId?: string
+				expirationDate: string
+			}>
 			recommendationFeedback: Array<{
 				id: string
 				mediaId: string
@@ -136,6 +141,9 @@ test('account export includes private recommendation feedback but omits password
 	}
 
 	expect(exported.user.password).toBeUndefined()
+	expect(exported.user.sessions).toHaveLength(1)
+	expect(exported.user.sessions[0]).not.toHaveProperty('id')
+	expect(exported.user.sessions[0]).not.toHaveProperty('userId')
 	expect(exported.user.recommendationFeedback).toEqual([
 		expect.objectContaining({
 			id: feedback.id,

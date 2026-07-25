@@ -41,4 +41,24 @@ fi
 ln -s "$destination" "$current_next"
 mv -Tf "$current_next" "$current"
 trap - EXIT
+
+# Keep the active release plus the two newest rollback candidates. A release is
+# removable only when it is a direct child with an immutable RELEASE marker.
+mapfile -t packaged_releases < <(
+	find "$releases_root" \
+		-mindepth 1 \
+		-maxdepth 1 \
+		-type d \
+		! -name '.*' \
+		-printf '%T@ %p\n' |
+		sort -nr |
+		cut -d' ' -f2-
+)
+for old_release in "${packaged_releases[@]:3}"; do
+	[[ "$old_release" == "$releases_root/"* ]] || continue
+	[[ -f "$old_release/RELEASE" ]] || continue
+	[[ "$old_release" != "$destination" ]] || continue
+	rm -rf -- "$old_release"
+done
+
 printf 'Activated immutable production catalog release %s\n' "$release"

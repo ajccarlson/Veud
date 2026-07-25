@@ -203,6 +203,18 @@ test('account deletion removes owned data and clears authentication', async () =
 		},
 		select: { id: true },
 	})
+	const verification = await prisma.verification.create({
+		data: {
+			type: 'change-email',
+			target: user.id,
+			secret: 'legacy-secret',
+			algorithm: 'SHA256',
+			digits: 6,
+			period: 30,
+			charSet: '0123456789',
+		},
+		select: { id: true },
+	})
 
 	const response = await action(
 		actionArgs(deleteAccountRequest({ cookie, confirmation: user.username })),
@@ -217,6 +229,9 @@ test('account deletion removes owned data and clears authentication', async () =
 	).toBeNull()
 	expect(
 		await prisma.watchlist.findUnique({ where: { id: watchlist.id } }),
+	).toBeNull()
+	expect(
+		await prisma.verification.findUnique({ where: { id: verification.id } }),
 	).toBeNull()
 	expect((response as Response).headers.get('set-cookie')).toContain(
 		'en_session=',

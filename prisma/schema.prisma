@@ -68,6 +68,35 @@ model User {
   libraryImportBatches       LibraryImportBatch[]
   aiDiscoverySessions        AiDiscoverySession[]
   trackingCommandPreviews    TrackingCommandPreview[]
+  consents                   UserConsent[]
+  twoFactorRecoveryCodes     TwoFactorRecoveryCode[]
+}
+
+model TwoFactorRecoveryCode {
+  id        String    @id @default(cuid())
+  codeHash  String
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  @@unique([userId, codeHash])
+  @@index([userId, usedAt])
+}
+
+model UserConsent {
+  id         String   @id @default(cuid())
+  document   String
+  version    String
+  source     String
+  acceptedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String
+
+  @@unique([userId, document, version])
+  @@index([document, version, acceptedAt])
 }
 
 model ListType {

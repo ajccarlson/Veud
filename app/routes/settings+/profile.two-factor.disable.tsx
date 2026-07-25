@@ -28,9 +28,12 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 export async function action({ request, url }: ActionFunctionArgs) {
 	await requireRecentVerification(request, url)
 	const userId = await requireUserId(request, { url })
-	await prisma.verification.delete({
-		where: { target_type: { target: userId, type: twoFAVerificationType } },
-	})
+	await prisma.$transaction([
+		prisma.verification.delete({
+			where: { target_type: { target: userId, type: twoFAVerificationType } },
+		}),
+		prisma.twoFactorRecoveryCode.deleteMany({ where: { userId } }),
+	])
 	return redirectWithToast('/settings/profile/two-factor', {
 		title: '2FA Disabled',
 		description: 'Two factor authentication has been disabled.',

@@ -9,6 +9,7 @@ import {
 	LAST_ACTIVE_TOUCH_INTERVAL_MS,
 	shouldTouchLastActiveAt,
 } from './last-active.ts'
+import { signupConsents } from './legal-policy.ts'
 import { combineHeaders, downloadFile } from './misc.tsx'
 import { type ProviderUser } from './providers/provider.ts'
 import { authSessionStorage } from './session.server.ts'
@@ -232,6 +233,11 @@ export async function signup({
 							hash: hashedPassword,
 						},
 					},
+					consents: {
+						create: signupConsents('password-signup').map(consent => ({
+							...consent,
+						})),
+					},
 				},
 			},
 		},
@@ -270,6 +276,11 @@ export async function signupWithConnection({
 					roles: { connect: { name: 'user' } },
 					connections: { create: { providerId, providerName } },
 					image: image ? { create: image } : undefined,
+					consents: {
+						create: signupConsents('connected-signup').map(consent => ({
+							...consent,
+						})),
+					},
 				},
 			},
 		},
