@@ -13,6 +13,22 @@ import {
 } from '#app/utils/media-identity.ts'
 import { type ListTypeMeta } from '#app/utils/profile.ts'
 
+type FavoriteSearchResult = {
+	id: string | number
+	title?: string
+	name?: string
+	media_type?: string
+}
+
+type FavoriteCatalogInfo = {
+	thumbnail?: string | null
+	title?: string | null
+	type?: string | null
+	year?: string | number | null
+	startYear?: string | number | null
+	startSeason?: { name?: string | null } | null
+}
+
 /**
  * Add-to-favorites picker for the profile. Searches the external catalogs (TMDB for
  * liveaction, MyAnimeList for anime/manga) for the currently-selected category, then
@@ -29,13 +45,15 @@ export function FavoriteSearch({
 	onAdded: () => void
 }) {
 	const [query, setQuery] = useState('')
-	const [results, setResults] = useState<any[]>([])
+	const [results, setResults] = useState<FavoriteSearchResult[]>([])
 	const [status, setStatus] = useState<'idle' | 'searching' | 'adding'>('idle')
+	const [error, setError] = useState<string | null>(null)
 
 	async function runSearch() {
 		if (query.trim().length < 3 || status !== 'idle') return
 		setStatus('searching')
-		let found: any[] = []
+		setError(null)
+		let found: FavoriteSearchResult[] = []
 		try {
 			if (listType.name === 'liveaction') {
 				found = (await searchTMDB(query, 'multi', 5)) ?? []
@@ -50,26 +68,31 @@ export function FavoriteSearch({
 			}
 		} catch {
 			found = []
+			setError('Search is unavailable. Try again.')
 		}
 		setResults(found)
 		setStatus('idle')
 	}
 
-	async function addResult(result: any) {
+	async function addResult(result: FavoriteSearchResult) {
 		if (status === 'adding') return
 		setStatus('adding')
+		setError(null)
 		let favorite: Record<string, unknown> | null = null
 		try {
 			if (listType.name === 'liveaction') {
-				const info: any = await getTMDBInfo(
+				const mediaType =
+					result.media_type === 'tv' || result.media_type === 'movie'
+						? result.media_type
+						: 'movie'
+				const info = (await getTMDBInfo(
 					result.id,
-					result.media_type ?? 'movie',
-				)
+					mediaType,
+				)) as FavoriteCatalogInfo
+				const mediaIdentity = mediaIdentityForTmdb(result.id, mediaType)
+				if (!mediaIdentity) throw new Error('Unsupported media type')
 				favorite = {
-					mediaIdentity: mediaIdentityForTmdb(
-						result.id,
-						result.media_type ?? 'movie',
-					),
+					mediaIdentity,
 					position,
 					thumbnail: info.thumbnail,
 					title: info.title,
@@ -78,7 +101,7 @@ export function FavoriteSearch({
 					startYear: String(info.year ?? ''),
 				}
 			} else if (listType.name === 'anime') {
-				const info: any = await getAnimeInfo(result.id)
+				const info = (await getAnimeInfo(result.id)) as FavoriteCatalogInfo
 				favorite = {
 					mediaIdentity: mediaIdentityForMal(result.id, 'anime'),
 					position,
@@ -89,7 +112,7 @@ export function FavoriteSearch({
 					startYear: info.startSeason?.name ?? '',
 				}
 			} else if (listType.name === 'manga') {
-				const info: any = await getMangaInfo(result.id)
+				const info = (await getMangaInfo(result.id)) as FavoriteCatalogInfo
 				favorite = {
 					mediaIdentity: mediaIdentityForMal(result.id, 'manga'),
 					position,
@@ -104,7 +127,9 @@ export function FavoriteSearch({
 				await mutateList('add-favorite', { favorite })
 			}
 		} catch {
-			// swallow; the list simply won't gain the item and the user can retry
+			setError('Could not add this favorite. Try again.')
+			setStatus('idle')
+			return
 		}
 		setQuery('')
 		setResults([])
@@ -149,6 +174,11 @@ export function FavoriteSearch({
 			) : null}
 			{status === 'adding' ? (
 				<em className="user-landing-favorite-search-hint">Adding…</em>
+			) : null}
+			{error ? (
+				<em className="user-landing-favorite-search-error" role="alert">
+					{error}
+				</em>
 			) : null}
 			{results.length > 0 ? (
 				<ul className="user-landing-favorite-search-results">

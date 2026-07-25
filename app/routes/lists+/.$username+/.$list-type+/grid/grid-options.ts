@@ -56,5 +56,6 @@ export const gridOptions = {
 	onRowDragEnd: rowDragEnd,
 	onRowDragCancel: rowDragCancel,
 	rowSelection: 'multiple',
+	suppressRowClickSelection: true,
 	onGridReady: gridReady,
 }

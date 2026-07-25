@@ -1,18 +1,17 @@
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
 import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,
 } from '#app/utils/tracking-state.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const searchParams = new URLSearchParams(params.request)
-
-	const id = searchParams.get('id')
-
-	// Only the owner may delete this watchlist.
-	const { userId, watchlist } = await requireWatchlistOwner(request, id)
+export async function deleteWatchlistCommand(
+	ownerId: string,
+	watchlistId: string | null,
+) {
+	const watchlist = await requireOwnedWatchlist(ownerId, watchlistId)
 
 	// Delete the watchlist, remove its entries, and renumber the owner's remaining
 	// watchlists of this type — all atomically, so a mid-sequence failure can't leave a
@@ -42,7 +41,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		const remaining = await tx.watchlist.findMany({
-			where: { typeId: watchlist.typeId, ownerId: userId },
+			where: { typeId: watchlist.typeId, ownerId },
 			orderBy: { position: 'asc' },
 		})
 
@@ -55,4 +54,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	})
 
 	return true
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	return deleteWatchlistCommand(ownerId, searchParams.get('id'))
 }

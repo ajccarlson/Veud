@@ -97,6 +97,12 @@ function TrendingRail({
 	const scroller = useRef<HTMLDivElement>(null)
 	const [scrollEdges, setScrollEdges] = useState({ atStart: true, atEnd: true })
 	const headingId = `home-trending-${rail.kind}`
+	const railLabel =
+		rail.kind === 'movie'
+			? 'Trending movies'
+			: rail.kind === 'tv'
+				? 'Trending TV'
+				: `Trending ${rail.kind}`
 	const updateScrollEdges = () => {
 		const element = scroller.current
 		if (!element) return
@@ -155,7 +161,7 @@ function TrendingRail({
 						className="h-11 w-11"
 						onClick={() => scroll(-1)}
 						disabled={scrollEdges.atStart}
-						aria-label={`Scroll ${rail.title} left`}
+						aria-label={`Scroll ${railLabel} left`}
 					>
 						<ArrowIcon direction="left" />
 					</Button>
@@ -166,7 +172,7 @@ function TrendingRail({
 						className="h-11 w-11"
 						onClick={() => scroll(1)}
 						disabled={scrollEdges.atEnd}
-						aria-label={`Scroll ${rail.title} right`}
+						aria-label={`Scroll ${railLabel} right`}
 					>
 						<ArrowIcon direction="right" />
 					</Button>
@@ -180,7 +186,7 @@ function TrendingRail({
 				data-testid={`trending-rail-${rail.kind}`}
 				tabIndex={0}
 				role="region"
-				aria-label={`${rail.title} titles`}
+				aria-label={`${railLabel} titles`}
 				data-at-start={scrollEdges.atStart}
 				data-at-end={scrollEdges.atEnd}
 				onKeyDown={event => {

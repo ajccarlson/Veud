@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { PROFILE_COMMENT_MAX_LENGTH } from '#app/utils/profile.ts'
+import { assertUsersCanInteract } from '#app/utils/user-safety.server.ts'
 
 const CommentBodySchema = z
 	.string()
@@ -65,6 +66,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 		if (!profile) {
 			throw new Response('Profile not found', { status: 404 })
 		}
+		await assertUsersCanInteract(prisma, userId, profile.id)
 
 		const comment = await prisma.profileComment.create({
 			data: {

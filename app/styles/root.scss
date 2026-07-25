@@ -131,8 +131,8 @@
 			linear-gradient(112deg, rgb(var(--veud-surface) / 0.76), transparent 62%),
 			rgb(var(--veud-ink) / 0.68);
 		border: 1px solid rgb(var(--veud-border) / 0.25);
-		border-radius: 0.35rem 1.15rem 1.15rem 0.35rem;
-		box-shadow: 0 1.1rem 2.7rem rgb(0 0 0 / 0.16);
+		border-radius: 0.35rem var(--veud-radius-lg) var(--veud-radius-lg) 0.35rem;
+		box-shadow: var(--veud-shadow-soft);
 		backdrop-filter: blur(0.8rem);
 	}
 

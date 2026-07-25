@@ -6,16 +6,11 @@ import {
 	setWatchlistEntryOrder,
 } from '#app/utils/lists/entry-order.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const userId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	const watchlistId = searchParams.get('watchlistId')
-	let entryIds: unknown
-	try {
-		entryIds = JSON.parse(searchParams.get('entryIds') ?? '')
-	} catch {
-		throw new Response('Invalid entry order', { status: 400 })
-	}
+export async function reorderEntriesCommand(
+	ownerId: string,
+	input: { watchlistId: string | null; entryIds: unknown },
+) {
+	const { watchlistId, entryIds } = input
 	if (
 		!watchlistId ||
 		!Array.isArray(entryIds) ||
@@ -28,7 +23,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 	try {
 		return await prisma.$transaction(transaction =>
 			setWatchlistEntryOrder(transaction, {
-				ownerId: userId,
+				ownerId,
 				watchlistId,
 				entryIds: validatedEntryIds,
 			}),
@@ -39,4 +34,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 		throw error
 	}
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	let entryIds: unknown
+	try {
+		entryIds = JSON.parse(searchParams.get('entryIds') ?? '')
+	} catch {
+		throw new Response('Invalid entry order', { status: 400 })
+	}
+	return reorderEntriesCommand(ownerId, {
+		watchlistId: searchParams.get('watchlistId'),
+		entryIds,
+	})
 }
