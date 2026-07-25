@@ -16,6 +16,14 @@ export function SiteFooter() {
 				<Link prefetch="intent" to="/credits">
 					About &amp; data sources
 				</Link>
+				<span aria-hidden="true"> · </span>
+				<Link prefetch="intent" to="/terms">
+					Terms
+				</Link>
+				<span aria-hidden="true"> · </span>
+				<Link prefetch="intent" to="/privacy">
+					Privacy
+				</Link>
 			</span>
 		</footer>
 	)

@@ -25,6 +25,7 @@ import {
 	writeStructuredLog,
 } from '../app/utils/operations-observability.server.ts'
 import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
+import { resolveServerBinding } from './binding.js'
 import { assertSafeMockProductionRuntime } from './test-runtime-guard.js'
 
 type ServerContextModule = {
@@ -363,11 +364,14 @@ app.use(
 	},
 )
 
-const desiredPort = Number(process.env.PORT || 4021)
-const desiredHost = process.env.HOST?.trim() || undefined
-const portToUse = await getPort({
-	port: portNumbers(desiredPort, desiredPort + 100),
-})
+const binding = resolveServerBinding(process.env)
+const desiredPort = binding.port
+const desiredHost = binding.host
+const portToUse = binding.allowPortFallback
+	? await getPort({
+			port: portNumbers(desiredPort, desiredPort + 100),
+		})
+	: desiredPort
 
 const server = desiredHost
 	? app.listen(portToUse, desiredHost, handleListening)

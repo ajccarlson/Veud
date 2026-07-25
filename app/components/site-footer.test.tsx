@@ -18,4 +18,12 @@ test('keeps provider attribution reachable outside community navigation', () => 
 	expect(
 		screen.getByRole('link', { name: 'About & data sources' }),
 	).toHaveAttribute('href', '/credits')
+	expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute(
+		'href',
+		'/terms',
+	)
+	expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute(
+		'href',
+		'/privacy',
+	)
 })

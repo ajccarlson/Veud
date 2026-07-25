@@ -47,6 +47,10 @@ const ALLOWED_HOSTS = new Set([
 
 const MAX_URL_LENGTH = 2_048
 const MAX_BODY_LENGTH = 10_000
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+const UPSTREAM_TIMEOUT_MS = 12_000
+const MAX_CONCURRENT_UPSTREAM_REQUESTS = 8
+const MAX_QUEUED_UPSTREAM_REQUESTS = 64
 const ANILIST_SCHEDULE_QUERY = `
 	query ($id: Int) {
 		Media (idMal: $id, type: ANIME) {
@@ -156,6 +160,72 @@ const RATE_LIMITERS: Record<string, TokenBucket | null> = {
 	'graphql.anilist.co': new TokenBucket(1.5, 10),
 }
 
+class UpstreamConcurrencyLimit {
+	private active = 0
+	private readonly waiting: Array<() => void> = []
+
+	async acquire() {
+		if (this.active < MAX_CONCURRENT_UPSTREAM_REQUESTS) {
+			this.active += 1
+			return () => this.release()
+		}
+		if (this.waiting.length >= MAX_QUEUED_UPSTREAM_REQUESTS) {
+			throw new Error('Provider request queue is full.')
+		}
+		await new Promise<void>((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				const index = this.waiting.indexOf(admit)
+				if (index >= 0) this.waiting.splice(index, 1)
+				reject(new Error('Provider request queue timed out.'))
+			}, 2_000)
+			const admit = () => {
+				clearTimeout(timeout)
+				this.active += 1
+				resolve()
+			}
+			this.waiting.push(admit)
+		})
+		return () => this.release()
+	}
+
+	private release() {
+		this.active = Math.max(0, this.active - 1)
+		this.waiting.shift()?.()
+	}
+}
+
+const upstreamConcurrency = new UpstreamConcurrencyLimit()
+
+async function readBoundedJson(response: Response) {
+	const declaredLength = Number(response.headers.get('content-length'))
+	if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+		throw new Error('Provider response exceeded the size limit.')
+	}
+	if (!response.body) return null
+
+	const reader = response.body.getReader()
+	const chunks: Uint8Array[] = []
+	let byteLength = 0
+	try {
+		for (;;) {
+			const { done, value } = await reader.read()
+			if (done) break
+			byteLength += value.byteLength
+			if (byteLength > MAX_RESPONSE_BYTES) {
+				await reader.cancel()
+				throw new Error('Provider response exceeded the size limit.')
+			}
+			chunks.push(value)
+		}
+	} finally {
+		reader.releaseLock()
+	}
+	const body = Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString(
+		'utf8',
+	)
+	return JSON.parse(body)
+}
+
 const HOUR = 1000 * 60 * 60
 const DAY = HOUR * 24
 
@@ -257,7 +327,12 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	// 3) Credentials are derived from the validated host, never from a client param.
 	const headers = buildHeadersForHost(target.hostname)
 
-	const options: RequestInit = { method, headers, redirect: 'error' }
+	const options: RequestInit = {
+		method,
+		headers,
+		redirect: 'error',
+		signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+	}
 	const fetchBody = sanitizedBody(
 		target.hostname,
 		searchParams.get('fetchBody'),
@@ -281,13 +356,20 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	): Promise<CachedProviderResponse> => {
 		const limiter = RATE_LIMITERS[target.hostname]
 		if (limiter && !isTest) await limiter.acquire()
-		const response = await fetch(target.toString(), options)
-		const json = await response.json()
-		if (!response.ok) markUncacheable?.() // never cache an upstream error body
-		return {
-			__veudProviderCache: 1,
-			observedAt: new Date().toISOString(),
-			data: json,
+		const release = isTest
+			? () => undefined
+			: await upstreamConcurrency.acquire()
+		try {
+			const response = await fetch(target.toString(), options)
+			const responseJson = await readBoundedJson(response)
+			if (!response.ok) markUncacheable?.() // never cache an upstream error body
+			return {
+				__veudProviderCache: 1,
+				observedAt: new Date().toISOString(),
+				data: responseJson,
+			}
+		} finally {
+			release()
 		}
 	}
 

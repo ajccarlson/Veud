@@ -1,0 +1,11 @@
+[Unit]
+Description=Clean expired Veud production workflow data daily
+
+[Timer]
+OnCalendar=*-*-* 04:35:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=veud-production-retention-cleanup.service
+
+[Install]
+WantedBy=timers.target

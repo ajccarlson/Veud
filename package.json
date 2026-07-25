@@ -35,6 +35,7 @@
     "data:release-audit": "tsx scripts/audit-release-data.ts",
     "data:loader-decimal-audit": "node scripts/audit-loader-decimals.mjs",
     "data:integrity-audit": "npm run data:loader-decimal-audit && tsx scripts/audit-data-integrity.ts",
+    "data:retention:cleanup": "tsx scripts/cleanup-expired-data.ts",
     "media:backfill": "tsx scripts/backfill-media-identities.ts",
     "moderation:bootstrap-owner": "tsx scripts/bootstrap-community-owner.ts",
     "notifications:digests": "tsx scripts/send-notification-digests.ts",
