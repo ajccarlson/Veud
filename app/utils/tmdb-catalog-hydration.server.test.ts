@@ -430,7 +430,7 @@ test('quick-add demand outranks seeded upcoming, trending, popular, and inventor
 			kind: 'movie',
 			feed: 'popular',
 			rank: 1,
-			rankingVersion: 2,
+			rankingVersion: 3,
 			observedAt: new Date('2026-07-20T00:00:00.000Z'),
 		},
 		{
@@ -438,7 +438,7 @@ test('quick-add demand outranks seeded upcoming, trending, popular, and inventor
 			kind: 'movie',
 			feed: 'trending',
 			rank: 1,
-			rankingVersion: 2,
+			rankingVersion: 3,
 			observedAt: new Date('2026-07-20T00:00:00.000Z'),
 		},
 		{
@@ -446,7 +446,7 @@ test('quick-add demand outranks seeded upcoming, trending, popular, and inventor
 			kind: 'movie',
 			feed: 'upcoming',
 			rank: 1,
-			rankingVersion: 2,
+			rankingVersion: 3,
 			observedAt: new Date('2026-07-20T00:00:00.000Z'),
 		},
 	])

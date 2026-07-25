@@ -20,7 +20,7 @@ const DEFAULT_REFRESH_DAYS = 150
 const MAX_CONCURRENCY = 10
 
 export const tmdbHydrationFeeds = ['upcoming', 'trending', 'popular'] as const
-export const TMDB_FEED_RANKING_VERSION = 2
+export const TMDB_FEED_RANKING_VERSION = 3
 export type TmdbHydrationFeed = (typeof tmdbHydrationFeeds)[number]
 
 type TmdbHydrationCursor = {
@@ -523,6 +523,7 @@ function mergePrioritySignals(signals: TmdbPrioritySignal[]) {
 
 export function providerFeedRankingScores(
 	signals: Array<Pick<TmdbPrioritySignal, 'rank' | 'audience'>>,
+	feed: TmdbHydrationFeed,
 ) {
 	const maxRank = Math.max(1, ...signals.map(signal => signal.rank))
 	const maxAudienceLog = Math.max(
@@ -535,11 +536,14 @@ export function providerFeedRankingScores(
 		const audienceScore = maxAudienceLog
 			? Math.log1p(audience) / maxAudienceLog
 			: 0
-		// Provider rank is useful, but a high raw position supported by only a
-		// handful of votes is too noisy to lead a Veud chart. Confidence reaches
-		// about 63% at 100 votes and approaches 1 smoothly, preserving genuinely
-		// new titles without letting single-digit samples dominate.
-		const audienceConfidence = 1 - Math.exp(-audience / 100)
+		// Provider rank is useful, but a high raw position supported by too few
+		// votes is too noisy to lead a Veud chart. "Popular" represents durable
+		// audience interest and therefore needs stronger evidence than trending
+		// or upcoming feeds, where genuinely new releases naturally have fewer
+		// ratings.
+		const confidenceAudienceScale = feed === 'popular' ? 500 : 100
+		const audienceConfidence =
+			1 - Math.exp(-audience / confidenceAudienceScale)
 		const confidenceAdjustedRank = rankScore * audienceConfidence
 		return Math.max(
 			0,
@@ -723,7 +727,10 @@ async function applyPrioritySignals(
 			where: { provider: 'tmdb', kind, feed: snapshot.feed },
 		})
 		const seenMediaIds = new Set<string>()
-		const rankingScores = providerFeedRankingScores(snapshot.signals)
+		const rankingScores = providerFeedRankingScores(
+			snapshot.signals,
+			snapshot.feed,
+		)
 		const feedItems = snapshot.signals.flatMap((signal, index) => {
 			const mediaId = mediaIds.get(signal.externalId)
 			if (!mediaId || seenMediaIds.has(mediaId)) return []
