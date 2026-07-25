@@ -3,8 +3,8 @@ import { Link } from 'react-router'
 import {
 	ProfileEmptyState,
 	ProfilePageHeader,
+	ProfileSegmentedFilter,
 } from '#app/components/profile-ui.tsx'
-import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { journalTerms } from '#app/utils/media-journal.ts'
@@ -48,22 +48,24 @@ function MediaThumbnail({
 
 function ProfileFilter({
 	data,
-	filterIndex,
+	value,
 	onChange,
+	label,
 }: {
 	data: Pick<ProfileShellData, 'listTypes'>
-	filterIndex: number
-	onChange: (index: number) => void
+	value: string
+	onChange: (value: string) => void
+	label: string
 }) {
 	return (
-		<TypeSwitcher
-			variant="primary"
+		<ProfileSegmentedFilter
+			label={label}
 			options={[
 				{ key: 'all', label: 'All' },
 				...data.listTypes.map(type => ({ key: type.id, label: type.header })),
 			]}
-			index={filterIndex}
-			onIndexChange={onChange}
+			value={value}
+			onValueChange={onChange}
 		/>
 	)
 }
@@ -79,15 +81,13 @@ function LoadMore({ onClick }: { onClick: () => void }) {
 }
 
 export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
-	const [filterIndex, setFilterIndex] = useState(0)
+	const [selectedTypeId, setSelectedTypeId] = useState('all')
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-	const selectedTypeId =
-		filterIndex === 0 ? 'all' : data.listTypes[filterIndex - 1]?.id
 	const reviews = data.reviews.filter(
 		review => selectedTypeId === 'all' || review.typeId === selectedTypeId,
 	)
 
-	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
+	useEffect(() => setVisibleCount(PAGE_SIZE), [selectedTypeId])
 
 	return (
 		<section className="user-landing-journal">
@@ -96,12 +96,14 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 				title="Reviews"
 				description={<>Long-form thoughts published by {data.user.username}.</>}
 				meta={`${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}`}
-			/>
-
-			<ProfileFilter
-				data={data}
-				filterIndex={filterIndex}
-				onChange={setFilterIndex}
+				action={
+					<ProfileFilter
+						data={data}
+						value={selectedTypeId}
+						onChange={setSelectedTypeId}
+						label="Filter reviews by media type"
+					/>
+				}
 			/>
 
 			{reviews.length ? (
@@ -170,10 +172,8 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 }
 
 export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
-	const [filterIndex, setFilterIndex] = useState(0)
+	const [selectedTypeId, setSelectedTypeId] = useState('all')
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-	const selectedTypeId =
-		filterIndex === 0 ? 'all' : data.listTypes[filterIndex - 1]?.id
 	const diaryEntries = data.diaryEntries
 		.filter(
 			entry => selectedTypeId === 'all' || entry.typeId === selectedTypeId,
@@ -186,7 +186,7 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 				b.id.localeCompare(a.id),
 		)
 
-	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
+	useEffect(() => setVisibleCount(PAGE_SIZE), [selectedTypeId])
 
 	return (
 		<section className="user-landing-journal">
@@ -195,12 +195,14 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 				title="Diary"
 				description={`Dated watches and reads from ${data.user.username}.`}
 				meta={`${diaryEntries.length} ${diaryEntries.length === 1 ? 'entry' : 'entries'}`}
-			/>
-
-			<ProfileFilter
-				data={data}
-				filterIndex={filterIndex}
-				onChange={setFilterIndex}
+				action={
+					<ProfileFilter
+						data={data}
+						value={selectedTypeId}
+						onChange={setSelectedTypeId}
+						label="Filter diary by media type"
+					/>
+				}
 			/>
 
 			{diaryEntries.length ? (

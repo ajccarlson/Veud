@@ -3,6 +3,79 @@ import { isRouteErrorResponse, useRouteError } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
 
+export type ProfileFilterOption = {
+	key: string
+	label: string
+}
+
+export function ProfileSegmentedFilter({
+	label,
+	options,
+	value,
+	onValueChange,
+}: {
+	label: string
+	options: ProfileFilterOption[]
+	value: string
+	onValueChange: (value: string) => void
+}) {
+	return (
+		<div
+			className="user-landing-segmented-filter"
+			role="group"
+			aria-label={label}
+		>
+			{options.map(option => {
+				const selected = option.key === value
+				return (
+					<button
+						key={option.key}
+						type="button"
+						className="user-landing-segmented-filter-option"
+						aria-pressed={selected}
+						data-active={selected || undefined}
+						onClick={() => onValueChange(option.key)}
+					>
+						{option.label}
+					</button>
+				)
+			})}
+		</div>
+	)
+}
+
+export function ProfilePeriodSelect({
+	label,
+	value,
+	options,
+	onValueChange,
+}: {
+	label: string
+	value: string
+	options: ProfileFilterOption[]
+	onValueChange: (value: string) => void
+}) {
+	return (
+		<label className="user-landing-period-field">
+			<span>{label}</span>
+			<span className="user-landing-period-select-shell">
+				<select
+					aria-label={label}
+					value={value}
+					onChange={event => onValueChange(event.currentTarget.value)}
+				>
+					{options.map(option => (
+						<option key={option.key} value={option.key}>
+							{option.label}
+						</option>
+					))}
+				</select>
+				<Icon name="triangle-down" aria-hidden="true" />
+			</span>
+		</label>
+	)
+}
+
 export function ProfilePageHeader({
 	eyebrow,
 	title,

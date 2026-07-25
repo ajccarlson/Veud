@@ -749,7 +749,8 @@
 			width: 2.75rem;
 			height: 2.75rem;
 			opacity: 1;
-			visibility: visible;
+			pointer-events: auto;
+			transform: scale(1);
 		}
 
 		.mobile-list-empty {
@@ -1072,14 +1073,22 @@
 		border-radius: 0.3rem;
 		cursor: pointer;
 		opacity: 0;
-		visibility: hidden;
-		transition: all 0.1s ease-out;
+		pointer-events: none;
+		transform: scale(0.92);
+		transition:
+			opacity 0.1s ease-out,
+			transform 0.1s ease-out,
+			color 0.1s ease-out,
+			background-color 0.1s ease-out,
+			border-color 0.1s ease-out;
 	}
 
 	.ag-row:hover .ag-row-action-button,
-	.ag-row:focus-within .ag-row-action-button {
+	.ag-row:focus-within .ag-row-action-button,
+	.ag-row-action-button:focus-visible {
 		opacity: 1;
-		visibility: visible;
+		pointer-events: auto;
+		transform: scale(1);
 	}
 
 	.ag-row-action-button:hover,
@@ -1097,6 +1106,58 @@
 	.ag-row-action-destructive:focus {
 		color: #fff;
 		background: rgba(180, 30, 30, 0.45);
+	}
+
+	.ag-checkbox-input-wrapper {
+		position: relative;
+		width: 1.125rem;
+		height: 1.125rem;
+		color: #ff9900;
+		background: rgba(0, 0, 0, 0.28);
+		border: 1px solid rgba(223, 255, 240, 0.58);
+		border-radius: 0.25rem;
+	}
+
+	.ag-checkbox-input-wrapper::before {
+		display: none;
+	}
+
+	.ag-checkbox-input-wrapper::after,
+	.ag-checkbox-input-wrapper.ag-checked::after,
+	.ag-checkbox-input-wrapper.ag-indeterminate::after {
+		inset: 0;
+		display: grid;
+		align-items: center;
+		justify-content: center;
+		font-family: var(--veud-font-sans);
+		font-size: 0.84rem;
+		font-weight: 900;
+		line-height: 1;
+	}
+
+	.ag-checkbox-input-wrapper::after {
+		content: '' !important;
+	}
+
+	.ag-checkbox-input-wrapper.ag-checked {
+		color: #171713;
+		background: #ff9900;
+		border-color: #ffc46b;
+		box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.18);
+	}
+
+	.ag-checkbox-input-wrapper.ag-checked::after {
+		content: '✓' !important;
+	}
+
+	.ag-checkbox-input-wrapper.ag-indeterminate::after {
+		content: '−' !important;
+	}
+
+	.ag-row.ag-row-selected {
+		box-shadow:
+			inset 3px 0 0 #ff9900,
+			inset 0 0 0 1px rgba(162, 255, 213, 0.18);
 	}
 
 	.ag-position-cell:hover .ag-move-row-input {
@@ -1306,7 +1367,8 @@
 		.ag-drag-handle.ag-row-drag,
 		.ag-row-action-button {
 			opacity: 1;
-			visibility: visible !important;
+			pointer-events: auto;
+			transform: scale(1);
 		}
 	}
 

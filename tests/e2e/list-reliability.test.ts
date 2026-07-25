@@ -11,6 +11,177 @@ async function titlesInOrder(watchlistId: string) {
 		.then(entries => entries.map(entry => `${entry.position}:${entry.title}`))
 }
 
+test('desktop row selection and bulk controls remain clear and actionable', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const [source, destination] = await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				name: 'bulk-source',
+				header: 'Bulk source',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				name: 'bulk-destination',
+				header: 'Bulk destination',
+				position: 2,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+	])
+	const entries = await Promise.all(
+		['Bulk move entry', 'Row move entry', 'Bulk delete entry'].map(
+			(title, index) =>
+				prisma.entry.create({
+					data: {
+						watchlistId: source.id,
+						position: index + 1,
+						title,
+						type: 'TV Series',
+					},
+				}),
+		),
+	)
+
+	await page.goto(`/lists/${user.username}/anime/${source.name}`)
+	const grid = page.locator('.ag-theme-custom-react')
+	const row = (title: string) =>
+		grid.locator('.ag-center-cols-container .ag-row').filter({ hasText: title })
+
+	const moveRow = row('Bulk move entry')
+	await expect(moveRow).toBeVisible()
+	const quickEdit = moveRow.getByRole('button', {
+		name: 'Quick edit Bulk move entry',
+	})
+	const moreActions = moveRow.getByRole('button', {
+		name: 'More actions for Bulk move entry',
+	})
+	await expect
+		.poll(() =>
+			quickEdit.evaluate(element => getComputedStyle(element).opacity),
+		)
+		.toBe('0')
+	await moveRow.hover()
+	await expect
+		.poll(() =>
+			quickEdit.evaluate(element => getComputedStyle(element).opacity),
+		)
+		.toBe('1')
+	await moreActions.focus()
+	await expect
+		.poll(() =>
+			moreActions.evaluate(element => ({
+				opacity: getComputedStyle(element).opacity,
+				pointerEvents: getComputedStyle(element).pointerEvents,
+			})),
+		)
+		.toEqual({ opacity: '1', pointerEvents: 'auto' })
+
+	const selection = moveRow.locator(
+		'.ag-selection-checkbox input[type="checkbox"]',
+	)
+	await selection.click()
+	await expect(selection).toBeChecked()
+	const checkbox = moveRow.locator('.ag-checkbox-input-wrapper')
+	await expect(checkbox).toHaveClass(/ag-checked/)
+	await expect
+		.poll(() =>
+			checkbox.evaluate(element =>
+				getComputedStyle(element, '::after').content.replaceAll('"', ''),
+			),
+		)
+		.toBe('✓')
+	await expect(moveRow).toHaveClass(/ag-row-selected/)
+
+	const toolbar = page.getByRole('toolbar', {
+		name: 'Selected list entries',
+	})
+	await expect(toolbar).toContainText('1 title selected')
+	await expect(
+		toolbar.getByRole('button', { name: 'Delete selected' }),
+	).toBeEnabled()
+	await expect(
+		toolbar.getByRole('button', { name: 'Move selected' }),
+	).toBeDisabled()
+	await expect(toolbar.getByLabel('Bulk move destination')).toHaveValue('')
+	await expect(
+		toolbar.getByLabel('Bulk move destination').locator('option').first(),
+	).toHaveText('Choose destination')
+	await expect(
+		toolbar.getByLabel('Bulk move destination').locator('option').first(),
+	).toBeDisabled()
+
+	await toolbar.getByRole('button', { name: 'Clear' }).click()
+	await expect(selection).not.toBeChecked()
+	await expect(toolbar).toBeHidden()
+	await selection.click()
+	await expect(selection).toBeChecked()
+
+	await toolbar.getByLabel('Bulk move destination').selectOption(destination.id)
+	await toolbar.getByRole('button', { name: 'Move selected' }).click()
+	await expect
+		.poll(() =>
+			prisma.entry.findUniqueOrThrow({
+				where: { id: entries[0].id },
+				select: { watchlistId: true },
+			}),
+		)
+		.toEqual({ watchlistId: destination.id })
+	await expect(toolbar).toBeHidden()
+
+	const menuRow = row('Row move entry')
+	await menuRow.hover()
+	await menuRow
+		.getByRole('button', { name: 'More actions for Row move entry' })
+		.click()
+	const moveSubmenu = page.getByRole('menuitem', {
+		name: 'Move to another list',
+	})
+	await moveSubmenu.hover()
+	const destinationItem = page.getByRole('menuitem', {
+		name: 'Bulk destination',
+	})
+	await expect(destinationItem).toBeVisible()
+	await destinationItem.click()
+	await expect
+		.poll(() =>
+			prisma.entry.findUniqueOrThrow({
+				where: { id: entries[1].id },
+				select: { watchlistId: true },
+			}),
+		)
+		.toEqual({ watchlistId: destination.id })
+
+	await page.goto(`/lists/${user.username}/anime/${source.name}`)
+	const deleteRow = row('Bulk delete entry')
+	await deleteRow
+		.locator('.ag-selection-checkbox input[type="checkbox"]')
+		.click()
+	page.once('dialog', dialog => dialog.accept())
+	await page
+		.getByRole('toolbar', { name: 'Selected list entries' })
+		.getByRole('button', { name: 'Delete selected' })
+		.click()
+	await expect
+		.poll(() => prisma.entry.count({ where: { id: entries[2].id } }))
+		.toBe(0)
+	await expect(
+		page.getByRole('toolbar', { name: 'Selected list entries' }),
+	).toBeHidden()
+})
+
 test('member can type a new position and see the persisted order', async ({
 	page,
 	login,
