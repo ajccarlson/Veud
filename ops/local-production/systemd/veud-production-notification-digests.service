@@ -1,0 +1,13 @@
+[Unit]
+Description=Veud production notification email digests
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/Programs/Veud/ops/local-production/run-notification-digests.sh
+TimeoutStartSec=10min
+Nice=5
+CPUWeight=40
+IOWeight=40
+MemoryMax=500M

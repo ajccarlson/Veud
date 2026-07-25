@@ -8,6 +8,12 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
+import {
+	publicEntryPayload,
+	publicListOwnerSelect,
+	publicListTypeSelect,
+	publicWatchlistSelect,
+} from '#app/utils/lists/public-watchlist.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
@@ -20,8 +26,11 @@ export async function loader(params: LoaderFunctionArgs) {
 			where: {
 				username: params['params']['username']!,
 			},
+			select: publicListOwnerSelect,
 		}),
-		prisma.listType.findMany(),
+		prisma.listType.findMany({
+			select: publicListTypeSelect,
+		}),
 	])
 
 	invariantResponse(listOwner, 'User not found', { status: 404 })
@@ -37,6 +46,7 @@ export async function loader(params: LoaderFunctionArgs) {
 			ownerId: listOwner.id,
 			AND: [visibleWatchlistWhere(viewerId)],
 		},
+		select: publicWatchlistSelect,
 	})
 
 	let watchListData
@@ -116,9 +126,15 @@ export async function loader(params: LoaderFunctionArgs) {
 			: Promise.resolve([]),
 	])
 
-	const listEntriesSorted = listEntries
+	const normalizedEntries = listEntries
 		.map(normalizeWatchlistEntryScores)
 		.sort((a, b) => a.position - b.position)
+	const listEntriesSorted =
+		viewerId === listOwner.id
+			? normalizedEntries
+			: normalizedEntries.map(entry =>
+					publicEntryPayload(entry, watchListData.displayedColumns),
+				)
 
 	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
 		(x, y) => {
@@ -147,8 +163,6 @@ export async function loader(params: LoaderFunctionArgs) {
 		listTypes,
 		listTypeData,
 		listEntries: listEntriesSorted,
-		watchLists,
-		watchListsSorted,
 		typedWatchlists,
 		watchListData,
 		watchlistId: watchListData.id,

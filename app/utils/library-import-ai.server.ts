@@ -112,6 +112,12 @@ export async function assistLibraryImportReconciliation(
 		},
 	})
 	if (!batch) throw new Response('Import preview not found.', { status: 404 })
+	if (['mal', 'myanimelist'].includes(batch.provider.trim().toLowerCase())) {
+		throw new Response(
+			'AI assistance is unavailable for MyAnimeList imports. Review unresolved rows manually.',
+			{ status: 409 },
+		)
+	}
 	if (!batch.items.length) {
 		throw new Response('This preview has no unresolved rows to assist.', {
 			status: 409,

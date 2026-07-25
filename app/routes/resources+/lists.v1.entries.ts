@@ -4,6 +4,7 @@ import {
 	ListEntriesQuerySchema,
 	type ListMutationError,
 } from '#app/utils/lists/mutation-contracts.ts'
+import { publicEntryPayload } from '#app/utils/lists/public-watchlist.server.ts'
 import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
 
@@ -31,7 +32,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	}
 
 	try {
-		const { watchlist } = await requireVisibleWatchlist(
+		const { viewerId, watchlist } = await requireVisibleWatchlist(
 			request,
 			parsed.data.watchlistId,
 		)
@@ -43,10 +44,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				trackingState: { select: { score: true } },
 			},
 		})
+		const normalized = entries.map(normalizeWatchlistEntryScores)
+		const browserEntries =
+			viewerId === watchlist.ownerId
+				? normalized
+				: normalized.map(entry =>
+						publicEntryPayload(entry, watchlist.displayedColumns),
+					)
 		return json(
 			{
 				ok: true as const,
-				data: entries.map(normalizeWatchlistEntryScores),
+				data: browserEntries,
 			},
 			{ headers: noStore },
 		)
