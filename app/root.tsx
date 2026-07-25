@@ -447,10 +447,6 @@ function MobileNavigation() {
 				{user ? (
 					<>
 						<span className="root-mobile-nav-divider" aria-hidden="true" />
-						<Link to="/assistant" prefetch="intent">
-							<Icon name="magic-wand" aria-hidden="true" />
-							Tracking assistant
-						</Link>
 						<Link to={`/lists/${user.username}`} prefetch="intent">
 							<Icon name="list-bullet" aria-hidden="true" />
 							My lists
@@ -517,8 +513,6 @@ function AppWithProviders() {
 export default AppWithProviders
 
 function CommunityDropdown() {
-	const user = useOptionalUser()
-
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -542,19 +536,6 @@ function CommunityDropdown() {
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
-					{user ? (
-						<DropdownMenuItem asChild>
-							<Link
-								className="root-community-link-item"
-								prefetch="intent"
-								to="/assistant"
-							>
-								<Icon className="text-body-md" name="magic-wand">
-									Assistant
-								</Icon>
-							</Link>
-						</DropdownMenuItem>
-					) : null}
 					<DropdownMenuItem asChild>
 						<Link
 							className="root-community-link-item"

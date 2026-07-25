@@ -1029,11 +1029,6 @@ export default function DiscoverRoute() {
 										: 'Rate or favorite a few titles to shape this page.'}
 								</p>
 							) : data.filters.mode === 'standard' &&
-							  data.filters.sort === 'popular' ? (
-								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
-									Popularity is normalized within each provider and media type.
-								</p>
-							) : data.filters.mode === 'standard' &&
 							  data.filters.sort === 'top-rated' ? (
 								<p className="mt-1 max-w-3xl text-sm text-veud-mint">
 									Ratings are weighted by audience size.
