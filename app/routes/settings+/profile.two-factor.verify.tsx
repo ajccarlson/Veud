@@ -22,7 +22,11 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getTOTPAuthUri } from '#app/utils/totp.server.ts'
+import { replaceRecoveryCodes } from '#app/utils/two-factor-recovery.server.ts'
+import { revealVerificationSecret } from '#app/utils/verification-secret.server.ts'
+import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
+import { RECOVERY_CODES_SESSION_KEY } from './profile.two-factor.recovery.tsx'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 export const handle: BreadcrumbHandle & SEOHandle = {
@@ -67,6 +71,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	const issuer = new URL(getDomainUrl(request)).host
 	const otpUri = getTOTPAuthUri({
 		...verification,
+		secret: revealVerificationSecret(verification.secret),
 		accountName: user.email,
 		issuer,
 	})
@@ -120,11 +125,25 @@ export async function action({ request, url }: ActionFunctionArgs) {
 				},
 				data: { type: twoFAVerificationType },
 			})
-			return redirectWithToast('/settings/profile/two-factor', {
-				type: 'success',
-				title: 'Enabled',
-				description: 'Two-factor authentication has been enabled.',
-			})
+			const recoveryCodes = await replaceRecoveryCodes(prisma, userId)
+			const recoverySession = await verifySessionStorage.getSession(
+				request.headers.get('cookie'),
+			)
+			recoverySession.set(RECOVERY_CODES_SESSION_KEY, recoveryCodes)
+			return redirectWithToast(
+				'/settings/profile/two-factor/recovery',
+				{
+					type: 'success',
+					title: 'Two-factor authentication enabled',
+					description: 'Save your recovery codes before continuing.',
+				},
+				{
+					headers: {
+						'set-cookie':
+							await verifySessionStorage.commitSession(recoverySession),
+					},
+				},
+			)
 		}
 	}
 }
@@ -197,7 +216,7 @@ export default function TwoFactorRoute() {
 									pendingIntent === 'verify'
 										? 'pending'
 										: lastSubmissionIntent === 'verify'
-											? form.status ?? 'idle'
+											? (form.status ?? 'idle')
 											: 'idle'
 								}
 								type="submit"
@@ -213,7 +232,7 @@ export default function TwoFactorRoute() {
 									pendingIntent === 'cancel'
 										? 'pending'
 										: lastSubmissionIntent === 'cancel'
-											? form.status ?? 'idle'
+											? (form.status ?? 'idle')
 											: 'idle'
 								}
 								type="submit"

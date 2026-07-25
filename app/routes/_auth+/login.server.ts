@@ -7,6 +7,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { combineResponseInits } from '#app/utils/misc.tsx'
 import { authSessionStorage } from '#app/utils/session.server.ts'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
+import { consumeRecoveryCode } from '#app/utils/two-factor-recovery.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { getRedirectToUrl, type VerifyFunctionArgs } from './verify.server.ts'
 
@@ -97,7 +98,14 @@ export async function handleVerification({
 	)
 
 	const remember = verifySession.get(rememberKey)
-	const { redirectTo } = submission.value
+	const { code, redirectTo, target } = submission.value
+	try {
+		await consumeRecoveryCode(prisma, target, code)
+	} catch {
+		throw new Response('Invalid or already-used recovery code.', {
+			status: 400,
+		})
+	}
 	const headers = new Headers()
 	authSession.set(verifiedTimeKey, Date.now())
 

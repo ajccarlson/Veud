@@ -9,6 +9,11 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getDomainUrl } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { generateTOTP, verifyTOTP } from '#app/utils/totp.server.ts'
+import { hasUnusedRecoveryCode } from '#app/utils/two-factor-recovery.server.ts'
+import {
+	protectVerificationSecret,
+	revealVerificationSecret,
+} from '#app/utils/verification-secret.server.ts'
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx'
 import { handleModerationAppealVerification } from './appeal.server.ts'
 import {
@@ -99,6 +104,7 @@ export async function prepareVerification({
 		type,
 		target,
 		...verificationConfig,
+		secret: protectVerificationSecret(verificationConfig.secret),
 		expiresAt: new Date(Date.now() + verificationConfig.period * 1000),
 	}
 	await prisma.verification.upsert({
@@ -130,9 +136,16 @@ export async function isCodeValid({
 		select: { algorithm: true, secret: true, period: true, charSet: true },
 	})
 	if (!verification) return false
+	if (
+		type === twoFAVerificationType &&
+		(await hasUnusedRecoveryCode(prisma, target, code))
+	) {
+		return true
+	}
 	const result = verifyTOTP({
 		otp: code,
 		...verification,
+		secret: revealVerificationSecret(verification.secret),
 	})
 	if (!result) return false
 
@@ -207,7 +220,12 @@ export async function validateRequest(
 		}
 		case 'moderation-appeal': {
 			await deleteVerification()
-			return handleModerationAppealVerification({ request, url, body, submission })
+			return handleModerationAppealVerification({
+				request,
+				url,
+				body,
+				submission,
+			})
 		}
 		case '2fa': {
 			return handleLoginTwoFactorVerification({

@@ -10,9 +10,14 @@ import {
 } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { requireRecentVerification } from '#app/routes/_auth+/verify.server.ts'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { generateTOTP } from '#app/utils/totp.server.ts'
+import { replaceRecoveryCodes } from '#app/utils/two-factor-recovery.server.ts'
+import { protectVerificationSecret } from '#app/utils/verification-secret.server.ts'
+import { verifySessionStorage } from '#app/utils/verification.server.ts'
+import { RECOVERY_CODES_SESSION_KEY } from './profile.two-factor.recovery.tsx'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 import { twoFAVerifyVerificationType } from './profile.two-factor.verify.tsx'
 
@@ -31,9 +36,35 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 
 export async function action({ request, url }: ActionFunctionArgs) {
 	const userId = await requireUserId(request, { url })
+	const formData = await request.formData()
+	if (formData.get('intent') === 'regenerate-recovery-codes') {
+		await requireRecentVerification(request, url)
+		const enabled = await prisma.verification.findUnique({
+			where: {
+				target_type: { target: userId, type: twoFAVerificationType },
+			},
+			select: { id: true },
+		})
+		if (!enabled) {
+			throw new Response('Enable two-factor authentication first.', {
+				status: 409,
+			})
+		}
+		const recoveryCodes = await replaceRecoveryCodes(prisma, userId)
+		const recoverySession = await verifySessionStorage.getSession(
+			request.headers.get('cookie'),
+		)
+		recoverySession.set(RECOVERY_CODES_SESSION_KEY, recoveryCodes)
+		return redirect('/settings/profile/two-factor/recovery', {
+			headers: {
+				'set-cookie': await verifySessionStorage.commitSession(recoverySession),
+			},
+		})
+	}
 	const { otp: _otp, ...config } = generateTOTP()
 	const verificationData = {
 		...config,
+		secret: protectVerificationSecret(config.secret),
 		type: twoFAVerifyVerificationType,
 		target: userId,
 	}
@@ -63,6 +94,16 @@ export default function TwoFactorRoute() {
 					<Link to="disable">
 						<Icon name="lock-open-1">Disable 2FA</Icon>
 					</Link>
+					<enable2FAFetcher.Form method="POST">
+						<StatusButton
+							type="submit"
+							name="intent"
+							value="regenerate-recovery-codes"
+							status={enable2FAFetcher.state === 'loading' ? 'pending' : 'idle'}
+						>
+							Generate new recovery codes
+						</StatusButton>
+					</enable2FAFetcher.Form>
 				</>
 			) : (
 				<>

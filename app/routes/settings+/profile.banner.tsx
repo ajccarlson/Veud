@@ -27,6 +27,10 @@ import {
 	useIsPending,
 } from '#app/utils/misc.tsx'
 import {
+	normalizeProfileImage,
+	UnsafeImageError,
+} from '#app/utils/safe-image.server.ts'
+import {
 	hasSafeImageSignature,
 	isSafeImageContentType,
 } from '#app/utils/safe-image.ts'
@@ -112,6 +116,20 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			{ status: 400 },
 		)
 	}
+	let normalized
+	try {
+		normalized = await normalizeProfileImage(blob, 'banner')
+	} catch (error) {
+		if (!(error instanceof UnsafeImageError)) throw error
+		return json(
+			{
+				result: submission.reply({
+					fieldErrors: { bannerFile: [error.message] },
+				}),
+			},
+			{ status: 400 },
+		)
+	}
 
 	await prisma.$transaction(async $prisma => {
 		await $prisma.userBanner.deleteMany({ where: { userId } })
@@ -119,7 +137,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			where: { id: userId },
 			data: {
 				banner: {
-					create: { contentType: bannerFile.type, blob },
+					create: normalized,
 				},
 			},
 		})

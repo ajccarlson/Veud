@@ -7,6 +7,7 @@ const schema = z.object({
 	DATABASE_PATH: z.string(),
 	DATABASE_URL: z.string(),
 	SESSION_SECRET: z.string(),
+	VERIFICATION_SECRET_KEYS: z.string().optional(),
 	INTERNAL_COMMAND_TOKEN: z.string(),
 	HONEYPOT_SECRET: z.string(),
 	CACHE_DATABASE_PATH: z.string(),
