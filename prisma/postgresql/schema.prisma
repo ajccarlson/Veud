@@ -37,6 +37,7 @@ model User {
   commentsAuthored           ProfileComment[]         @relation("ProfileCommentAuthor")
   profileComments            ProfileComment[]         @relation("ProfileCommentProfile")
   trackingStates             TrackingState[]
+  consumptionEvents          ConsumptionEvent[]
   activityEvents             ActivityEvent[]
   reviews                    Review[]
   diaryEntries               DiaryEntry[]
@@ -70,6 +71,8 @@ model User {
   trackingCommandPreviews    TrackingCommandPreview[]
   consents                   UserConsent[]
   twoFactorRecoveryCodes     TwoFactorRecoveryCode[]
+  safetyControlsOwned        UserSafetyControl[]      @relation("UserSafetyControlOwner")
+  safetyControlsReceived     UserSafetyControl[]      @relation("UserSafetyControlTarget")
 }
 
 model TwoFactorRecoveryCode {
@@ -97,6 +100,25 @@ model UserConsent {
 
   @@unique([userId, document, version])
   @@index([document, version, acceptedAt])
+}
+
+/// A private member-level safety preference. Blocking also severs follows and
+/// prevents new direct interaction; muting only removes the target from
+/// personalized discovery and activity surfaces.
+model UserSafetyControl {
+  id        String   @id @default(cuid())
+  kind      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner    User   @relation("UserSafetyControlOwner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId  String
+  target   User   @relation("UserSafetyControlTarget", fields: [targetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetId String
+
+  @@unique([ownerId, targetId, kind])
+  @@index([ownerId, kind, createdAt])
+  @@index([targetId, kind])
 }
 
 model ListType {
@@ -193,11 +215,15 @@ model Media {
   entries                Entry[]
   favorites              UserFavorite[]
   trackingStates         TrackingState[]
+  seasons                MediaSeason[]
+  installments           MediaInstallment[]
+  consumptionEvents      ConsumptionEvent[]
   activityEvents         ActivityEvent[]
   reviews                Review[]
   diaryEntries           DiaryEntry[]
   collectionItems        MediaCollectionItem[]
   releaseReminders       ReleaseReminder[]
+  releaseOccurrences     ReleaseOccurrence[]
   catalogFeedItems       CatalogFeedItem[]
   catalogMetricSnapshots CatalogMetricSnapshot[]
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
@@ -263,6 +289,36 @@ model CatalogMetricSnapshot {
   @@index([provider, kind, observedAt])
   @@index([provider, kind, mediaId, observedAt])
   @@index([observedAt])
+}
+
+/// A provider-observed premiere, episode, chapter, or general release. The
+/// legacy Media.nextRelease payload remains a compatibility cache while
+/// calendar and reminder workflows move to queryable occurrences.
+model ReleaseOccurrence {
+  id         String   @id @default(cuid())
+  source     String
+  sourceKey  String
+  eventType  String
+  releaseAt  DateTime
+  allDay     Boolean  @default(false)
+  season     Int?
+  episode    Int?
+  volume     Int?
+  chapter    Int?
+  name       String?
+  status     String   @default("scheduled")
+  observedAt DateTime
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, source, sourceKey])
+  @@index([releaseAt, status])
+  @@index([mediaId, releaseAt])
+  @@index([expiresAt])
 }
 
 /// A stable identifier assigned by an upstream catalog. `kind` participates in
@@ -583,9 +639,10 @@ model TrackingState {
   statusWatchlist   Watchlist? @relation(fields: [statusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   statusWatchlistId String?
 
-  entries        Entry[]
-  progress       TrackingProgress[]
-  activityEvents ActivityEvent[]
+  entries           Entry[]
+  progress          TrackingProgress[]
+  consumptionEvents ConsumptionEvent[]
+  activityEvents    ActivityEvent[]
 
   @@unique([ownerId, mediaId])
   @@index([mediaId])
@@ -607,6 +664,86 @@ model TrackingProgress {
 
   @@unique([trackingStateId, unit])
   @@index([trackingStateId])
+}
+
+/// A numbered season or part within a canonical work. Manga volumes remain
+/// installments because their numbering is already meaningful without a
+/// separate hierarchy.
+model MediaSeason {
+  id               String    @id @default(cuid())
+  number           Int
+  title            String?
+  installmentCount Int?
+  releaseStart     DateTime?
+  releaseEnd       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  media        Media              @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId      String
+  installments MediaInstallment[]
+
+  @@unique([mediaId, number])
+  @@index([mediaId, releaseStart])
+}
+
+/// One addressable episode, chapter, or volume. Provider ids are optional so
+/// user progress can be represented before the catalog has full installment
+/// metadata.
+model MediaInstallment {
+  id             String    @id @default(cuid())
+  kind           String
+  seasonNumber   Int       @default(0)
+  number         Int
+  absoluteNumber Int?
+  title          String?
+  description    String?
+  releasedAt     DateTime?
+  runtimeMinutes Int?
+  sourceProvider String?
+  sourceId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  media             Media              @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId           String
+  season            MediaSeason?       @relation(fields: [seasonId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  seasonId          String?
+  consumptionEvents ConsumptionEvent[]
+
+  @@unique([mediaId, kind, seasonNumber, number])
+  @@unique([sourceProvider, kind, sourceId])
+  @@index([mediaId, kind, absoluteNumber])
+  @@index([mediaId, releasedAt])
+  @@index([seasonId, number])
+}
+
+/// Immutable progress history. Counter-only updates use a from/to range;
+/// exact episode or chapter check-ins additionally reference an installment.
+model ConsumptionEvent {
+  id           String   @id @default(cuid())
+  unit         String
+  eventType    String   @default("progress")
+  progressFrom Int?
+  progressTo   Int?
+  repeatNumber Int      @default(0)
+  source       String   @default("manual")
+  consumedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  owner           User              @relation(fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ownerId         String
+  media           Media             @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId         String
+  trackingState   TrackingState?    @relation(fields: [trackingStateId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trackingStateId String?
+  installment     MediaInstallment? @relation(fields: [installmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  installmentId   String?
+
+  @@index([ownerId, consumedAt])
+  @@index([ownerId, mediaId, consumedAt])
+  @@index([trackingStateId, consumedAt])
+  @@index([installmentId, consumedAt])
 }
 
 /// A member-owned negative signal for one canonical work. Feedback is durable,
@@ -1214,6 +1351,42 @@ model AiDiscoverySession {
 
   @@index([ownerId, updatedAt])
   @@index([expiresAt])
+}
+
+/// Privacy-bounded operational accounting for AI capabilities. No prompt,
+/// response, catalog candidate, image, or raw member identifier is retained.
+model AiUsageEvent {
+  id             String   @id @default(cuid())
+  capability     String
+  model          String
+  promptVersion  String
+  outcome        String
+  fallbackReason String?
+  status         Int?
+  durationMs     Int
+  inputTokens    Int?
+  outputTokens   Int?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([capability, createdAt])
+  @@index([outcome, createdAt])
+}
+
+/// Fixed-window request counters keyed by a one-way member hash. Expired
+/// buckets are deleted by the routine retention worker.
+model AiRateLimitBucket {
+  id              String   @id
+  capability      String
+  subjectHash     String
+  windowStartedAt DateTime
+  windowMs        Int
+  count           Int      @default(0)
+  expiresAt       DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@index([capability, subjectHash, windowStartedAt])
 }
 
 /// A confirmed-before-write natural-language tracking plan. The operation and

@@ -8,6 +8,7 @@ export async function cleanupExpiredData(
 ) {
 	const abandonedImportCutoff = new Date(now.getTime() - 30 * DAY)
 	const rolledBackImportCutoff = new Date(now.getTime() - 90 * DAY)
+	const aiOperationsCutoff = new Date(now.getTime() - 30 * DAY)
 
 	return prisma.$transaction(async transaction => {
 		const [
@@ -18,6 +19,8 @@ export async function cleanupExpiredData(
 			moderationAppealDrafts,
 			abandonedImports,
 			rolledBackImports,
+			aiRateLimitBuckets,
+			aiUsageEvents,
 		] = await Promise.all([
 			transaction.session.deleteMany({
 				where: { expirationDate: { lte: now } },
@@ -46,6 +49,12 @@ export async function cleanupExpiredData(
 					updatedAt: { lte: rolledBackImportCutoff },
 				},
 			}),
+			transaction.aiRateLimitBucket.deleteMany({
+				where: { expiresAt: { lte: now } },
+			}),
+			transaction.aiUsageEvent.deleteMany({
+				where: { createdAt: { lte: aiOperationsCutoff } },
+			}),
 		])
 
 		return {
@@ -55,6 +64,8 @@ export async function cleanupExpiredData(
 			trackingCommandPreviews: trackingCommandPreviews.count,
 			moderationAppealDrafts: moderationAppealDrafts.count,
 			libraryImportBatches: abandonedImports.count + rolledBackImports.count,
+			aiRateLimitBuckets: aiRateLimitBuckets.count,
+			aiUsageEvents: aiUsageEvents.count,
 		}
 	})
 }

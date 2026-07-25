@@ -21,7 +21,7 @@ import {
 	openAdvancedEntryEditor,
 } from './advanced-entry-editor-trigger.tsx'
 import { gridAPI, columnParams } from './grid-state.ts'
-import { createNewRow, refreshGrid, moveEntry } from './grid-actions.ts'
+import { refreshGrid, moveEntry } from './grid-actions.ts'
 import {
 	getSiteIdSafe,
 	getThumbnailInfo,
@@ -40,6 +40,10 @@ export function positionColumn() {
 			maxWidth: 164,
 			filter: 'agNumberColumnFilter',
 			rowDrag: columnParams.currentUserId == columnParams.listOwner.id,
+			checkboxSelection:
+				columnParams.currentUserId == columnParams.listOwner.id,
+			headerCheckboxSelection:
+				columnParams.currentUserId == columnParams.listOwner.id,
 			cellRenderer: (params: any) => {
 				const destinationWatchlists = (
 					columnParams.typedWatchlists[columnParams.listTypeData.id] ?? []
@@ -153,21 +157,6 @@ export function positionColumn() {
 											</DropdownMenuSub>
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
-												onSelect={() => {
-													createNewRow('Above', params)
-												}}
-											>
-												Insert 1 row above
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onSelect={() => {
-													createNewRow('Below', params)
-												}}
-											>
-												Insert 1 row below
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
 												onSelect={async () => {
 													if (
 														!window.confirm(
@@ -256,6 +245,14 @@ export function positionColumn() {
 											) : (
 												<DropdownMenuItem
 													onSelect={async event => {
+														const mediaIdentity =
+															params.data.media?.externalIds?.[0]
+														if (!mediaIdentity) {
+															console.error(
+																'[watchlist] favorite requires canonical identity',
+															)
+															return
+														}
 														const addPosition =
 															Object.entries(
 																columnParams.typedFavorites[
@@ -282,6 +279,7 @@ export function positionColumn() {
 															mediaType: params.data.type,
 															startYear: params.data[startColumn as any],
 															ownerId: columnParams.listOwner.id,
+															mediaIdentity,
 														}
 
 														await mutateList('add-favorite', {

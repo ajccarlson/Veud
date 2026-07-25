@@ -258,7 +258,7 @@ test('new rows insert atomically without duplicate positions', async () => {
 		data: { updatedAt: oldUpdatedAt },
 	})
 
-	for (const title of ['First row', 'Inserted row']) {
+	for (const [index, title] of ['First row', 'Inserted row'].entries()) {
 		await addRow({
 			request: owner.request,
 			params: routeParams('row', {
@@ -266,6 +266,11 @@ test('new rows insert atomically without duplicate positions', async () => {
 				position: 1,
 				title,
 				type: 'TV Series',
+				mediaIdentity: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: String(80_000 + index),
+				},
 			}),
 		} as any)
 	}

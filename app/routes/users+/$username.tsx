@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -13,6 +14,13 @@ import {
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '#app/components/ui/dropdown-menu.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
@@ -58,12 +66,10 @@ export function shouldRevalidate({
 
 const PROFILE_TABS = [
 	{ to: '.', end: true, label: 'Overview', icon: 'dashboard' },
+	{ to: 'activity', end: false, label: 'Journal', icon: 'activity-log' },
 	{ to: 'reviews', end: false, label: 'Reviews', icon: 'reader' },
-	{ to: 'diary', end: false, label: 'Diary', icon: 'calendar' },
 	{ to: 'collections', end: false, label: 'Collections', icon: 'archive' },
 	{ to: 'stats', end: false, label: 'Stats', icon: 'bar-chart' },
-	{ to: 'favorites', end: false, label: 'Favorites', icon: 'star' },
-	{ to: 'activity', end: false, label: 'Activity', icon: 'activity-log' },
 	{ to: 'social', end: false, label: 'Social', icon: 'chat-bubble' },
 ] as const
 
@@ -74,21 +80,75 @@ export default function ProfileRoute() {
 	const isLoggedInUser = user.id === loggedInUser?.id
 	const bannerSrc = getUserBannerSrc(user.banner?.id)
 	const revalidator = useRevalidator()
+	const [relationshipError, setRelationshipError] = useState<string | null>(
+		null,
+	)
+	const [relationshipBusy, setRelationshipBusy] = useState(false)
 	const navigation = useNavigation()
 	const isTabLoading =
 		navigation.state === 'loading' &&
 		Boolean(navigation.location?.pathname.startsWith(`/users/${user.username}`))
 
 	async function toggleFollow() {
-		await fetch('/resources/follow', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				userId: user.id,
-				intent: loaderData.isFollowing ? 'unfollow' : 'follow',
-			}),
-		})
-		revalidator.revalidate()
+		if (relationshipBusy) return
+		setRelationshipBusy(true)
+		setRelationshipError(null)
+		try {
+			const response = await fetch('/resources/follow', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					userId: user.id,
+					intent: loaderData.isFollowing ? 'unfollow' : 'follow',
+				}),
+			})
+			if (!response.ok) throw new Error('Unable to update this follow.')
+			revalidator.revalidate()
+		} catch (error) {
+			setRelationshipError(
+				error instanceof Error
+					? error.message
+					: 'Unable to update this follow.',
+			)
+		} finally {
+			setRelationshipBusy(false)
+		}
+	}
+
+	async function toggleSafetyControl(kind: 'mute' | 'block') {
+		if (relationshipBusy) return
+		const enabled =
+			kind === 'mute'
+				? !loaderData.safetyState.isMuted
+				: !loaderData.safetyState.isBlocked
+		if (
+			kind === 'block' &&
+			enabled &&
+			!window.confirm(
+				`Block @${user.username}? You will unfollow each other and direct interaction will stop.`,
+			)
+		) {
+			return
+		}
+		setRelationshipBusy(true)
+		setRelationshipError(null)
+		try {
+			const response = await fetch('/resources/user-safety', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ targetId: user.id, kind, enabled }),
+			})
+			if (!response.ok) throw new Error(`Unable to ${kind} this member.`)
+			revalidator.revalidate()
+		} catch (error) {
+			setRelationshipError(
+				error instanceof Error
+					? error.message
+					: `Unable to ${kind} this member.`,
+			)
+		} finally {
+			setRelationshipBusy(false)
+		}
 	}
 
 	return (
@@ -146,6 +206,11 @@ export default function ProfileRoute() {
 								<Button
 									variant={loaderData.isFollowing ? 'outline' : 'default'}
 									onClick={toggleFollow}
+									disabled={
+										relationshipBusy ||
+										loaderData.safetyState.isBlocked ||
+										loaderData.safetyState.isBlockedByTarget
+									}
 								>
 									<Icon
 										name={loaderData.isFollowing ? 'check' : 'plus'}
@@ -158,6 +223,32 @@ export default function ProfileRoute() {
 									targetId={user.id}
 									label={`@${user.username}`}
 								/>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											variant="outline"
+											size="icon"
+											aria-label={`Safety options for @${user.username}`}
+											disabled={relationshipBusy}
+										>
+											<Icon name="dots-horizontal" aria-hidden="true" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										<DropdownMenuItem
+											onSelect={() => toggleSafetyControl('mute')}
+										>
+											{`${loaderData.safetyState.isMuted ? 'Unmute' : 'Mute'} @${user.username}`}
+										</DropdownMenuItem>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											className="text-red-300"
+											onSelect={() => toggleSafetyControl('block')}
+										>
+											{`${loaderData.safetyState.isBlocked ? 'Unblock' : 'Block'} @${user.username}`}
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
 							</>
 						) : null}
 						<Button
@@ -170,6 +261,11 @@ export default function ProfileRoute() {
 								Watchlists
 							</Link>
 						</Button>
+						{relationshipError ? (
+							<p className="user-landing-action-error" role="alert">
+								{relationshipError}
+							</p>
+						) : null}
 					</div>
 				</div>
 			</div>

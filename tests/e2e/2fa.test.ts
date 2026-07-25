@@ -27,6 +27,7 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 		.fill(generateTOTP(options).otp)
 	await main.getByRole('button', { name: /submit/i }).click()
 
+	await main.getByRole('link', { name: /I saved these codes/i }).click()
 	await expect(main).toHaveText(/You have enabled two-factor authentication./i)
 	await expect(main.getByRole('link', { name: /disable 2fa/i })).toBeVisible()
 

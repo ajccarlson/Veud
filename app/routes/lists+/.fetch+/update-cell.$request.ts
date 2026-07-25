@@ -1,7 +1,8 @@
 import { type Prisma } from '@prisma/client'
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireEntryOwner } from '#app/utils/lists/authorization.server.ts'
+import { requireOwnedEntry } from '#app/utils/lists/authorization.server.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 
 async function updateEntryAndTrackingState(
@@ -37,7 +38,14 @@ function castType(varIn: unknown, varType: string): unknown {
 	} else if (typeFormatted.includes('string') || typeFormatted.includes('text'))
 		return String(varIn)
 	else if (typeFormatted.includes('date') || typeFormatted.includes('time')) {
-		const value = new Date(varIn as string | number | Date)
+		if (
+			typeof varIn !== 'string' &&
+			typeof varIn !== 'number' &&
+			!(varIn instanceof Date)
+		) {
+			throw new Response('Invalid date value', { status: 400 })
+		}
+		const value = new Date(varIn)
 		if (Number.isNaN(value.getTime())) {
 			throw new Response('Invalid date value', { status: 400 })
 		}
@@ -46,19 +54,19 @@ function castType(varIn: unknown, varType: string): unknown {
 	else return varIn
 }
 
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function updateEntryCellCommand(
+	ownerId: string,
+	input: {
+		entryId: string | null
+		columnId: string | null
+		value: unknown
+	},
+) {
 	try {
-		const searchParams = new URLSearchParams(params.request)
-
-		// Captured once up front. Each is `string | null`; the null handling below is
-		// explicit and matches the original (repeated `searchParams.get()` calls returned
-		// the same value anyway). The `as string` casts are runtime no-ops that preserve
-		// behavior exactly — including the errors the inner try/catches deliberately swallow.
-		const rowIndex = searchParams.get('rowIndex')
-		const colId = searchParams.get('colId')
-		const newValue = searchParams.get('newValue')
-
-		const { entry, watchlist } = await requireEntryOwner(request, rowIndex)
+		const rowIndex = input.entryId
+		const colId = input.columnId
+		const newValue = input.value
+		const { entry, watchlist } = await requireOwnedEntry(ownerId, rowIndex)
 		const listType = await prisma.listType.findUnique({
 			where: { id: watchlist.typeId },
 			select: { columns: true, mediaType: true },
@@ -208,14 +216,22 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		let valueFormatted: unknown
 		const columnName = colId
 
-		if (expectedType.toLowerCase().includes('history')) {
-			if (colId == 'length') {
-				parsedHistoryObject['progress'] = JSON.parse(newValue as string)
-			} else {
-				parsedHistoryObject[colId as string] =
-					newValue && newValue != 'null'
-						? new Date(newValue).toISOString()
-						: null
+			if (expectedType.toLowerCase().includes('history')) {
+				if (colId == 'length') {
+					parsedHistoryObject['progress'] = JSON.parse(newValue as string)
+				} else {
+					if (
+						newValue &&
+						newValue !== 'null' &&
+						typeof newValue !== 'string' &&
+						typeof newValue !== 'number'
+					) {
+						throw new Response('Invalid history date', { status: 400 })
+					}
+					parsedHistoryObject[colId as string] =
+						newValue && newValue != 'null'
+							? new Date(newValue as string | number).toISOString()
+							: null
 			}
 
 			return await prisma.$transaction(tx =>
@@ -241,4 +257,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		console.error('[update-cell] failed to update cell:', e)
 		throw new Response('Failed to update cell', { status: 500 })
 	}
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	return updateEntryCellCommand(ownerId, {
+		entryId: searchParams.get('rowIndex'),
+		columnId: searchParams.get('colId'),
+		value: searchParams.get('newValue'),
+	})
 }

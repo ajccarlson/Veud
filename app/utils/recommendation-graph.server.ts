@@ -291,7 +291,20 @@ export async function getRecommendationGraph(
 			take: 500,
 		}),
 		prisma.follow.findMany({
-			where: { followerId: viewerId },
+			where: {
+				followerId: viewerId,
+				following: {
+					safetyControlsReceived: {
+						none: {
+							ownerId: viewerId,
+							kind: { in: ['mute', 'block'] },
+						},
+					},
+					safetyControlsOwned: {
+						none: { targetId: viewerId, kind: 'block' },
+					},
+				},
+			},
 			select: { followingId: true },
 			orderBy: { createdAt: 'desc' },
 			take: 500,
