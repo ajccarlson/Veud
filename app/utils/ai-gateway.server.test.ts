@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import {
@@ -5,9 +6,11 @@ import {
 	requestStructuredAi,
 	resetAiGatewayStateForTests,
 } from './ai-gateway.server.ts'
+import { prisma } from './db.server.ts'
 
 afterEach(() => {
 	vi.unstubAllEnvs()
+	vi.unstubAllGlobals()
 	resetAiGatewayStateForTests()
 })
 
@@ -100,6 +103,45 @@ test('enforces per-capability rate limits without sending rejected requests', as
 		reason: 'rate-limited',
 	})
 	expect(fetchImpl).toHaveBeenCalledOnce()
+})
+
+test('coordinates production limits across process state and persists privacy-safe telemetry', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	const subject = `member-${randomUUID()}`
+	const fetchMock = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	vi.stubGlobal('fetch', fetchMock)
+	const request = () =>
+		requestStructuredAi({
+			capability: 'tracking-command',
+			promptVersion: 'durable-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'private and never stored' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: subject,
+			rateLimit: 1,
+			now: 10_000,
+		})
+
+	await expect(request()).resolves.toEqual({ value: 'ok' })
+	resetAiGatewayStateForTests()
+	await expect(request()).rejects.toMatchObject({ reason: 'rate-limited' })
+	expect(fetchMock).toHaveBeenCalledOnce()
+
+	const events = await prisma.aiUsageEvent.findMany({
+		where: { promptVersion: 'durable-test-v1' },
+	})
+	expect(events.map(event => event.outcome).sort()).toEqual([
+		'rate-limited',
+		'success',
+	])
+	expect(JSON.stringify(events)).not.toContain('private and never stored')
+	await prisma.aiUsageEvent.deleteMany({
+		where: { promptVersion: 'durable-test-v1' },
+	})
 })
 
 test('opens a shared circuit for provider and quota failures', async () => {

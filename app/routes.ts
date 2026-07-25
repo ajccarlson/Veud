@@ -100,57 +100,6 @@ export default [
 		path: 'lists/:username/',
 		index: true,
 	}),
-	appRoute('routes/lists+/.fetch+/add-favorite.$request.ts', {
-		path: 'lists/fetch/add-favorite/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/add-row.$request.ts', {
-		path: 'lists/fetch/add-row/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/advanced-edit.$request.ts', {
-		path: 'lists/fetch/advanced-edit',
-	}),
-	appRoute('routes/lists+/.fetch+/create-watchlist.$request.ts', {
-		path: 'lists/fetch/create-watchlist/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/delete-empty-rows.$request.ts', {
-		path: 'lists/fetch/delete-empty-rows/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/delete-row.$request.ts', {
-		path: 'lists/fetch/delete-row/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/delete-watchlist.$request.ts', {
-		path: 'lists/fetch/delete-watchlist/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/fix-watchlist-order.$request.ts', {
-		path: 'lists/fetch/fix-watchlist-order/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/get-list-entries.$request.ts', {
-		path: 'lists/fetch/get-list-entries/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/move-row.$request.ts', {
-		path: 'lists/fetch/move-row/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/now-updated.$request.ts', {
-		path: 'lists/fetch/now-updated/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/remove-favorite.$request.ts', {
-		path: 'lists/fetch/remove-favorite/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/reorder-favorite.$request.ts', {
-		path: 'lists/fetch/reorder-favorite/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/reorder-rows.$request.ts', {
-		path: 'lists/fetch/reorder-rows/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/update-cell.$request.ts', {
-		path: 'lists/fetch/update-cell/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/update-row.$request.ts', {
-		path: 'lists/fetch/update-row/:request',
-	}),
-	appRoute('routes/lists+/.fetch+/update-settings.$request.ts', {
-		path: 'lists/fetch/update-settings/:request',
-	}),
 	appRoute('routes/lists+/index.tsx', {
 		path: 'lists/',
 		index: true,
@@ -166,6 +115,9 @@ export default [
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/calendar[.]ics.ts', {
 		path: 'resources/calendar.ics',
+	}),
+	appRoute('routes/resources+/consumption.v1.ts', {
+		path: 'resources/consumption/v1',
 	}),
 	appRoute('routes/resources+/download-user-data.tsx', {
 		path: 'resources/download-user-data',
@@ -199,6 +151,9 @@ export default [
 	}),
 	appRoute('routes/resources+/tracking-assistant.ts', {
 		path: 'resources/tracking-assistant',
+	}),
+	appRoute('routes/resources+/user-safety.ts', {
+		path: 'resources/user-safety',
 	}),
 	appRoute('routes/resources+/home-dashboard-preferences.ts', {
 		path: 'resources/home-dashboard-preferences',

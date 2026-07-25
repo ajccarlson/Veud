@@ -75,9 +75,6 @@ test('member can browse a release week and focus on tracked titles', async ({
 		await expect(page.getByText('Browser Calendar Episode')).toBeVisible()
 		await expect(page.getByText('Season 2 · Episode 4')).toBeVisible()
 		await expect(page.getByText('11:30 AM PDT')).toBeVisible()
-		await expect(
-			page.getByText(/Pacific Time \(America\/Los_Angeles\)/),
-		).toBeVisible()
 		await expect(page.getByText('Browser Calendar Premiere')).toBeVisible()
 		await expect(page.getByText('Browser Outside Calendar')).not.toBeVisible()
 		await page

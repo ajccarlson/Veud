@@ -39,6 +39,7 @@
     "media:backfill": "tsx scripts/backfill-media-identities.ts",
     "moderation:bootstrap-owner": "tsx scripts/bootstrap-community-owner.ts",
     "notifications:digests": "tsx scripts/send-notification-digests.ts",
+    "postinstall": "node scripts/patch-brace-expansion-compat.mjs",
     "prisma:generate:postgres": "npm run prisma:postgres:check && cross-env DATABASE_URL=postgresql://schema-generation:unused@localhost:5432/veud prisma generate --schema=prisma/postgresql/schema.prisma",
     "prisma:generate:sqlite": "prisma generate --schema=prisma/schema.prisma",
     "prisma:postgres:check": "node scripts/sync-postgres-prisma-schema.mjs --check && cross-env DATABASE_URL=postgresql://schema-validation:unused@localhost:5432/veud prisma validate --schema=prisma/postgresql/schema.prisma",
@@ -233,7 +234,8 @@
     "node": "22"
   },
   "overrides": {
-    "@react-spring/web": "9.4.5"
+    "@react-spring/web": "9.4.5",
+    "brace-expansion": "5.0.8"
   },
   "epic-stack": true
 }

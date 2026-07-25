@@ -31,12 +31,38 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			},
 			roles: true,
 			consents: true,
+			trackingStates: {
+				include: { progress: true },
+			},
+			consumptionEvents: {
+				include: {
+					installment: {
+						select: {
+							id: true,
+							kind: true,
+							seasonNumber: true,
+							number: true,
+							absoluteNumber: true,
+							title: true,
+						},
+					},
+				},
+			},
 			recommendationFeedback: {
 				select: {
 					id: true,
 					mediaId: true,
 					feedbackType: true,
 					sourceLane: true,
+					createdAt: true,
+					updatedAt: true,
+				},
+			},
+			safetyControlsOwned: {
+				select: {
+					id: true,
+					targetId: true,
+					kind: true,
 					createdAt: true,
 					updatedAt: true,
 				},

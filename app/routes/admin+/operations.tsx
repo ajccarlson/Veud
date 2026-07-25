@@ -15,7 +15,7 @@ import {
 } from '#app/components/ui/veud-layout.tsx'
 import {
 	aiCapabilities,
-	getAiGatewayTelemetry,
+	getAiGatewayOperationsTelemetry,
 	isAiCapabilityConfigured,
 } from '#app/utils/ai-gateway.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -62,7 +62,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			error: error instanceof Error ? error.name : 'DatabaseError',
 		}
 	}
-	const [runtime, incidents] = await Promise.all([
+	const [runtime, incidents, aiEvents] = await Promise.all([
 		Promise.resolve(getRuntimeOperationsSnapshot()),
 		prisma.serviceIncident.findMany({
 			orderBy: { startedAt: 'desc' },
@@ -76,6 +76,9 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				resolvedAt: true,
 			},
 		}),
+		getAiGatewayOperationsTelemetry(
+			new Date(Date.now() - 24 * 60 * 60 * 1_000),
+		),
 	])
 	const health =
 		database.status === 'critical' || runtime.requests.errorRatePercent >= 5
@@ -84,7 +87,6 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				  runtime.requests.p95Ms >= 1_500
 				? 'degraded'
 				: 'healthy'
-	const aiEvents = getAiGatewayTelemetry()
 	const ai = aiCapabilities.map(capability => {
 		const events = aiEvents.filter(event => event.capability === capability)
 		const durations = events
@@ -398,10 +400,8 @@ export default function OperationsAdminRoute() {
 						AI capability health
 					</h2>
 					<p className="mt-1 text-sm text-veud-copy">
-						Process-local, privacy-safe telemetry only: capability, outcome,
-						latency, and token counts. Prompts, drafts, reports, and images are
-						never logged here. Set VEUD_AI_ENABLED=false for the global kill
-						switch.
+						Last 24 hours. Prompts, responses, images, and member identifiers
+						are never retained. VEUD_AI_ENABLED=false is the global kill switch.
 					</p>
 				</div>
 				<div className="mt-4 overflow-x-auto">

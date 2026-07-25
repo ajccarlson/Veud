@@ -14,6 +14,7 @@ import {
 import { buildProfileHistory } from '#app/utils/profile-history.ts'
 import { buildProfileTrackingSummaries } from '#app/utils/profile-tracking.ts'
 import { type Timings, time } from '#app/utils/timing.server.ts'
+import { getUserSafetyState } from '#app/utils/user-safety.server.ts'
 
 const LEGACY_ACTIVITY_GRACE_MS = 60_000
 
@@ -148,7 +149,7 @@ export async function loadProfileShell(
 
 	invariantResponse(user, 'User not found', { status: 404 })
 
-	const [isFollowing, listTypes, watchLists] = await time(
+	const [isFollowing, safetyState, listTypes, watchLists] = await time(
 		Promise.all([
 			viewerId && viewerId !== user.id
 				? prisma.follow
@@ -163,6 +164,13 @@ export async function loadProfileShell(
 						})
 						.then(Boolean)
 				: false,
+			viewerId && viewerId !== user.id
+				? getUserSafetyState(prisma, viewerId, user.id)
+				: {
+						isMuted: false,
+						isBlocked: false,
+						isBlockedByTarget: false,
+					},
 			prisma.listType.findMany({ select: listTypeSelect }),
 			prisma.watchlist.findMany({
 				where: {
@@ -196,6 +204,7 @@ export async function loadProfileShell(
 		followerCount: user._count.followers,
 		followingCount: user._count.following,
 		isFollowing,
+		safetyState,
 	}
 }
 

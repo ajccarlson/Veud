@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	requireWatchlistOwner,
+	requireOwnedWatchlist,
 	stripProtectedFields,
 } from '#app/utils/lists/authorization.server.ts'
 import {
@@ -14,23 +15,14 @@ import { syncMediaRelations } from '#app/utils/media-relations.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const searchParams = new URLSearchParams(params.request)
-
-	let row: unknown
-	try {
-		row = JSON.parse(searchParams.get('row') ?? '')
-	} catch {
-		throw new Response('Invalid row payload', { status: 400 })
-	}
+export async function addEntryCommand(ownerId: string, row: unknown) {
 	if (!row || typeof row !== 'object' || Array.isArray(row)) {
 		throw new Response('Invalid row payload', { status: 400 })
 	}
 	const rowObj = row as Record<string, unknown>
 
-	// The row may only be added to a watchlist the current user owns.
-	const { userId, watchlist } = await requireWatchlistOwner(
-		request,
+	const watchlist = await requireOwnedWatchlist(
+		ownerId,
 		rowObj.watchlistId as string | null | undefined,
 	)
 
@@ -44,6 +36,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		listType.name,
 		typeof rowObj.thumbnail === 'string' ? rowObj.thumbnail : null,
 	)
+	if (!mediaIdentity) {
+		throw new Response('Choose a catalog title before adding it to a list', {
+			status: 400,
+		})
+	}
 	const mediaRelations = mediaIdentity
 		? parseMediaRelationCandidates(rowObj.mediaRelations, mediaIdentity)
 		: null
@@ -75,35 +72,28 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			data: { position: { increment: 1 } },
 		})
 
-		const mediaId = mediaIdentity
-			? await ensureMediaForIdentity(tx, mediaIdentity)
-			: undefined
-		if (mediaId) {
-			await hydrateMediaCatalog(tx, mediaId, data, {
-				authoritativeFields: ['nextRelease'],
-				syncLegacyFields: ['nextRelease'],
-			})
-		}
-		if (mediaId && mediaIdentity && mediaRelations) {
+		const mediaId = await ensureMediaForIdentity(tx, mediaIdentity)
+		await hydrateMediaCatalog(tx, mediaId, data, {
+			authoritativeFields: ['nextRelease'],
+			syncLegacyFields: ['nextRelease'],
+		})
+		if (mediaRelations) {
 			await syncMediaRelations(tx, {
 				sourceMediaId: mediaId,
 				sourceIdentity: mediaIdentity,
 				relations: mediaRelations,
 			})
 		}
-		const trackingStateId =
-			mediaId && mediaIdentity
-				? await ensureTrackingStateForEntry(tx, {
-						ownerId: userId,
-						mediaId,
-						mediaKind: mediaIdentity.kind,
-						status: watchlist.name,
-						statusWatchlistId: watchlist.id,
-						entry: data,
-						mode: 'status',
-						recordActivity: true,
-					})
-				: undefined
+		const trackingStateId = await ensureTrackingStateForEntry(tx, {
+			ownerId,
+			mediaId,
+			mediaKind: mediaIdentity.kind,
+			status: watchlist.name,
+			statusWatchlistId: watchlist.id,
+			entry: data,
+			mode: 'status',
+			recordActivity: true,
+		})
 
 		const entry = await tx.entry.create({
 			data: { ...data, position, mediaId, trackingStateId } as any,
@@ -111,4 +101,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		await claimWatchlistRevisions(tx, [watchlist])
 		return entry
 	})
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	let row: unknown
+	try {
+		row = JSON.parse(searchParams.get('row') ?? '')
+	} catch {
+		throw new Response('Invalid row payload', { status: 400 })
+	}
+	return addEntryCommand(ownerId, row)
 }

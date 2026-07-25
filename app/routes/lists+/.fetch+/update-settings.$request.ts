@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireWatchlistOwner } from '#app/utils/lists/authorization.server.ts'
+import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
 import {
 	getSortableWatchlistColumns,
 	normalizeWatchlistSortColumn,
@@ -50,22 +51,14 @@ function validatedSetting(key: string, value: unknown) {
 	return value
 }
 
-export async function action({ request, params }: ActionFunctionArgs) {
-	const searchParams = new URLSearchParams(params.request)
-
-	const listId = searchParams.get('listId')
-
-	// Only the owner may change this watchlist's settings.
-	const { userId, watchlist } = await requireWatchlistOwner(request, listId)
-
-	let rawSettings: unknown
-	try {
-		rawSettings = JSON.parse(searchParams.get('settings') ?? '')
-	} catch {
-		throw new Response('Invalid settings payload', { status: 400 })
-	}
-	const parsedSettings = SettingsSchema.safeParse(rawSettings)
-	if (!parsedSettings.success) {
+export async function updateWatchlistSettingsCommand(
+	ownerId: string,
+	watchlistId: string | null,
+	rawSettings: unknown,
+) {
+	const watchlist = await requireOwnedWatchlist(ownerId, watchlistId)
+	const settings = z.record(z.unknown()).safeParse(rawSettings)
+	if (!settings.success) {
 		throw new Response('Invalid settings payload', { status: 400 })
 	}
 
@@ -78,7 +71,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	// Whitelist: keep only editable fields, dropping any others (mass-assignment guard).
 	const data: Record<string, unknown> = {}
-	for (const [key, value] of parsedSettings.data) {
+	for (const [key, value] of Object.entries(settings.data)) {
 		if (EDITABLE_SETTINGS.includes(key)) {
 			if (key === 'isPublic' && typeof value !== 'boolean') {
 				throw new Response('Invalid visibility setting', { status: 400 })
@@ -117,7 +110,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		await syncWatchlistActivityVisibility(tx, result)
 
 		const remaining = await tx.watchlist.findMany({
-			where: { typeId: watchlist.typeId, ownerId: userId },
+			where: { typeId: watchlist.typeId, ownerId },
 			orderBy: { position: 'asc' },
 		})
 
@@ -133,4 +126,24 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 	// The client reads the updated watchlist as the last element of the returned array.
 	return [updated]
+}
+
+export async function action({ request, params }: ActionFunctionArgs) {
+	const ownerId = await requireUserId(request)
+	const searchParams = new URLSearchParams(params.request)
+	let rawSettings: unknown
+	try {
+		rawSettings = JSON.parse(searchParams.get('settings') ?? '')
+	} catch {
+		throw new Response('Invalid settings payload', { status: 400 })
+	}
+	const parsedSettings = SettingsSchema.safeParse(rawSettings)
+	if (!parsedSettings.success) {
+		throw new Response('Invalid settings payload', { status: 400 })
+	}
+	return updateWatchlistSettingsCommand(
+		ownerId,
+		searchParams.get('listId'),
+		Object.fromEntries(parsedSettings.data),
+	)
 }

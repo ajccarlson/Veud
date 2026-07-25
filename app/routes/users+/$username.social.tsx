@@ -17,6 +17,7 @@ import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { Textarea } from '#app/components/ui/textarea.tsx'
+import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserImgSrc, useDoubleCheck } from '#app/utils/misc.tsx'
 import {
@@ -24,6 +25,7 @@ import {
 	type ProfileCommentItem,
 	type ProfileShellData,
 } from '#app/utils/profile.ts'
+import { excludedUserIdsFor } from '#app/utils/user-safety.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 
 export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profile-ui.tsx'
@@ -37,17 +39,25 @@ function formatCommentDate(date: Date) {
 	}).format(date)
 }
 
-export async function loader({ params }: LoaderFunctionArgs) {
+export async function loader({ request, params }: LoaderFunctionArgs) {
+	const viewerId = await getUserId(request)
 	const profile = await prisma.user.findUnique({
 		where: { username: params['username'] },
 		select: { id: true },
 	})
 
 	invariantResponse(profile, 'User not found', { status: 404 })
+	const excludedUserIds = viewerId
+		? await excludedUserIdsFor(prisma, viewerId)
+		: []
 
 	const comments = (
 		await prisma.profileComment.findMany({
-			where: { profileId: profile.id, moderationStatus: 'visible' },
+			where: {
+				profileId: profile.id,
+				moderationStatus: 'visible',
+				authorId: { notIn: excludedUserIds },
+			},
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: PROFILE_COMMENT_PAGE_SIZE,
 			select: {
@@ -239,7 +249,9 @@ export default function ProfileSocial() {
 				meta={`${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}`}
 			/>
 
-			{currentUser ? (
+			{currentUser &&
+			!profileData.safetyState.isBlocked &&
+			!profileData.safetyState.isBlockedByTarget ? (
 				<form className="user-landing-social-composer" onSubmit={submitComment}>
 					<label htmlFor="profile-comment-body">Leave a comment</label>
 					<Textarea
@@ -263,7 +275,13 @@ export default function ProfileSocial() {
 				</form>
 			) : (
 				<div className="user-landing-social-sign-in">
-					<Link to={loginUrl}>Sign in</Link> to leave a comment.
+					{currentUser ? (
+						'Comments are unavailable for this profile.'
+					) : (
+						<>
+							<Link to={loginUrl}>Sign in</Link> to leave a comment.
+						</>
+					)}
 				</div>
 			)}
 

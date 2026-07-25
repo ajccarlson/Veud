@@ -2,6 +2,7 @@ import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { assertUsersCanInteract } from '#app/utils/user-safety.server.ts'
 
 const FollowActionSchema = z.object({
 	userId: z.string().trim().min(1).max(100),
@@ -55,6 +56,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			select: { id: true },
 		})
 		if (!following) throw new Response('Profile not found', { status: 404 })
+		await assertUsersCanInteract(prisma, followerId, followingId)
 		// upsert makes following idempotent (the unique constraint would otherwise
 		// throw on a double-follow).
 		await prisma.follow.upsert({

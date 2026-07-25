@@ -6,7 +6,7 @@ import {
 } from 'react-router'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { Link } from 'react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { prisma } from '#app/utils/db.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
@@ -27,30 +27,15 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { GetWatchlistSettings } from '#app/routes/lists+/.$username+/.$list-type+/_settings.tsx'
 import '#app/styles/list-landing.scss'
 
-async function createNewList(listParams: any) {
-	const typeId = listParams.listTypeData.id
-
-	let lastPosition = 1
-	if (listParams && listParams.sameType.length > 0) {
-		lastPosition = listParams.sameType.slice(-1)[0].watchlist.position + 1
-	}
-
+async function createNewList(
+	listParams: any,
+	input: { header: string; description: string; isPublic: boolean },
+) {
 	const addData = await mutateList<'create-watchlist', any>(
 		'create-watchlist',
 		{
-			position: lastPosition,
-			name: ' ',
-			header: ' ',
-			typeId,
-			displayedColumns: Object.keys(
-				JSON.parse(listParams.listTypeData.columns) as Record<string, unknown>,
-			)
-				.filter(
-					entry =>
-						entry !== 'id' && entry !== 'watchlistId' && entry !== 'watchlist',
-				)
-				.join(', '),
-			description: ' ',
+			typeId: listParams.listTypeData.id,
+			...input,
 		},
 	)
 
@@ -61,8 +46,7 @@ async function createNewList(listParams: any) {
 			listEntries: [],
 		},
 	])
-
-	listParams.setShownSettings([...listParams.shownSettings, addData.id])
+	return addData
 }
 
 function getWatchlistNav(entryData: any, listParams: any) {
@@ -302,6 +286,9 @@ export default function Lists() {
 	const navigation = useNavigation()
 	const currentUser = useOptionalUser()
 	const currentUserId = currentUser ? currentUser.id : null
+	const createDialogRef = useRef<HTMLDialogElement>(null)
+	const [creatingList, setCreatingList] = useState(false)
+	const [createListError, setCreateListError] = useState('')
 
 	useEffect(() => {
 		setWatchListData(loaderData.watchListData)
@@ -328,6 +315,30 @@ export default function Lists() {
 		setSettingsErrors,
 	}
 	const navItems = listNavigationDisplayer(listParams)
+
+	async function handleCreateList(event: FormEvent<HTMLFormElement>) {
+		event.preventDefault()
+		if (creatingList) return
+		const form = event.currentTarget
+		const formData = new FormData(form)
+		setCreatingList(true)
+		setCreateListError('')
+		try {
+			await createNewList(listParams, {
+				header: String(formData.get('header') ?? ''),
+				description: String(formData.get('description') ?? ''),
+				isPublic: formData.get('visibility') !== 'private',
+			})
+			form.reset()
+			createDialogRef.current?.close()
+		} catch (error) {
+			setCreateListError(
+				error instanceof Error ? error.message : 'Could not create this list',
+			)
+		} finally {
+			setCreatingList(false)
+		}
+	}
 
 	let firstListMessage: string | undefined
 	if (!sameType || sameType.length < 1) {
@@ -367,13 +378,81 @@ export default function Lists() {
 							type="button"
 							className="list-landing-nav-insert"
 							onClick={() => {
-								createNewList(listParams)
+								setCreateListError('')
+								createDialogRef.current?.showModal()
 							}}
 						>
 							<Icon name="plus" aria-hidden="true" />
 							Create list
 						</button>
 					) : null}
+					<dialog
+						ref={createDialogRef}
+						className="list-create-dialog"
+						aria-labelledby="create-list-title"
+					>
+						<form className="list-create-form" onSubmit={handleCreateList}>
+							<header>
+								<div>
+									<p className="list-create-eyebrow">
+										{loaderData.listTypeData.header}
+									</p>
+									<h2 id="create-list-title">Create a list</h2>
+								</div>
+								<button
+									type="button"
+									className="list-create-close"
+									aria-label="Close"
+									onClick={() => createDialogRef.current?.close()}
+								>
+									×
+								</button>
+							</header>
+							<label>
+								<span>Name</span>
+								<input
+									name="header"
+									required
+									minLength={3}
+									maxLength={100}
+									autoFocus
+									placeholder="Weekend watchlist"
+								/>
+							</label>
+							<label>
+								<span>Description</span>
+								<textarea
+									name="description"
+									maxLength={5000}
+									rows={3}
+									placeholder="Optional"
+								/>
+							</label>
+							<label>
+								<span>Visibility</span>
+								<select name="visibility" defaultValue="public">
+									<option value="public">Public</option>
+									<option value="private">Private</option>
+								</select>
+							</label>
+							{createListError ? (
+								<p className="list-create-error" role="alert">
+									{createListError}
+								</p>
+							) : null}
+							<footer>
+								<button
+									type="button"
+									onClick={() => createDialogRef.current?.close()}
+								>
+									Cancel
+								</button>
+								<button type="submit" disabled={creatingList}>
+									{creatingList ? 'Creating…' : 'Create list'}
+								</button>
+							</footer>
+						</form>
+					</dialog>
 				</div>
 			</div>
 			<nav
