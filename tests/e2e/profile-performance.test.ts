@@ -50,19 +50,20 @@ test('profile tabs load their own data without reloading the heavy shell', async
 
 	await page.getByRole('link', { name: 'Reviews', exact: true }).click()
 	await expect(page.getByRole('heading', { name: 'Reviews' })).toBeVisible()
-	await page.getByRole('link', { name: 'Diary', exact: true }).click()
-	await expect(page.getByRole('heading', { name: 'Diary' })).toBeVisible()
-	await page.getByRole('link', { name: 'Activity', exact: true }).click()
+	await page.getByRole('link', { name: 'Journal', exact: true }).click()
 	await expect(
 		page.getByRole('heading', { name: 'Recent Activity' }),
 	).toBeVisible()
-	await page.getByRole('link', { name: 'Favorites', exact: true }).click()
-	await expect(page.getByRole('heading', { name: 'Favorites' })).toBeVisible()
+	await page.getByRole('link', { name: 'Collections', exact: true }).click()
+	await expect(page.getByRole('heading', { name: 'Collections' })).toBeVisible()
+	await page.getByRole('link', { name: 'Stats', exact: true }).click()
+	await expect(page.getByRole('heading', { name: 'Stats' })).toBeVisible()
+	await page.getByRole('link', { name: 'Social', exact: true }).click()
+	await expect(page.getByRole('heading', { name: 'Guestbook' })).toBeVisible()
 
 	const combinedTimings = navigationTimings.join(',')
 	expect(combinedTimings).toContain('profile_reviews')
-	expect(combinedTimings).toContain('profile_diary')
 	expect(combinedTimings).toContain('profile_activity')
-	expect(combinedTimings).toContain('profile_favorites')
+	expect(combinedTimings).toContain('profile_stats')
 	expect(combinedTimings).not.toContain('profile_shell')
 })

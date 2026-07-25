@@ -396,7 +396,7 @@
 		em {
 			grid-column: 2;
 			color: #dffff0;
-			font-family: Arial, sans-serif;
+			font-family: var(--veud-font-sans);
 			font-size: 0.72rem;
 			line-height: 1.35;
 		}
@@ -433,7 +433,7 @@
 		min-width: 0;
 		align-items: center;
 		gap: 0.35rem;
-		font-family: Arial, sans-serif;
+		font-family: var(--veud-font-sans);
 		font-size: 0.78rem;
 	}
 
@@ -514,6 +514,107 @@
 			outline-offset: 2px;
 			transform: translateY(-0.1rem);
 		}
+	}
+
+	.list-create-dialog {
+		width: min(calc(100% - 2rem), 32rem);
+		margin: auto;
+		padding: 0;
+		overflow: hidden;
+		color: #ffefcc;
+		background: rgb(var(--veud-surface));
+		border: 1px solid rgb(var(--veud-mint) / 50%);
+		border-radius: 0.8rem;
+		box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 60%);
+
+		&::backdrop {
+			background: rgb(var(--veud-canvas) / 78%);
+			backdrop-filter: blur(0.3rem);
+		}
+	}
+
+	.list-create-form {
+		display: grid;
+		gap: 1rem;
+		padding: 1.2rem;
+
+		header,
+		footer {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.75rem;
+		}
+
+		h2,
+		p {
+			margin: 0;
+		}
+
+		h2 {
+			color: #ffffb1;
+			font-size: 1.4rem;
+		}
+
+		label {
+			display: grid;
+			gap: 0.35rem;
+			color: #dffff0;
+			font-size: 0.84rem;
+			font-weight: 800;
+		}
+
+		input,
+		textarea,
+		select {
+			width: 100%;
+			padding: 0.65rem 0.75rem;
+			color: #fff7e8;
+			background: rgb(var(--veud-canvas) / 90%);
+			border: 1px solid rgb(var(--veud-border) / 80%);
+			border-radius: 0.4rem;
+
+			&:focus-visible {
+				border-color: var(--list-landing-accent);
+				outline: 2px solid rgb(var(--veud-mint) / 25%);
+			}
+		}
+
+		footer {
+			justify-content: flex-end;
+
+			button {
+				padding: 0.55rem 0.85rem;
+				color: #ffefcc;
+				background: transparent;
+				border: 1px solid rgb(var(--veud-border) / 80%);
+				border-radius: 999px;
+				font-weight: 800;
+			}
+
+			button[type='submit'] {
+				color: #18211d;
+				background: var(--list-landing-accent);
+				border-color: var(--list-landing-accent);
+			}
+		}
+	}
+
+	.list-create-eyebrow {
+		color: var(--list-landing-warm);
+		font-size: 0.7rem;
+		font-weight: 900;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+
+	.list-create-close {
+		color: #ffefcc;
+		font-size: 1.5rem;
+	}
+
+	.list-create-error {
+		color: #ffd9d2;
 	}
 
 	@media (max-width: 65rem) {

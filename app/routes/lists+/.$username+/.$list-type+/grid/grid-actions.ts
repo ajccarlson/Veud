@@ -309,39 +309,6 @@ export function getAllRows() {
 	return rowData
 }
 
-export function createEmptyRow(
-	watchlistId: string,
-	position: number,
-	listTypeData: { columns: string },
-) {
-	const emptyRow: WatchlistRow = { watchlistId, position }
-
-	for (const [key, value] of Object.entries(
-		JSON.parse(listTypeData.columns) as Record<string, unknown>,
-	)) {
-		if (key == 'id') {
-			continue
-		}
-		if (value == 'string') {
-			emptyRow[key] = ' '
-		} else if (value == 'number') {
-			emptyRow[key] = 0
-		} else if (value == 'date') {
-			emptyRow[key] = null
-		} else if (value == 'history') {
-			emptyRow['history'] = JSON.stringify({
-				added: Date.now(),
-				started: null,
-				finished: null,
-				progress: null,
-				lastUpdated: Date.now(),
-			})
-		}
-	}
-
-	return emptyRow
-}
-
 export async function refreshGrid(columnParams: WatchlistColumnParams) {
 	const listEntriesData = (
 		await getWatchlistEntries<WatchlistRow[]>(columnParams.watchlistId)
@@ -420,38 +387,6 @@ export async function rowDragEnd(params: any) {
 
 export const rowDragText = function (params: any) {
 	return `${params.rowNode.data?.title ?? 'Untitled'} (${(params.rowNode.rowIndex ?? 0) + 1})`
-}
-
-export async function createNewRow(
-	location: 'Above' | 'Below',
-	params: { data: WatchlistRow },
-) {
-	let insertPosition = 0
-	if (location == 'Above') {
-		if (params.data.position < 1) {
-			insertPosition = 0
-		} else {
-			insertPosition = params.data.position - 1
-		}
-	} else insertPosition = params.data.position
-
-	const emptyRow = createEmptyRow(
-		params.data.watchlistId,
-		insertPosition,
-		columnParams.listTypeData,
-	)
-
-	const addData = await mutateList<'add-entry', any>('add-entry', {
-		row: emptyRow,
-	})
-
-	gridAPI.applyTransaction({ add: [addData], addIndex: insertPosition })
-
-	await mutateList('touch-watchlist', {
-		watchlistId: params.data.watchlistId,
-	})
-
-	updatePositions()
 }
 
 export async function updatePositions() {

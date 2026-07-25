@@ -20,13 +20,21 @@ export async function requireWatchlistOwner(
 	watchlistId: string | null | undefined,
 ) {
 	const userId = await requireUserId(request)
+	const watchlist = await requireOwnedWatchlist(userId, watchlistId)
+	return { userId, watchlist }
+}
+
+export async function requireOwnedWatchlist(
+	ownerId: string,
+	watchlistId: string | null | undefined,
+) {
 	const watchlist = watchlistId
 		? await prisma.watchlist.findUnique({ where: { id: watchlistId } })
 		: null
-	if (!watchlist || watchlist.ownerId !== userId) {
+	if (!watchlist || watchlist.ownerId !== ownerId) {
 		throw new Response('Not found', { status: 404 })
 	}
-	return { userId, watchlist }
+	return watchlist
 }
 
 /**
@@ -38,6 +46,14 @@ export async function requireEntryOwner(
 	entryId: string | null | undefined,
 ) {
 	const userId = await requireUserId(request)
+	const { entry, watchlist } = await requireOwnedEntry(userId, entryId)
+	return { userId, entry, watchlist }
+}
+
+export async function requireOwnedEntry(
+	ownerId: string,
+	entryId: string | null | undefined,
+) {
 	const entry = entryId
 		? await prisma.entry.findUnique({ where: { id: entryId } })
 		: null
@@ -45,10 +61,10 @@ export async function requireEntryOwner(
 	const watchlist = await prisma.watchlist.findUnique({
 		where: { id: entry.watchlistId },
 	})
-	if (!watchlist || watchlist.ownerId !== userId) {
+	if (!watchlist || watchlist.ownerId !== ownerId) {
 		throw new Response('Not found', { status: 404 })
 	}
-	return { userId, entry, watchlist }
+	return { entry, watchlist }
 }
 
 /** Require the logged-in user to own the favorite `favoriteId`. */
@@ -57,13 +73,21 @@ export async function requireFavoriteOwner(
 	favoriteId: string | null | undefined,
 ) {
 	const userId = await requireUserId(request)
+	const favorite = await requireOwnedFavorite(userId, favoriteId)
+	return { userId, favorite }
+}
+
+export async function requireOwnedFavorite(
+	ownerId: string,
+	favoriteId: string | null | undefined,
+) {
 	const favorite = favoriteId
 		? await prisma.userFavorite.findUnique({ where: { id: favoriteId } })
 		: null
-	if (!favorite || favorite.ownerId !== userId) {
+	if (!favorite || favorite.ownerId !== ownerId) {
 		throw new Response('Not found', { status: 404 })
 	}
-	return { userId, favorite }
+	return favorite
 }
 
 /**
