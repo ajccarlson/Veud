@@ -11,6 +11,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuPortal,
 	DropdownMenuSeparator,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
@@ -44,6 +45,10 @@ export function positionColumn() {
 				columnParams.currentUserId == columnParams.listOwner.id,
 			headerCheckboxSelection:
 				columnParams.currentUserId == columnParams.listOwner.id,
+			// A filtered header selection must never include hidden rows: bulk delete
+			// acts on every selected id, so selecting the full unfiltered data set here
+			// would make a narrowed view deceptively destructive.
+			headerCheckboxSelectionFilteredOnly: true,
 			cellRenderer: (params: any) => {
 				const destinationWatchlists = (
 					columnParams.typedWatchlists[columnParams.listTypeData.id] ?? []
@@ -125,36 +130,41 @@ export function positionColumn() {
 											>
 												Advanced edit
 											</DropdownMenuItem>
-											<DropdownMenuSub>
-												<DropdownMenuSubTrigger
-													disabled={!destinationWatchlists.length}
-												>
-													Move to…
-												</DropdownMenuSubTrigger>
-												<DropdownMenuSubContent>
-													{destinationWatchlists.map((watchlist: any) => (
-														<DropdownMenuItem
-															key={watchlist.id}
-															onSelect={async () => {
-																try {
-																	await moveEntry(params.data.id, watchlist.id)
-																	columnParams.navigate(
-																		`/lists/${columnParams.listOwner.username}/${columnParams.listTypeData.name}/${watchlist.name}`,
-																	)
-																} catch (error) {
-																	console.error(
-																		'[watchlist] failed to move entry',
-																		error,
-																	)
-																	await refreshGrid(columnParams)
-																}
-															}}
-														>
-															{watchlist.header}
-														</DropdownMenuItem>
-													))}
-												</DropdownMenuSubContent>
-											</DropdownMenuSub>
+											{destinationWatchlists.length ? (
+												<DropdownMenuSub>
+													<DropdownMenuSubTrigger>
+														Move to another list
+													</DropdownMenuSubTrigger>
+													<DropdownMenuPortal>
+														<DropdownMenuSubContent>
+															{destinationWatchlists.map((watchlist: any) => (
+																<DropdownMenuItem
+																	key={watchlist.id}
+																	onSelect={async () => {
+																		try {
+																			await moveEntry(
+																				params.data.id,
+																				watchlist.id,
+																			)
+																			columnParams.navigate(
+																				`/lists/${columnParams.listOwner.username}/${columnParams.listTypeData.name}/${watchlist.name}`,
+																			)
+																		} catch (error) {
+																			console.error(
+																				'[watchlist] failed to move entry',
+																				error,
+																			)
+																			await refreshGrid(columnParams)
+																		}
+																	}}
+																>
+																	{watchlist.header}
+																</DropdownMenuItem>
+															))}
+														</DropdownMenuSubContent>
+													</DropdownMenuPortal>
+												</DropdownMenuSub>
+											) : null}
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												onSelect={async () => {

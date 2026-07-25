@@ -87,7 +87,6 @@ export default function LoginPage() {
 	const isPending = useIsPending()
 	const [searchParams] = useSearchParams()
 	const redirectTo = searchParams.get('redirectTo')
-	const suspended = searchParams.get('account') === 'suspended'
 
 	const [form, fields] = useForm({
 		id: 'login-form',
@@ -104,18 +103,6 @@ export default function LoginPage() {
 
 	return (
 		<AuthShell title="Welcome back" description="Sign in to continue.">
-			{suspended ? (
-				<p
-					role="alert"
-					className="mb-5 rounded-xl border border-red-300/50 bg-red-950/30 px-4 py-3 text-sm font-semibold text-red-100"
-				>
-					This account is suspended.{' '}
-					<Link to="/appeal" className="underline">
-						Submit an appeal
-					</Link>
-					.
-				</p>
-			) : null}
 			<Form method="POST" className="space-y-4" {...getFormProps(form)}>
 				<HoneypotInputs />
 				<Field
@@ -155,10 +142,6 @@ export default function LoginPage() {
 					<div className="flex flex-wrap items-center gap-2 text-sm sm:justify-end">
 						<Link to="/forgot-password" className="font-semibold">
 							Forgot password?
-						</Link>
-						<span className="text-muted-foreground">·</span>
-						<Link to="/appeal" className="font-semibold">
-							Appeal suspension
 						</Link>
 					</div>
 				</div>

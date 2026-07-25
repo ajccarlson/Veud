@@ -4,6 +4,7 @@ import { FavoriteSearch } from '#app/components/favorite-search.tsx'
 import {
 	ProfileEmptyState,
 	ProfilePageHeader,
+	ProfileSegmentedFilter,
 } from '#app/components/profile-ui.tsx'
 import { TypeSwitcher } from '#app/components/type-switcher.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
@@ -25,18 +26,16 @@ export function RecentActivityData({
 	data: ProfileActivityData
 }) {
 	const PAGE_SIZE = 15
-	const [filterIndex, setFilterIndex] = useState(0)
+	const [selectedTypeId, setSelectedTypeId] = useState('all')
 	const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
 	const filterOptions = [
 		{ key: 'all', label: 'All' },
 		...loaderData.listTypes.map(type => ({ key: type.id, label: type.header })),
 	]
-	const selectedFilter = filterOptions[filterIndex] ?? filterOptions[0]
-
 	useEffect(() => {
 		setVisibleCount(PAGE_SIZE)
-	}, [filterIndex])
+	}, [selectedTypeId])
 
 	const allActivity = loaderData.activityEvents.map(event => ({
 		key: event.id,
@@ -49,9 +48,9 @@ export function RecentActivityData({
 	}))
 
 	const filtered =
-		selectedFilter.key === 'all'
+		selectedTypeId === 'all'
 			? allActivity
-			: allActivity.filter(item => item.typeId === selectedFilter.key)
+			: allActivity.filter(item => item.typeId === selectedTypeId)
 
 	const visible = filtered.slice(0, visibleCount)
 
@@ -62,17 +61,19 @@ export function RecentActivityData({
 				title="Recent Activity"
 				description="A chronological view of ratings, progress, reviews, and diary entries."
 				meta={`${filtered.length} ${filtered.length === 1 ? 'update' : 'updates'}`}
+				action={
+					allActivity.length > 0 ? (
+						<ProfileSegmentedFilter
+							label="Filter recent activity by media type"
+							options={filterOptions}
+							value={selectedTypeId}
+							onValueChange={setSelectedTypeId}
+						/>
+					) : null
+				}
 			/>
 			{allActivity.length > 0 ? (
 				<div className="user-landing-feed-wrapper">
-					<div className="user-landing-feed-controls">
-						<TypeSwitcher
-							variant="primary"
-							options={filterOptions}
-							index={filterIndex}
-							onIndexChange={setFilterIndex}
-						/>
-					</div>
 					{visible.length > 0 ? (
 						<ul className="user-landing-feed">
 							{visible.map(item => {

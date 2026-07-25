@@ -25,7 +25,7 @@ export async function hydrateMediaCatalog(
 	options: {
 		overwrite?: boolean
 		authoritativeFields?: MediaCatalogField[]
-		syncLegacyFields?: MediaCatalogField[]
+		syncLegacyFields?: readonly MediaCatalogField[]
 	} = {},
 ) {
 	const candidate = catalogDataFromSnapshot(snapshot)
