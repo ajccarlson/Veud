@@ -110,16 +110,6 @@ function displayTime(value: Date | string, allDay: boolean, timeZone: string) {
 	})
 }
 
-function displayTimeZone(timeZone: string) {
-	const name = new Intl.DateTimeFormat('en-US', {
-		timeZone,
-		timeZoneName: 'longGeneric',
-	})
-		.formatToParts(new Date())
-		.find(part => part.type === 'timeZoneName')?.value
-	return timeZone === 'UTC' ? 'UTC' : `${name ?? timeZone} (${timeZone})`
-}
-
 export async function loader({ request }: LoaderFunctionArgs) {
 	const viewerId = await getUserId(request)
 	const timeZone = getHints(request).timeZone
@@ -180,12 +170,6 @@ export default function ReleaseCalendarRoute() {
 			<VeudPageHeader
 				eyebrow="What’s next"
 				title="Release calendar"
-				description={
-					<>
-						Premieres and upcoming episodes from Veud’s canonical catalog. Times
-						use your browser time zone: {displayTimeZone(data.timeZone)}.
-					</>
-				}
 				actions={
 					<div className="space-y-3 sm:text-right">
 						<div className="text-lg font-black text-veud-yellow">
