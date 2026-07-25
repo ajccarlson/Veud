@@ -5,6 +5,7 @@ import {
 	type ListMutationError,
 } from '#app/utils/lists/mutation-contracts.ts'
 import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
+import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
 
 const noStore = { 'Cache-Control': 'private, no-store' }
 
@@ -37,8 +38,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		const entries = await prisma.entry.findMany({
 			where: { watchlistId: watchlist.id },
 			orderBy: { position: 'asc' },
+			include: {
+				media: { select: { tmdbScore: true, malScore: true } },
+				trackingState: { select: { score: true } },
+			},
 		})
-		return json({ ok: true as const, data: entries }, { headers: noStore })
+		return json(
+			{
+				ok: true as const,
+				data: entries.map(normalizeWatchlistEntryScores),
+			},
+			{ headers: noStore },
+		)
 	} catch (error) {
 		if (error instanceof Response) {
 			const sourceStatus = error.status || 500
