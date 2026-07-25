@@ -12,6 +12,11 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
+	publicListOwnerSelect,
+	publicListTypeSelect,
+	publicWatchlistSelect,
+} from '#app/utils/lists/public-watchlist.server.ts'
+import {
 	timeSince,
 	getStartYear,
 	getThumbnailInfo,
@@ -197,8 +202,9 @@ export async function loader(params: LoaderFunctionArgs) {
 			where: {
 				username: params['params']['username']!,
 			},
+			select: publicListOwnerSelect,
 		}),
-		prisma.listType.findMany(),
+		prisma.listType.findMany({ select: publicListTypeSelect }),
 	])
 
 	invariantResponse(listOwner, 'User not found', { status: 404 })
@@ -213,6 +219,7 @@ export async function loader(params: LoaderFunctionArgs) {
 			ownerId: listOwner.id,
 			AND: [visibleWatchlistWhere(viewerId)],
 		},
+		select: publicWatchlistSelect,
 	})
 
 	let watchListData: any[] = []
@@ -226,6 +233,17 @@ export async function loader(params: LoaderFunctionArgs) {
 	const allEntries = watchListsSorted.length
 		? await prisma.entry.findMany({
 				where: { watchlistId: { in: watchListsSorted.map(w => w.id) } },
+				select: {
+					id: true,
+					watchlistId: true,
+					position: true,
+					thumbnail: true,
+					title: true,
+					type: true,
+					airYear: true,
+					startSeason: true,
+					startYear: true,
+				},
 			})
 		: []
 	const entriesByWatchlist = new Map<string, any[]>()

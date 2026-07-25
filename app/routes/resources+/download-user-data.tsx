@@ -22,8 +22,15 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				},
 			},
 			password: false, // <-- intentionally omit password
-			sessions: true,
+			sessions: {
+				select: {
+					createdAt: true,
+					updatedAt: true,
+					expirationDate: true,
+				},
+			},
 			roles: true,
+			consents: true,
 			recommendationFeedback: {
 				select: {
 					id: true,

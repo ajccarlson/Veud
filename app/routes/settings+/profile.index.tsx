@@ -634,7 +634,12 @@ async function deleteAccountAction({
 }: ProfileActionArgs) {
 	const user = await prisma.user.findUniqueOrThrow({
 		where: { id: userId },
-		select: { username: true, password: { select: { userId: true } } },
+		select: {
+			id: true,
+			email: true,
+			username: true,
+			password: { select: { userId: true } },
+		},
 	})
 	const submission = await parseWithZod(formData, {
 		schema: DeleteAccountSchema.superRefine(({ confirmation }, ctx) => {
@@ -678,7 +683,16 @@ async function deleteAccountAction({
 	const authSession = await authSessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	await prisma.user.delete({ where: { id: userId } })
+	await prisma.$transaction(async transaction => {
+		await transaction.verification.deleteMany({
+			where: {
+				target: {
+					in: [user.id, user.email, user.username],
+				},
+			},
+		})
+		await transaction.user.delete({ where: { id: userId } })
+	})
 	return redirectWithToast(
 		'/',
 		{

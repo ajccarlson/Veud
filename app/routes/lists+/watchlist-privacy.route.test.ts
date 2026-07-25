@@ -3,6 +3,7 @@ import { expect, test } from 'vitest'
 import { loader as watchlistLoader } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist.tsx'
 import { loader as listTypeLoader } from '#app/routes/lists+/.$username+/.$list-type+/index.tsx'
 import { loader as entryLoader } from '#app/routes/lists+/.fetch+/get-list-entries.$request.ts'
+import { loader as v1EntryLoader } from '#app/routes/resources+/lists.v1.entries.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -82,9 +83,12 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 	])
 	const detailArgs = (watchlist: string, cookie?: string) =>
 		({
-			request: new Request(`${BASE_URL}/lists/${owner.username}/${listType.name}/${watchlist}`, {
-				headers: cookie ? { cookie } : undefined,
-			}),
+			request: new Request(
+				`${BASE_URL}/lists/${owner.username}/${listType.name}/${watchlist}`,
+				{
+					headers: cookie ? { cookie } : undefined,
+				},
+			),
 			params: {
 				username: owner.username,
 				'list-type': listType.name,
@@ -109,12 +113,20 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 
 	const landingArgs = (cookie?: string) =>
 		({
-			request: new Request(`${BASE_URL}/lists/${owner.username}/${listType.name}`, {
-				headers: cookie ? { cookie } : undefined,
-			}),
+			request: new Request(
+				`${BASE_URL}/lists/${owner.username}/${listType.name}`,
+				{
+					headers: cookie ? { cookie } : undefined,
+				},
+			),
 			params: { username: owner.username, 'list-type': listType.name },
 		}) as any
 	const publicLanding = await listTypeLoader(landingArgs())
+	expect(publicLanding.data.listOwner).toEqual({
+		id: owner.id,
+		username: owner.username,
+	})
+	expect(publicLanding.data.listOwner).not.toHaveProperty('email')
 	expect(
 		publicLanding.data.watchListData.map(item => item.watchlist.id),
 	).toEqual([publicList.id])
@@ -219,4 +231,97 @@ test('watchlist detail loader returns browser-safe canonical scores', async () =
 	})
 	expect(typeof entry.personal).toBe('number')
 	expect(typeof entry.tmdbScore).toBe('number')
+})
+
+test('public watchlist payload excludes account data and hidden entry fields', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `private_${suffix}@example.com`,
+			username: `private_${suffix}`,
+			accountStatus: 'suspended',
+			accountStatusReason: 'Must never cross the public loader boundary',
+		},
+	})
+	const listType = await prisma.listType.create({
+		data: {
+			name: `public-contract-${suffix}`,
+			header: 'Public contract',
+			columns:
+				'{"title":"string","personal":"number","notes":"string","description":"string"}',
+			mediaType: '["episode"]',
+			completionType: '{"present":"watching"}',
+		},
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: owner.id,
+			typeId: listType.id,
+			name: 'watching',
+			header: 'Watching',
+			position: 1,
+			displayedColumns: 'title, personal',
+			isPublic: true,
+			entries: {
+				create: {
+					position: 1,
+					title: 'Public title',
+					personal: 8,
+					notes: 'Hidden private note',
+					description: 'Hidden description',
+					history: '{"started":"2026-01-01"}',
+				},
+			},
+		},
+	})
+
+	const result = await watchlistLoader({
+		request: new Request(
+			`${BASE_URL}/lists/${owner.username}/${listType.name}/${watchlist.name}`,
+		),
+		params: {
+			username: owner.username,
+			'list-type': listType.name,
+			watchlist: watchlist.name,
+		},
+	} as any)
+
+	expect(result.data.listOwner).toEqual({
+		id: owner.id,
+		username: owner.username,
+	})
+	expect(result.data.listOwner).not.toHaveProperty('email')
+	expect(result.data.listOwner).not.toHaveProperty('accountStatus')
+	expect(result.data.listEntries[0]).toMatchObject({
+		title: 'Public title',
+		personal: 8,
+	})
+	expect(result.data.listEntries[0]).not.toHaveProperty('notes')
+	expect(result.data.listEntries[0]).not.toHaveProperty('description')
+	expect(result.data.listEntries[0]).not.toHaveProperty('history')
+	expect(result.data).not.toHaveProperty('watchLists')
+	expect(result.data).not.toHaveProperty('watchListsSorted')
+
+	const legacyEntries = await entryLoader({
+		request: new Request(BASE_URL),
+		params: {
+			request: new URLSearchParams({ watchlistId: watchlist.id }).toString(),
+		},
+	} as any)
+	expect(legacyEntries[0]).not.toHaveProperty('notes')
+	expect(legacyEntries[0]).not.toHaveProperty('history')
+
+	const v1Request = new Request(
+		`${BASE_URL}/resources/lists/v1/entries?watchlistId=${watchlist.id}`,
+	)
+	const v1Entries = await v1EntryLoader({
+		request: v1Request,
+		url: new URL(v1Request.url),
+		params: {},
+	} as any)
+	expect(v1Entries.data.ok).toBe(true)
+	if (v1Entries.data.ok) {
+		expect(v1Entries.data.data[0]).not.toHaveProperty('notes')
+		expect(v1Entries.data.data[0]).not.toHaveProperty('history')
+	}
 })

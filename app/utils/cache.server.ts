@@ -32,6 +32,7 @@ function createDatabase(tryAgain = true): Database.Database {
 				value TEXT
 			)
 		`)
+		pruneDatabase(db)
 	} catch (error: unknown) {
 		fs.unlinkSync(CACHE_DATABASE_PATH)
 		if (tryAgain) {
@@ -43,6 +44,53 @@ function createDatabase(tryAgain = true): Database.Database {
 		throw error
 	}
 	return db
+}
+
+function pruneDatabase(db: Database.Database, now = Date.now()) {
+	const rows = db.prepare('SELECT key, metadata FROM cache').all() as Array<{
+		key: string
+		metadata: string
+	}>
+	const expiredKeys: string[] = []
+	for (const row of rows) {
+		try {
+			const metadata = JSON.parse(row.metadata) as {
+				createdTime?: unknown
+				ttl?: unknown
+				swr?: unknown
+			}
+			const createdTime = Number(metadata.createdTime)
+			const ttl = metadata.ttl == null ? Infinity : Number(metadata.ttl)
+			const swr = metadata.swr == null ? 0 : Number(metadata.swr)
+			if (
+				Number.isFinite(createdTime) &&
+				Number.isFinite(ttl) &&
+				Number.isFinite(swr) &&
+				createdTime + ttl + swr <= now
+			) {
+				expiredKeys.push(row.key)
+			}
+		} catch {
+			expiredKeys.push(row.key)
+		}
+	}
+	if (!expiredKeys.length) return 0
+	const remove = db.prepare('DELETE FROM cache WHERE key = ?')
+	db.transaction((keys: string[]) => {
+		for (const key of keys) remove.run(key)
+	})(expiredKeys)
+	return expiredKeys.length
+}
+
+const cacheCleanupTimer = remember('cache-cleanup-timer', () => {
+	const timer = setInterval(() => pruneDatabase(cacheDb), 60 * 60 * 1_000)
+	timer.unref()
+	return timer
+})
+void cacheCleanupTimer
+
+export function pruneExpiredCacheEntries(now = Date.now()) {
+	return pruneDatabase(cacheDb, now)
 }
 
 const lru = remember(
@@ -93,6 +141,11 @@ export const cache: CachifiedCache = {
 		if (!parsedEntry.success) return null
 		const { metadata, value } = parsedEntry.data
 		if (!value) return null
+		const ttl = totalTtl(metadata)
+		if (Number.isFinite(ttl) && metadata.createdTime + ttl <= Date.now()) {
+			cacheDb.prepare('DELETE FROM cache WHERE key = ?').run(key)
+			return null
+		}
 		return { metadata, value }
 	},
 	async set(key, entry) {
