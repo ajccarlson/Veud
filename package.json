@@ -33,6 +33,8 @@
     "db:verify-backup:postgres": "node scripts/verify-postgres-backup.mjs",
     "db:verify-backup:sqlite": "node scripts/verify-backup.mjs",
     "data:release-audit": "tsx scripts/audit-release-data.ts",
+    "data:loader-decimal-audit": "node scripts/audit-loader-decimals.mjs",
+    "data:integrity-audit": "npm run data:loader-decimal-audit && tsx scripts/audit-data-integrity.ts",
     "media:backfill": "tsx scripts/backfill-media-identities.ts",
     "moderation:bootstrap-owner": "tsx scripts/bootstrap-community-owner.ts",
     "notifications:digests": "tsx scripts/send-notification-digests.ts",

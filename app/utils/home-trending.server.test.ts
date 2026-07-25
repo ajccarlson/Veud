@@ -55,6 +55,9 @@ test('fresh trending rails stay pure instead of silently mixing fallback signals
 				kind: 'movie',
 				feed: 'trending',
 				rank: 1,
+				audience: 100,
+				rankingScore: 0.7,
+				rankingVersion: 2,
 				observedAt: now,
 				mediaId: rankedFirst.id,
 			},
@@ -65,6 +68,9 @@ test('fresh trending rails stay pure instead of silently mixing fallback signals
 				kind: 'movie',
 				feed: 'trending',
 				rank: 2,
+				audience: 1_000,
+				rankingScore: 0.9,
+				rankingVersion: 2,
 				observedAt: now,
 				mediaId: rankedSecond.id,
 			},
@@ -75,6 +81,9 @@ test('fresh trending rails stay pure instead of silently mixing fallback signals
 				kind: 'movie',
 				feed: 'trending',
 				rank: 1,
+				audience: 10,
+				rankingScore: 0.1,
+				rankingVersion: 2,
 				observedAt: new Date('2026-07-01T00:00:00.000Z'),
 				mediaId: staleFeed.id,
 			},
@@ -99,22 +108,22 @@ test('fresh trending rails stay pure instead of silently mixing fallback signals
 
 	expect(rails).toHaveLength(1)
 	expect(rails[0]?.items.map(item => item.title)).toEqual([
-		'Provider Rank One',
 		'Provider Rank Two',
+		'Provider Rank One',
 	])
 	expect(rails[0]?.items.map(item => item.source)).toEqual([
 		'provider-feed',
 		'provider-feed',
 	])
 	expect(rails[0]?.signal).toBe('trending')
-	expect(rails[0]?.items[0]).toEqual(
+	expect(rails[0]?.items[1]).toEqual(
 		expect.objectContaining({
-			rank: 1,
+			rank: 2,
 			score: 8.2,
 			viewerTracking: expect.objectContaining({ status: 'watching' }),
 		}),
 	)
-	expect(rails[0]?.items[1]?.viewerTracking).toBeNull()
+	expect(rails[0]?.items[0]?.viewerTracking).toBeNull()
 })
 
 test('a stale trending chart falls back to normalized all-time popularity', async () => {
@@ -151,6 +160,7 @@ test('a stale trending chart falls back to normalized all-time popularity', asyn
 				feed: 'popular',
 				rank: 1,
 				rankingScore: 1,
+				rankingVersion: 2,
 				observedAt: new Date('2026-06-01T00:00:00.000Z'),
 				mediaId: normalizedPopular.id,
 			},
