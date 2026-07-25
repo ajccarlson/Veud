@@ -24,6 +24,7 @@ for (const [name, path] of [
 	['reviews', '/reviews'],
 	['collections', '/collections'],
 	['credits', '/credits'],
+	['support', '/support'],
 	['login', '/login'],
 	['signup', '/signup'],
 ] as const) {

@@ -38,6 +38,32 @@ export const mediaCatalogFields = Object.keys(
 	mediaCatalogSelect,
 ) as MediaCatalogField[]
 
+/**
+ * Provider-owned fields that still have a legacy mirror on Entry. Progress
+ * fields (`length`, `chapters`, and `volumes`) are deliberately excluded:
+ * those strings still contain a member's current progress in older rows.
+ */
+export const entryCatalogMetadataFields = [
+	'thumbnail',
+	'title',
+	'type',
+	'releaseStart',
+	'releaseEnd',
+	'nextRelease',
+	'genres',
+	'description',
+	'airYear',
+	'startSeason',
+	'startYear',
+	'rating',
+	'language',
+	'studios',
+	'serialization',
+	'authors',
+	'tmdbScore',
+	'malScore',
+] as const satisfies readonly MediaCatalogField[]
+
 export type MediaCatalog = Prisma.MediaGetPayload<{
 	select: typeof mediaCatalogSelect
 }>
