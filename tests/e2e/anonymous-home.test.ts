@@ -31,6 +31,18 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 		await expect(
 			page.getByRole('heading', { name: 'Your library, at a glance' }),
 		).toBeVisible()
+		await expect(
+			page.getByText('A sample watchlist', { exact: true }),
+		).toBeVisible()
+		await expect(
+			page.locator('.home-anon-product-columns').getByText('Personal'),
+		).toBeAttached()
+		const sampleScoreColors = await page
+			.locator('.home-anon-product-score')
+			.evaluateAll(scores =>
+				scores.map(score => getComputedStyle(score).backgroundColor),
+			)
+		expect(new Set(sampleScoreColors).size).toBeGreaterThan(2)
 		await expect(page.getByText('MyAnimeList', { exact: true })).toBeVisible()
 		await expect(page.getByText('Letterboxd', { exact: true })).toBeVisible()
 
