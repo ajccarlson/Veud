@@ -142,3 +142,81 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 		),
 	).toEqual(['Private title'])
 })
+
+test('watchlist detail loader returns browser-safe canonical scores', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `scores_${suffix}@example.com`,
+			username: `scores_${suffix}`,
+		},
+	})
+	const listType = await prisma.listType.create({
+		data: {
+			name: `scores-${suffix}`,
+			header: 'Score fixtures',
+			columns: '{"title":"string","personal":"number","tmdbScore":"number"}',
+			mediaType: '["episode"]',
+			completionType: '{"present":"watching"}',
+		},
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: owner.id,
+			typeId: listType.id,
+			name: 'watching',
+			header: 'Watching',
+			position: 1,
+			displayedColumns: 'title, personal, tmdbScore',
+			isPublic: true,
+		},
+	})
+	const media = await prisma.media.create({
+		data: {
+			kind: 'tv',
+			title: 'Canonical scored title',
+			tmdbScore: 8.4,
+		},
+	})
+	const trackingState = await prisma.trackingState.create({
+		data: {
+			ownerId: owner.id,
+			mediaId: media.id,
+			statusWatchlistId: watchlist.id,
+			status: 'watching',
+			score: 7.6,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			mediaId: media.id,
+			trackingStateId: trackingState.id,
+			position: 1,
+			title: 'Canonical scored title',
+			personal: 6.2,
+			tmdbScore: 7.9,
+		},
+	})
+
+	const result = await watchlistLoader({
+		request: new Request(
+			`${BASE_URL}/lists/${owner.username}/${listType.name}/${watchlist.name}`,
+		),
+		params: {
+			username: owner.username,
+			'list-type': listType.name,
+			watchlist: watchlist.name,
+		},
+	} as any)
+	const [entry] = result.data.listEntries
+
+	expect(entry).toMatchObject({
+		personal: 7.6,
+		tmdbScore: 8.4,
+		trackingState: { score: 7.6 },
+		media: { tmdbScore: 8.4 },
+	})
+	expect(typeof entry.personal).toBe('number')
+	expect(typeof entry.tmdbScore).toBe('number')
+})
