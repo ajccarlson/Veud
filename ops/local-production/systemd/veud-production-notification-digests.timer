@@ -1,0 +1,11 @@
+[Unit]
+Description=Deliver due Veud production notification email digests
+
+[Timer]
+OnCalendar=*:0/15
+RandomizedDelaySec=2m
+Persistent=true
+Unit=veud-production-notification-digests.service
+
+[Install]
+WantedBy=timers.target

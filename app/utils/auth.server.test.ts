@@ -9,9 +9,47 @@ import {
 	login,
 	requireUserId,
 	resetUserPassword,
+	signup,
 	verifyUserPassword,
 } from './auth.server.ts'
 import { prisma } from './db.server.ts'
+import { PRIVACY_VERSION, TERMS_VERSION } from './legal-policy.ts'
+
+test('password signup records the accepted policy versions', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const session = await signup({
+		email: `${suffix}@example.com`,
+		username: `consent_${suffix}`,
+		name: null,
+		password: 'Consent-password-123!',
+	})
+	const stored = await prisma.session.findUniqueOrThrow({
+		where: { id: session.id },
+		select: {
+			user: {
+				select: {
+					consents: {
+						orderBy: { document: 'asc' },
+						select: { document: true, version: true, source: true },
+					},
+				},
+			},
+		},
+	})
+
+	expect(stored.user.consents).toEqual([
+		{
+			document: 'privacy',
+			version: PRIVACY_VERSION,
+			source: 'password-signup',
+		},
+		{
+			document: 'terms',
+			version: TERMS_VERSION,
+			source: 'password-signup',
+		},
+	])
+})
 
 async function createAuthenticatedRequest(lastActiveAt: Date | null) {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()

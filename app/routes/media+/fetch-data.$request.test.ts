@@ -207,3 +207,22 @@ test('maps an upstream failure to a generic 502', async () => {
 	)
 	expect((res as Response).status).toBe(502)
 })
+
+test('bounds upstream duration and rejects oversized provider responses', async () => {
+	consoleError.mockImplementation(() => {})
+	fetchMock.mockResolvedValueOnce(
+		new Response('{}', {
+			status: 200,
+			headers: {
+				'content-type': 'application/json',
+				'content-length': String(5 * 1024 * 1024 + 1),
+			},
+		}),
+	)
+	const oversized = await callAndCatch(
+		'url=' + encodeURIComponent('https://api.themoviedb.org/3/movie/1'),
+	)
+	expect((oversized as Response).status).toBe(502)
+	const [, init] = fetchMock.mock.calls[0]
+	expect(init?.signal).toBeInstanceOf(AbortSignal)
+})

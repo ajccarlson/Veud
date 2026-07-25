@@ -19,8 +19,8 @@ test('turns a user title hypothesis into reviewable local candidates only', asyn
 	const batch = await prisma.libraryImportBatch.create({
 		data: {
 			ownerId: owner.id,
-			provider: 'myanimelist',
-			fileName: 'list.xml',
+			provider: 'anilist',
+			fileName: 'list.json',
 			status: 'previewed',
 			itemCount: 1,
 			matchedCount: 0,
@@ -97,4 +97,55 @@ test('turns a user title hypothesis into reviewable local candidates only', asyn
 	expect(outbound).toContain('[Group] Hyp Chron S01 1080p')
 	expect(outbound).not.toContain(media.id)
 	expect(outbound).not.toContain('Hypothesis Chronicle')
+})
+
+test('rejects MyAnimeList imports before sending any data to external AI', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const owner = await prisma.user.create({
+		data: { email: 'mal-boundary@example.com', username: 'mal_boundary' },
+	})
+	const batch = await prisma.libraryImportBatch.create({
+		data: {
+			ownerId: owner.id,
+			provider: 'myanimelist',
+			fileName: 'list.xml',
+			status: 'previewed',
+			itemCount: 1,
+			matchedCount: 0,
+			ambiguousCount: 0,
+			unmatchedCount: 1,
+			conflictCount: 0,
+			items: {
+				create: {
+					sourceKey: 'source-1',
+					payload: JSON.stringify({
+						sourceKey: 'source-1',
+						provider: 'myanimelist',
+						mediaKind: 'anime',
+						title: 'Private MAL export title',
+						externalId: null,
+						status: 'planning',
+						score: null,
+						progress: {},
+						repeatCount: 0,
+						startedAt: null,
+						completedAt: null,
+					}),
+					matchState: 'unmatched',
+				},
+			},
+		},
+	})
+	const fetchImpl = vi.fn<typeof fetch>()
+
+	const response = await assistLibraryImportReconciliation(prisma, {
+		ownerId: owner.id,
+		batchId: batch.id,
+		rateLimitKey: 'viewer:mal-boundary',
+		fetchImpl,
+	}).catch(error => error)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(409)
+	expect(fetchImpl).not.toHaveBeenCalled()
 })
