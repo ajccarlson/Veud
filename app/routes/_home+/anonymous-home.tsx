@@ -10,6 +10,7 @@ import {
 	type HomeTrendingItem,
 	type HomeTrendingRail,
 } from '#app/utils/home-trending.server.ts'
+import { scoreColor, scoreRange } from '#app/utils/lists/score-colorer.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { TrendingData } from './_trending.tsx'
 
@@ -209,7 +210,7 @@ function ProductPreview({ rails }: { rails: HomeTrendingRail[] }) {
 		>
 			<header>
 				<div>
-					<p>A sample workspace</p>
+					<p>A sample watchlist</p>
 					<h2 id="home-anon-product-title">Your library, at a glance</h2>
 				</div>
 				<span>
@@ -228,13 +229,15 @@ function ProductPreview({ rails }: { rails: HomeTrendingRail[] }) {
 				<div className="home-anon-product-table">
 					<div className="home-anon-product-columns" aria-hidden="true">
 						<span>Title</span>
-						<span>Format</span>
 						<span>Progress</span>
-						<span>Score</span>
-						<span>Status</span>
+						<span>Personal</span>
+						<span>TMDB / MAL</span>
+						<span>Difference</span>
 					</div>
 					{items.length ? (
-						items.map(item => <PreviewRow key={item.id} item={item} />)
+						items.map((item, index) => (
+							<PreviewRow key={item.id} item={item} index={index} />
+						))
 					) : (
 						<div className="home-anon-product-empty">
 							<Icon name="archive" aria-hidden="true" />
@@ -273,9 +276,37 @@ function sampleTrackingFor(item: HomeTrendingItem) {
 	}
 }
 
-function PreviewRow({ item }: { item: HomeTrendingItem }) {
+const sampleScoreOffsets = [0.8, -1.1, 0.3, 1.4]
+const sampleProviderScores = [8.4, 7.8, 8.9, 6.9]
+
+function boundedScore(value: number) {
+	return Math.min(10, Math.max(1, value))
+}
+
+function scoreStyle(score: number, type: string) {
+	return scoreColor({
+		range: scoreRange(type),
+		score,
+		type,
+	})
+}
+
+function PreviewRow({
+	item,
+	index,
+}: {
+	item: HomeTrendingItem
+	index: number
+}) {
 	const poster = posterFor(item.thumbnail)
 	const tracking = sampleTrackingFor(item)
+	const providerScore = boundedScore(
+		item.score ?? sampleProviderScores[index % sampleProviderScores.length]!,
+	)
+	const personalScore = boundedScore(
+		providerScore + sampleScoreOffsets[index % sampleScoreOffsets.length]!,
+	)
+	const difference = personalScore - providerScore
 
 	return (
 		<Link to={`/media/${item.id}`} className="home-anon-product-row">
@@ -289,10 +320,36 @@ function PreviewRow({ item }: { item: HomeTrendingItem }) {
 				</span>
 				<strong>{item.title}</strong>
 			</span>
-			<span>{item.type || kindLabels[item.kind] || item.kind}</span>
-			<span>{tracking.progress}</span>
-			<span>{item.score === null ? '—' : item.score.toFixed(1)}</span>
-			<span>{tracking.status}</span>
+			<span data-label="Progress">{tracking.progress}</span>
+			<span
+				className="home-anon-product-score"
+				data-label="Personal"
+				style={scoreStyle(personalScore, 'Default')}
+			>
+				{personalScore.toFixed(1)}
+			</span>
+			<span
+				className="home-anon-product-score"
+				data-label={
+					item.kind === 'anime' || item.kind === 'manga' ? 'MAL' : 'TMDB'
+				}
+				style={scoreStyle(
+					providerScore,
+					item.kind === 'anime' || item.kind === 'manga'
+						? 'MAL Score'
+						: 'TMDB Score',
+				)}
+			>
+				{providerScore.toFixed(1)}
+			</span>
+			<span
+				className="home-anon-product-score"
+				data-label="Difference"
+				style={scoreStyle(difference, 'Difference Objective')}
+			>
+				{difference > 0 ? '+' : ''}
+				{difference.toFixed(1)}
+			</span>
 		</Link>
 	)
 }
