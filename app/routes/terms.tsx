@@ -61,7 +61,8 @@ export default function TermsRoute() {
 					<p>
 						Veud may hide content, restrict features, suspend accounts, or
 						remove accounts to protect members and the service. Available
-						moderation decisions can be appealed through the account interface.
+						moderation decisions can be appealed through account settings or
+						Support.
 					</p>
 				</section>
 				<section>

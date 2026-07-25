@@ -4,11 +4,12 @@
 // columnParams via setColumnParams on each render; reads flow to the column defs / action helpers
 // through grid-state's live bindings.
 import { AgGridReact } from '@ag-grid-community/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model'
 import {
 	ModuleRegistry,
 	type ColDef,
+	type GridApi,
 	type GridOptions,
 } from '@ag-grid-community/core'
 import '@ag-grid-community/styles/ag-grid.css'
@@ -38,6 +39,7 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 	const [bulkDestination, setBulkDestination] = useState('')
 	const [bulkBusy, setBulkBusy] = useState(false)
 	const [bulkError, setBulkError] = useState<string | null>(null)
+	const gridApiRef = useRef<GridApi<WatchlistRow> | null>(null)
 	const isOwner = props.currentUserId === props.listOwner.id
 	const destinations = (
 		props.typedWatchlists[props.listTypeData.id] ?? []
@@ -52,7 +54,14 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 		setSelectedRows([])
 		setBulkDestination('')
 		setBulkError(null)
+		gridApiRef.current = null
 	}, [props.watchlistId])
+
+	function clearSelection() {
+		gridApiRef.current?.deselectAll()
+		setSelectedRows([])
+		setBulkDestination('')
+	}
 
 	async function runBulkMove() {
 		const entryIds = selectedRows
@@ -66,7 +75,7 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 				entryIds,
 				destinationWatchlistId: bulkDestination,
 			})
-			setSelectedRows([])
+			clearSelection()
 			await refreshGrid(columnParams)
 		} catch (error) {
 			setBulkError(
@@ -94,7 +103,7 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 		setBulkError(null)
 		try {
 			await mutateList('bulk-delete-entries', { entryIds })
-			setSelectedRows([])
+			clearSelection()
 			await refreshGrid(columnParams)
 		} catch (error) {
 			setBulkError(
@@ -110,37 +119,52 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 	return (
 		<div className="watchlist-grid-shell">
 			{isOwner && selectedRows.length ? (
-				<div className="watchlist-bulk-toolbar" role="toolbar">
+				<div
+					className="watchlist-bulk-toolbar"
+					role="toolbar"
+					aria-label="Selected list entries"
+				>
 					<strong>
 						{selectedRows.length}{' '}
 						{selectedRows.length === 1 ? 'title' : 'titles'} selected
 					</strong>
-					<select
-						value={bulkDestination}
-						onChange={event => setBulkDestination(event.currentTarget.value)}
-						aria-label="Bulk move destination"
-					>
-						<option value="">Move to…</option>
-						{destinations.map(watchlist => (
-							<option key={watchlist.id} value={watchlist.id}>
-								{watchlist.header}
-							</option>
-						))}
-					</select>
-					<button
-						type="button"
-						disabled={!bulkDestination || bulkBusy}
-						onClick={runBulkMove}
-					>
-						{bulkBusy ? 'Working…' : 'Move'}
-					</button>
+					{destinations.length ? (
+						<>
+							<select
+								value={bulkDestination}
+								onChange={event =>
+									setBulkDestination(event.currentTarget.value)
+								}
+								aria-label="Bulk move destination"
+							>
+								<option value="" disabled>
+									Choose destination
+								</option>
+								{destinations.map(watchlist => (
+									<option key={watchlist.id} value={watchlist.id}>
+										{watchlist.header}
+									</option>
+								))}
+							</select>
+							<button
+								type="button"
+								disabled={!bulkDestination || bulkBusy}
+								onClick={runBulkMove}
+							>
+								{bulkBusy ? 'Working…' : 'Move selected'}
+							</button>
+						</>
+					) : null}
 					<button
 						type="button"
 						className="watchlist-bulk-delete"
 						disabled={bulkBusy}
 						onClick={runBulkDelete}
 					>
-						{bulkBusy ? 'Working…' : 'Delete'}
+						{bulkBusy ? 'Working…' : 'Delete selected'}
+					</button>
+					<button type="button" disabled={bulkBusy} onClick={clearSelection}>
+						Clear
 					</button>
 					{bulkError ? (
 						<p className="watchlist-bulk-error" role="alert">
@@ -165,9 +189,10 @@ export function WatchlistGrid(props: WatchlistViewProps) {
 					}
 					getRowId={getWatchlistRowId}
 					rowDragText={rowDragText}
-					onSelectionChanged={event =>
+					onSelectionChanged={event => {
+						gridApiRef.current = event.api
 						setSelectedRows(event.api.getSelectedRows())
-					}
+					}}
 				></AgGridReact>
 			</div>
 		</div>

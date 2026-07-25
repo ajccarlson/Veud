@@ -83,6 +83,7 @@ export default [
 	appRoute('routes/discover.tsx', { path: 'discover' }),
 	appRoute('routes/reviews.tsx', { path: 'reviews' }),
 	appRoute('routes/status.tsx', { path: 'status' }),
+	appRoute('routes/support.tsx', { path: 'support' }),
 	appRoute('routes/terms.tsx', { path: 'terms' }),
 	appRoute('routes/privacy.tsx', { path: 'privacy' }),
 	appRoute('routes/lists+/.$username+/.$list-type+/_settings.tsx', {
