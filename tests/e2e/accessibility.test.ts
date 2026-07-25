@@ -42,7 +42,6 @@ test('signed-in settings and profile meet automated WCAG checks', async ({
 	for (const path of [
 		'/settings/profile',
 		'/settings/profile/notifications',
-		'/assistant',
 		'/discover?mode=memory',
 		`/users/${user.username}`,
 	]) {
@@ -164,6 +163,12 @@ test('media detail and list tracking surfaces meet automated WCAG checks', async
 			await expect(page.locator('h1').first()).toBeVisible()
 			await expectNoAccessibilityViolations(page)
 		}
+
+		await page.getByRole('button', { name: 'Open tracking assistant' }).click()
+		await expect(
+			page.getByRole('dialog', { name: 'Tracking assistant' }),
+		).toBeVisible()
+		await expectNoAccessibilityViolations(page)
 	} finally {
 		await prisma.media.delete({ where: { id: media.id } }).catch(() => {})
 	}
