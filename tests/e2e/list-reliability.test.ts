@@ -1348,13 +1348,18 @@ test('desktop poster follows the user-resizable thumbnail column', async ({
 	await expect
 		.poll(async () => (await poster.boundingBox())?.width ?? 0)
 		.toBeGreaterThan(initialPosterBounds!.width + 60)
-	const resizedPosterBounds = await poster.boundingBox()
-	const resizedHeaderBounds = await thumbnailHeader.boundingBox()
-	expect(resizedPosterBounds).not.toBeNull()
-	expect(resizedHeaderBounds).not.toBeNull()
-	expect(
-		Math.abs(resizedPosterBounds!.width - resizedHeaderBounds!.width),
-	).toBeLessThanOrEqual(2)
+	await expect
+		.poll(async () => {
+			const [resizedPosterBounds, resizedHeaderBounds] = await Promise.all([
+				poster.boundingBox(),
+				thumbnailHeader.boundingBox(),
+			])
+			if (!resizedPosterBounds || !resizedHeaderBounds) {
+				return Number.POSITIVE_INFINITY
+			}
+			return Math.abs(resizedPosterBounds.width - resizedHeaderBounds.width)
+		})
+		.toBeLessThanOrEqual(2)
 })
 
 test('member can save a default list sort without changing manual positions', async ({
