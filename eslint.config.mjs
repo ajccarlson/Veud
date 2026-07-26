@@ -150,6 +150,7 @@ const legacyConfig = {
 					{ args: 'none', ignoreRestSiblings: true },
 				],
 				'@typescript-eslint/consistent-type-assertions': 'warn',
+				'import/no-unresolved': ['error', { ignore: ['^#build/'] }],
 				'no-dupe-class-members': 'off',
 				'no-undef': 'off',
 				'no-use-before-define': 'off',
