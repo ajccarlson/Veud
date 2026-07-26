@@ -1,6 +1,16 @@
 {
-  "name": "veud-90c8",
+  "name": "veud",
+  "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
+  "homepage": "https://www.veud.net/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajccarlson/Veud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ajccarlson/Veud/issues"
+  },
   "sideEffects": false,
   "type": "module",
   "imports": {
@@ -232,7 +242,8 @@
     "vitest": "^4.1.10"
   },
   "engines": {
-    "node": "22"
+    "node": "22",
+    "npm": ">=10"
   },
   "overrides": {
     "@react-spring/web": "9.4.5",

@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose an improvement to Veud.
+title: '[Feature]: '
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: User need
+      description: What should become easier or possible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description:
+        Describe the interaction or outcome rather than only the implementation.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Watchlists
+        - Catalog and discovery
+        - Profiles and community
+        - AI-assisted features
+        - Moderation and safety
+        - Mobile and accessibility
+        - Operations and developer experience
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

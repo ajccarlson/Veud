@@ -1,0 +1,155 @@
+name: Manual quality gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Validation suite to run
+        required: true
+        default: app
+        type: choice
+        options:
+          - app
+          - postgres
+          - staging
+          - all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  app-quality:
+    name: Application release validation
+    if: inputs.suite == 'app' || inputs.suite == 'all'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create test environment
+        run: cp .env.example .env
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run release validation
+        run: npm run validate:release
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Upload browser report and visual diffs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: browser-acceptance-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  postgres-schema:
+    name: PostgreSQL release validation
+    if: inputs.suite == 'postgres' || inputs.suite == 'all'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        env:
+          POSTGRES_DB: veud_load_test
+          POSTGRES_PASSWORD: veud
+          POSTGRES_USER: veud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U veud -d veud_load_test" --health-interval
+          5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run isolated PostgreSQL release gates
+        run: npm run validate:release:postgres
+        env:
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_load_test
+
+  staging-canary:
+    name: Deployed staging canary
+    needs:
+      - app-quality
+      - postgres-schema
+    if: >-
+      always() && (inputs.suite == 'staging' ||
+        (inputs.suite == 'all' &&
+          needs.app-quality.result == 'success' &&
+          needs.postgres-schema.result == 'success'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require a configured HTTPS staging origin
+        run: |
+          case "$STAGING_URL" in
+            https://*) ;;
+            *) echo "Set the staging environment variable STAGING_URL to an HTTPS origin." >&2; exit 1 ;;
+          esac
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+
+      - name: Check deployed staging release
+        run: >-
+          npm run staging:check -- --base-url "$STAGING_URL" --repeat 3 --run
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+
+      - name: Upload staging evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: staging-acceptance-report
+          path: test-results/staging-acceptance-*.json
+          if-no-files-found: ignore
+          retention-days: 30

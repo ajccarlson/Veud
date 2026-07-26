@@ -1,0 +1,138 @@
+name: Nightly validation
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: Application and dependency audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create test environment
+        run: cp .env.example .env
+
+      - name: Run static, unit, and build gates
+        run: |
+          npm run validate:release:static
+          npm run validate:release:unit
+          npm run validate:release:build
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  browser:
+    name: Browser (${{ matrix.browser }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        browser:
+          - chromium
+          - firefox
+          - webkit
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create test environment
+        run: cp .env.example .env
+
+      - name: Install browser
+        run: npx playwright install --with-deps "$BROWSER"
+        env:
+          BROWSER: ${{ matrix.browser }}
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run cross-browser acceptance suite
+        run: >-
+          npx playwright test --config=playwright.nightly.config.ts
+          --project="$BROWSER" --ignore-snapshots
+        env:
+          BROWSER: ${{ matrix.browser }}
+          CI: 'true'
+          PORT: '4123'
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nightly-${{ matrix.browser }}-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  postgres:
+    name: PostgreSQL load validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
+        env:
+          POSTGRES_DB: veud_nightly
+          POSTGRES_PASSWORD: veud
+          POSTGRES_USER: veud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U veud -d veud_nightly" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run PostgreSQL load validation
+        run: npm run validate:release:postgres
+        env:
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_nightly

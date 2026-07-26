@@ -1,0 +1,65 @@
+name: Public deployment canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment to verify
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.target }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Public canary
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment: ${{ inputs.target }}
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Select fixed deployment origin
+        run: |
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "The selected deployment does not have a configured HTTPS origin." >&2; exit 1 ;;
+          esac
+          echo "BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+        env:
+          BASE_URL:
+            ${{ inputs.target == 'production' && 'https://www.veud.net' ||
+            vars.STAGING_URL }}
+
+      - name: Run anonymous deployment checks
+        run: npm run staging:check -- --base-url "$BASE_URL" --repeat 3 --run
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-canary-${{ github.run_id }}
+          path: test-results/staging-acceptance-*.json
+          if-no-files-found: ignore
+          retention-days: 30

@@ -83,6 +83,12 @@ Veud uses metadata from [TMDB](https://www.themoviedb.org/),
 [Trakt](https://trakt.tv/). Provider attribution and source links are preserved
 in the application.
 
+## License
+
+Veud is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+Provider data, trademarks, and third-party assets remain subject to their
+respective owners and terms. Copyright © 2024–2026 Aaron Carlson.
+
 ## Maintainer
 
 [Aaron Carlson](https://github.com/ajccarlson)
