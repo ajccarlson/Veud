@@ -1,3 +1,15 @@
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { FlatCompat } from '@eslint/eslintrc'
+import js from '@eslint/js'
+
+const baseDirectory = path.dirname(fileURLToPath(import.meta.url))
+const compat = new FlatCompat({
+	baseDirectory,
+	recommendedConfig: js.configs.recommended,
+	allConfig: js.configs.all,
+})
+
 const vitestFiles = ['app/**/__tests__/**/*', 'app/**/*.{spec,test}.*']
 const testFiles = ['**/tests/**', ...vitestFiles]
 const appFiles = ['app/**']
@@ -7,10 +19,9 @@ const appFiles = ['app/**']
  * official React Router templates. Project-specific rules are kept here so the
  * migration does not discard Veud's existing lint policy.
  *
- * @type {import('@types/eslint').Linter.Config}
+ * @type {import('@eslint/eslintrc').Linter.LegacyConfig}
  */
-module.exports = {
-	root: true,
+const legacyConfig = {
 	parserOptions: {
 		ecmaVersion: 'latest',
 		sourceType: 'module',
@@ -139,6 +150,7 @@ module.exports = {
 					{ args: 'none', ignoreRestSiblings: true },
 				],
 				'@typescript-eslint/consistent-type-assertions': 'warn',
+				'import/no-unresolved': ['error', { ignore: ['^#build/'] }],
 				'no-dupe-class-members': 'off',
 				'no-undef': 'off',
 				'no-use-before-define': 'off',
@@ -186,3 +198,52 @@ module.exports = {
 		},
 	],
 }
+
+export default [
+	{
+		ignores: [
+			'**/*.css',
+			'**/*.md',
+			'**/*.scss',
+			'**/*.svg',
+			'**/*.webp',
+			'build/**',
+			'coverage/**',
+			'node_modules/**',
+			'playwright-report/**',
+			'public/build/**',
+			'server-build/**',
+			'test-results/**',
+		],
+	},
+	...compat.config(legacyConfig),
+	{
+		files: ['**/*.{jsx,tsx}'],
+		rules: {
+			// Keep the established hooks policy while adopting the maintained
+			// plugin. Compiler-specific rules can be enabled incrementally.
+			'react-hooks/config': 'off',
+			'react-hooks/error-boundaries': 'off',
+			'react-hooks/gating': 'off',
+			'react-hooks/globals': 'off',
+			'react-hooks/immutability': 'off',
+			'react-hooks/incompatible-library': 'off',
+			'react-hooks/preserve-manual-memoization': 'off',
+			'react-hooks/purity': 'off',
+			'react-hooks/refs': 'off',
+			'react-hooks/set-state-in-effect': 'off',
+			'react-hooks/set-state-in-render': 'off',
+			'react-hooks/static-components': 'off',
+			'react-hooks/unsupported-syntax': 'off',
+			'react-hooks/use-memo': 'off',
+		},
+	},
+	{
+		files: ['tests/**/*.{ts,tsx}'],
+		rules: {
+			// Playwright fixtures conventionally name their continuation callback
+			// `use`; it is not React's `use` hook.
+			'react-hooks/rules-of-hooks': 'off',
+		},
+	},
+]

@@ -77,7 +77,7 @@ export function convertSqliteRow(model, row) {
 				converted[field.name] = Number(value)
 				break
 			case 'BigInt':
-				converted[field.name] = BigInt(value) // eslint-disable-line no-undef
+				converted[field.name] = BigInt(value)
 				break
 			default:
 				converted[field.name] = value

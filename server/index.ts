@@ -300,7 +300,6 @@ async function getBuild() {
 		? viteDevServer.ssrLoadModule('virtual:react-router/server-build')
 		: // @ts-ignore this should exist before running the server
 			// but it may not exist just yet.
-			// eslint-disable-next-line import/no-unresolved
 			await import('#build/server/index.js')
 	// not sure how to make this happy 🤷‍♂️
 	return build as unknown as ServerBuild
