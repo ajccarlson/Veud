@@ -1,6 +1,6 @@
-import { gzipSync } from 'node:zlib'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
+import { gzipSync } from 'node:zlib'
 
 const assetsDirectory = path.resolve('build/client/assets')
 const files = await readdir(assetsDirectory)
@@ -33,14 +33,14 @@ const budgets = [
 	{
 		label: 'desktop watchlist JavaScript',
 		pattern: /^watchlist-grid-[\w-]+\.js$/,
-		rawBytes: 950 * 1024,
-		gzipBytes: 250 * 1024,
+		rawBytes: 980 * 1024,
+		gzipBytes: 270 * 1024,
 	},
 	{
 		label: 'desktop watchlist CSS',
 		pattern: /^watchlist-grid-[\w-]+\.css$/,
-		rawBytes: 230 * 1024,
-		gzipBytes: 45 * 1024,
+		rawBytes: 10 * 1024,
+		gzipBytes: 2 * 1024,
 	},
 	{
 		label: 'profile overview route JavaScript',

@@ -10,7 +10,7 @@ test('replaces only allowlisted environment values and preserves formatting', ()
 		'# retained',
 		'DATABASE_URL=file:./prisma/data.db',
 		'export BACKUP_KEEP = 12',
-		'UNRELATED=\"keep me\"',
+		'UNRELATED="keep me"',
 		'',
 	].join('\n')
 
@@ -23,11 +23,11 @@ test('replaces only allowlisted environment values and preserves formatting', ()
 	).toBe(
 		[
 			'# retained',
-			'DATABASE_URL=\"postgresql://user:password@127.0.0.1:5433/veud_production\"',
-			'export BACKUP_KEEP =\"48\"',
-			'UNRELATED=\"keep me\"',
+			'DATABASE_URL="postgresql://user:password@127.0.0.1:5433/veud_production"',
+			'export BACKUP_KEEP ="48"',
+			'UNRELATED="keep me"',
 			'',
-			'BACKUP_DIR=\"/media/sde/veud-production/backups\"',
+			'BACKUP_DIR="/media/sde/veud-production/backups"',
 		].join('\n'),
 	)
 })
