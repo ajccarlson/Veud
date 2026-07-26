@@ -58,7 +58,7 @@ test('desktop row selection and bulk controls remain clear and actionable', asyn
 	await page.goto(`/lists/${user.username}/anime/${source.name}`)
 	const grid = page.locator('.ag-theme-custom-react')
 	const row = (title: string) =>
-		grid.locator('.ag-center-cols-container .ag-row').filter({ hasText: title })
+		grid.locator('.ag-row').filter({ hasText: title })
 
 	const moveRow = row('Bulk move entry')
 	await expect(moveRow).toBeVisible()
@@ -246,7 +246,7 @@ test.describe('touch watchlist row actions', () => {
 			)
 			.toEqual({ hoverless: true, coarsePointer: true })
 		const row = page
-			.locator('.ag-center-cols-container .ag-row')
+			.locator('.ag-row')
 			.filter({ hasText: 'Touch action entry' })
 		const actions = [
 			row.getByRole('button', { name: 'Quick edit Touch action entry' }),
@@ -342,7 +342,7 @@ test('member can type a new position and see the persisted order', async ({
 			'2:Third reliability entry',
 			'3:First reliability entry',
 		])
-	const renderedRows = page.locator('.ag-center-cols-container .ag-row')
+	const renderedRows = page.locator('.ag-row')
 	await expect(renderedRows.nth(0)).toContainText('Moved reliability entry')
 	await expect(renderedRows.nth(1)).toContainText('Third reliability entry')
 	await expect(renderedRows.nth(2)).toContainText('First reliability entry')
@@ -549,7 +549,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	await page.goto(`/lists/${user.username}/liveaction/${watchlist.name}`)
 
 	const row = page
-		.locator('.ag-center-cols-container .ag-row')
+		.locator('.ag-row')
 		.filter({ hasText: 'Unscored reliability entry' })
 	for (const column of [
 		'averaged',
@@ -584,7 +584,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 			const headerStyle = window.getComputedStyle(headerText)
 			const displayedHeaders = Array.from(
 				document.querySelectorAll<HTMLElement>(
-					'.ag-header-viewport .ag-header-cell:not(.ag-header-cell-moving)',
+					'.ag-header-cell:not(.ag-header-cell-moving)',
 				),
 			)
 			const lastHeaderRight = Math.max(
@@ -608,7 +608,7 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 		expect(metrics.headerWordBreak).toBe('normal')
 		expect(metrics.unusedGridWidth).toBeLessThanOrEqual(2)
 		const renderedRow = page
-			.locator('.ag-center-cols-container .ag-row')
+			.locator('.ag-row')
 			.filter({ hasText: 'Unscored reliability entry' })
 		const rowBounds = await renderedRow.boundingBox()
 		expect(rowBounds).not.toBeNull()
@@ -977,7 +977,7 @@ test('member can quick edit fields that are hidden from the grid', async ({
 
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
 	const entryRow = page
-		.locator('.ag-center-cols-container .ag-row')
+		.locator('.ag-row')
 		.filter({ hasText: 'Hidden edit entry' })
 	const quickEdit = entryRow.locator(
 		'button[aria-label="Quick edit Hidden edit entry"]',
@@ -1104,7 +1104,7 @@ test('hovering a list tab opens it so a dragged entry can be positioned', async 
 
 	await page.goto(`/lists/${user.username}/anime/${source.name}`)
 	const draggedRow = page
-		.locator('.ag-center-cols-container .ag-row')
+		.locator('.ag-row')
 		.filter({ hasText: 'Cross-list dragged entry' })
 	const dragHandle = draggedRow.locator('.ag-row-drag')
 	const destinationTab = page.getByRole('link', {
@@ -1121,7 +1121,7 @@ test('hovering a list tab opens it so a dragged entry can be positioned', async 
 	await expect(destinationTab).toHaveClass(/list-nav-drag-active/)
 	await expect(page.getByRole('status')).toHaveCount(0)
 	const firstDestinationRow = page
-		.locator('.ag-center-cols-container .ag-row')
+		.locator('.ag-row')
 		.filter({ hasText: 'Destination first' })
 	await expect(firstDestinationRow).toBeVisible()
 	const firstDestinationBounds = await firstDestinationRow.boundingBox()
@@ -1176,10 +1176,10 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	await page.setViewportSize({ width: 1000, height: 600 })
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
 	const firstRow = page
-		.locator('.ag-center-cols-container .ag-row')
+		.locator('.ag-row')
 		.filter({ hasText: 'Scroll entry 01' })
 	const dragHandle = firstRow.locator('.ag-row-drag')
-	const viewport = page.locator('.ag-body-viewport')
+	const viewport = page.locator('.ag-grid-viewport')
 	await firstRow.hover()
 	await expect(dragHandle).toBeVisible()
 	const handleBounds = await dragHandle.boundingBox()
@@ -1206,9 +1206,7 @@ test('dragging near a grid edge continuously scrolls the list', async ({
 	const mobileList = page.getByRole('region', { name: 'Mobile list' })
 	const mobileCards = mobileList.getByRole('article')
 	await expect(mobileCards).toHaveCount(40)
-	expect(
-		await mobileCards.getByRole('heading').allTextContents(),
-	).toEqual(
+	expect(await mobileCards.getByRole('heading').allTextContents()).toEqual(
 		expect.arrayContaining(
 			Array.from(
 				{ length: 40 },
@@ -1327,9 +1325,7 @@ test('desktop poster follows the user-resizable thumbnail column', async ({
 	await expect(grid).toBeVisible()
 	await expect(mobileCards).toBeHidden()
 	await expect(poster).toBeVisible()
-	const thumbnailHeader = grid.locator(
-		'.ag-header-cell[col-id="thumbnail"]',
-	)
+	const thumbnailHeader = grid.locator('.ag-header-cell[col-id="thumbnail"]')
 	const initialPosterBounds = await poster.boundingBox()
 	const initialHeaderBounds = await thumbnailHeader.boundingBox()
 	expect(initialPosterBounds).not.toBeNull()
@@ -1421,7 +1417,7 @@ test('member can save a default list sort without changing manual positions', as
 	await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
 	await expect(page.getByTestId('default-sort-status')).toHaveCount(0)
 	const renderedRow = (index: number) =>
-		page.locator(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
+		page.locator(`.ag-row[row-index="${index}"]`)
 	await expect(renderedRow(0)).toContainText('Alpha default sort entry')
 	await expect(renderedRow(1)).toContainText('Moon default sort entry')
 	await expect(renderedRow(2)).toContainText('Zebra default sort entry')
@@ -1439,7 +1435,7 @@ test('member can save a default list sort without changing manual positions', as
 	await expect(titleFilter).toBeHidden()
 	await titleHeader.hover()
 	await expect(titleFilter).toBeVisible()
-	await page.locator('.ag-center-cols-viewport').hover()
+	await page.locator('.ag-grid-viewport').hover()
 	await expect(titleFilter).toBeHidden()
 	await titleHeader.evaluate(element =>
 		element.classList.add('ag-header-cell-filtered'),

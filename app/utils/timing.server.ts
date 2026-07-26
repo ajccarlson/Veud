@@ -4,8 +4,7 @@ export type Timings = Record<
 	string,
 	Array<
 		{ desc?: string } & (
-			| { time: number; start?: never }
-			| { time?: never; start: number }
+			{ time: number; start?: never } | { time?: never; start: number }
 		)
 	>
 >
@@ -30,7 +29,6 @@ function createTimer(type: string, desc?: string) {
 			let timingType = timings[type]
 
 			if (!timingType) {
-				// eslint-disable-next-line no-multi-assign
 				timingType = timings[type] = []
 			}
 			timingType.push({ desc, time: performance.now() - start })
