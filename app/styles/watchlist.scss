@@ -1358,11 +1358,11 @@
 		outline: none;
 	}
 
-	// `pointer: coarse` also matches many hybrid laptops whose primary input is
-	// touch even though a mouse can hover. Keep the desktop row uncluttered when
-	// any hover-capable input exists, while retaining visible controls on
-	// genuinely hoverless devices.
-	@media (any-hover: none) {
+	// Some desktop browsers report no hover input even when they are being used
+	// with a mouse or trackpad. Only opt out of hover-to-reveal when the browser
+	// also reports an actual coarse pointer, which identifies a touch-only input
+	// without making the controls permanently visible on those desktops.
+	@media (any-hover: none) and (any-pointer: coarse) {
 		.ag-header-cell-menu-button,
 		.ag-header-cell-filter-button {
 			opacity: 0.5;
