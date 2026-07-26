@@ -1,6 +1,16 @@
 {
-  "name": "veud-90c8",
+  "name": "veud",
+  "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
+  "homepage": "https://www.veud.net/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajccarlson/Veud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ajccarlson/Veud/issues"
+  },
   "sideEffects": false,
   "type": "module",
   "imports": {
@@ -83,10 +93,12 @@
     "typecheck": "react-router typegen && tsc",
     "validate": "run-p \"test -- --run\" lint typecheck test:e2e:run",
     "validate:release": "run-s validate:release:static validate:release:unit validate:release:build validate:release:browser",
+    "validate:release:hosted": "run-s validate:release:static validate:release:unit validate:release:build validate:release:browser:portable",
     "validate:release:static": "npm run build:icons && npm run lint && npm run typecheck",
     "validate:release:unit": "npm run test -- --run --coverage",
     "validate:release:build": "npm run build && npm run bundle:check",
     "validate:release:browser": "cross-env CI=true PORT=4122 playwright test --project=chromium",
+    "validate:release:browser:portable": "cross-env CI=true PORT=4122 playwright test --project=chromium --ignore-snapshots",
     "validate:release:postgres": "npm run prisma:generate:postgres && npm run db:migrate:postgres && npm run db:verify:postgres && npm run db:smoke:postgres && npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after"
   },
   "eslintIgnore": [
@@ -232,7 +244,8 @@
     "vitest": "^4.1.10"
   },
   "engines": {
-    "node": "22"
+    "node": "22",
+    "npm": ">=10"
   },
   "overrides": {
     "@react-spring/web": "9.4.5",

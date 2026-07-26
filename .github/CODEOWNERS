@@ -1,0 +1,13 @@
+* @ajccarlson
+
+/.github/ @ajccarlson
+/ops/ @ajccarlson
+/prisma/ @ajccarlson
+/server/ @ajccarlson
+/app/utils/auth* @ajccarlson
+/app/utils/authorization.server.ts @ajccarlson
+/app/utils/session.server.ts @ajccarlson
+/package.json @ajccarlson
+/package-lock.json @ajccarlson
+/SECURITY.md @ajccarlson
+/LICENSE @ajccarlson
