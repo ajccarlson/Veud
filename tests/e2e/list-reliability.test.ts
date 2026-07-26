@@ -237,6 +237,14 @@ test.describe('touch watchlist row actions', () => {
 		})
 
 		await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+		await expect
+			.poll(() =>
+				page.evaluate(() => ({
+					hoverless: window.matchMedia('(any-hover: none)').matches,
+					coarsePointer: window.matchMedia('(any-pointer: coarse)').matches,
+				})),
+			)
+			.toEqual({ hoverless: true, coarsePointer: true })
 		const row = page
 			.locator('.ag-center-cols-container .ag-row')
 			.filter({ hasText: 'Touch action entry' })
