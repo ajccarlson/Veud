@@ -3,7 +3,7 @@ import * as React from 'react'
 import { cn } from '#app/utils/misc.tsx'
 
 const pageVariants = cva(
-	'veud-page mx-auto w-full space-y-7 px-4 py-6 text-veud-cream sm:px-6 sm:py-8 lg:px-8',
+	'veud-page mx-auto w-full min-w-0 max-w-full space-y-7 px-4 py-6 text-veud-cream sm:px-6 sm:py-8 lg:px-8',
 	{
 		variants: {
 			width: {
@@ -73,7 +73,7 @@ export function VeudPageHeader({
 	)
 }
 
-const panelVariants = cva('rounded-2xl border p-4 sm:p-5', {
+const panelVariants = cva('min-w-0 max-w-full rounded-2xl border p-4 sm:p-5', {
 	variants: {
 		tone: {
 			default: 'border-veud-border bg-veud-surface shadow-lg shadow-black/10',
