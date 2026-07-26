@@ -3,7 +3,7 @@
 // mutations. They read the shared gridAPI/columnParams from grid-state (and gridReady
 // writes gridAPI via setGridAPI); refreshGrid keeps its own columnParams parameter, which
 // shadows the import inside its body exactly as it did when this lived in the monolith.
-import type { GridApi } from '@ag-grid-community/core'
+import type { GridApi } from 'ag-grid-community'
 import {
 	gridAPI,
 	columnParams,
@@ -173,7 +173,6 @@ async function showDestinationPreview(event: any, watchlistId: string) {
 		dragSession.destinationWatchlistId = watchlistId
 		dragSession.destinationPath = details.path
 		dragSession.activated = true
-		event.node.setDragging(true)
 		document.querySelectorAll('.list-nav-button').forEach(button => {
 			button.classList.toggle(
 				'list-nav-drag-active',
@@ -336,7 +335,7 @@ export function rowDragMove(params: any) {
 		'.ag-theme-custom-react',
 	)
 	if (!gridElement) return
-	const viewport = gridElement.querySelector<HTMLElement>('.ag-body-viewport')
+	const viewport = gridElement.querySelector<HTMLElement>('.ag-grid-viewport')
 	if (!viewport) return
 	const bounds = viewport.getBoundingClientRect()
 	dragScrollSpeed = edgeScrollSpeed(

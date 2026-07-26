@@ -18,10 +18,13 @@ export function TrackingAssistantDialog({
 	const titleId = useId()
 	const lastHandledData = useRef<unknown>(null)
 	const libraryChanged = useRef(onLibraryChanged)
-	libraryChanged.current = onLibraryChanged
 
 	const data = fetcher.data
 	const busy = fetcher.state !== 'idle'
+
+	useEffect(() => {
+		libraryChanged.current = onLibraryChanged
+	}, [onLibraryChanged])
 
 	useEffect(() => {
 		if (

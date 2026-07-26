@@ -262,6 +262,7 @@ export function MediaSearchBar(params: any) {
 	const [addingIdentity, setAddingIdentity] = useState<string | null>(null)
 	const [errorMessage, setErrorMessage] = useState<string | null>(null)
 	const [announcement, setAnnouncement] = useState<string | null>(null)
+	const [dialogOpen, setDialogOpen] = useState(false)
 
 	const destinations = [
 		...(params.columnParams.typedWatchlists[
@@ -283,8 +284,19 @@ export function MediaSearchBar(params: any) {
 	useEffect(() => {
 		if (params.openOnMount && !dialogRef.current?.open) {
 			dialogRef.current?.showModal()
+			setDialogOpen(true)
 		}
 	}, [params.openOnMount])
+
+	function openDialog() {
+		if (!dialogRef.current?.open) dialogRef.current?.showModal()
+		setDialogOpen(true)
+	}
+
+	function closeDialog() {
+		dialogRef.current?.close()
+		setDialogOpen(false)
+	}
 
 	async function search(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault()
@@ -312,7 +324,7 @@ export function MediaSearchBar(params: any) {
 				results = await searchMAL(query, 'manga', 8)
 			}
 			setMediaResults(Array.isArray(results) ? results : [])
-			if (!dialogRef.current?.open) dialogRef.current?.showModal()
+			openDialog()
 		} catch (error) {
 			console.error('[watchlist] search failed', error)
 			setMediaResults([])
@@ -358,7 +370,6 @@ export function MediaSearchBar(params: any) {
 					watchlistId: selectedDestination.id,
 					statusLabel: selectedDestination.header,
 				}
-				params.columnParams.trackingByIdentity[identityKey] = trackingSummary
 				setTrackingByIdentity(current => ({
 					...current,
 					[identityKey]: trackingSummary,
@@ -370,7 +381,7 @@ export function MediaSearchBar(params: any) {
 			setSearchQuery('')
 			setMediaResults([])
 			setHasSearched(false)
-			dialogRef.current?.close()
+			closeDialog()
 			await refreshGrid(params.columnParams)
 		} catch (error) {
 			console.error('[watchlist] failed to add search result', error)
@@ -390,7 +401,7 @@ export function MediaSearchBar(params: any) {
 					className="watchlist-open-quick-add"
 					onClick={() => {
 						setErrorMessage(null)
-						dialogRef.current?.showModal()
+						openDialog()
 					}}
 				>
 					<Icon name="plus" aria-hidden="true" />
@@ -420,7 +431,7 @@ export function MediaSearchBar(params: any) {
 					</StatusButton>
 				</form>
 			)}
-			{errorMessage && !dialogRef.current?.open ? (
+			{errorMessage && !dialogOpen ? (
 				<p role="alert" className="watchlist-search-error-message">
 					{errorMessage}
 				</p>
@@ -436,6 +447,7 @@ export function MediaSearchBar(params: any) {
 				className="watchlist-search-dialog"
 				aria-labelledby={dialogTitleId}
 				onCancel={() => setErrorMessage(null)}
+				onClose={() => setDialogOpen(false)}
 			>
 				<div className="watchlist-search-dialog-shell">
 					<header className="watchlist-search-dialog-header">
@@ -448,7 +460,7 @@ export function MediaSearchBar(params: any) {
 							variant="ghost"
 							size="icon"
 							aria-label="Close quick add"
-							onClick={() => dialogRef.current?.close()}
+							onClick={closeDialog}
 						>
 							<span aria-hidden="true">×</span>
 						</Button>
