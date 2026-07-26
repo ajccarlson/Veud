@@ -20,7 +20,10 @@ production.
 - `npm run test -- --run`
 
 Run the relevant Playwright tests for interface or browser behavior changes.
-Keep changes focused and document migrations or rollout requirements.
+Keep changes focused and document migrations or rollout requirements. Open
+feature and routine dependency pull requests against `develop`. Changes reach
+`main` through a release promotion pull request; urgent `hotfix/*` branches are
+the exception.
 
 ## Database changes
 
@@ -33,3 +36,7 @@ removal is intentional.
 
 Please don't file public issues for security problems — see
 [`SECURITY.md`](./SECURITY.md).
+
+## Community conduct
+
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).

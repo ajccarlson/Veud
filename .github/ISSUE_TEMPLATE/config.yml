@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ajccarlson/Veud/security/advisories/new
+    about: Report vulnerabilities privately.
+  - name: Account and site support
+    url: https://www.veud.net/support
+    about: Get help with an account or the hosted site.

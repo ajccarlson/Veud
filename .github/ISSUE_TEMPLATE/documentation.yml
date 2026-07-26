@@ -1,0 +1,19 @@
+name: Documentation
+description: Report missing, incorrect, or unclear project documentation.
+title: '[Docs]: '
+labels:
+  - documentation
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      placeholder: README, CONTRIBUTING, docs/testing.md…
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Needed change
+    validations:
+      required: true

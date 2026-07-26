@@ -550,7 +550,7 @@ export default function ProfileImportRoute() {
 	const { recent, selected } = useLoaderData<typeof loader>()
 	const result = useActionData<typeof action>()
 	return (
-		<div className="space-y-8">
+		<div className="min-w-0 max-w-full space-y-8">
 			<div>
 				<h2 className="text-2xl font-black text-veud-cream">
 					Import another library
@@ -562,10 +562,10 @@ export default function ProfileImportRoute() {
 			<Form
 				method="post"
 				encType="multipart/form-data"
-				className="grid gap-4 rounded-2xl border border-veud-border bg-black/10 p-5"
+				className="grid min-w-0 max-w-full gap-4 rounded-2xl border border-veud-border bg-black/10 p-5"
 			>
 				<input type="hidden" name="intent" value="preview" />
-				<label className="grid gap-2 text-sm font-black text-veud-copy">
+				<label className="grid min-w-0 gap-2 text-sm font-black text-veud-copy">
 					Source
 					<select
 						name="provider"
@@ -586,7 +586,7 @@ export default function ProfileImportRoute() {
 						name="library"
 						required
 						accept=".xml,.json,.csv,text/xml,application/json,text/csv"
-						className="min-h-11 rounded-xl border border-veud-border bg-black/20 p-2 text-veud-copy file:mr-3 file:rounded-lg file:border-0 file:bg-veud-mint file:px-3 file:py-2 file:font-black file:text-veud-canvas"
+						className="min-h-11 w-full min-w-0 max-w-full rounded-xl border border-veud-border bg-black/20 p-2 text-veud-copy file:mr-3 file:rounded-lg file:border-0 file:bg-veud-mint file:px-3 file:py-2 file:font-black file:text-veud-canvas"
 					/>
 				</label>
 				<Button type="submit">Build conflict preview</Button>
@@ -624,7 +624,10 @@ export default function ProfileImportRoute() {
 				</nav>
 			) : null}
 			{selected ? (
-				<section aria-labelledby="import-preview-heading">
+				<section
+					aria-labelledby="import-preview-heading"
+					className="min-w-0 max-w-full"
+				>
 					<div className="flex flex-wrap items-end justify-between gap-4">
 						<div>
 							<p className="text-xs font-black uppercase tracking-widest text-veud-mint">
