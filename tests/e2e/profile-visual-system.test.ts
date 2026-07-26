@@ -143,10 +143,9 @@ test('profile presentation stays deliberate across mobile and desktop tabs', asy
 				).toBe(false)
 			}
 
-			await page.locator('.user-landing-dropdown-trigger').click()
 			await page
-				.getByRole('menuitem', { name: 'Score Distribution', exact: true })
-				.click()
+				.getByRole('combobox', { name: 'Chart view' })
+				.selectOption('score')
 			await expect(
 				page.locator('.user-landing-stats-bar-chart svg'),
 			).toBeVisible()

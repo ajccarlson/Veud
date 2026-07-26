@@ -8,6 +8,69 @@ export type ProfileFilterOption = {
 	label: string
 }
 
+export function ProfileOptionNavigator({
+	label,
+	options,
+	value,
+	onValueChange,
+}: {
+	label: string
+	options: ProfileFilterOption[]
+	value: string
+	onValueChange: (value: string) => void
+}) {
+	if (options.length === 0) return null
+
+	const selectedIndex = Math.max(
+		0,
+		options.findIndex(option => option.key === value),
+	)
+	const previousIndex =
+		selectedIndex === 0 ? options.length - 1 : selectedIndex - 1
+	const nextIndex = (selectedIndex + 1) % options.length
+
+	return (
+		<div className="user-landing-option-navigator">
+			<span className="user-landing-control-label">{label}</span>
+			<div role="group" aria-label={`${label} navigation`}>
+				<button
+					type="button"
+					className="user-landing-option-navigator-button"
+					aria-label={`Previous ${label.toLowerCase()}`}
+					title={options[previousIndex]?.label}
+					onClick={() => onValueChange(options[previousIndex]?.key ?? value)}
+				>
+					<Icon name="chevron-left" aria-hidden="true" />
+				</button>
+				<label className="user-landing-option-navigator-select">
+					<span className="sr-only">{label}</span>
+					<select
+						aria-label={label}
+						value={options[selectedIndex]?.key}
+						onChange={event => onValueChange(event.currentTarget.value)}
+					>
+						{options.map(option => (
+							<option key={option.key} value={option.key}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<Icon name="triangle-down" aria-hidden="true" />
+				</label>
+				<button
+					type="button"
+					className="user-landing-option-navigator-button"
+					aria-label={`Next ${label.toLowerCase()}`}
+					title={options[nextIndex]?.label}
+					onClick={() => onValueChange(options[nextIndex]?.key ?? value)}
+				>
+					<Icon name="chevron-right" aria-hidden="true" />
+				</button>
+			</div>
+		</div>
+	)
+}
+
 export function ProfileSegmentedFilter({
 	label,
 	options,
