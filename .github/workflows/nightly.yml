@@ -109,14 +109,14 @@ jobs:
       postgres:
         image: postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
         env:
-          POSTGRES_DB: veud_nightly
+          POSTGRES_DB: veud_nightly_test
           POSTGRES_PASSWORD: veud
           POSTGRES_USER: veud
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U veud -d veud_nightly" --health-interval 5s
-          --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U veud -d veud_nightly_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -135,4 +135,4 @@ jobs:
       - name: Run PostgreSQL load validation
         run: npm run validate:release:postgres
         env:
-          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_nightly
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_nightly_test

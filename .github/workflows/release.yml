@@ -21,14 +21,14 @@ jobs:
       postgres:
         image: postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
         env:
-          POSTGRES_DB: veud_release
+          POSTGRES_DB: veud_release_test
           POSTGRES_PASSWORD: veud
           POSTGRES_USER: veud
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U veud -d veud_release" --health-interval 5s
-          --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U veud -d veud_release_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,7 +47,6 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -64,7 +63,7 @@ jobs:
       - name: Run PostgreSQL release gates
         run: npm run validate:release:postgres
         env:
-          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_release
+          DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_release_test
 
   publish:
     name: Publish attested release
@@ -87,7 +86,6 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
