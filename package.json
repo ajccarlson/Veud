@@ -179,7 +179,7 @@
     "sharp": "^0.35.3",
     "sonner": "^1.4.3",
     "source-map-support": "^0.5.21",
-    "spin-delay": "^1.2.0",
+    "spin-delay": "^2.0.1",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "tailwindcss-radix": "^2.8.0",
