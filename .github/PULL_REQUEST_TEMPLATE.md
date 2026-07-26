@@ -1,15 +1,27 @@
-<!-- Summary: Put your summary here -->
+## Summary
 
-## Test Plan
+<!-- What changed, and why? Link the related issue when one exists. -->
 
-<!-- What steps need to be taken to verify this works as expected? -->
+## Validation
 
-## Checklist
+<!-- List the checks you ran and any manual paths you verified. -->
 
-- [ ] Tests updated
-- [ ] Docs updated
+- [ ] Tests cover the change or are not applicable
+- [ ] User-facing behavior is accessible on desktop and mobile
+- [ ] Screenshots are included for visual changes
+- [ ] Documentation is updated when behavior or operations changed
 
-## Screenshots
+## Data, security, and rollout
 
-<!-- If what you're changing is within the app, please show before/after.
-You can provide a video as well if that makes more sense -->
+<!--
+Call out:
+- schema or migration changes,
+- personal data, authorization, moderation, or AI-provider impact,
+- new secrets, permissions, external calls, or scheduled work,
+- deployment, backfill, rollback, or compatibility requirements.
+Write "None" when none apply.
+-->
+
+## Visual evidence
+
+<!-- Before/after screenshots or a short recording for interface changes. -->

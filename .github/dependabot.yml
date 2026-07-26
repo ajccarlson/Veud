@@ -1,21 +1,47 @@
-# Dependabot keeps dependencies and GitHub Actions current so the toolchain
-# doesn't drift out of support again. Minor/patch npm updates are grouped into
-# a single weekly PR to cut noise; major bumps arrive as individual PRs so each
-# breaking change can be reviewed and tested on its own (see ROADMAP 1.2).
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directory: '/'
+    target-branch: develop
     schedule:
       interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Los_Angeles
     open-pull-requests-limit: 10
+    assignees:
+      - ajccarlson
+    commit-message:
+      prefix: deps
+      prefix-development: deps-dev
+      include: scope
     groups:
-      minor-and-patch:
+      production-minor-and-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-and-patch:
+        dependency-type: development
         update-types:
           - minor
           - patch
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: '/'
+    target-branch: develop
     schedule:
       interval: weekly
+      day: monday
+      time: '09:30'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    assignees:
+      - ajccarlson
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - '*'
