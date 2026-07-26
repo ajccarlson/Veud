@@ -43,6 +43,9 @@ export default defineConfig({
 		env: {
 			PORT,
 			DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+			// Browser tests exercise AI-enabled UI without using a developer's
+			// billable credential or making provider calls.
+			OPENAI_API_KEY: 'test-key',
 			VEUD_E2E: '1',
 			// Production-mode browser tests must generate verification links that
 			// point back to their isolated local origin, never the real site.
