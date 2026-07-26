@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { ProfileEmptyState } from '#app/components/profile-ui.tsx'
-import { TypeSwitcher } from '#app/components/type-switcher.tsx'
+import {
+	ProfileEmptyState,
+	ProfileOptionNavigator,
+	ProfileSegmentedFilter,
+} from '#app/components/profile-ui.tsx'
 import {
 	ProfileChart,
 	type ProfileChartKey,
@@ -56,26 +59,41 @@ export function StatsData({
 			</header>
 			{hasEntries ? (
 				<>
-					<div className="user-landing-selection-nav-items">
-						<TypeSwitcher
-							variant="primary"
+					<div
+						className="user-landing-stats-toolbar"
+						role="group"
+						aria-label="Statistics view controls"
+					>
+						<ProfileOptionNavigator
+							label="Chart view"
 							options={PROFILE_CHARTS.map(({ key, header }) => ({
 								key,
 								label: header,
 							}))}
-							index={chartIndex}
-							onIndexChange={setChartIndex}
+							value={selectedChart.key}
+							onValueChange={value => {
+								const nextIndex = PROFILE_CHARTS.findIndex(
+									chart => chart.key === value,
+								)
+								if (nextIndex >= 0) setChartIndex(nextIndex)
+							}}
 						/>
 						{selectedChart.typed ? (
-							<div className="user-landing-selection-secondary-nav-container">
-								<TypeSwitcher
-									variant="secondary"
+							<div className="user-landing-stats-media-control">
+								<span className="user-landing-control-label">Media</span>
+								<ProfileSegmentedFilter
+									label="Filter statistics by media type"
 									options={loaderData.listTypes.map(listType => ({
 										key: listType.id,
 										label: listType.header,
 									}))}
-									index={typeIndex}
-									onIndexChange={setTypeIndex}
+									value={selectedType?.id ?? ''}
+									onValueChange={value => {
+										const nextIndex = loaderData.listTypes.findIndex(
+											listType => listType.id === value,
+										)
+										if (nextIndex >= 0) setTypeIndex(nextIndex)
+									}}
 								/>
 							</div>
 						) : null}
