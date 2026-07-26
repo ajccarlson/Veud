@@ -49,7 +49,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run release validation
-        run: npm run validate:release
+        run: npm run validate:release:hosted
 
       - name: Audit dependencies
         run: npm audit --audit-level=high

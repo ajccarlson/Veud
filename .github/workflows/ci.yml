@@ -98,11 +98,8 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Build application
-        run: npm run build
-
       - name: Run Chromium acceptance suite
-        run: npm run validate:release:browser
+        run: npm run validate:release:browser:portable
 
       - name: Upload failure evidence
         if: failure()

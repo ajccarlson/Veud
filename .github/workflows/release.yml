@@ -59,7 +59,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run application release gates
-        run: npm run validate:release
+        run: npm run validate:release:hosted
 
       - name: Run PostgreSQL release gates
         run: npm run validate:release:postgres
