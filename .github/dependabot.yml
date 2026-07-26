@@ -8,6 +8,8 @@ updates:
       day: monday
       time: '09:00'
       timezone: America/Los_Angeles
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     assignees:
       - ajccarlson
@@ -26,6 +28,16 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # These majors require coordinated application migrations. Tailwind 4
+      # replaces the current PostCSS/config pipeline, while Zod 4 is not
+      # compatible with the installed Conform adapter's Zod 3 entry point.
+      - dependency-name: tailwindcss
+        update-types:
+          - version-update:semver-major
+      - dependency-name: zod
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: '/'
@@ -35,6 +47,8 @@ updates:
       day: monday
       time: '09:30'
       timezone: America/Los_Angeles
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     assignees:
       - ajccarlson

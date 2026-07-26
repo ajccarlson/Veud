@@ -21,7 +21,7 @@
 // (Note: `gridAPI` here is this app's own shared handle to ag-grid's API object; it is
 // unrelated to ag-grid's built-in grid *state* feature.)
 
-import type { GridApi } from '@ag-grid-community/core'
+import type { GridApi } from 'ag-grid-community'
 import type { Dispatch, SetStateAction } from 'react'
 
 export type WatchlistRow = Record<string, unknown> & {
