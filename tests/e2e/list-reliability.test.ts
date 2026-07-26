@@ -70,15 +70,35 @@ test('desktop row selection and bulk controls remain clear and actionable', asyn
 	})
 	await expect
 		.poll(() =>
-			quickEdit.evaluate(element => getComputedStyle(element).opacity),
+			Promise.all(
+				[quickEdit, moreActions].map(action =>
+					action.evaluate(element => ({
+						opacity: getComputedStyle(element).opacity,
+						pointerEvents: getComputedStyle(element).pointerEvents,
+					})),
+				),
+			),
 		)
-		.toBe('0')
+		.toEqual([
+			{ opacity: '0', pointerEvents: 'none' },
+			{ opacity: '0', pointerEvents: 'none' },
+		])
 	await moveRow.hover()
 	await expect
 		.poll(() =>
-			quickEdit.evaluate(element => getComputedStyle(element).opacity),
+			Promise.all(
+				[quickEdit, moreActions].map(action =>
+					action.evaluate(element => ({
+						opacity: getComputedStyle(element).opacity,
+						pointerEvents: getComputedStyle(element).pointerEvents,
+					})),
+				),
+			),
 		)
-		.toBe('1')
+		.toEqual([
+			{ opacity: '1', pointerEvents: 'auto' },
+			{ opacity: '1', pointerEvents: 'auto' },
+		])
 	await moreActions.focus()
 	await expect
 		.poll(() =>
@@ -180,6 +200,70 @@ test('desktop row selection and bulk controls remain clear and actionable', asyn
 	await expect(
 		page.getByRole('toolbar', { name: 'Selected list entries' }),
 	).toBeHidden()
+})
+
+test.describe('touch watchlist row actions', () => {
+	test.use({
+		viewport: { width: 1024, height: 768 },
+		hasTouch: true,
+		isMobile: true,
+	})
+
+	test('keeps quick edit and more row actions available without hover', async ({
+		page,
+		login,
+	}) => {
+		const user = await login()
+		const listType = await prisma.listType.findUniqueOrThrow({
+			where: { name: 'anime' },
+		})
+		const watchlist = await prisma.watchlist.create({
+			data: {
+				name: 'touch-row-actions',
+				header: 'Touch row actions',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		})
+		await prisma.entry.create({
+			data: {
+				watchlistId: watchlist.id,
+				position: 1,
+				title: 'Touch action entry',
+				type: 'TV Series',
+			},
+		})
+
+		await page.goto(`/lists/${user.username}/anime/${watchlist.name}`)
+		const row = page
+			.locator('.ag-center-cols-container .ag-row')
+			.filter({ hasText: 'Touch action entry' })
+		const actions = [
+			row.getByRole('button', { name: 'Quick edit Touch action entry' }),
+			row.getByRole('button', {
+				name: 'More actions for Touch action entry',
+			}),
+		]
+
+		await expect(row).toBeVisible()
+		await expect
+			.poll(() =>
+				Promise.all(
+					actions.map(action =>
+						action.evaluate(element => ({
+							opacity: getComputedStyle(element).opacity,
+							pointerEvents: getComputedStyle(element).pointerEvents,
+						})),
+					),
+				),
+			)
+			.toEqual([
+				{ opacity: '1', pointerEvents: 'auto' },
+				{ opacity: '1', pointerEvents: 'auto' },
+			])
+	})
 })
 
 test('member can type a new position and see the persisted order', async ({

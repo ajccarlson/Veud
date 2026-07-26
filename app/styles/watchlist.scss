@@ -1084,6 +1084,7 @@
 	}
 
 	.ag-row:hover .ag-row-action-button,
+	.ag-row.ag-row-hover .ag-row-action-button,
 	.ag-row:focus-within .ag-row-action-button,
 	.ag-row-action-button:focus-visible {
 		opacity: 1;
@@ -1357,7 +1358,11 @@
 		outline: none;
 	}
 
-	@media (hover: none), (pointer: coarse) {
+	// `pointer: coarse` also matches many hybrid laptops whose primary input is
+	// touch even though a mouse can hover. Keep the desktop row uncluttered when
+	// any hover-capable input exists, while retaining visible controls on
+	// genuinely hoverless devices.
+	@media (any-hover: none) {
 		.ag-header-cell-menu-button,
 		.ag-header-cell-filter-button {
 			opacity: 0.5;
