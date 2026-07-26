@@ -709,6 +709,72 @@ test('list grid fits the viewport and leaves missing scores blank', async ({
 	).toBeLessThanOrEqual(844)
 })
 
+test('watchlist metadata cells and header hints retain the dark theme contrast', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'liveaction' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'metadata-contrast-list',
+			header: 'Metadata contrast list',
+			position: 1,
+			displayedColumns:
+				'position, title, airYear, startSeason, startYear, releaseStart, releaseEnd, startDate, finishedDate',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			position: 1,
+			title: 'Metadata contrast entry',
+			type: 'TV Series',
+			airYear: '2024',
+			startSeason: 'Fall',
+			startYear: '2024',
+			releaseStart: new Date('2024-10-01T00:00:00.000Z'),
+			releaseEnd: new Date('2025-03-31T00:00:00.000Z'),
+			history: JSON.stringify({
+				started: '2024-10-02T00:00:00.000Z',
+				finished: '2025-04-01T00:00:00.000Z',
+			}),
+		},
+	})
+
+	await page.goto(`/lists/${user.username}/liveaction/${watchlist.name}`)
+	const row = page
+		.locator('.ag-row')
+		.filter({ hasText: 'Metadata contrast entry' })
+	await expect(row).toBeVisible()
+
+	for (const column of [
+		'airYear',
+		'startSeason',
+		'startYear',
+		'releaseStart',
+		'releaseEnd',
+		'started',
+		'finished',
+	]) {
+		await expect(row.locator(`[col-id="${column}"]`)).toHaveCSS(
+			'color',
+			'rgb(231, 231, 231)',
+		)
+	}
+
+	const airYearHeader = page.locator('.ag-header-cell[col-id="airYear"]')
+	await airYearHeader.hover()
+	const headerHint = page.locator('.ag-tooltip').filter({ hasText: 'Air Year' })
+	await expect(headerHint).toBeVisible()
+	await expect(headerHint).toHaveCSS('color', 'rgb(231, 231, 231)')
+	await expect(headerHint).toHaveCSS('background-color', 'rgb(18, 18, 18)')
+})
+
 test('list landing keeps every list reachable inside the viewport', async ({
 	page,
 	login,
