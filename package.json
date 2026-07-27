@@ -171,7 +171,7 @@
     "react-router": "^8.3.0",
     "remix-auth": "^4.2.0",
     "remix-auth-oauth2": "^3.4.1",
-    "remix-utils": "^8.8.0",
+    "remix-utils": "^10.0.0",
     "sass": "^1.102.0",
     "set-cookie-parser": "^2.6.0",
     "sharp": "^0.35.3",
