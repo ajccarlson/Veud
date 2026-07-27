@@ -61,7 +61,7 @@ export async function action({ request, url }: ActionFunctionArgs) {
 			},
 		})
 	}
-	const { otp: _otp, ...config } = generateTOTP()
+	const { otp: _otp, ...config } = await generateTOTP()
 	const verificationData = {
 		...config,
 		secret: protectVerificationSecret(config.secret),
