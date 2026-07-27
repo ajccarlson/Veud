@@ -127,7 +127,7 @@ export function SiteSearch({
 								<strong>Describe what you want</strong>
 								<small>
 									{discoveryAiAvailable
-										? 'Find titles that match your description.'
+										? 'Find titles that match what you describe.'
 										: 'Currently unavailable.'}
 								</small>
 							</span>
