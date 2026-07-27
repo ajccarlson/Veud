@@ -5,11 +5,12 @@ import {
 } from '@remix-run/form-data-parser'
 import { data as json, type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
 import {
 	getDiscoveryResultsForMediaIds,
 	parseDiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
+import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
 import {
 	getImageTipOfTongueMatches,
 	getTipOfTongueMatches,
@@ -22,7 +23,10 @@ const FieldsSchema = z.object({
 })
 
 export async function action({ request }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
+	const ownerId = await getUserId(request)
+	const rateLimitKey = ownerId
+		? `viewer:${ownerId}`
+		: anonymousRateLimitKey(request.headers)
 	const contentLength = Number(request.headers.get('content-length') ?? '0')
 	if (Number.isFinite(contentLength) && contentLength > 6.5 * 1024 * 1024) {
 		return json(
@@ -77,11 +81,11 @@ export async function action({ request }: ActionFunctionArgs) {
 		const result = hasImage
 			? await getImageTipOfTongueMatches(
 					{ image, ...fields.data },
-					{ rateLimitKey: `viewer:${ownerId}` },
+					{ rateLimitKey },
 				)
 			: await getTipOfTongueMatches(
 					{ memory: fields.data.prompt, kind: fields.data.kind },
-					{ allowAi: true, rateLimitKey: `viewer:${ownerId}` },
+					{ allowAi: true, rateLimitKey },
 				)
 		const filters = parseDiscoveryQuery(
 			new URLSearchParams({ kind: fields.data.kind, mode: 'memory' }),
