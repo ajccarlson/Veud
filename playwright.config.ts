@@ -47,6 +47,9 @@ export default defineConfig({
 			// billable credential or making provider calls.
 			OPENAI_API_KEY: 'test-key',
 			VEUD_E2E: '1',
+			// The server runs in production mode, so this marker is what relaxes
+			// rate limits enough for a full browser suite from one address.
+			PLAYWRIGHT_TEST_BASE_URL: BASE_URL,
 			// Production-mode browser tests must generate verification links that
 			// point back to their isolated local origin, never the real site.
 			VEUD_ORIGIN: BASE_URL,
