@@ -21,10 +21,13 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 
 	const otpUri = new URL(otpUriString)
 	const options = Object.fromEntries(otpUri.searchParams)
+	// otpauth URIs spell algorithms without a dash (SHA256); Web Crypto in
+	// @epic-web/totp 4 only accepts the dashed form (SHA-256).
+	options.algorithm = options.algorithm?.replace(/^SHA(?=\d)/, 'SHA-')
 
 	await main
 		.getByRole('textbox', { name: /code/i })
-		.fill(generateTOTP(options).otp)
+		.fill((await generateTOTP(options)).otp)
 	await main.getByRole('button', { name: /submit/i }).click()
 
 	await main.getByRole('link', { name: /I saved these codes/i }).click()
@@ -43,7 +46,7 @@ test('Users can add 2FA to their account and use it when logging in', async ({
 
 	await page
 		.getByRole('textbox', { name: /code/i })
-		.fill(generateTOTP(options).otp)
+		.fill((await generateTOTP(options)).otp)
 
 	await page.getByRole('button', { name: /verify/i }).click()
 
