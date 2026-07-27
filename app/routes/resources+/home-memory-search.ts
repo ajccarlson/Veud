@@ -4,6 +4,7 @@ import {
 	getDiscoveryResultsForMediaIds,
 	parseDiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
+import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 
 const AnonymousMemorySearchSchema = z.object({
@@ -24,7 +25,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
 	const result = await getTipOfTongueMatches(
 		{ memory: fields.data.q, kind: fields.data.kind },
-		{ allowAi: false },
+		{ allowAi: true, rateLimitKey: anonymousRateLimitKey(request.headers) },
 	)
 	const filters = parseDiscoveryQuery(
 		new URLSearchParams({
