@@ -49,6 +49,7 @@ import {
 	NaturalLanguageDiscoveryPlanSchema,
 	type NaturalLanguageDiscoveryPlan,
 } from '#app/utils/natural-language-discovery.ts'
+import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 import '#app/styles/discover.scss'
@@ -367,8 +368,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						kind: filters.kind,
 					},
 					{
-						allowAi: Boolean(viewerId),
-						rateLimitKey: viewerId ? `viewer:${viewerId}` : undefined,
+						allowAi: true,
+						rateLimitKey: viewerId
+							? `viewer:${viewerId}`
+							: anonymousRateLimitKey(request.headers),
 					},
 				)
 			: filters.mode === 'memory'
@@ -428,15 +431,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		memorySearchSource: memorySearch?.source ?? null,
 		memorySearchFallbackReason: memorySearch?.fallbackReason ?? null,
 		memoryQueryTooShort,
-		aiSearchAvailable: Boolean(
-			viewerId && isAiCapabilityConfigured('tip-of-tongue'),
-		),
+		aiSearchAvailable: isAiCapabilityConfigured('tip-of-tongue'),
 		naturalDiscoveryAvailable: Boolean(
 			viewerId && isAiCapabilityConfigured('natural-language-discovery'),
 		),
-		imageSearchAvailable: Boolean(
-			viewerId && isAiCapabilityConfigured('image-tip-of-tongue'),
-		),
+		imageSearchAvailable: isAiCapabilityConfigured('image-tip-of-tongue'),
 		genres,
 		statuses,
 		watchlists,
@@ -469,7 +468,7 @@ function memorySearchStatus(data: {
 	if (data.memorySearchSource === 'ai') return 'AI match'
 	switch (data.memorySearchFallbackReason) {
 		case 'sign-in-required':
-			return 'Local match · sign in for AI'
+			return 'Local match'
 		case 'rate-limited':
 			return 'Local match · AI limit reached'
 		case 'ai-unavailable':
@@ -628,7 +627,7 @@ export default function DiscoverRoute() {
 				method={data.filters.mode === 'describe' ? 'post' : 'get'}
 				className={`discover-search-panel ${data.filters.mode !== 'standard' ? 'discover-search-panel--memory' : ''}`}
 				onSubmit={event => {
-					if (data.filters.mode !== 'memory' || !data.isSignedIn) return
+					if (data.filters.mode !== 'memory') return
 					event.preventDefault()
 					imageFetcher.submit(new FormData(event.currentTarget), {
 						method: 'post',
@@ -669,7 +668,7 @@ export default function DiscoverRoute() {
 								rows={5}
 								autoFocus
 							/>
-							{data.filters.mode === 'memory' && data.isSignedIn ? (
+							{data.filters.mode === 'memory' && data.imageSearchAvailable ? (
 								<label className="discover-memory-attachment">
 									<span>Add an image</span>
 									<input

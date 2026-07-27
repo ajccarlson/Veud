@@ -139,22 +139,48 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	])
 })
 
-test('anonymous memory search stays catalog-local even when AI is configured', async () => {
-	await Promise.all(
-		Array.from({ length: 5 }, (_, index) =>
-			prisma.media.create({
-				data: {
-					kind: 'movie',
-					title: `Silver Observatory Match ${index + 1}`,
-					description:
-						'A child finds a silver observatory hidden beneath a desert town.',
-					catalogPopularity: 100 - index,
-				},
-			}),
-		),
-	)
+test('anonymous memory search uses AI suggestions when configured', async () => {
+	const expected = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Silver Observatory Match',
+			description:
+				'A child finds a silver observatory hidden beneath a desert town.',
+			catalogPopularity: 100,
+		},
+	})
 	vi.stubEnv('OPENAI_API_KEY', 'configured-key')
-	const fetchMock = vi.fn<typeof fetch>()
+	const suggestions = Array.from({ length: 5 }, (_, index) => ({
+		title:
+			index === 0
+				? 'Silver Observatory Match'
+				: `Unavailable catalog suggestion ${index + 1}`,
+		alternateTitle: null,
+		year: null,
+		kind: 'movie',
+		reason:
+			'Silver Observatory Match may match the silver observatory and desert.',
+		matchedClues: ['silver', 'observatory', 'desert'],
+	}))
+	const fetchMock = vi.fn<typeof fetch>(
+		async () =>
+			new Response(
+				JSON.stringify({
+					output: [
+						{
+							type: 'message',
+							content: [
+								{
+									type: 'output_text',
+									text: JSON.stringify({ suggestions }),
+								},
+							],
+						},
+					],
+				}),
+				{ status: 200, headers: { 'Content-Type': 'application/json' } },
+			),
+	)
 	vi.stubGlobal('fetch', fetchMock)
 
 	const result = await loader({
@@ -164,15 +190,15 @@ test('anonymous memory search stays catalog-local even when AI is configured', a
 		params: {},
 	} as any)
 
-	expect(fetchMock).not.toHaveBeenCalled()
-	expect(result.data.aiSearchAvailable).toBe(false)
-	expect(result.data.memorySearchSource).toBe('catalog-match')
-	expect(result.data.memorySearchFallbackReason).toBe('sign-in-required')
-	expect(result.data.items).toHaveLength(5)
+	expect(fetchMock).toHaveBeenCalled()
+	expect(result.data.aiSearchAvailable).toBe(true)
+	expect(result.data.memorySearchSource).toBe('ai')
+	expect(result.data.memorySearchFallbackReason).toBe(null)
 	expect(result.data.items).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
-				title: 'Silver Observatory Match 1',
+				id: expected.id,
+				title: 'Silver Observatory Match',
 				memoryMatch: expect.objectContaining({
 					matchedClues: expect.arrayContaining([
 						'silver',

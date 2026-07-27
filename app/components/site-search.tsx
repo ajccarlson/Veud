@@ -98,9 +98,7 @@ export function SiteSearch({
 							<small>
 								{aiAvailable
 									? 'Describe it or add an image.'
-									: isSignedIn
-										? 'Search from remembered details.'
-										: 'Search details · sign in for AI.'}
+									: 'Search from remembered details.'}
 							</small>
 						</span>
 					</label>
@@ -129,7 +127,7 @@ export function SiteSearch({
 								<strong>Describe what you want</strong>
 								<small>
 									{discoveryAiAvailable
-										? 'Turn a request into editable filters.'
+										? 'Find titles that match your description.'
 										: 'Currently unavailable.'}
 								</small>
 							</span>
