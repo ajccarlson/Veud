@@ -1,8 +1,6 @@
-import './instrument.server.mjs'
 import 'dotenv/config'
 import * as fs from 'fs'
 import chalk from 'chalk'
-import closeWithGrace from 'close-with-grace'
 import sourceMapSupport from 'source-map-support'
 
 sourceMapSupport.install({
@@ -19,20 +17,48 @@ sourceMapSupport.install({
 	},
 })
 
-closeWithGrace(async ({ err }) => {
-	if (err) {
-		console.error(chalk.red(err))
-		console.error(chalk.red(err.stack))
-		process.exit(1)
+let closeMockServer
+let activateApplicationShutdown
+
+try {
+	const { init } = await import('./app/utils/env.server.ts')
+	init()
+
+	const shutdownModule =
+		process.env.NODE_ENV === 'production'
+			? await import('./server-build/shutdown.js')
+			: await import('./server/shutdown.ts')
+	const deferredShutdown = shutdownModule.createDeferredApplicationShutdown()
+	activateApplicationShutdown = deferredShutdown.activate
+	shutdownModule.installApplicationShutdownHandler(deferredShutdown.shutdown)
+	await import('./instrument.server.mjs')
+
+	if (process.env.MOCKS === 'true') {
+		const mocks = await import('./tests/mocks/index.ts')
+		closeMockServer = mocks.closeMockServer
 	}
-})
 
-if (process.env.MOCKS === 'true') {
-	await import('./tests/mocks/index.ts')
-}
-
-if (process.env.NODE_ENV === 'production') {
-	await import('./server-build/index.js')
-} else {
-	await import('./server/index.ts')
+	const application =
+		process.env.NODE_ENV === 'production'
+			? await import('./server-build/index.js')
+			: await import('./server/index.ts')
+	activateApplicationShutdown(
+		application.createServerShutdown({
+			closeMocks: closeMockServer,
+		}),
+	)
+} catch (error) {
+	const closeStartupResources = async () => {
+		closeMockServer?.()
+	}
+	activateApplicationShutdown?.(closeStartupResources)
+	try {
+		await closeStartupResources()
+	} catch (mockCloseError) {
+		console.error(chalk.red(String(mockCloseError)))
+	}
+	const message =
+		error instanceof Error ? (error.stack ?? error.message) : String(error)
+	console.error(chalk.red(message))
+	throw error
 }
