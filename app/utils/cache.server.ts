@@ -89,6 +89,36 @@ const cacheCleanupTimer = remember('cache-cleanup-timer', () => {
 })
 void cacheCleanupTimer
 
+export function createCacheResourceCloser({
+	clearTimer,
+	isDatabaseOpen,
+	closeDatabase,
+}: {
+	clearTimer: () => void
+	isDatabaseOpen: () => boolean
+	closeDatabase: () => void
+}) {
+	let closed = false
+	return () => {
+		if (closed) return
+		clearTimer()
+		if (isDatabaseOpen()) closeDatabase()
+		closed = true
+	}
+}
+
+const closeCacheResourcesOnce = remember('cache-resource-closer', () =>
+	createCacheResourceCloser({
+		clearTimer: () => clearInterval(cacheCleanupTimer),
+		isDatabaseOpen: () => cacheDb.open,
+		closeDatabase: () => cacheDb.close(),
+	}),
+)
+
+export function closeCacheResources() {
+	closeCacheResourcesOnce()
+}
+
 export function pruneExpiredCacheEntries(now = Date.now()) {
 	return pruneDatabase(cacheDb, now)
 }

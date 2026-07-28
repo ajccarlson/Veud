@@ -1,4 +1,3 @@
-import closeWithGrace from 'close-with-grace'
 import { setupServer } from 'msw/node'
 import { handlers as openAiHandlers } from './openai.ts'
 import { handlers as resendHandlers } from './resend.ts'
@@ -23,8 +22,12 @@ server.listen({
 
 if (process.env.NODE_ENV !== 'test') {
 	console.info('🔶 Mock server installed')
+}
 
-	closeWithGrace(() => {
-		server.close()
-	})
+let isMockServerOpen = true
+
+export function closeMockServer() {
+	if (!isMockServerOpen) return
+	isMockServerOpen = false
+	server.close()
 }
