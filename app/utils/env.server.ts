@@ -51,6 +51,14 @@ const schema = z.object({
 		.string()
 		.regex(/^(?:[1-9]|1[0-9]|20)$/)
 		.optional(),
+	VEUD_AI_DAILY_LIMIT_PER_CAPABILITY: z
+		.string()
+		.regex(/^[1-9]\d{0,6}$/)
+		.optional(),
+	VEUD_AI_ANONYMOUS_DAILY_LIMIT_PER_CAPABILITY: z
+		.string()
+		.regex(/^[1-9]\d{0,6}$/)
+		.optional(),
 })
 
 declare global {

@@ -12,6 +12,7 @@ import {
 	useLocation,
 	useNavigation,
 } from 'react-router'
+import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { QuickTrackControl } from '#app/components/quick-track-control.tsx'
@@ -49,13 +50,9 @@ import {
 	NaturalLanguageDiscoveryPlanSchema,
 	type NaturalLanguageDiscoveryPlan,
 } from '#app/utils/natural-language-discovery.ts'
-import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
-import {
-	tipOfTongueImageDisclosure,
-	tipOfTongueStatus,
-} from '#app/utils/tip-of-tongue.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
+import { tipOfTongueStatus } from '#app/utils/tip-of-tongue.ts'
 import '#app/styles/discover.scss'
 
 const kindLabels: Record<DiscoveryQuery['kind'], string> = {
@@ -372,10 +369,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						kind: filters.kind,
 					},
 					{
-						allowAi: true,
-						rateLimitKey: viewerId
-							? `viewer:${viewerId}`
-							: anonymousRateLimitKey(request.headers),
+						// Navigation and no-JavaScript submissions remain deterministic.
+						// Paid inference is available only through the same-origin POST
+						// resource used by the interactive form.
+						allowAi: false,
 					},
 				)
 			: filters.mode === 'memory'
@@ -613,6 +610,7 @@ export default function DiscoverRoute() {
 					})
 				}}
 			>
+				{data.filters.mode === 'memory' ? <HoneypotInputs /> : null}
 				{data.filters.mode === 'memory' ? (
 					<input type="hidden" name="mode" value="memory" />
 				) : null}
@@ -653,11 +651,7 @@ export default function DiscoverRoute() {
 										type="file"
 										accept="image/jpeg,image/png,image/webp"
 										aria-label="Add a screenshot or cover"
-										aria-describedby="discover-memory-image-disclosure"
 									/>
-									<small id="discover-memory-image-disclosure">
-										{tipOfTongueImageDisclosure}
-									</small>
 								</label>
 							) : null}
 						</div>

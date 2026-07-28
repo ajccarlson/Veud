@@ -5,12 +5,17 @@ import {
 } from '@remix-run/form-data-parser'
 import { data as json, type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
+import { clientAddressContext } from '#app/env.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import {
 	getDiscoveryResultsForMediaIds,
 	parseDiscoveryQuery,
 } from '#app/utils/discovery.server.ts'
-import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
+import { checkHoneypot } from '#app/utils/honeypot.server.ts'
+import {
+	anonymousRateLimitKey,
+	isSameOriginMutation,
+} from '#app/utils/proxy-security.server.ts'
 import {
 	getImageTipOfTongueMatches,
 	getTipOfTongueMatches,
@@ -22,11 +27,25 @@ const FieldsSchema = z.object({
 	kind: z.enum(['all', 'movie', 'tv', 'anime', 'manga']),
 })
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
 	const ownerId = await getUserId(request)
+	if (!ownerId && !isSameOriginMutation(request)) {
+		return json(
+			{ ok: false as const, error: 'This request could not be verified.' },
+			{ status: 403 },
+		)
+	}
+	let clientAddress: string | undefined
+	try {
+		clientAddress = context?.get(clientAddressContext)
+	} catch {
+		// Missing server context must collapse anonymous traffic into the shared,
+		// stricter bucket rather than trusting request headers.
+		clientAddress = undefined
+	}
 	const rateLimitKey = ownerId
 		? `viewer:${ownerId}`
-		: anonymousRateLimitKey(request.headers)
+		: anonymousRateLimitKey(clientAddress)
 	const contentLength = Number(request.headers.get('content-length') ?? '0')
 	if (Number.isFinite(contentLength) && contentLength > 6.5 * 1024 * 1024) {
 		return json(
@@ -39,7 +58,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		formData = await parseFormData(request, {
 			maxFiles: 1,
 			maxFileSize: 6 * 1024 * 1024,
-			maxParts: 5,
+			maxParts: 6,
 			maxTotalSize: 6 * 1024 * 1024 + 64 * 1024,
 		})
 	} catch (error) {
@@ -60,6 +79,7 @@ export async function action({ request }: ActionFunctionArgs) {
 		}
 		throw error
 	}
+	await checkHoneypot(formData)
 	const fields = FieldsSchema.safeParse({
 		prompt: formData.get('q') ?? formData.get('prompt'),
 		kind: formData.get('kind'),
