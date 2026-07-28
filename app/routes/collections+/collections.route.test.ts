@@ -225,6 +225,128 @@ test('private collections are owner-only while public collections are discoverab
 	expect(moderatedOwnerView.data.collection.id).toBe(collection.id)
 })
 
+test('mixed-case collection search preserves visibility and owner-only media picking', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const [neutralOwner, creatorOwner] = await Promise.all([
+		createUser('search_neutral'),
+		createUser(`CrEaToR_${suffix}`),
+	])
+	const neutralCookie = await cookieFor(neutralOwner.id)
+	const titleMarker = `TiTlE MaRkEr ${suffix}`
+	const descriptionMarker = `DeScRiPtIoN MaRkEr ${suffix}`
+	const publicTitle = await prisma.mediaCollection.create({
+		data: {
+			ownerId: neutralOwner.id,
+			title: titleMarker,
+			isPublic: true,
+		},
+	})
+	await prisma.mediaCollection.createMany({
+		data: [
+			{
+				ownerId: neutralOwner.id,
+				title: `${titleMarker} private`,
+				isPublic: false,
+			},
+			{
+				ownerId: neutralOwner.id,
+				title: `${titleMarker} hidden`,
+				isPublic: true,
+				moderationStatus: 'hidden',
+			},
+		],
+	})
+	const publicDescription = await prisma.mediaCollection.create({
+		data: {
+			ownerId: neutralOwner.id,
+			title: `Description result ${suffix}`,
+			description: descriptionMarker,
+			isPublic: true,
+		},
+	})
+	await prisma.mediaCollection.createMany({
+		data: [
+			{
+				ownerId: neutralOwner.id,
+				title: `Private description result ${suffix}`,
+				description: descriptionMarker,
+				isPublic: false,
+			},
+			{
+				ownerId: neutralOwner.id,
+				title: `Hidden description result ${suffix}`,
+				description: descriptionMarker,
+				isPublic: true,
+				moderationStatus: 'hidden',
+			},
+		],
+	})
+	const publicCreator = await prisma.mediaCollection.create({
+		data: {
+			ownerId: creatorOwner.id,
+			title: `Creator result ${suffix}`,
+			isPublic: true,
+		},
+	})
+	await prisma.mediaCollection.createMany({
+		data: [
+			{
+				ownerId: creatorOwner.id,
+				title: `Private creator result ${suffix}`,
+				isPublic: false,
+			},
+			{
+				ownerId: creatorOwner.id,
+				title: `Hidden creator result ${suffix}`,
+				isPublic: true,
+				moderationStatus: 'hidden',
+			},
+		],
+	})
+
+	for (const [query, expectedId] of [
+		[`tItLe mArKeR ${suffix.toUpperCase()}`, publicTitle.id],
+		[`dEsCrIpTiOn mArKeR ${suffix.toUpperCase()}`, publicDescription.id],
+		[`cReAtOr_${suffix.toUpperCase()}`, publicCreator.id],
+	] as const) {
+		const url = new URL(`${BASE_URL}/collections`)
+		url.searchParams.set('q', query)
+		const result = await indexLoader({
+			request: new Request(url),
+			params: {},
+		} as any)
+		expect(result.data.collections.map(collection => collection.id)).toEqual([
+			expectedId,
+		])
+	}
+
+	const mediaMarker = `MeDiA PiCkEr ${suffix}`
+	const [existingMedia, availableMedia] = await Promise.all([
+		prisma.media.create({
+			data: { kind: 'movie', title: `${mediaMarker} existing` },
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: `${mediaMarker} available` },
+		}),
+	])
+	await prisma.mediaCollectionItem.create({
+		data: {
+			collectionId: publicTitle.id,
+			mediaId: existingMedia.id,
+			position: 1,
+		},
+	})
+	const detailUrl = new URL(`${BASE_URL}/collections/${publicTitle.id}`)
+	detailUrl.searchParams.set('q', `mEdIa pIcKeR ${suffix.toUpperCase()}`)
+	const ownerView = await detailLoader({
+		request: new Request(detailUrl, { headers: { cookie: neutralCookie } }),
+		params: { collectionId: publicTitle.id },
+	} as any)
+	expect(ownerView.data.searchResults.map(media => media.id)).toEqual([
+		availableMedia.id,
+	])
+})
+
 test('owners can add, reorder, and remove canonical media without duplicates', async () => {
 	const [owner, other] = await Promise.all([
 		createUser('ordered_owner'),

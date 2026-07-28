@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { prismaSearchFilter } from './prisma-search.server.ts'
+import {
+	escapeSqlLikeLiteral,
+	isPostgresDatasource,
+	prismaSearchFilter,
+} from './prisma-search.server.ts'
 
 test('adds insensitive mode only for PostgreSQL datasources', () => {
 	expect(
@@ -28,4 +32,10 @@ test('keeps SQLite and unknown datasource filters provider-portable', () => {
 	expect(prismaSearchFilter('contains', 'Mixed Case', 'not a url')).toEqual({
 		contains: 'Mixed Case',
 	})
+})
+
+test('identifies PostgreSQL URLs and escapes exact ILIKE literals', () => {
+	expect(isPostgresDatasource('postgresql://veud@localhost/veud')).toBe(true)
+	expect(isPostgresDatasource('file:./test.db')).toBe(false)
+	expect(escapeSqlLikeLiteral('100%_sure!')).toBe('100!%!_sure!!')
 })

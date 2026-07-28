@@ -35,6 +35,7 @@ import {
 	moderationTargetLabels,
 } from '#app/utils/moderation.ts'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
+import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
 
 const DashboardQuerySchema = z.object({
 	view: z.enum(['queue', 'members', 'team', 'audit']).catch('queue'),
@@ -176,8 +177,10 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				? prisma.user.findMany({
 						where: {
 							OR: [
-								{ username: { contains: filters.q } },
-								{ name: { contains: filters.q } },
+								{
+									username: prismaSearchFilter('contains', filters.q),
+								},
+								{ name: prismaSearchFilter('contains', filters.q) },
 							],
 						},
 						orderBy: [{ lastActiveAt: 'desc' }, { username: 'asc' }],
