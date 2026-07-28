@@ -12,6 +12,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import { RouterContextProvider, type ServerBuild } from 'react-router'
 import {
+	type clientAddressContext as ClientAddressContext,
 	type cspNonceContext as CspNonceContext,
 	type serverBuildContext as ServerBuildContext,
 } from '../app/env.ts'
@@ -29,13 +30,21 @@ import { resolveServerBinding } from './binding.js'
 import { assertSafeMockProductionRuntime } from './test-runtime-guard.js'
 
 type ServerContextModule = {
+	clientAddressContext: typeof ClientAddressContext
 	cspNonceContext: typeof CspNonceContext
 	serverBuildContext: typeof ServerBuildContext
 }
 
 const MODE = process.env.NODE_ENV ?? 'development'
 
-assertSafeMockProductionRuntime(process.env)
+const isVettedProductionTestRuntime = assertSafeMockProductionRuntime(
+	process.env,
+)
+if (isVettedProductionTestRuntime) {
+	console.warn(
+		'⚠️ Production-mode E2E runtime active: request logging and rate limits are intentionally relaxed for an isolated loopback test database.',
+	)
+}
 
 const viteDevServer =
 	MODE === 'production'
@@ -77,8 +86,7 @@ app.use((req, res, next) => {
 				path.startsWith('/img/'))
 		if (
 			MODE === 'production' &&
-			!process.env.MOCKS &&
-			!process.env.PLAYWRIGHT_TEST_BASE_URL &&
+			!isVettedProductionTestRuntime &&
 			!quietSuccess
 		) {
 			writeStructuredLog(
@@ -236,7 +244,7 @@ app.use(
 // rate limiting because playwright tests are very fast and we don't want to
 // have to wait for the rate limit to reset between tests.
 const maxMultiple =
-	MODE !== 'production' || process.env.PLAYWRIGHT_TEST_BASE_URL ? 10_000 : 1
+	MODE !== 'production' || isVettedProductionTestRuntime ? 10_000 : 1
 const rateLimitDefault = {
 	windowMs: 60 * 1000,
 	max: 1000 * maxMultiple,
@@ -308,12 +316,20 @@ async function getBuild() {
 app.all(
 	'*',
 	createRequestHandler({
-		getLoadContext: async (_, res) => {
+		getLoadContext: async (req, res) => {
 			const buildPromise = getBuild()
 			const build = await buildPromise
-			const { cspNonceContext, serverBuildContext } = build.entry
-				.module as typeof build.entry.module & ServerContextModule
+			const { clientAddressContext, cspNonceContext, serverBuildContext } =
+				build.entry.module as typeof build.entry.module & ServerContextModule
 			const context = new RouterContextProvider()
+			context.set(
+				clientAddressContext,
+				rateLimitClientKey({
+					socketAddress: req.socket.remoteAddress,
+					cloudflareAddress: req.get('cf-connecting-ip'),
+					requestAddress: req.ip,
+				}),
+			)
 			context.set(cspNonceContext, res.locals.cspNonce)
 			context.set(serverBuildContext, buildPromise)
 			return context

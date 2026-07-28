@@ -105,6 +105,103 @@ test('enforces per-capability rate limits without sending rejected requests', as
 	expect(fetchImpl).toHaveBeenCalledOnce()
 })
 
+test('does not spend the shared daily budget on a per-client rejection', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_DAILY_LIMIT_PER_CAPABILITY', '2')
+	const fetchImpl = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	const request = (rateLimitKey: string) =>
+		requestStructuredAi({
+			capability: 'tracking-command',
+			promptVersion: 'admission-order-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey,
+			rateLimit: 1,
+			now: 1_000,
+			fetchImpl,
+		})
+
+	await expect(request('viewer-one')).resolves.toEqual({ value: 'ok' })
+	await expect(request('viewer-one')).rejects.toMatchObject({
+		reason: 'rate-limited',
+	})
+	await expect(request('viewer-two')).resolves.toEqual({ value: 'ok' })
+	expect(fetchImpl).toHaveBeenCalledTimes(2)
+})
+
+test('does not spend the shared daily budget on a concurrency rejection', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_DAILY_LIMIT_PER_CAPABILITY', '2')
+	vi.stubEnv('VEUD_AI_MAX_CONCURRENCY', '1')
+	let releaseFirstRequest = () => {}
+	const firstRequestHeld = new Promise<void>(resolve => {
+		releaseFirstRequest = resolve
+	})
+	let fetchCount = 0
+	const fetchImpl = vi.fn<typeof fetch>(async () => {
+		fetchCount += 1
+		if (fetchCount === 1) await firstRequestHeld
+		return response({ value: 'ok' })
+	})
+	const request = (rateLimitKey: string) =>
+		requestStructuredAi({
+			capability: 'tracking-command',
+			promptVersion: 'concurrency-admission-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey,
+			rateLimit: 1,
+			now: 1_000,
+			fetchImpl,
+		})
+
+	const firstRequest = request('viewer-one')
+	await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce())
+	try {
+		await expect(request('viewer-two')).rejects.toMatchObject({
+			reason: 'unavailable',
+		})
+	} finally {
+		releaseFirstRequest()
+	}
+	await expect(firstRequest).resolves.toEqual({ value: 'ok' })
+	await expect(request('viewer-three')).resolves.toEqual({ value: 'ok' })
+	expect(fetchImpl).toHaveBeenCalledTimes(2)
+})
+
+test('resets in-process daily budgets at the UTC day boundary', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_DAILY_LIMIT_PER_CAPABILITY', '1')
+	const fetchImpl = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	const request = (now: number) =>
+		requestStructuredAi({
+			capability: 'tracking-command',
+			promptVersion: 'utc-budget-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: 'viewer-utc',
+			rateLimit: 10,
+			now,
+			fetchImpl,
+		})
+
+	await expect(request(86_400_000 - 1)).resolves.toEqual({ value: 'ok' })
+	await expect(request(86_400_000 + 1)).resolves.toEqual({ value: 'ok' })
+	expect(fetchImpl).toHaveBeenCalledTimes(2)
+})
+
 test('coordinates production limits across process state and persists privacy-safe telemetry', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
 	vi.stubEnv('NODE_ENV', 'production')
@@ -142,6 +239,59 @@ test('coordinates production limits across process state and persists privacy-sa
 	await prisma.aiUsageEvent.deleteMany({
 		where: { promptVersion: 'durable-test-v1' },
 	})
+})
+
+test('enforces the durable daily capability budget across client keys and process state', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	vi.stubEnv('VEUD_AI_DAILY_LIMIT_PER_CAPABILITY', '1')
+	vi.stubEnv('VEUD_AI_ANONYMOUS_DAILY_LIMIT_PER_CAPABILITY', '10')
+	const now = Date.UTC(2042, 3, 5, 12)
+	const windowStartedAt = new Date(Math.floor(now / 86_400_000) * 86_400_000)
+	const fetchMock = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	vi.stubGlobal('fetch', fetchMock)
+	vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+	const request = (rateLimitKey: string) =>
+		requestStructuredAi({
+			capability: 'review-assistance',
+			promptVersion: 'daily-budget-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey,
+			rateLimit: 10,
+			now,
+		})
+
+	try {
+		await expect(request('viewer-one')).resolves.toEqual({ value: 'ok' })
+		resetAiGatewayStateForTests()
+		await expect(request('viewer-two')).rejects.toMatchObject({
+			reason: 'rate-limited',
+		})
+		expect(fetchMock).toHaveBeenCalledOnce()
+		expect(console.warn).toHaveBeenCalledWith(
+			'AI daily request budget threshold reached',
+			expect.objectContaining({
+				capability: 'review-assistance',
+				scope: 'global',
+				limit: 1,
+			}),
+		)
+	} finally {
+		await prisma.aiUsageEvent.deleteMany({
+			where: { promptVersion: 'daily-budget-test-v1' },
+		})
+		await prisma.aiRateLimitBucket.deleteMany({
+			where: {
+				capability: 'review-assistance',
+				windowStartedAt: { gte: windowStartedAt },
+			},
+		})
+	}
 })
 
 test('opens a shared circuit for provider and quota failures', async () => {

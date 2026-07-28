@@ -522,27 +522,27 @@ async function queryMetrics(prisma, count, shape) {
 	const definitions = [
 		[
 			'canonical-title',
-			'SELECT id FROM "Media" WHERE title LIKE $1 LIMIT 24',
+			'SELECT id FROM "Media" WHERE title ILIKE $1 LIMIT 24',
 			[`%Catalog Work ${needle}%`],
 		],
 		[
 			'alternate-title',
-			'SELECT "mediaId" FROM "MediaTitle" WHERE normalized LIKE $1 LIMIT 24',
+			'SELECT "mediaId" FROM "MediaTitle" WHERE normalized ILIKE $1 LIMIT 24',
 			[`%alternate load alias ${alternate}%`],
 		],
 		[
 			'rare-description',
-			'SELECT id FROM "Media" WHERE description LIKE $1 LIMIT 24',
+			'SELECT id FROM "Media" WHERE description ILIKE $1 LIMIT 24',
 			['%rare-nebula-token%'],
 		],
 		[
 			'broad-description',
-			'SELECT id FROM "Media" WHERE description LIKE $1 LIMIT 24',
+			'SELECT id FROM "Media" WHERE description ILIKE $1 LIMIT 24',
 			[`%${syntheticBroadDescriptionNeedle}%`],
 		],
 		[
 			'no-match',
-			'SELECT id FROM "MediaTitle" WHERE normalized LIKE $1 LIMIT 24',
+			'SELECT id FROM "MediaTitle" WHERE normalized ILIKE $1 LIMIT 24',
 			['%term-that-does-not-exist-7f01%'],
 		],
 		[
@@ -632,7 +632,7 @@ async function concurrentMetrics(
 		const needle = 1 + ((index * 7919) % count)
 		jobs.push(
 			prisma.$queryRawUnsafe(
-				'SELECT id FROM "Media" WHERE title LIKE $1 LIMIT 24',
+				'SELECT id FROM "Media" WHERE title ILIKE $1 LIMIT 24',
 				`%Catalog Work ${needle}%`,
 			),
 		)

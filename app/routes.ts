@@ -110,8 +110,6 @@ export default [
 	appRoute('routes/media+/fetch-data.$request.ts', {
 		path: 'media/fetch-data/:request',
 	}),
-	appRoute('routes/media+/mal.ts', { path: 'media/mal' }),
-	appRoute('routes/media+/tmdb.ts', { path: 'media/tmdb' }),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
 	appRoute('routes/moderation.tsx', { path: 'moderation' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
@@ -236,9 +234,6 @@ export default [
 			appRoute('routes/users+/$username.social.tsx', { path: 'social' }),
 			appRoute('routes/users+/$username.stats.tsx', { path: 'stats' }),
 		],
-	}),
-	appRoute('routes/users+/$username_/stats_/index.tsx', {
-		path: 'users/:username/stats',
 	}),
 	appRoute('routes/users+/index.tsx', {
 		path: 'users/',

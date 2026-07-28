@@ -104,6 +104,8 @@ export function UpcomingData({
 										<article key={item.id} className="flex gap-3 p-3">
 											<Link
 												to={`/media/${item.mediaId}`}
+												aria-hidden="true"
+												tabIndex={-1}
 												className="h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[#2e2f2b]"
 											>
 												{item.imageUrl ? (

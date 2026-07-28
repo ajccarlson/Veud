@@ -561,7 +561,7 @@ async function matchAiSuggestions(
 async function aiSuggestionPlan(
 	memory: string,
 	kind: DiscoveryQuery['kind'],
-	fetchImpl: typeof fetch,
+	fetchImpl: typeof fetch | undefined,
 	options: {
 		rateLimitKey?: string
 		now: number
@@ -801,16 +801,11 @@ export async function getTipOfTongueMatches(
 	if (!apiKey) return fallback('not-configured')
 	if (options.allowAi !== true) return fallback('sign-in-required')
 	try {
-		const plan = await aiSuggestionPlan(
-			memory,
-			kind,
-			options.fetchImpl ?? fetch,
-			{
-				rateLimitKey: options.rateLimitKey,
-				now,
-				circuit: options.aiCircuit,
-			},
-		)
+		const plan = await aiSuggestionPlan(memory, kind, options.fetchImpl, {
+			rateLimitKey: options.rateLimitKey,
+			now,
+			circuit: options.aiCircuit,
+		})
 		if (!plan.suggestions.length) return fallback('ai-empty')
 		return {
 			matches: await matchAiSuggestions(memory, kind, plan.suggestions),

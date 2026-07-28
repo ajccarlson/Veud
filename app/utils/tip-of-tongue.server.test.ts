@@ -1,9 +1,14 @@
 import { afterEach, expect, test, vi } from 'vitest'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
+import { resetAiGatewayStateForTests } from './ai-gateway.server.ts'
 import { prisma } from './db.server.ts'
 import { getTipOfTongueMatches } from './tip-of-tongue.server.ts'
 
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+	vi.unstubAllEnvs()
+	vi.unstubAllGlobals()
+	resetAiGatewayStateForTests()
+})
 
 function aiSuggestionResponse(
 	input: Array<{
@@ -196,6 +201,86 @@ test('AI identifies five hypotheses while final matches remain catalog-backed', 
 		memory: 'An anime where friends repeat the same summer day with a clock.',
 		requestedMediaType: 'anime',
 	})
+})
+
+test('production text identification retains durable gateway accounting', async () => {
+	const now = Date.UTC(2049, 6, 14, 12, 34, 56)
+	const dayStartedAt = new Date(Math.floor(now / 86_400_000) * 86_400_000)
+	const nextDayStartedAt = new Date(dayStartedAt.getTime() + 86_400_000)
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	const fetchMock = vi.fn<typeof fetch>(async () =>
+		aiSuggestionResponse([
+			{
+				title: 'Durable Text Gateway Candidate',
+				kind: 'movie',
+				reason: 'This may match the lighthouse and repeating day.',
+				matchedClues: ['lighthouse', 'repeating day'],
+			},
+		]),
+	)
+	vi.stubGlobal('fetch', fetchMock)
+
+	try {
+		await expect(
+			getTipOfTongueMatches(
+				{
+					memory: 'A lighthouse where the same day keeps repeating.',
+					kind: 'movie',
+				},
+				{
+					allowAi: true,
+					rateLimitKey: 'viewer:durable-text-wrapper',
+					now,
+				},
+			),
+		).resolves.toEqual(
+			expect.objectContaining({
+				source: 'ai',
+				fallbackReason: null,
+			}),
+		)
+		expect(fetchMock).toHaveBeenCalledOnce()
+		await expect(
+			prisma.aiUsageEvent.findFirst({
+				where: {
+					capability: 'tip-of-tongue',
+					promptVersion: 'tomt-text-v2',
+					outcome: 'success',
+					createdAt: new Date(now),
+				},
+			}),
+		).resolves.not.toBeNull()
+		const buckets = await prisma.aiRateLimitBucket.findMany({
+			where: {
+				capability: 'tip-of-tongue',
+				windowStartedAt: {
+					gte: dayStartedAt,
+					lt: nextDayStartedAt,
+				},
+			},
+		})
+		expect(buckets.map(bucket => bucket.windowMs)).toEqual(
+			expect.arrayContaining([10 * 60 * 1_000, 24 * 60 * 60 * 1_000]),
+		)
+	} finally {
+		await prisma.aiUsageEvent.deleteMany({
+			where: {
+				capability: 'tip-of-tongue',
+				promptVersion: 'tomt-text-v2',
+				createdAt: new Date(now),
+			},
+		})
+		await prisma.aiRateLimitBucket.deleteMany({
+			where: {
+				capability: 'tip-of-tongue',
+				windowStartedAt: {
+					gte: dayStartedAt,
+					lt: nextDayStartedAt,
+				},
+			},
+		})
+	}
 })
 
 test('catalog and provider metadata are never sent to external AI', async () => {

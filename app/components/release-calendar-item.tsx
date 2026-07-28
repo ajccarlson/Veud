@@ -87,6 +87,8 @@ export function ReleaseCalendarItem({
 			</div>
 			<Link
 				to={`/media/${item.mediaId}`}
+				aria-hidden="true"
+				tabIndex={-1}
 				className="h-24 w-16 overflow-hidden rounded-lg bg-veud-ink shadow-md"
 			>
 				{item.imageUrl ? (
@@ -131,8 +133,8 @@ export function ReleaseCalendarItem({
 						</span>
 					) : null}
 					<span className="rounded-full bg-veud-ink px-2 py-0.5">
-						{item.trackerCount}{' '}
-						{item.trackerCount === 1 ? 'member' : 'members'} tracking
+						{item.trackerCount} {item.trackerCount === 1 ? 'member' : 'members'}{' '}
+						tracking
 					</span>
 				</div>
 				{isSignedIn ? (
@@ -157,7 +159,11 @@ export function ReleaseCalendarItem({
 						</Form>
 					) : (
 						<Form method="post" className="mt-3">
-							<input type="hidden" name="intent" value="release-reminder-save" />
+							<input
+								type="hidden"
+								name="intent"
+								value="release-reminder-save"
+							/>
 							<input type="hidden" name="mediaId" value={item.mediaId} />
 							<input type="hidden" name="leadMinutes" value="60" />
 							<Button
