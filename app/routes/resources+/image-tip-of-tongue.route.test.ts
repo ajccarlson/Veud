@@ -1,9 +1,10 @@
 import { faker } from '@faker-js/faker'
 import sharp from 'sharp'
 import { afterEach, expect, test, vi } from 'vitest'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { resetAiGatewayStateForTests } from '#app/utils/ai-gateway.server.ts'
+import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { honeypot } from '#app/utils/honeypot.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action } from './image-tip-of-tongue.ts'
 
@@ -252,12 +253,22 @@ test('anonymous canonical Tip of My Tongue accepts image-only clues', async () =
 	const fetchMock = vi.fn<typeof fetch>(async () => aiResponse(suggestions))
 	vi.stubGlobal('fetch', fetchMock)
 	const formData = new FormData()
+	const honeypotInputs = await honeypot.getInputProps()
 	formData.set('q', '')
 	formData.set('kind', 'movie')
+	formData.set('mode', 'memory')
+	formData.set(honeypotInputs.nameFieldName, '')
+	if (honeypotInputs.validFromFieldName && honeypotInputs.encryptedValidFrom) {
+		formData.set(
+			honeypotInputs.validFromFieldName,
+			honeypotInputs.encryptedValidFrom,
+		)
+	}
 	formData.set(
 		'image',
 		new File([new Uint8Array(source)], 'memory.png', { type: 'image/png' }),
 	)
+	expect([...formData.keys()]).toHaveLength(6)
 
 	try {
 		const result = await action({
@@ -305,5 +316,27 @@ test('canonical Tip of My Tongue validation accepts an image or three text chara
 	expect(result.data).toEqual({
 		ok: false,
 		error: 'Add a few details or an image.',
+	})
+})
+
+test('anonymous production requests require same-origin browser evidence', async () => {
+	vi.stubEnv('NODE_ENV', 'production')
+	const formData = new FormData()
+	formData.set('q', 'A lighthouse that repeats the same day')
+	formData.set('kind', 'movie')
+
+	const result = await action({
+		request: new Request(`${BASE_URL}/resources/image-tip-of-tongue`, {
+			method: 'POST',
+			headers: { origin: 'https://attacker.example' },
+			body: formData,
+		}),
+		params: {},
+	} as any)
+
+	expect(result.init?.status).toBe(403)
+	expect(result.data).toEqual({
+		ok: false,
+		error: 'This request could not be verified.',
 	})
 })

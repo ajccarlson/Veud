@@ -1,4 +1,5 @@
 import { Link, useFetcher } from 'react-router'
+import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
 import { type action as imageTipOfTongueAction } from '#app/routes/resources+/image-tip-of-tongue.ts'
@@ -12,10 +13,7 @@ import {
 } from '#app/utils/home-trending.server.ts'
 import { scoreColor, scoreRange } from '#app/utils/lists/score-colorer.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
-import {
-	tipOfTongueImageDisclosure,
-	tipOfTongueStatus,
-} from '#app/utils/tip-of-tongue.ts'
+import { tipOfTongueStatus } from '#app/utils/tip-of-tongue.ts'
 import { TrendingData } from './_trending.tsx'
 
 const kindLabels: Record<string, string> = {
@@ -128,6 +126,7 @@ function MemoryDemo({
 				encType="multipart/form-data"
 				className="home-anon-memory-form"
 			>
+				<HoneypotInputs />
 				<label htmlFor="home-memory-query" className="sr-only">
 					Describe the movie, show, anime, or manga you remember
 				</label>
@@ -146,11 +145,7 @@ function MemoryDemo({
 							type="file"
 							accept="image/jpeg,image/png,image/webp"
 							aria-label="Add a screenshot or cover"
-							aria-describedby="home-memory-image-disclosure"
 						/>
-						<small id="home-memory-image-disclosure">
-							{tipOfTongueImageDisclosure}
-						</small>
 					</label>
 				) : null}
 				<div className="home-anon-memory-controls">

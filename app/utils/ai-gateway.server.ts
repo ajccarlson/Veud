@@ -6,6 +6,9 @@ const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
 const MAX_RATE_LIMIT_KEYS = 5_000
 const MAX_TELEMETRY_EVENTS = 500
+const DAY_MS = 24 * 60 * 60 * 1_000
+const DEFAULT_DAILY_CAPABILITY_LIMIT = 5_000
+const DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT = 250
 
 export const aiCapabilities = [
 	'tip-of-tongue',
@@ -41,6 +44,7 @@ export type AiGatewayTelemetry = {
 }
 
 const requestHistory = new Map<string, number[]>()
+const blockedDailyBudgets = new Map<string, number>()
 const circuits = new Map<AiCapability, AiCircuit>()
 const telemetry: AiGatewayTelemetry[] = []
 let activeRequests = 0
@@ -123,10 +127,11 @@ function consumeRequest(input: {
 	recent.push(input.now)
 	requestHistory.set(storageKey, recent)
 	if (requestHistory.size > MAX_RATE_LIMIT_KEYS) {
-		for (const [key, timestamps] of requestHistory) {
-			if (!timestamps.some(timestamp => timestamp > cutoff)) {
-				requestHistory.delete(key)
-			}
+		const oldestFirst = [...requestHistory.entries()].sort(
+			([, left], [, right]) => Math.max(...left, 0) - Math.max(...right, 0),
+		)
+		for (const [key] of oldestFirst) {
+			requestHistory.delete(key)
 			if (requestHistory.size <= MAX_RATE_LIMIT_KEYS - 1_000) break
 		}
 	}
@@ -139,10 +144,12 @@ async function consumeDurableRequest(input: {
 	now: number
 	limit: number
 	windowMs: number
+	subjectHash?: string
+	failClosed?: boolean
 }) {
-	const subjectHash = createHash('sha256')
-		.update(`veud-ai-limit:${input.key}`)
-		.digest('hex')
+	const subjectHash =
+		input.subjectHash ??
+		createHash('sha256').update(`veud-ai-limit:${input.key}`).digest('hex')
 	const windowStartedAtMs =
 		Math.floor(input.now / input.windowMs) * input.windowMs
 	const id = createHash('sha256')
@@ -165,16 +172,99 @@ async function consumeDurableRequest(input: {
 			update: { count: { increment: 1 } },
 			select: { count: true },
 		})
-		return bucket.count <= input.limit
+		return { allowed: bucket.count <= input.limit, count: bucket.count }
 	} catch (error) {
-		// Availability wins over cross-process quota coordination when the
-		// database is briefly unavailable. The in-process limiter still applies.
 		console.warn(
 			'Unable to coordinate durable AI rate limit',
 			error instanceof Error ? error.name : 'DatabaseError',
 		)
-		return true
+		return { allowed: input.failClosed !== true, count: null }
 	}
+}
+
+function configuredLimit(name: string, fallback: number) {
+	const value = Number.parseInt(process.env[name] ?? '', 10)
+	return Number.isFinite(value) && value > 0
+		? Math.min(1_000_000, value)
+		: fallback
+}
+
+function warnAtBudgetThreshold(input: {
+	capability: AiCapability
+	scope: 'global' | 'anonymous'
+	count: number | null
+	limit: number
+}) {
+	if (input.count === null) return
+	const alertAt = Math.max(1, Math.ceil(input.limit * 0.8))
+	if (input.count !== alertAt && input.count !== input.limit) return
+	console.warn('AI daily request budget threshold reached', {
+		capability: input.capability,
+		scope: input.scope,
+		count: input.count,
+		limit: input.limit,
+	})
+}
+
+function dailyBudgetBlockKey(
+	capability: AiCapability,
+	scope: 'global' | 'anonymous',
+) {
+	return `${capability}:daily-${scope}`
+}
+
+function isDailyBudgetBlocked(input: {
+	capability: AiCapability
+	scope: 'global' | 'anonymous'
+	now: number
+}) {
+	const blockKey = dailyBudgetBlockKey(input.capability, input.scope)
+	const blockedUntil = blockedDailyBudgets.get(blockKey) ?? 0
+	if (blockedUntil > input.now) return true
+	if (blockedUntil) blockedDailyBudgets.delete(blockKey)
+	return false
+}
+
+async function consumeDailyBudget(input: {
+	capability: AiCapability
+	scope: 'global' | 'anonymous'
+	now: number
+	limit: number
+	persist: boolean
+}) {
+	const windowStartedAt = Math.floor(input.now / DAY_MS) * DAY_MS
+	const key = `daily-${input.scope}:${windowStartedAt}`
+	const blockKey = dailyBudgetBlockKey(input.capability, input.scope)
+	if (isDailyBudgetBlocked(input)) return false
+
+	const budget = {
+		capability: input.capability,
+		key,
+		now: input.now,
+		limit: input.limit,
+		windowMs: DAY_MS,
+	}
+	if (!consumeRequest(budget)) {
+		blockedDailyBudgets.set(blockKey, windowStartedAt + DAY_MS)
+		return false
+	}
+	if (!input.persist) return true
+
+	const result = await consumeDurableRequest({
+		...budget,
+		subjectHash: input.scope === 'global' ? 'global' : 'anonymous-global',
+		failClosed: true,
+	})
+	warnAtBudgetThreshold({
+		capability: input.capability,
+		scope: input.scope,
+		count: result.count,
+		limit: input.limit,
+	})
+	if (!result.allowed && result.count !== null) {
+		blockedDailyBudgets.set(blockKey, windowStartedAt + DAY_MS)
+	}
+	return result.allowed
 }
 
 export class AiGatewayError extends Error {
@@ -261,6 +351,7 @@ export async function getAiGatewayOperationsTelemetry(since: Date) {
 
 export function resetAiGatewayStateForTests() {
 	requestHistory.clear()
+	blockedDailyBudgets.clear()
 	circuits.clear()
 	telemetry.splice(0)
 	activeRequests = 0
@@ -356,6 +447,27 @@ export async function requestStructuredAi<Output>(options: {
 			'AI capability is temporarily unavailable.',
 		)
 	}
+	const dailyLimit = configuredLimit(
+		'VEUD_AI_DAILY_LIMIT_PER_CAPABILITY',
+		DEFAULT_DAILY_CAPABILITY_LIMIT,
+	)
+	const anonymousDailyLimit = configuredLimit(
+		'VEUD_AI_ANONYMOUS_DAILY_LIMIT_PER_CAPABILITY',
+		DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT,
+	)
+	const isAnonymous = options.rateLimitKey?.startsWith('anonymous:') === true
+	const aggregateBudgetBlocked =
+		isDailyBudgetBlocked({
+			capability: options.capability,
+			scope: 'global',
+			now: startedAtMs,
+		}) ||
+		(isAnonymous &&
+			isDailyBudgetBlocked({
+				capability: options.capability,
+				scope: 'anonymous',
+				now: startedAtMs,
+			}))
 	const rateLimitInput = options.rateLimitKey
 		? {
 				capability: options.capability,
@@ -365,14 +477,10 @@ export async function requestStructuredAi<Output>(options: {
 				windowMs: options.rateLimitWindowMs ?? 10 * 60 * 1_000,
 			}
 		: null
-	const withinLocalLimit = rateLimitInput
-		? consumeRequest(rateLimitInput)
-		: true
-	const withinDurableLimit =
-		withinLocalLimit && rateLimitInput && persistOperations
-			? await consumeDurableRequest(rateLimitInput)
-			: true
-	if (!withinLocalLimit || !withinDurableLimit) {
+	const withinLocalLimit =
+		!aggregateBudgetBlocked &&
+		(rateLimitInput ? consumeRequest(rateLimitInput) : true)
+	if (aggregateBudgetBlocked || !withinLocalLimit) {
 		await recordTelemetry(
 			{
 				...baseTelemetry,
@@ -416,6 +524,37 @@ export async function requestStructuredAi<Output>(options: {
 
 	let status: number | null = null
 	try {
+		const withinDurableLimit =
+			rateLimitInput && persistOperations
+				? (await consumeDurableRequest(rateLimitInput)).allowed
+				: true
+		const withinAnonymousDailyLimit =
+			withinDurableLimit && isAnonymous
+				? await consumeDailyBudget({
+						capability: options.capability,
+						scope: 'anonymous',
+						now: startedAtMs,
+						limit: anonymousDailyLimit,
+						persist: persistOperations,
+					})
+				: true
+		const withinGlobalDailyLimit =
+			withinDurableLimit && withinAnonymousDailyLimit
+				? await consumeDailyBudget({
+						capability: options.capability,
+						scope: 'global',
+						now: startedAtMs,
+						limit: dailyLimit,
+						persist: persistOperations,
+					})
+				: true
+		if (
+			!withinDurableLimit ||
+			!withinAnonymousDailyLimit ||
+			!withinGlobalDailyLimit
+		) {
+			throw new AiGatewayError('rate-limited', 'AI request limit reached.')
+		}
 		const response = await (options.fetchImpl ?? fetch)(
 			'https://api.openai.com/v1/responses',
 			{

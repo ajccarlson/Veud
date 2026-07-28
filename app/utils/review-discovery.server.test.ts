@@ -1,5 +1,8 @@
+import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
+import { prisma } from './db.server.ts'
 import {
+	getReviewDiscoveryResults,
 	parseReviewDiscoveryQuery,
 	rankTrendingReviews,
 	reviewTrendingScore,
@@ -72,4 +75,54 @@ test('trending reviews reward recent discussion and decay old engagement', () =>
 			now,
 		).map(review => review.id),
 	).toEqual(['recent-comment', 'new-review', 'recent-like', 'old-likes'])
+})
+
+test('review discovery matches mixed-case text, members, and media aliases', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const author = await prisma.user.create({
+		data: {
+			email: `review_case_${suffix}@example.com`,
+			username: `CaseReviewer_${suffix}`,
+			name: `Mixed Member ${suffix}`,
+		},
+	})
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: `Canonical Review Film ${suffix}`,
+			titles: {
+				create: {
+					provider: 'tmdb',
+					language: 'en',
+					titleType: 'alternate',
+					value: `Secret Review Alias ${suffix}`,
+					normalized: `secret review alias ${suffix}`,
+				},
+			},
+		},
+	})
+	const review = await prisma.review.create({
+		data: {
+			authorId: author.id,
+			mediaId: media.id,
+			body: `An UnFoRgEtTaBlE observation ${suffix}`,
+		},
+	})
+	const search = (q: string) =>
+		getReviewDiscoveryResults(
+			parseReviewDiscoveryQuery(
+				new URLSearchParams({ q, sort: 'recent', kind: 'movie' }),
+			),
+			null,
+		)
+
+	for (const query of [
+		`uNfOrGeTtAbLe ObSeRvAtIoN ${suffix.toUpperCase()}`,
+		`cAsErEvIeWeR_${suffix.toUpperCase()}`,
+		`cAnOnIcAl ReViEw FiLm ${suffix.toUpperCase()}`,
+		`SeCrEt ReViEw AlIaS ${suffix.toUpperCase()}`,
+	]) {
+		const result = await search(query)
+		expect(result.items.map(item => item.id)).toEqual([review.id])
+	}
 })

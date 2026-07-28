@@ -12,7 +12,11 @@ import { getEnv, init } from './utils/env.server.ts'
 import { NonceProvider } from './utils/nonce-provider.ts'
 import { makeTimings } from './utils/timing.server.ts'
 
-export { cspNonceContext, serverBuildContext } from './env.ts'
+export {
+	clientAddressContext,
+	cspNonceContext,
+	serverBuildContext,
+} from './env.ts'
 
 export const streamTimeout = 5000
 
@@ -43,11 +47,7 @@ async function handleRequest(...args: DocRequestArgs) {
 
 		const { pipe, abort } = renderToPipeableStream(
 			<NonceProvider value={nonce}>
-				<ServerRouter
-					context={routerContext}
-					nonce={nonce}
-					url={request.url}
-				/>
+				<ServerRouter context={routerContext} nonce={nonce} url={request.url} />
 			</NonceProvider>,
 			{
 				[callbackName]: () => {

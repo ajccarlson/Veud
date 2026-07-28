@@ -229,6 +229,50 @@ test('discovery searches canonical metadata and exposes normalized genres', asyn
 	])
 })
 
+test('discovery matches mixed-case canonical and alternate titles', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: `The MiXeD CaSe Signal ${suffix}`,
+			titles: {
+				create: {
+					provider: 'tmdb',
+					language: 'en',
+					titleType: 'alternate',
+					value: `Hidden Alias ${suffix}`,
+					normalized: `hidden alias ${suffix}`,
+				},
+			},
+		},
+	})
+
+	const canonical = await getDiscoveryResults(
+		filters({
+			q: `mIxEd CaSe SiGnAl ${suffix.toUpperCase()}`,
+			kind: 'movie',
+			sort: 'title',
+		}),
+		null,
+	)
+	const alternate = await getDiscoveryResults(
+		filters({
+			q: `HiDdEn AlIaS ${suffix.toUpperCase()}`,
+			kind: 'movie',
+			sort: 'title',
+		}),
+		null,
+	)
+
+	expect(canonical.items.map(item => item.id)).toEqual([media.id])
+	expect(alternate.items).toEqual([
+		expect.objectContaining({
+			id: media.id,
+			matchedTitle: `Hidden Alias ${suffix}`,
+		}),
+	])
+})
+
 test('anime and manga popularity use MAL rank without score or community reshuffling', async () => {
 	for (const kind of ['anime', 'manga'] as const) {
 		const [rankOne, rankTwo, unranked] = await Promise.all([

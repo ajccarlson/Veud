@@ -54,13 +54,6 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 		await expect(memoryForm).toHaveAttribute('enctype', 'multipart/form-data')
 		const imageInput = page.getByLabel('Add a screenshot or cover')
 		await expect(imageInput).toBeVisible()
-		await expect(imageInput).toHaveAttribute(
-			'aria-describedby',
-			'home-memory-image-disclosure',
-		)
-		await expect(
-			page.getByText('Images are re-encoded and sent to OpenAI.'),
-		).toBeVisible()
 		await page
 			.getByLabel('Describe the movie, show, anime, or manga you remember')
 			.fill('a red light inside an abandoned glass station')
@@ -73,7 +66,7 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 		).toBeVisible()
 		await expect(page.locator('.home-anon-memory-result')).toHaveCount(5)
 		await expect(
-			page.getByText(/5 of 5 matches · (AI|Local) match/),
+			page.getByText('5 of 5 matches · AI match', { exact: true }),
 		).toBeVisible()
 		await expect(page.locator('.home-anon-memory-result em')).toHaveCount(5)
 		await expect(

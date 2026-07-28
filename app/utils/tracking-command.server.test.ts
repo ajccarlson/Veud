@@ -142,6 +142,50 @@ test('builds a local preview and requires explicit application', async () => {
 	).toBe(0)
 })
 
+test('resolves a mixed-case partial catalog title in a tracking command', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const owner = await prisma.user.create({
+		data: {
+			email: 'case-command@example.com',
+			username: 'case_command',
+		},
+	})
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'The MiXeD CaSe Command Clock',
+		},
+	})
+	const preview = await createTrackingCommandPreview(prisma, {
+		ownerId: owner.id,
+		requestText: 'Favorite mixed case command clock',
+		rateLimitKey: owner.id,
+		fetchImpl: vi.fn<typeof fetch>(async () =>
+			aiResponse({
+				summary: 'Favorite one title.',
+				operations: [
+					{
+						title: 'mIxEd CaSe CoMmAnD cLoCk',
+						kind: 'movie',
+						destination: null,
+						score: null,
+						progressUnit: null,
+						progressCurrent: null,
+						favorite: true,
+						collection: null,
+					},
+				],
+			}),
+		),
+	})
+	const stored = JSON.parse(preview.operations) as {
+		operations: Array<{ mediaId: string }>
+	}
+	expect(stored.operations.map(operation => operation.mediaId)).toEqual([
+		media.id,
+	])
+})
+
 test('undo restores exact source and destination list positions after a move', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
 	const owner = await prisma.user.create({

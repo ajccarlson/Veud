@@ -187,7 +187,7 @@ test('member can filter the catalog and discover an unseen personalized title', 
 	}
 })
 
-test('global advanced search returns five grounded memory matches without AI', async ({
+test('global advanced search returns five grounded local matches without provider inference', async ({
 	page,
 }) => {
 	const matches = await Promise.all(
@@ -224,7 +224,11 @@ test('global advanced search returns five grounded memory matches without AI', a
 			page.getByRole('heading', { name: 'Closest matches' }),
 		).toBeVisible()
 		await expect(page.getByText(/5 of 5 matches/)).toBeVisible()
-		await expect(page.getByText(/Local match/)).toBeVisible()
+		await expect(
+			page.getByText('5 of 5 matches · Local match', {
+				exact: true,
+			}),
+		).toBeVisible()
 		await expect(
 			siteSearch.getByLabel('Enable Tip of My Tongue search'),
 		).toBeChecked()
