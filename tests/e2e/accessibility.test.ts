@@ -21,6 +21,7 @@ for (const [name, path] of [
 	['home', '/'],
 	['discover', '/discover'],
 	['calendar', '/calendar'],
+	['calendar day', '/calendar/2026-07-21'],
 	['reviews', '/reviews'],
 	['collections', '/collections'],
 	['credits', '/credits'],

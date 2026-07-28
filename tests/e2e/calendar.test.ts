@@ -144,3 +144,46 @@ test('member can browse a release week and focus on tracked titles', async ({
 			.catch(() => {})
 	}
 })
+
+test('busy calendar days link to a full day page', async ({ page }) => {
+	const titles = ['A', 'B', 'C', 'D', 'E', 'F'].map(
+		letter => `Overflow Day ${letter}`,
+	)
+	const media = await Promise.all(
+		titles.map(title =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title,
+					releaseStart: new Date('2026-07-21T00:00:00.000Z'),
+				},
+			}),
+		),
+	)
+
+	try {
+		await page.goto('/calendar?start=2026-07-20&kind=movie')
+		const day = page.locator('section[aria-labelledby="calendar-day-2026-07-21"]')
+		await expect(day.getByText('6 releases', { exact: true })).toBeVisible()
+		await expect(day.getByRole('article')).toHaveCount(5)
+
+		await day.getByRole('link', { name: /View all 6 releases/ }).click()
+		await expect(page).toHaveURL(/\/calendar\/2026-07-21/)
+		await expect(
+			page.getByRole('heading', { name: /Tuesday, Jul 21/ }),
+		).toBeVisible()
+		await expect(page.getByRole('article')).toHaveCount(6)
+		for (const title of titles) {
+			await expect(
+				page.getByRole('link', { name: title, exact: true }),
+			).toBeVisible()
+		}
+
+		await page.getByRole('link', { name: /Back to week view/ }).click()
+		await expect(page).toHaveURL(/\/calendar\?start=2026-07-20/)
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: media.map(item => item.id) } } })
+			.catch(() => {})
+	}
+})
