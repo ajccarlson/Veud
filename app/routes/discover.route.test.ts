@@ -139,7 +139,7 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	])
 })
 
-test('anonymous memory search uses AI suggestions when configured', async () => {
+test('memory-search GET remains local even when AI is configured', async () => {
 	const expected = await prisma.media.create({
 		data: {
 			kind: 'movie',
@@ -150,37 +150,7 @@ test('anonymous memory search uses AI suggestions when configured', async () => 
 		},
 	})
 	vi.stubEnv('OPENAI_API_KEY', 'configured-key')
-	const suggestions = Array.from({ length: 5 }, (_, index) => ({
-		title:
-			index === 0
-				? 'Silver Observatory Match'
-				: `Unavailable catalog suggestion ${index + 1}`,
-		alternateTitle: null,
-		year: null,
-		kind: 'movie',
-		reason:
-			'Silver Observatory Match may match the silver observatory and desert.',
-		matchedClues: ['silver', 'observatory', 'desert'],
-	}))
-	const fetchMock = vi.fn<typeof fetch>(
-		async () =>
-			new Response(
-				JSON.stringify({
-					output: [
-						{
-							type: 'message',
-							content: [
-								{
-									type: 'output_text',
-									text: JSON.stringify({ suggestions }),
-								},
-							],
-						},
-					],
-				}),
-				{ status: 200, headers: { 'Content-Type': 'application/json' } },
-			),
-	)
+	const fetchMock = vi.fn<typeof fetch>()
 	vi.stubGlobal('fetch', fetchMock)
 
 	const result = await loader({
@@ -190,22 +160,16 @@ test('anonymous memory search uses AI suggestions when configured', async () => 
 		params: {},
 	} as any)
 
-	expect(fetchMock).toHaveBeenCalled()
+	expect(fetchMock).not.toHaveBeenCalled()
 	expect(result.data.aiSearchAvailable).toBe(true)
-	expect(result.data.memorySearchSource).toBe('ai')
-	expect(result.data.memorySearchFallbackReason).toBe(null)
+	expect(result.data.memorySearchSource).toBe('catalog-match')
+	expect(result.data.memorySearchFallbackReason).toBe('sign-in-required')
 	expect(result.data.items).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({
 				id: expected.id,
 				title: 'Silver Observatory Match',
-				memoryMatch: expect.objectContaining({
-					matchedClues: expect.arrayContaining([
-						'silver',
-						'observatory',
-						'desert',
-					]),
-				}),
+				memoryMatch: expect.objectContaining({ summary: expect.any(String) }),
 			}),
 		]),
 	)

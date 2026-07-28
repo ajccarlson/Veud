@@ -9,9 +9,6 @@ export type TipOfTongueFallbackReason =
 	| 'ai-empty'
 	| null
 
-export const tipOfTongueImageDisclosure =
-	'Images are re-encoded and sent to OpenAI.'
-
 export function tipOfTongueStatus({
 	source,
 	fallbackReason,

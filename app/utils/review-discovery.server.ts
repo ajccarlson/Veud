@@ -1,6 +1,8 @@
 import { type Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
+import { prismaSearchFilter } from './prisma-search.server.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const TRENDING_WINDOW_DAYS = 30
@@ -340,6 +342,7 @@ export async function getReviewDiscoveryResults(
 					})
 					.then(rows => rows.map(row => row.followingId))
 			: []
+	const normalizedQuery = normalizeCatalogTitle(filters.q)
 	const where: Prisma.ReviewWhereInput = {
 		moderationStatus: 'visible',
 		AND: [
@@ -347,10 +350,38 @@ export async function getReviewDiscoveryResults(
 				? [
 						{
 							OR: [
-								{ body: { contains: filters.q } },
-								{ media: { title: { contains: filters.q } } },
-								{ author: { username: { contains: filters.q } } },
-								{ author: { name: { contains: filters.q } } },
+								{ body: prismaSearchFilter('contains', filters.q) },
+								{
+									media: {
+										title: prismaSearchFilter('contains', filters.q),
+									},
+								},
+								...(normalizedQuery
+									? [
+											{
+												media: {
+													titles: {
+														some: {
+															normalized: prismaSearchFilter(
+																'contains',
+																normalizedQuery,
+															),
+														},
+													},
+												},
+											},
+										]
+									: []),
+								{
+									author: {
+										username: prismaSearchFilter('contains', filters.q),
+									},
+								},
+								{
+									author: {
+										name: prismaSearchFilter('contains', filters.q),
+									},
+								},
 							],
 						},
 					]

@@ -14,6 +14,7 @@ import {
 } from './media-detail.ts'
 import { toggleMediaFavorite } from './media-favorites.server.ts'
 import { listTypeNameForMediaKind } from './media-kind.ts'
+import { prismaSearchFilter } from './prisma-search.server.ts'
 import { setMediaTrackingStatus } from './tracking-status.server.ts'
 
 const MAX_OPERATIONS = 10
@@ -165,12 +166,14 @@ async function resolveMedia(
 				where: {
 					...(kind ? { kind } : {}),
 					OR: [
-						{ title: { contains: title } },
+						{ title: prismaSearchFilter('contains', title) },
 						...(normalized
 							? [
 									{
 										titles: {
-											some: { normalized: { contains: normalized } },
+											some: {
+												normalized: prismaSearchFilter('contains', normalized),
+											},
 										},
 									},
 								]

@@ -135,12 +135,46 @@ test('quick tracking requires authentication and an owned compatible watchlist',
 		const denied = await action({
 			request: request({ mediaId: media.id, watchlistId }, cookie),
 			params: {},
-		} as any).catch(error => error)
-		expect(denied).toBeInstanceOf(Response)
-		expect((denied as Response).status).toBe(400)
+		} as any)
+		expect(denied.init?.status).toBe(400)
+		expect(denied.data).toEqual({
+			ok: false,
+			error: 'Tracking status not found',
+		})
 	}
 	expect(await prisma.trackingState.count()).toBe(0)
 	expect(await prisma.entry.count({ where: { mediaId: media.id } })).toBe(0)
+})
+
+test('expected quick-track failures return inline-safe data responses', async () => {
+	const { watching, cookie } = await fixture()
+
+	const invalid = await action({
+		request: new Request(`${BASE_URL}/resources/quick-track`, {
+			method: 'POST',
+			headers: {
+				cookie,
+				'content-type': 'application/x-www-form-urlencoded',
+			},
+			body: new URLSearchParams({ mediaId: '', watchlistId: watching.id }),
+		}),
+		params: {},
+	} as any)
+	expect(invalid.init?.status).toBe(400)
+	expect(invalid.data).toEqual({
+		ok: false,
+		error: 'Invalid tracking update',
+	})
+
+	const missing = await action({
+		request: request(
+			{ mediaId: 'missing-media', watchlistId: watching.id },
+			cookie,
+		),
+		params: {},
+	} as any)
+	expect(missing.init?.status).toBe(404)
+	expect(missing.data).toEqual({ ok: false, error: 'Media not found' })
 })
 
 test('quick tracking creates a canonical list row and reuses it for status changes', async () => {

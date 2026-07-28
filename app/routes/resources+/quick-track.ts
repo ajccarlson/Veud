@@ -15,11 +15,27 @@ export async function action({ request }: ActionFunctionArgs) {
 		Object.fromEntries(await request.formData()),
 	)
 	if (!parsed.success) {
-		throw new Response('Invalid tracking update', { status: 400 })
+		return json(
+			{ ok: false as const, error: 'Invalid tracking update' },
+			{ status: 400 },
+		)
 	}
 
-	const tracking = await prisma.$transaction(tx =>
-		setMediaTrackingStatus(tx, { ownerId, ...parsed.data }),
-	)
-	return json({ ok: true as const, tracking })
+	try {
+		const tracking = await prisma.$transaction(tx =>
+			setMediaTrackingStatus(tx, { ownerId, ...parsed.data }),
+		)
+		return json({ ok: true as const, tracking })
+	} catch (error) {
+		if (error instanceof Response && error.status < 500) {
+			return json(
+				{
+					ok: false as const,
+					error: (await error.text()) || 'Tracking could not be updated.',
+				},
+				{ status: error.status },
+			)
+		}
+		throw error
+	}
 }

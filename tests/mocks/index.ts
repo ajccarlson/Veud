@@ -1,21 +1,23 @@
 import closeWithGrace from 'close-with-grace'
 import { setupServer } from 'msw/node'
+import { handlers as openAiHandlers } from './openai.ts'
 import { handlers as resendHandlers } from './resend.ts'
 
-export const server = setupServer(...resendHandlers)
+export const server = setupServer(...resendHandlers, ...openAiHandlers)
 
 server.listen({
-	onUnhandledRequest(request, print) {
-		// Do not print warnings on unhandled requests to https://<:userId>.ingest.us.sentry.io/api/
-		// Note: a request handler with passthrough is not suited with this type of url
-		//       until there is a more permissible url catching system
-		//       like requested at https://github.com/mswjs/msw/issues/1804
-		if (request.url.includes('.sentry.io')) {
-			return
-		}
+	onUnhandledRequest(request) {
+		const url = new URL(request.url)
+		const isSentry = url.hostname.endsWith('.sentry.io')
+		const isLocal =
+			url.hostname === 'localhost' ||
+			url.hostname === '127.0.0.1' ||
+			url.hostname === '[::1]'
+		if (isSentry || isLocal) return
 
-		// Print the regular MSW unhandled request warning otherwise.
-		print.warning()
+		throw new Error(
+			`Unhandled network request in tests: ${request.method} ${request.url}`,
+		)
 	},
 })
 
