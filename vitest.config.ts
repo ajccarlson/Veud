@@ -11,7 +11,11 @@ export default defineConfig({
 		// files concurrently can starve Prisma's single-connection transactions
 		// and turn otherwise-correct tests into nondeterministic 5s timeouts.
 		fileParallelism: false,
-		include: ['./app/**/*.test.{ts,tsx}', './scripts/**/*.test.mjs'],
+		include: [
+			'./app/**/*.test.{ts,tsx}',
+			'./server/**/*.test.{ts,tsx}',
+			'./scripts/**/*.test.mjs',
+		],
 		setupFiles: ['./tests/setup/setup-test-env.ts'],
 		globalSetup: ['./tests/setup/global-setup.ts'],
 		restoreMocks: true,

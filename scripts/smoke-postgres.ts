@@ -6,6 +6,7 @@ import {
 	rollbackLibraryImportBatch,
 } from '#app/utils/library-import-commit.server.ts'
 import { type LibraryImportItem } from '#app/utils/library-import.ts'
+import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
 import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
 
 const requiredIndexes = new Set([
@@ -160,6 +161,28 @@ async function main() {
 		})
 		if (titles < 1) {
 			throw new Error('Normalized PostgreSQL catalog search returned no rows')
+		}
+		const mixedCaseCanonicalMatches = await prisma.media.count({
+			where: {
+				id: media.id,
+				title: prismaSearchFilter('contains', 'pOsTgReSqL cAtAlOg SmOkE'),
+			},
+		})
+		if (mixedCaseCanonicalMatches !== 1) {
+			throw new Error(
+				'Case-insensitive PostgreSQL canonical-title search returned no rows',
+			)
+		}
+		const mixedCaseAlternateMatches = await prisma.mediaTitle.count({
+			where: {
+				mediaId: media.id,
+				normalized: prismaSearchFilter('contains', 'CaTaLoG sMoKe'),
+			},
+		})
+		if (mixedCaseAlternateMatches !== 1) {
+			throw new Error(
+				'Case-insensitive PostgreSQL alternate-title search returned no rows',
+			)
 		}
 
 		const sourceKey = `postgres-smoke:${suffix}`

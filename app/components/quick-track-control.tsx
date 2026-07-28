@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link, useFetcher } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { type action as quickTrackAction } from '#app/routes/resources+/quick-track.ts'
@@ -37,6 +37,7 @@ export function QuickTrackControl({
 	layout?: 'row' | 'stacked'
 }) {
 	const fetcher = useFetcher<typeof quickTrackAction>()
+	const instanceId = useId()
 	const listTypeName = listTypeNameForMediaKind(item.kind)
 	const compatible = listTypeName
 		? watchlists.filter(watchlist => watchlist.type.name === listTypeName)
@@ -76,44 +77,61 @@ export function QuickTrackControl({
 		fetcher.data?.ok &&
 		fetcher.data.tracking.watchlistId === selectedWatchlistId
 	const verb = isTracked ? 'Update' : 'Track'
+	const error =
+		fetcher.state === 'idle' && fetcher.data && !fetcher.data.ok
+			? fetcher.data.error
+			: null
+	const errorId = `quick-track-error-${item.id}-${instanceId}`
 
 	return (
-		<fetcher.Form
-			method="post"
-			action="/resources/quick-track"
-			className={cn('flex gap-2', layout === 'stacked' && 'flex-col')}
-		>
-			<input type="hidden" name="mediaId" value={item.id} />
-			<select
-				name="watchlistId"
-				value={selectedWatchlistId}
-				onChange={event => setSelectedWatchlistId(event.currentTarget.value)}
-				disabled={busy}
-				aria-label={`Tracking status for ${item.title}`}
-				data-tracking-state={isTracked ? 'tracked' : 'available'}
-				className={cn(
-					'quick-track-watchlist-select h-9 min-w-0 flex-1 rounded-md border px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]',
-					isTracked
-						? 'border-[#a2ffd5] bg-[#315746] text-[#f1fff8] shadow-[inset_0_0_0_1px_rgba(162,255,213,0.15)]'
-						: 'border-[#54806c] bg-[#2e2f2b] text-[#ffefcc]',
-				)}
+		<div className="min-w-0">
+			<fetcher.Form
+				method="post"
+				action="/resources/quick-track"
+				className={cn('flex gap-2', layout === 'stacked' && 'flex-col')}
 			>
-				{compatible.map(watchlist => (
-					<option key={watchlist.id} value={watchlist.id}>
-						{watchlist.header}
-					</option>
-				))}
-			</select>
-			<Button
-				type="submit"
-				size="sm"
-				variant="outline"
-				disabled={busy || !selectedWatchlistId}
-				aria-label={`${verb} ${item.title}`}
-				className={cn(layout === 'stacked' && 'w-full')}
-			>
-				{busy ? 'Saving…' : saved ? 'Saved' : verb}
-			</Button>
-		</fetcher.Form>
+				<input type="hidden" name="mediaId" value={item.id} />
+				<select
+					name="watchlistId"
+					value={selectedWatchlistId}
+					onChange={event => setSelectedWatchlistId(event.currentTarget.value)}
+					disabled={busy}
+					aria-label={`Tracking status for ${item.title}`}
+					data-tracking-state={isTracked ? 'tracked' : 'available'}
+					className={cn(
+						'quick-track-watchlist-select h-9 min-w-0 flex-1 rounded-md border px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]',
+						isTracked
+							? 'border-[#a2ffd5] bg-[#315746] text-[#f1fff8] shadow-[inset_0_0_0_1px_rgba(162,255,213,0.15)]'
+							: 'border-[#54806c] bg-[#2e2f2b] text-[#ffefcc]',
+					)}
+				>
+					{compatible.map(watchlist => (
+						<option key={watchlist.id} value={watchlist.id}>
+							{watchlist.header}
+						</option>
+					))}
+				</select>
+				<Button
+					type="submit"
+					size="sm"
+					variant="outline"
+					disabled={busy || !selectedWatchlistId}
+					aria-label={`${verb} ${item.title}`}
+					aria-describedby={error ? errorId : undefined}
+					className={cn(layout === 'stacked' && 'w-full')}
+				>
+					{busy ? 'Saving…' : saved ? 'Saved' : verb}
+				</Button>
+			</fetcher.Form>
+			{error ? (
+				<p
+					id={errorId}
+					role="alert"
+					className="mt-1 text-xs font-semibold text-red-200"
+				>
+					{error}
+				</p>
+			) : null}
+		</div>
 	)
 }

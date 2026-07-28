@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
 import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
+import { prismaSearchFilter } from './prisma-search.server.ts'
 import { TMDB_FEED_RANKING_VERSION } from './tmdb-catalog-hydration.server.ts'
 
 export const DISCOVERY_PAGE_SIZE = 24
@@ -171,11 +172,19 @@ function naturalTermWhere(term: string): Prisma.MediaWhereInput {
 	const normalized = normalizeCatalogTitle(term)
 	return {
 		OR: [
-			{ title: { contains: term } },
-			{ description: { contains: term } },
-			{ genres: { contains: term } },
+			{ title: prismaSearchFilter('contains', term) },
+			{ description: prismaSearchFilter('contains', term) },
+			{ genres: prismaSearchFilter('contains', term) },
 			...(normalized
-				? [{ titles: { some: { normalized: { contains: normalized } } } }]
+				? [
+						{
+							titles: {
+								some: {
+									normalized: prismaSearchFilter('contains', normalized),
+								},
+							},
+						},
+					]
 				: []),
 		],
 	}
@@ -273,7 +282,13 @@ export async function getDiscoveryResultsForPlan(
 			...plan.excludeTerms.map(term => ({ NOT: naturalTermWhere(term) })),
 			...(year ? [year] : []),
 			...(releaseStatus ? [releaseStatus] : []),
-			...(plan.language ? [{ language: { contains: plan.language } }] : []),
+			...(plan.language
+				? [
+						{
+							language: prismaSearchFilter('contains', plan.language),
+						},
+					]
+				: []),
 			...(length ? [length] : []),
 			...(sort === 'top-rated' ? [publicRatingWhere()] : []),
 		],
@@ -569,9 +584,9 @@ function genreWhere(genre: string): Prisma.MediaWhereInput {
 	return {
 		OR: [
 			{ genres: { equals: genre } },
-			{ genres: { startsWith: `${genre},` } },
-			{ genres: { contains: `, ${genre},` } },
-			{ genres: { endsWith: `, ${genre}` } },
+			{ genres: prismaSearchFilter('startsWith', `${genre},`) },
+			{ genres: prismaSearchFilter('contains', `, ${genre},`) },
+			{ genres: prismaSearchFilter('endsWith', `, ${genre}`) },
 		],
 	}
 }
@@ -620,14 +635,17 @@ function discoveryWhere(
 	const textSearch: Prisma.MediaWhereInput | undefined = filters.q
 		? {
 				OR: [
-					{ title: { contains: filters.q } },
-					{ description: { contains: filters.q } },
+					{ title: prismaSearchFilter('contains', filters.q) },
+					{ description: prismaSearchFilter('contains', filters.q) },
 					...(normalizedQuery
 						? [
 								{
 									titles: {
 										some: {
-											normalized: { contains: normalizedQuery },
+											normalized: prismaSearchFilter(
+												'contains',
+												normalizedQuery,
+											),
 										},
 									},
 								},
@@ -919,7 +937,7 @@ export async function getDiscoveryResults(
 				where,
 				{
 					OR: preferences.map(preference => ({
-						genres: { contains: preference.label },
+						genres: prismaSearchFilter('contains', preference.label),
 					})),
 				},
 			],
