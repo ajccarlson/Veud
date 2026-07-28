@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+	assertRequiredQueryIndexes,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	representativeLoadShape,
@@ -63,6 +64,103 @@ test('summarizes nested explain plans without credentials or raw SQL', () => {
 		sharedReadBlocks: 0,
 	})
 	expect(bytesLabel(1_048_576)).toBe('1.00 MiB')
+})
+
+test('requires every measured search to use the index assigned to its query', () => {
+	expect(() =>
+		assertRequiredQueryIndexes(
+			[
+				{
+					name: 'canonical-title',
+					indexes: ['Media_title_trgm_idx'],
+				},
+				{
+					name: 'canonical-title',
+					indexes: ['Media_title_trgm_idx'],
+				},
+				{
+					name: 'alternate-title',
+					indexes: ['MediaTitle_normalized_trgm_idx'],
+				},
+				{
+					name: 'rare-description',
+					indexes: ['Media_description_trgm_idx'],
+				},
+			],
+			{
+				'canonical-title': 'Media_title_trgm_idx',
+				'alternate-title': 'MediaTitle_normalized_trgm_idx',
+				'rare-description': 'Media_description_trgm_idx',
+			},
+		),
+	).not.toThrow()
+})
+
+test('does not accept a required index used only by the wrong query', () => {
+	const requirements = {
+		'canonical-title': 'Media_title_trgm_idx',
+		'alternate-title': 'MediaTitle_normalized_trgm_idx',
+		'rare-description': 'Media_description_trgm_idx',
+	}
+	const plans = [
+		{
+			name: 'canonical-title',
+			indexes: ['MediaTitle_normalized_trgm_idx'],
+		},
+		{
+			name: 'alternate-title',
+			indexes: ['Media_description_trgm_idx'],
+		},
+		{
+			name: 'rare-description',
+			indexes: ['Media_title_trgm_idx'],
+		},
+	]
+
+	let failure
+	try {
+		assertRequiredQueryIndexes(plans, requirements)
+	} catch (error) {
+		failure = error
+	}
+
+	expect(failure).toBeInstanceOf(Error)
+	expect(failure.message).toContain('canonical-title -> Media_title_trgm_idx')
+	expect(failure.missingRequirements).toEqual([
+		expect.objectContaining({
+			queryName: 'canonical-title',
+			requiredIndex: 'Media_title_trgm_idx',
+		}),
+		expect.objectContaining({
+			queryName: 'alternate-title',
+			requiredIndex: 'MediaTitle_normalized_trgm_idx',
+		}),
+		expect.objectContaining({
+			queryName: 'rare-description',
+			requiredIndex: 'Media_description_trgm_idx',
+		}),
+	])
+})
+
+test('rejects an unmeasured required query and a partial duplicate measurement', () => {
+	expect(() =>
+		assertRequiredQueryIndexes(
+			[
+				{
+					name: 'canonical-title',
+					indexes: ['Media_title_trgm_idx'],
+				},
+				{
+					name: 'canonical-title',
+					indexes: [],
+				},
+			],
+			{
+				'canonical-title': 'Media_title_trgm_idx',
+				'alternate-title': 'MediaTitle_normalized_trgm_idx',
+			},
+		),
+	).toThrow(/1\/2 measurements missing.*alternate-title/s)
 })
 
 test('derives a bounded representative catalog and member load shape', () => {

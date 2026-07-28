@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
+import { prismaSearchFilter } from './prisma-search.server.ts'
 
 export const MEDIA_RECOMMENDATION_LIMIT = 6
 const MEDIA_RECOMMENDATION_CANDIDATE_LIMIT = 200
@@ -75,7 +76,8 @@ function scoreFor(media: RecommendationMedia) {
 
 function publicTrackingStates(media: RecommendationMedia) {
 	return media.trackingStates.filter(
-		state => state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
+		state =>
+			state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
 	)
 }
 
@@ -149,7 +151,7 @@ export async function getSimilarMediaRecommendations(
 							{ genres: { not: null } },
 							{
 								OR: sourceGenres.map(genre => ({
-									genres: { contains: genre },
+									genres: prismaSearchFilter('contains', genre),
 								})),
 							},
 						]

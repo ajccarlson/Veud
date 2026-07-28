@@ -142,7 +142,7 @@ test('builds a local preview and requires explicit application', async () => {
 	).toBe(0)
 })
 
-test('resolves a mixed-case partial catalog title in a tracking command', async () => {
+test('prefers a mixed-case exact title over more-popular partial matches', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
 	const owner = await prisma.user.create({
 		data: {
@@ -154,7 +154,15 @@ test('resolves a mixed-case partial catalog title in a tracking command', async 
 		data: {
 			kind: 'movie',
 			title: 'The MiXeD CaSe Command Clock',
+			catalogPopularity: 1,
 		},
+	})
+	await prisma.media.createMany({
+		data: Array.from({ length: 20 }, (_, index) => ({
+			kind: 'movie',
+			title: `THE MIXED CASE COMMAND CLOCK ${index + 1} THE MIXED CASE COMMAND CLOCK`,
+			catalogPopularity: 1_000 - index,
+		})),
 	})
 	const preview = await createTrackingCommandPreview(prisma, {
 		ownerId: owner.id,
@@ -165,7 +173,7 @@ test('resolves a mixed-case partial catalog title in a tracking command', async 
 				summary: 'Favorite one title.',
 				operations: [
 					{
-						title: 'mIxEd CaSe CoMmAnD cLoCk',
+						title: 'tHe mIxEd CaSe CoMmAnD cLoCk',
 						kind: 'movie',
 						destination: null,
 						score: null,
@@ -183,6 +191,137 @@ test('resolves a mixed-case partial catalog title in a tracking command', async 
 	}
 	expect(stored.operations.map(operation => operation.mediaId)).toEqual([
 		media.id,
+	])
+})
+
+test('still resolves a unique mixed-case partial catalog title', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const owner = await prisma.user.create({
+		data: {
+			email: 'partial-command@example.com',
+			username: 'partial_command',
+		},
+	})
+	const media = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'The Partial Command Clock',
+		},
+	})
+	const preview = await createTrackingCommandPreview(prisma, {
+		ownerId: owner.id,
+		requestText: 'Favorite Partial Command Clock',
+		rateLimitKey: owner.id,
+		fetchImpl: vi.fn<typeof fetch>(async () =>
+			aiResponse({
+				summary: 'Favorite one title.',
+				operations: [
+					{
+						title: 'pArTiAl cOmMaNd cLoCk',
+						kind: 'movie',
+						destination: null,
+						score: null,
+						progressUnit: null,
+						progressCurrent: null,
+						favorite: true,
+						collection: null,
+					},
+				],
+			}),
+		),
+	})
+	const stored = JSON.parse(preview.operations) as {
+		operations: Array<{ mediaId: string }>
+	}
+	expect(stored.operations.map(operation => operation.mediaId)).toEqual([
+		media.id,
+	])
+})
+
+test('keeps duplicate normalized canonical titles ambiguous', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const owner = await prisma.user.create({
+		data: {
+			email: 'ambiguous-command@example.com',
+			username: 'ambiguous_command',
+		},
+	})
+	await prisma.media.createMany({
+		data: [
+			{ kind: 'movie', title: 'Twin Case Clock' },
+			{ kind: 'movie', title: 'tWIN cASE cLOCK' },
+		],
+	})
+
+	const error = await createTrackingCommandPreview(prisma, {
+		ownerId: owner.id,
+		requestText: 'Favorite Twin Case Clock',
+		rateLimitKey: owner.id,
+		fetchImpl: vi.fn<typeof fetch>(async () =>
+			aiResponse({
+				summary: 'Favorite one title.',
+				operations: [
+					{
+						title: 'TWIN CASE CLOCK',
+						kind: 'movie',
+						destination: null,
+						score: null,
+						progressUnit: null,
+						progressCurrent: null,
+						favorite: true,
+						collection: null,
+					},
+				],
+			}),
+		),
+	}).catch(caught => caught)
+	expect(error).toBeInstanceOf(Response)
+	expect((error as Response).status).toBe(409)
+	expect(await (error as Response).text()).toContain('is ambiguous')
+})
+
+test('treats SQL wildcard characters literally in canonical exact titles', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const owner = await prisma.user.create({
+		data: {
+			email: 'literal-command@example.com',
+			username: 'literal_command',
+		},
+	})
+	const exact = await prisma.media.create({
+		data: { kind: 'movie', title: 'One 100%_Case Clock' },
+	})
+	await prisma.media.create({
+		data: { kind: 'movie', title: 'One 100XXCase Clock' },
+	})
+
+	const preview = await createTrackingCommandPreview(prisma, {
+		ownerId: owner.id,
+		requestText: 'Favorite the literal title',
+		rateLimitKey: owner.id,
+		fetchImpl: vi.fn<typeof fetch>(async () =>
+			aiResponse({
+				summary: 'Favorite one title.',
+				operations: [
+					{
+						title: 'oNe 100%_cAsE cLoCk',
+						kind: 'movie',
+						destination: null,
+						score: null,
+						progressUnit: null,
+						progressCurrent: null,
+						favorite: true,
+						collection: null,
+					},
+				],
+			}),
+		),
+	})
+	const stored = JSON.parse(preview.operations) as {
+		operations: Array<{ mediaId: string; mediaTitle: string }>
+	}
+	expect(stored.operations).toEqual([
+		expect.objectContaining({ mediaId: exact.id, mediaTitle: exact.title }),
 	])
 })
 

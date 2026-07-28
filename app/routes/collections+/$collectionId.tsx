@@ -39,6 +39,7 @@ import {
 } from '#app/utils/media-collections.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
+import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
 
 const CollectionItemActionSchema = z.discriminatedUnion('intent', [
 	z.object({
@@ -151,7 +152,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		? await prisma.media.findMany({
 				where: {
 					id: existingMediaIds.length ? { notIn: existingMediaIds } : undefined,
-					title: { contains: query },
+					title: prismaSearchFilter('contains', query),
 				},
 				orderBy: [{ title: 'asc' }, { id: 'asc' }],
 				take: 12,

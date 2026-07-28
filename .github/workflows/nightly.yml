@@ -104,7 +104,7 @@ jobs:
   postgres:
     name: PostgreSQL load validation
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382
@@ -133,6 +133,6 @@ jobs:
         run: npm ci
 
       - name: Run PostgreSQL load validation
-        run: npm run validate:release:postgres
+        run: npm run validate:scale:postgres
         env:
           DATABASE_URL: postgresql://veud:veud@localhost:5432/veud_nightly_test

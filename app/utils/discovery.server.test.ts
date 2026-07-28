@@ -229,6 +229,46 @@ test('discovery searches canonical metadata and exposes normalized genres', asyn
 	])
 })
 
+test('genre filters match mixed-case delimited tokens without substrings', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const storedGenre = `MiXeDgEnRe${suffix}`
+	const [singleton, first, middle, last, prefixed, suffixed] =
+		await Promise.all(
+			[
+				['Genre Exact', storedGenre],
+				['Genre First', `${storedGenre}, Drama`],
+				['Genre Middle', `Drama, ${storedGenre}, Mystery`],
+				['Genre Last', `Drama, ${storedGenre}`],
+				['Genre Prefixed', `Super${storedGenre}`],
+				['Genre Suffixed', `${storedGenre}Extended`],
+			].map(([title, genres]) =>
+				prisma.media.create({
+					data: {
+						kind: 'movie',
+						title: `${title} ${suffix}`,
+						genres,
+					},
+				}),
+			),
+		)
+
+	const result = await getDiscoveryResults(
+		filters({
+			kind: 'movie',
+			genre: `mIxEdGeNrE${suffix.toUpperCase()}`,
+			sort: 'title',
+		}),
+		null,
+	)
+	expect(result.total).toBe(4)
+	expect(new Set(result.items.map(item => item.id))).toEqual(
+		new Set([singleton.id, first.id, middle.id, last.id]),
+	)
+	expect(result.items.map(item => item.id)).not.toEqual(
+		expect.arrayContaining([prefixed.id, suffixed.id]),
+	)
+})
+
 test('discovery matches mixed-case canonical and alternate titles', async () => {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
 	const media = await prisma.media.create({

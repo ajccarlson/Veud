@@ -54,8 +54,9 @@ async function createUser(
 	return { user, cookie: await getSessionCookieHeader(session) }
 }
 
-function loaderArgs(cookie: string) {
+function loaderArgs(cookie: string, query = '') {
 	const url = new URL(`${BASE_URL}/moderation`)
+	if (query) url.searchParams.set('q', query)
 	return {
 		request: new Request(url, { headers: { cookie } }),
 		url,
@@ -100,6 +101,32 @@ test('the dashboard is private to moderators and returns a no-store queue', asyn
 	expect(response.data.canAssignRoles).toBe(false)
 })
 
+test('moderators can find display names without matching their casing', async () => {
+	const moderator = await createUser('case_moderator', 'moderator', [
+		{ action: 'read', entity: 'report', access: 'any' },
+	])
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const member = await prisma.user.create({
+		data: {
+			email: `case_target_${suffix}@example.com`,
+			username: `unrelated_${suffix}`,
+			name: `MiXeD Display ${suffix}`,
+		},
+	})
+	await prisma.user.create({
+		data: {
+			email: `case_other_${suffix}@example.com`,
+			username: `other_${suffix}`,
+			name: `Different member ${suffix}`,
+		},
+	})
+
+	const response = await moderationLoader(
+		loaderArgs(moderator.cookie, `mIxEd dIsPlAy ${suffix.toUpperCase()}`),
+	)
+	expect(response.data.members.map(result => result.id)).toEqual([member.id])
+})
+
 test('members can submit one private report while moderators can resolve its workflow', async () => {
 	const reporter = await createUser('reporter', 'user', [
 		{ action: 'create', entity: 'report', access: 'own' },
@@ -127,7 +154,8 @@ test('members can submit one private report while moderators can resolve its wor
 	expect(submitted.data).toEqual(
 		expect.objectContaining({ ok: true, duplicate: false }),
 	)
-	if (!submitted.data.ok) throw new Error('Expected report submission to succeed')
+	if (!submitted.data.ok)
+		throw new Error('Expected report submission to succeed')
 	const reportId = submitted.data.reportId
 
 	const duplicate = await reportAction(

@@ -24,6 +24,7 @@ import {
 } from '#app/utils/collection-discovery.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { normalizeCollectionTag } from '#app/utils/media-collections.ts'
+import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
 
 const PAGE_SIZE = 24
 type CollectionSort = 'recent' | 'popular' | 'trending' | 'for-you'
@@ -140,9 +141,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				? [
 						{
 							OR: [
-								{ title: { contains: query } },
-								{ description: { contains: query } },
-								{ owner: { username: { contains: query } } },
+								{ title: prismaSearchFilter('contains', query) },
+								{ description: prismaSearchFilter('contains', query) },
+								{
+									owner: {
+										username: prismaSearchFilter('contains', query),
+									},
+								},
 							],
 						},
 					]
