@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
+import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
 	type RecommendationGraph,
 	type RecommendationGraphItem,
@@ -484,7 +485,7 @@ export async function getRecommendationGraph(
 								baseWhere,
 								{
 									OR: preferredGenres.map(genre => ({
-										genres: { contains: genre.label },
+										genres: prismaSearchFilter('contains', genre.label),
 									})),
 								},
 							],
