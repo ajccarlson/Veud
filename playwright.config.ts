@@ -4,7 +4,15 @@ import { PLAYWRIGHT_DATABASE_URL } from './tests/setup/playwright-database.ts'
 
 const PORT = process.env.PORT || '4022'
 const BASE_URL = `http://localhost:${PORT}`
+const E2E_SESSION_SECRET =
+	'playwright-session-secret-is-isolated-and-nonproduction'
+const E2E_HONEYPOT_SECRET =
+	'playwright-honeypot-secret-is-isolated-and-nonproduction'
 process.env.DATABASE_URL = PLAYWRIGHT_DATABASE_URL
+process.env.SESSION_SECRET = E2E_SESSION_SECRET
+process.env.VERIFICATION_SECRET_KEYS = ''
+process.env.INTERNAL_COMMAND_TOKEN = ''
+process.env.HONEYPOT_SECRET = E2E_HONEYPOT_SECRET
 
 export default defineConfig({
 	testDir: './tests/e2e',
@@ -46,6 +54,10 @@ export default defineConfig({
 			// Browser tests exercise AI-enabled UI without using a developer's
 			// billable credential or making provider calls.
 			OPENAI_API_KEY: 'test-key',
+			SESSION_SECRET: E2E_SESSION_SECRET,
+			VERIFICATION_SECRET_KEYS: '',
+			INTERNAL_COMMAND_TOKEN: '',
+			HONEYPOT_SECRET: E2E_HONEYPOT_SECRET,
 			VEUD_E2E: '1',
 			// The server runs in production mode, so this marker is what relaxes
 			// rate limits enough for a full browser suite from one address.
