@@ -293,3 +293,75 @@ test('calendar actions set and remove the viewer reminder shown on a release', a
 		}),
 	).toBe(0)
 })
+
+test('busy days preview five releases prioritizing viewer and popular titles', async () => {
+	const { viewer, watching, cookie } = await viewerFixture()
+	const titles = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(
+		letter => `Busy Day ${letter}`,
+	)
+	const media = await Promise.all(
+		titles.map(title =>
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title,
+					releaseStart: new Date('2026-07-21T00:00:00.000Z'),
+				},
+			}),
+		),
+	)
+	const tracked = media[titles.indexOf('Busy Day G')]!
+	const popular = media[titles.indexOf('Busy Day F')]!
+	// Keep the viewer's tracking private so the anonymous view can only see
+	// community interest, not the viewer's own priority.
+	await prisma.watchlist.update({
+		where: { id: watching.id },
+		data: { isPublic: false },
+	})
+	await prisma.trackingState.create({
+		data: {
+			ownerId: viewer.id,
+			mediaId: tracked.id,
+			status: 'watching',
+			statusWatchlistId: watching.id,
+		},
+	})
+	const fan = await prisma.user.create({
+		data: {
+			email: `calendar_fan_${viewer.username}@example.com`,
+			username: `calendar_fan_${viewer.username}`,
+		},
+	})
+	await prisma.trackingState.create({
+		data: { ownerId: fan.id, mediaId: popular.id, status: 'watching' },
+	})
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/calendar?start=2026-07-20`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	const day = result.data.days.find(entry => entry.date === '2026-07-21')
+	expect(day?.totalCount).toBe(7)
+	expect(day?.items).toHaveLength(5)
+	const shownTitles = day!.items.map(item => item.title)
+	// Viewer-tracked and community-tracked titles survive the cut even though
+	// alphabetical time ordering would have dropped them.
+	expect(shownTitles).toContain('Busy Day G')
+	expect(shownTitles).toContain('Busy Day F')
+	// The preview itself stays in schedule order.
+	expect(shownTitles).toEqual([...shownTitles].sort())
+
+	const anonymous = await loader({
+		request: new Request(`${BASE_URL}/calendar?start=2026-07-20`),
+		params: {},
+	} as any)
+	const anonymousDay = anonymous.data.days.find(
+		entry => entry.date === '2026-07-21',
+	)
+	expect(anonymousDay?.items.map(item => item.title)).toContain('Busy Day F')
+	expect(anonymousDay?.items.map(item => item.title)).not.toContain(
+		'Busy Day G',
+	)
+})
