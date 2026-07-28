@@ -132,6 +132,13 @@
 	font-size: 0.74rem;
 }
 
+.discover-memory-attachment small {
+	flex-basis: 100%;
+	color: rgb(var(--veud-sage));
+	font-size: 0.68rem;
+	font-weight: 500;
+}
+
 .discover-memory-attachment input::file-selector-button {
 	margin-right: 0.65rem;
 	padding: 0.38rem 0.65rem;

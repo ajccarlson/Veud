@@ -46,6 +46,21 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 		await expect(page.getByText('MyAnimeList', { exact: true })).toBeVisible()
 		await expect(page.getByText('Letterboxd', { exact: true })).toBeVisible()
 
+		const memoryForm = page.locator('form.home-anon-memory-form')
+		await expect(memoryForm).toHaveAttribute(
+			'action',
+			'/resources/image-tip-of-tongue',
+		)
+		await expect(memoryForm).toHaveAttribute('enctype', 'multipart/form-data')
+		const imageInput = page.getByLabel('Add a screenshot or cover')
+		await expect(imageInput).toBeVisible()
+		await expect(imageInput).toHaveAttribute(
+			'aria-describedby',
+			'home-memory-image-disclosure',
+		)
+		await expect(
+			page.getByText('Images are re-encoded and sent to OpenAI.'),
+		).toBeVisible()
 		await page
 			.getByLabel('Describe the movie, show, anime, or manga you remember')
 			.fill('a red light inside an abandoned glass station')
@@ -56,9 +71,20 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 				.locator('.home-anon-memory-results')
 				.getByRole('link', { name: /Glass Station Memory 1/ }),
 		).toBeVisible()
+		await expect(page.locator('.home-anon-memory-result')).toHaveCount(5)
+		await expect(
+			page.getByText(/5 of 5 matches · (AI|Local) match/),
+		).toBeVisible()
+		await expect(page.locator('.home-anon-memory-result em')).toHaveCount(5)
 		await expect(
 			page.getByText('Want AI and image clues?', { exact: false }),
-		).toBeVisible()
+		).toHaveCount(0)
+		await expect(
+			page.getByRole('link', { name: 'Open the full search' }),
+		).toHaveAttribute('href', '/discover?mode=memory')
+
+		await page.setViewportSize({ width: 320, height: 900 })
+		await expect(page.locator('.home-anon-memory-result').nth(4)).toBeVisible()
 	} finally {
 		await prisma.media
 			.deleteMany({ where: { id: { in: media.map(item => item.id) } } })

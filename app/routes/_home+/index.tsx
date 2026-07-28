@@ -14,6 +14,7 @@ import { HomeRecommendations } from '#app/routes/_home+/_recommendations.tsx'
 import { TrendingData } from '#app/routes/_home+/_trending.tsx'
 import { UpcomingData } from '#app/routes/_home+/_upcoming.tsx'
 import { getFollowingActivityFeed } from '#app/utils/activity-feed.server.ts'
+import { isAiCapabilityConfigured } from '#app/utils/ai-gateway.server.ts'
 import { getAnonymousHomeProof } from '#app/utils/anonymous-home.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
@@ -147,6 +148,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		continuationQueue,
 		recommendationGraph,
 		anonymousHomeProof,
+		imageSearchAvailable: isAiCapabilityConfigured('image-tip-of-tongue'),
 	})
 }
 
@@ -221,6 +223,7 @@ export default function Index() {
 						<AnonymousHome
 							rails={data.trendingRails}
 							proof={data.anonymousHomeProof!}
+							imageSearchAvailable={data.imageSearchAvailable}
 						/>
 					)}
 				</div>
