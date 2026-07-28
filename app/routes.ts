@@ -78,6 +78,7 @@ export default [
 		path: 'collections/:collectionId',
 	}),
 	appRoute('routes/calendar.tsx', { path: 'calendar' }),
+	appRoute('routes/calendar.$day.tsx', { path: 'calendar/:day' }),
 	appRoute('routes/assistant.tsx', { path: 'assistant' }),
 	appRoute('routes/credits.tsx', { path: 'credits' }),
 	appRoute('routes/discover.tsx', { path: 'discover' }),
