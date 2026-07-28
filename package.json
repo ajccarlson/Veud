@@ -99,7 +99,8 @@
     "validate:release:build": "npm run build && npm run bundle:check",
     "validate:release:browser": "cross-env CI=true PORT=4122 playwright test --project=chromium",
     "validate:release:browser:portable": "cross-env CI=true PORT=4122 playwright test --project=chromium --ignore-snapshots",
-    "validate:release:postgres": "npm run prisma:generate:postgres && npm run db:migrate:postgres && npm run db:verify:postgres && npm run db:smoke:postgres && npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after"
+    "validate:release:postgres": "npm run prisma:generate:postgres && npm run db:migrate:postgres && npm run db:verify:postgres && npm run db:smoke:postgres && npm run db:loadtest:postgres -- --commit --count 2000 --cleanup-after",
+    "validate:scale:postgres": "npm run prisma:generate:postgres && npm run db:migrate:postgres && npm run db:verify:postgres && npm run db:smoke:postgres && npm run db:loadtest:postgres -- --commit --count 100000 --member-count 1000 --tracking-per-member 100 --activity-per-member 20 --require-trigram-indexes --cleanup-after"
   },
   "eslintIgnore": [
     "/node_modules",

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { type Prisma, type PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import {
 	getTrackingActivityState,
@@ -14,7 +14,11 @@ import {
 } from './media-detail.ts'
 import { toggleMediaFavorite } from './media-favorites.server.ts'
 import { listTypeNameForMediaKind } from './media-kind.ts'
-import { prismaSearchFilter } from './prisma-search.server.ts'
+import {
+	escapeSqlLikeLiteral,
+	isPostgresDatasource,
+	prismaSearchFilter,
+} from './prisma-search.server.ts'
 import { setMediaTrackingStatus } from './tracking-status.server.ts'
 
 const MAX_OPERATIONS = 10
@@ -136,9 +140,21 @@ const ResolvedPlanSchema = z.object({
 type ResolvedOperation = z.infer<typeof ResolvedOperationSchema>
 
 type TrackingDb = PrismaClient | Prisma.TransactionClient
+type MediaCandidate = { id: string; title: string | null; kind: string }
 
 function hash(value: unknown) {
 	return createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+function ambiguousMediaResponse(title: string, candidates: MediaCandidate[]) {
+	const choices = candidates
+		.slice(0, 4)
+		.map(candidate => `${candidate.title ?? 'Untitled'} (${candidate.kind})`)
+		.join(', ')
+	return new Response(
+		`“${title}” is ambiguous. Choose one explicitly by exact title and media type: ${choices}.`,
+		{ status: 409 },
+	)
 }
 
 async function resolveMedia(
@@ -147,6 +163,34 @@ async function resolveMedia(
 	kind: string | null,
 ) {
 	const normalized = normalizeCatalogTitle(title)
+	const canonicalCandidates = normalized
+		? isPostgresDatasource(process.env.DATABASE_URL)
+			? await db.$queryRaw<MediaCandidate[]>(Prisma.sql`
+					SELECT "id", "title", "kind"
+					FROM "Media"
+					WHERE "title" IS NOT NULL
+					AND "title" ILIKE ${escapeSqlLikeLiteral(title)} ESCAPE '!'
+					${kind ? Prisma.sql`AND "kind" = ${kind}` : Prisma.empty}
+					ORDER BY COALESCE("catalogPopularity", 0) DESC, "title" ASC, "id" ASC
+					LIMIT 4
+				`)
+			: await db.$queryRaw<MediaCandidate[]>(Prisma.sql`
+					SELECT "id", "title", "kind"
+					FROM "Media"
+					WHERE "title" IS NOT NULL
+					AND LOWER("title") = LOWER(${title})
+					${kind ? Prisma.sql`AND "kind" = ${kind}` : Prisma.empty}
+					ORDER BY COALESCE("catalogPopularity", 0) DESC, "title" ASC, "id" ASC
+					LIMIT 4
+				`)
+		: []
+	if (canonicalCandidates.length === 1) {
+		return canonicalCandidates[0]!
+	}
+	if (canonicalCandidates.length > 1) {
+		throw ambiguousMediaResponse(title, canonicalCandidates)
+	}
+
 	const exact = await db.media.findMany({
 		where: {
 			...(kind ? { kind } : {}),
@@ -189,15 +233,10 @@ async function resolveMedia(
 				select: { id: true, title: true, kind: true },
 			})
 	if (candidates.length !== 1) {
-		const choices = candidates
-			.map(candidate => `${candidate.title ?? 'Untitled'} (${candidate.kind})`)
-			.join(', ')
-		throw new Response(
-			candidates.length
-				? `“${title}” is ambiguous. Choose one explicitly by exact title and media type: ${choices}.`
-				: `Veud could not find “${title}” in the local catalog.`,
-			{ status: 409 },
-		)
+		if (candidates.length) throw ambiguousMediaResponse(title, candidates)
+		throw new Response(`Veud could not find “${title}” in the local catalog.`, {
+			status: 409,
+		})
 	}
 	return candidates[0]!
 }

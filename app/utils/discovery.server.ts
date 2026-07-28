@@ -583,7 +583,12 @@ async function getGenrePreferences(viewerId: string | null) {
 function genreWhere(genre: string): Prisma.MediaWhereInput {
 	return {
 		OR: [
-			{ genres: { equals: genre } },
+			{
+				AND: [
+					{ genres: prismaSearchFilter('startsWith', genre) },
+					{ genres: prismaSearchFilter('endsWith', genre) },
+				],
+			},
 			{ genres: prismaSearchFilter('startsWith', `${genre},`) },
 			{ genres: prismaSearchFilter('contains', `, ${genre},`) },
 			{ genres: prismaSearchFilter('endsWith', `, ${genre}`) },

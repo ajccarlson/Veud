@@ -6,6 +6,7 @@ import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { PrismaClient } from '@prisma/client'
 import {
+	assertRequiredQueryIndexes,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	representativeLoadShape,
@@ -18,6 +19,12 @@ const args = process.argv.slice(2)
 const prefix = 'load-catalog-'
 const syntheticBroadDescriptionNeedle = 'Shared synthetic load description'
 const syntheticDescriptionLead = `${syntheticBroadDescriptionNeedle} for indexed discovery.`
+const requiredTrigramIndexesByQuery = {
+	'canonical-title': 'Media_title_trgm_idx',
+	'tracking-exact-title': 'Media_title_trgm_idx',
+	'alternate-title': 'MediaTitle_normalized_trgm_idx',
+	'rare-description': 'Media_description_trgm_idx',
+}
 const usage = `Usage: npm run db:loadtest:postgres -- [options]
 
 Options:
@@ -526,6 +533,11 @@ async function queryMetrics(prisma, count, shape) {
 			[`%Catalog Work ${needle}%`],
 		],
 		[
+			'tracking-exact-title',
+			`SELECT id FROM "Media" WHERE title ILIKE $1 ESCAPE '!' LIMIT 4`,
+			[`Catalog Work ${needle}`],
+		],
+		[
 			'alternate-title',
 			'SELECT "mediaId" FROM "MediaTitle" WHERE normalized ILIKE $1 LIMIT 24',
 			[`%alternate load alias ${alternate}%`],
@@ -959,15 +971,17 @@ async function main() {
 			trackingWriteBatches,
 		)
 		const storageAfter = await databaseMetrics(prisma)
-		const requiredIndexes = new Set([
-			'Media_title_trgm_idx',
-			'Media_description_trgm_idx',
-			'MediaTitle_normalized_trgm_idx',
-		])
-		const usedIndexes = new Set(queries.flatMap(query => query.indexes))
-		const missingIndexes = [...requiredIndexes].filter(
-			index => !usedIndexes.has(index),
-		)
+		let queryIndexAssertionError
+		try {
+			assertRequiredQueryIndexes(queries, requiredTrigramIndexesByQuery)
+		} catch (error) {
+			queryIndexAssertionError = error
+		}
+		const missingQueryIndexes =
+			queryIndexAssertionError?.missingRequirements ?? []
+		const missingIndexes = [
+			...new Set(missingQueryIndexes.map(({ requiredIndex }) => requiredIndex)),
+		]
 		const insertedRows = loaded - checkpoint.initialRows
 		const insertMs = checkpoint.insertWallMs
 		const report = {
@@ -1003,6 +1017,7 @@ async function main() {
 			queries,
 			concurrency,
 			missingTrigramIndexes: missingIndexes,
+			missingQueryIndexes,
 		}
 		writePrivateJson(reportPath, report)
 		console.log(
@@ -1023,10 +1038,8 @@ async function main() {
 				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
 		}
-		if (requireIndexes && missingIndexes.length) {
-			throw new Error(
-				`Required trigram indexes were not used: ${missingIndexes.join(', ')}`,
-			)
+		if (requireIndexes && queryIndexAssertionError) {
+			throw queryIndexAssertionError
 		}
 	} finally {
 		await prisma.$disconnect()

@@ -20,44 +20,57 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 		createUser('recommendation_second'),
 		createUser('recommendation_third'),
 	])
-	const [source, focusedMatch, broadMatch, popularWeakMatch, wrongKind] =
-		await Promise.all([
-			prisma.media.create({
-				data: {
-					kind: 'anime',
-					title: 'Recommendation Source',
-					genres: 'Action, Fantasy',
-				},
-			}),
-			prisma.media.create({
-				data: {
-					kind: 'anime',
-					title: 'Focused Match',
-					genres: 'action, Fantasy',
-				},
-			}),
-			prisma.media.create({
-				data: {
-					kind: 'anime',
-					title: 'Broad Match',
-					genres: 'Action, Fantasy, Adventure',
-				},
-			}),
-			prisma.media.create({
-				data: {
-					kind: 'anime',
-					title: 'Popular Weak Match',
-					genres: 'Action',
-				},
-			}),
-			prisma.media.create({
-				data: {
-					kind: 'movie',
-					title: 'Wrong Kind Match',
-					genres: 'Action, Fantasy',
-				},
-			}),
-		])
+	const [
+		source,
+		focusedMatch,
+		broadMatch,
+		popularWeakMatch,
+		wrongKind,
+		substringOnly,
+	] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Recommendation Source',
+				genres: 'Action, Fantasy',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Focused Match',
+				genres: 'aCTION, fANTASY',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Broad Match',
+				genres: 'Action, Fantasy, Adventure',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Popular Weak Match',
+				genres: 'Action',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Wrong Kind Match',
+				genres: 'Action, Fantasy',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Substring-only Match',
+				genres: 'Live Action, Dark Fantasy',
+			},
+		}),
+	])
 	await prisma.trackingState.createMany({
 		data: [
 			{
@@ -126,6 +139,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 	expect(anonymous.items[0]?.matchedGenres).toEqual(['Action', 'Fantasy'])
 	expect(anonymous.items.some(item => item.id === source.id)).toBe(false)
 	expect(anonymous.items.some(item => item.id === wrongKind.id)).toBe(false)
+	expect(anonymous.items.some(item => item.id === substringOnly.id)).toBe(false)
 
 	const personalized = await getSimilarMediaRecommendations(source, viewer.id)
 	expect(personalized.items.map(item => item.title)).toEqual([
