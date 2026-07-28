@@ -94,8 +94,8 @@ export async function prepareVerification({
 	const verifyUrl = getRedirectToUrl({ request, type, target })
 	const redirectTo = new URL(verifyUrl.toString())
 
-	const { otp, ...verificationConfig } = generateTOTP({
-		algorithm: 'SHA256',
+	const { otp, ...verificationConfig } = await generateTOTP({
+		algorithm: 'SHA-256',
 		// Leaving off 0 and O on purpose to avoid confusing users.
 		charSet: 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789',
 		period,
@@ -142,9 +142,12 @@ export async function isCodeValid({
 	) {
 		return true
 	}
-	const result = verifyTOTP({
+	const result = await verifyTOTP({
 		otp: code,
 		...verification,
+		// Verifications created before @epic-web/totp 4 stored Node-style names
+		// like SHA256; Web Crypto only accepts the dashed SHA-256 form.
+		algorithm: verification.algorithm.replace(/^SHA(?=\d)/, 'SHA-'),
 		secret: revealVerificationSecret(verification.secret),
 	})
 	if (!result) return false

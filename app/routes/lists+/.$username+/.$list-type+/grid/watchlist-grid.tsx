@@ -7,6 +7,7 @@ import {
 	CellStyleModule,
 	ClientSideRowModelApiModule,
 	ClientSideRowModelModule,
+	colorSchemeDark,
 	DateEditorModule,
 	DateFilterModule,
 	type ColDef,
@@ -57,16 +58,20 @@ ModuleRegistry.registerModules([
 	TooltipModule,
 ])
 
-const watchlistTheme = themeQuartz.withParams({
+const watchlistTheme = themeQuartz.withPart(colorSchemeDark).withParams({
 	accentColor: '#ff9900',
 	backgroundColor: '#222222',
-	browserColorScheme: 'dark',
+	cellTextColor: '#e7e7e7',
 	fontFamily: 'var(--veud-font-sans)',
 	fontSize: 16,
+	foregroundColor: '#e7e7e7',
 	headerBackgroundColor: '#121212',
+	headerTextColor: '#ff9900',
 	oddRowBackgroundColor: '#2e2f2b',
 	rowBorder: false,
 	selectedRowBackgroundColor: 'rgba(64, 128, 99, 0.36)',
+	tooltipBackgroundColor: '#121212',
+	tooltipTextColor: '#e7e7e7',
 })
 
 export function getWatchlistRowId(params: { data: WatchlistRow }) {

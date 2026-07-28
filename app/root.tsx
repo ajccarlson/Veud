@@ -178,9 +178,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			user,
 			unreadNotificationCount,
 			listTypes,
-			aiSearchAvailable: Boolean(
-				userId && isAiCapabilityConfigured('tip-of-tongue'),
-			),
+			aiSearchAvailable: isAiCapabilityConfigured('tip-of-tongue'),
 			aiDiscoveryAvailable: Boolean(
 				userId && isAiCapabilityConfigured('natural-language-discovery'),
 			),
