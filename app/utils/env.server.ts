@@ -1,65 +1,157 @@
 import { z } from 'zod'
 
 const optionalBooleanFlag = z.enum(['true', 'false', '1', '0']).optional()
+export const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
 
-const schema = z.object({
-	NODE_ENV: z.enum(['production', 'development', 'test'] as const),
-	DATABASE_PATH: z.string(),
-	DATABASE_URL: z.string(),
-	SESSION_SECRET: z.string(),
-	VERIFICATION_SECRET_KEYS: z.string().optional(),
-	INTERNAL_COMMAND_TOKEN: z.string(),
-	HONEYPOT_SECRET: z.string(),
-	CACHE_DATABASE_PATH: z.string(),
-	// If you plan on using Sentry, uncomment this line
-	// SENTRY_DSN: z.string(),
-	// If you plan to use Resend, uncomment this line
-	RESEND_API_KEY: z.string(),
-	VEUD_ORIGIN: z
-		.string()
-		.url()
-		.refine(value => ['http:', 'https:'].includes(new URL(value).protocol))
-		.optional(),
+const schema = z
+	.object({
+		NODE_ENV: z.enum(['production', 'development', 'test'] as const),
+		DATABASE_PATH: z.string(),
+		DATABASE_URL: z.string(),
+		SESSION_SECRET: z.string(),
+		VERIFICATION_SECRET_KEYS: z.string().optional(),
+		INTERNAL_COMMAND_TOKEN: z.string(),
+		HONEYPOT_SECRET: z.string(),
+		CACHE_DATABASE_PATH: z.string(),
+		// If you plan on using Sentry, uncomment this line
+		// SENTRY_DSN: z.string(),
+		// If you plan to use Resend, uncomment this line
+		RESEND_API_KEY: z.string(),
+		VEUD_ORIGIN: z
+			.string()
+			.url()
+			.refine(value => ['http:', 'https:'].includes(new URL(value).protocol))
+			.optional(),
 
-	TMDB_API_KEY: z.string(),
+		TMDB_API_KEY: z.string(),
 
-	TRAKT_API_KEY: z.string(),
-	TRAKT_CLIENT_SECRET: z.string(),
-	TRAKT_ACCESS_TOKEN_MAIN: z.string(),
-	TRAKT_ACCESS_TOKEN_BACKUP: z.string(),
+		TRAKT_API_KEY: z.string(),
+		TRAKT_CLIENT_SECRET: z.string(),
+		TRAKT_ACCESS_TOKEN_MAIN: z.string(),
+		TRAKT_ACCESS_TOKEN_BACKUP: z.string(),
 
-	MAL_CLIENT_ID: z.string(),
-	MAL_CLIENT_SECRET: z.string(),
-	MAL_USER: z.string(),
+		MAL_CLIENT_ID: z.string(),
+		MAL_CLIENT_SECRET: z.string(),
+		MAL_USER: z.string(),
 
-	ANILIST_CLIENT_ID: z.string(),
-	ANILIST_CLIENT_SECRET: z.string(),
+		ANILIST_CLIENT_ID: z.string(),
+		ANILIST_CLIENT_SECRET: z.string(),
 
-	OPENAI_API_KEY: z.string().optional(),
-	OPENAI_TIP_OF_TONGUE_MODEL: z.string().optional(),
-	OPENAI_DEFAULT_MODEL: z.string().optional(),
-	VEUD_AI_ENABLED: optionalBooleanFlag,
-	VEUD_AI_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
-	VEUD_AI_NATURAL_LANGUAGE_DISCOVERY_ENABLED: optionalBooleanFlag,
-	VEUD_AI_DISCOVERY_REFINEMENT_ENABLED: optionalBooleanFlag,
-	VEUD_AI_TRACKING_COMMAND_ENABLED: optionalBooleanFlag,
-	VEUD_AI_IMAGE_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
-	VEUD_AI_IMPORT_RECONCILIATION_ENABLED: optionalBooleanFlag,
-	VEUD_AI_REVIEW_ASSISTANCE_ENABLED: optionalBooleanFlag,
-	VEUD_AI_MODERATION_TRIAGE_ENABLED: optionalBooleanFlag,
-	VEUD_AI_MAX_CONCURRENCY: z
-		.string()
-		.regex(/^(?:[1-9]|1[0-9]|20)$/)
-		.optional(),
-	VEUD_AI_DAILY_LIMIT_PER_CAPABILITY: z
-		.string()
-		.regex(/^[1-9]\d{0,6}$/)
-		.optional(),
-	VEUD_AI_ANONYMOUS_DAILY_LIMIT_PER_CAPABILITY: z
-		.string()
-		.regex(/^[1-9]\d{0,6}$/)
-		.optional(),
-})
+		OPENAI_API_KEY: z.string().optional(),
+		OPENAI_TIP_OF_TONGUE_MODEL: z.string().optional(),
+		OPENAI_DEFAULT_MODEL: z.string().optional(),
+		VEUD_AI_ENABLED: optionalBooleanFlag,
+		VEUD_AI_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
+		VEUD_AI_NATURAL_LANGUAGE_DISCOVERY_ENABLED: optionalBooleanFlag,
+		VEUD_AI_DISCOVERY_REFINEMENT_ENABLED: optionalBooleanFlag,
+		VEUD_AI_TRACKING_COMMAND_ENABLED: optionalBooleanFlag,
+		VEUD_AI_IMAGE_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
+		VEUD_AI_IMPORT_RECONCILIATION_ENABLED: optionalBooleanFlag,
+		VEUD_AI_REVIEW_ASSISTANCE_ENABLED: optionalBooleanFlag,
+		VEUD_AI_MODERATION_TRIAGE_ENABLED: optionalBooleanFlag,
+		VEUD_AI_MAX_CONCURRENCY: z
+			.string()
+			.regex(/^(?:[1-9]|1[0-9]|20)$/)
+			.optional(),
+		VEUD_AI_DAILY_LIMIT_PER_CAPABILITY: z
+			.string()
+			.regex(/^[1-9]\d{0,6}$/)
+			.optional(),
+		VEUD_AI_ANONYMOUS_DAILY_LIMIT_PER_CAPABILITY: z
+			.string()
+			.regex(/^[1-9]\d{0,6}$/)
+			.optional(),
+	})
+	.superRefine((environment, context) => {
+		function validateRotationSecret({
+			name,
+			value,
+			allowEmpty,
+		}: {
+			name: 'SESSION_SECRET' | 'VERIFICATION_SECRET_KEYS'
+			value: string | undefined
+			allowEmpty: boolean
+		}) {
+			if (allowEmpty && (value === undefined || value === '')) return
+
+			const secrets = (value ?? '').split(',')
+			if (secrets.some(secret => !secret.trim() || secret !== secret.trim())) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: [name],
+					message: `Every ${name} rotation key must be non-empty and have no surrounding whitespace.`,
+				})
+			}
+			if (
+				environment.NODE_ENV === 'production' &&
+				secrets.some(
+					secret => secret.trim().length < MINIMUM_PRODUCTION_SECRET_LENGTH,
+				)
+			) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: [name],
+					message: `Every production ${name} rotation key must contain at least ${MINIMUM_PRODUCTION_SECRET_LENGTH} characters.`,
+				})
+			}
+		}
+
+		validateRotationSecret({
+			name: 'SESSION_SECRET',
+			value: environment.SESSION_SECRET,
+			allowEmpty: false,
+		})
+		validateRotationSecret({
+			name: 'VERIFICATION_SECRET_KEYS',
+			value: environment.VERIFICATION_SECRET_KEYS,
+			allowEmpty: true,
+		})
+
+		const internalCommandToken = environment.INTERNAL_COMMAND_TOKEN
+		if (
+			internalCommandToken &&
+			internalCommandToken !== 'REDACTED' &&
+			internalCommandToken !== internalCommandToken.trim()
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['INTERNAL_COMMAND_TOKEN'],
+				message: 'INTERNAL_COMMAND_TOKEN must have no surrounding whitespace.',
+			})
+		}
+		if (
+			environment.NODE_ENV === 'production' &&
+			internalCommandToken &&
+			internalCommandToken !== 'REDACTED' &&
+			internalCommandToken.trim().length < MINIMUM_PRODUCTION_SECRET_LENGTH
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['INTERNAL_COMMAND_TOKEN'],
+				message: `An enabled production INTERNAL_COMMAND_TOKEN must contain at least ${MINIMUM_PRODUCTION_SECRET_LENGTH} characters.`,
+			})
+		}
+
+		const honeypotSecret = environment.HONEYPOT_SECRET
+		if (!honeypotSecret.trim() || honeypotSecret !== honeypotSecret.trim()) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['HONEYPOT_SECRET'],
+				message:
+					'HONEYPOT_SECRET must be non-empty and have no surrounding whitespace.',
+			})
+		}
+		if (
+			environment.NODE_ENV === 'production' &&
+			honeypotSecret.trim().length < MINIMUM_PRODUCTION_SECRET_LENGTH
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['HONEYPOT_SECRET'],
+				message: `Production HONEYPOT_SECRET must contain at least ${MINIMUM_PRODUCTION_SECRET_LENGTH} characters.`,
+			})
+		}
+	})
 
 declare global {
 	namespace NodeJS {
@@ -68,7 +160,7 @@ declare global {
 }
 
 export function init() {
-	const parsed = schema.safeParse(process.env)
+	const parsed = parseEnvironment(process.env)
 
 	if (parsed.success === false) {
 		console.error(
@@ -78,6 +170,10 @@ export function init() {
 
 		throw new Error('Invalid environment variables')
 	}
+}
+
+export function parseEnvironment(environment: NodeJS.ProcessEnv) {
+	return schema.safeParse(environment)
 }
 
 /**

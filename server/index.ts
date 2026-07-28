@@ -3,7 +3,6 @@ import { createRequestHandler } from '@react-router/express'
 import * as Sentry from '@sentry/react-router'
 import { ip as ipAddress } from 'address'
 import chalk from 'chalk'
-import closeWithGrace from 'close-with-grace'
 import compression from 'compression'
 import express, { type Request } from 'express'
 import rateLimit from 'express-rate-limit'
@@ -16,7 +15,9 @@ import {
 	type cspNonceContext as CspNonceContext,
 	type serverBuildContext as ServerBuildContext,
 } from '../app/env.ts'
+import { closeCacheResources } from '../app/utils/cache.server.ts'
 import { canonicalOriginFromEnvironment } from '../app/utils/canonical-origin.ts'
+import { prisma } from '../app/utils/db.server.ts'
 import {
 	beginObservedRequest,
 	createRequestId,
@@ -27,6 +28,7 @@ import {
 } from '../app/utils/operations-observability.server.ts'
 import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
 import { resolveServerBinding } from './binding.js'
+import { createApplicationShutdown } from './shutdown.js'
 import { assertSafeMockProductionRuntime } from './test-runtime-guard.js'
 
 type ServerContextModule = {
@@ -429,8 +431,29 @@ ${chalk.bold('Press Ctrl+C to stop')}
 	)
 }
 
-closeWithGrace(async () => {
-	await new Promise((resolve, reject) => {
-		server.close(e => (e ? reject(e) : resolve('ok')))
+export function createServerShutdown({
+	closeMocks,
+}: {
+	closeMocks?: () => void
+} = {}) {
+	const shutdown = createApplicationShutdown({
+		httpServer: server,
+		closePrisma: () => prisma.$disconnect(),
+		closeCache: closeCacheResources,
+		flushSentry: async () => {
+			await Sentry.flush(2_000)
+		},
+		closeVite: viteDevServer ? () => viteDevServer.close() : undefined,
+		closeMocks,
+		onFatalError(error) {
+			const message = error.stack ?? error.message
+			console.error(chalk.red(message))
+			Sentry.captureException(error)
+		},
+		onShutdownError(error) {
+			console.error(chalk.red(error.message))
+			Sentry.captureException(error)
+		},
 	})
-})
+	return shutdown
+}
