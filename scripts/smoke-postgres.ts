@@ -1,12 +1,15 @@
 #!/usr/bin/env -S npx tsx
 import 'dotenv/config'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type Prisma } from '@prisma/client'
 import {
 	applyLibraryImportBatch,
 	rollbackLibraryImportBatch,
 } from '#app/utils/library-import-commit.server.ts'
 import { type LibraryImportItem } from '#app/utils/library-import.ts'
-import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
+import {
+	escapeSqlLikeLiteral,
+	prismaSearchFilter,
+} from '#app/utils/prisma-search.server.ts'
 import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
 
 const requiredIndexes = new Set([
@@ -27,7 +30,10 @@ async function main() {
 	assertPostgresUrl(process.env.DATABASE_URL)
 	const prisma = new PrismaClient()
 	const suffix = `${Date.now()}-${process.pid}`
-	const username = `Postgres_Smoke_${suffix}`
+	const username = `PostgresSmoke${suffix}`
+	const displayName = `PostgreSQL smoke test ${suffix}`
+	const collectionTitleMarker = `PostgreSQL Collection Search ${suffix}`
+	const collectionDescriptionMarker = `Provider Search Boundary ${suffix}`
 	let userId: string | undefined
 	let mediaId: string | undefined
 
@@ -123,15 +129,16 @@ async function main() {
 			data: {
 				email: `${username}@example.com`,
 				username,
-				name: 'PostgreSQL smoke test',
+				name: displayName,
 			},
 		})
 		userId = user.id
 		const media = await prisma.media.create({
 			data: {
 				kind: 'movie',
-				title: 'PostgreSQL Catalog Smoke Test',
+				title: `PostgreSQL Catalog Smoke Test 100%_Literal ${suffix}`,
 				description: 'Temporary provider-scale search verification.',
+				genres: 'Space Opera',
 				titles: {
 					create: {
 						provider: 'tmdb',
@@ -148,11 +155,38 @@ async function main() {
 
 		const users = (await searchUsersByUsername(
 			prisma,
-			'postgres_smoke',
+			`pOsTgReSsMoKe${suffix}`,
 		)) as Array<{ id: string }>
 		if (!users.some(candidate => candidate.id === user.id)) {
 			throw new Error(
 				'Portable user search did not find the smoke-test account',
+			)
+		}
+		const mixedCaseDisplayNameMatches = await prisma.user.findMany({
+			where: {
+				OR: [
+					{
+						username: prismaSearchFilter(
+							'contains',
+							'definitely-not-the-username',
+						),
+					},
+					{
+						name: prismaSearchFilter(
+							'contains',
+							`pOsTgReSqL sMoKe TeSt ${suffix}`,
+						),
+					},
+				],
+			},
+			select: { id: true },
+		})
+		if (
+			mixedCaseDisplayNameMatches.length !== 1 ||
+			mixedCaseDisplayNameMatches[0]?.id !== user.id
+		) {
+			throw new Error(
+				'Case-insensitive PostgreSQL moderator-style member search returned the wrong rows',
 			)
 		}
 
@@ -173,6 +207,21 @@ async function main() {
 				'Case-insensitive PostgreSQL canonical-title search returned no rows',
 			)
 		}
+		const exactCanonicalMatches = await prisma.$queryRaw<Array<{ id: string }>>`
+			SELECT "id"
+			FROM "Media"
+			WHERE "title" ILIKE ${escapeSqlLikeLiteral(
+				`pOsTgReSqL cAtAlOg SmOkE tEsT 100%_lItErAl ${suffix}`,
+			)} ESCAPE '!'
+		`
+		if (
+			exactCanonicalMatches.length !== 1 ||
+			exactCanonicalMatches[0]?.id !== media.id
+		) {
+			throw new Error(
+				'Literal-escaped PostgreSQL exact-title search returned the wrong rows',
+			)
+		}
 		const mixedCaseAlternateMatches = await prisma.mediaTitle.count({
 			where: {
 				mediaId: media.id,
@@ -184,6 +233,103 @@ async function main() {
 				'Case-insensitive PostgreSQL alternate-title search returned no rows',
 			)
 		}
+		const mixedCaseGenreContainsMatches = await prisma.media.count({
+			where: {
+				id: media.id,
+				genres: prismaSearchFilter('contains', 'sPaCe OpErA'),
+			},
+		})
+		const mixedCaseSingletonGenreMatches = await prisma.media.count({
+			where: {
+				id: media.id,
+				AND: [
+					{ genres: prismaSearchFilter('startsWith', 'sPaCe OpErA') },
+					{ genres: prismaSearchFilter('endsWith', 'sPaCe OpErA') },
+				],
+			},
+		})
+		if (
+			mixedCaseGenreContainsMatches !== 1 ||
+			mixedCaseSingletonGenreMatches !== 1
+		) {
+			throw new Error(
+				'Case-insensitive PostgreSQL genre search returned no rows',
+			)
+		}
+
+		const visibleCollection = await prisma.mediaCollection.create({
+			data: {
+				ownerId: user.id,
+				title: collectionTitleMarker,
+				description: collectionDescriptionMarker,
+				isPublic: true,
+				moderationStatus: 'visible',
+			},
+			select: { id: true },
+		})
+		await prisma.mediaCollection.createMany({
+			data: [
+				{
+					ownerId: user.id,
+					title: collectionTitleMarker,
+					description: collectionDescriptionMarker,
+					isPublic: false,
+					moderationStatus: 'visible',
+				},
+				{
+					ownerId: user.id,
+					title: collectionTitleMarker,
+					description: collectionDescriptionMarker,
+					isPublic: true,
+					moderationStatus: 'hidden',
+				},
+			],
+		})
+		const assertVisibleCollectionSearch = async (
+			label: string,
+			search: Prisma.MediaCollectionWhereInput,
+		) => {
+			const matches = await prisma.mediaCollection.findMany({
+				where: {
+					AND: [{ isPublic: true, moderationStatus: 'visible' }, search],
+				},
+				select: { id: true },
+			})
+			if (matches.length !== 1 || matches[0]?.id !== visibleCollection.id) {
+				throw new Error(
+					`Case-insensitive PostgreSQL collection ${label} search escaped its visibility boundary`,
+				)
+			}
+		}
+		await assertVisibleCollectionSearch('title', {
+			OR: [
+				{
+					title: prismaSearchFilter(
+						'contains',
+						`pOsTgReSqL cOlLeCtIoN sEaRcH ${suffix}`,
+					),
+				},
+			],
+		})
+		await assertVisibleCollectionSearch('description', {
+			OR: [
+				{
+					description: prismaSearchFilter(
+						'contains',
+						`pRoViDeR sEaRcH bOuNdArY ${suffix}`,
+					),
+				},
+			],
+		})
+		await assertVisibleCollectionSearch('owner', {
+			OR: [
+				{
+					owner: {
+						username: prismaSearchFilter('contains', `pOsTgReSsMoKe${suffix}`),
+					},
+				},
+			],
+		})
 
 		const sourceKey = `postgres-smoke:${suffix}`
 		const importItem = {
@@ -248,7 +394,7 @@ async function main() {
 		}
 
 		console.log(
-			'PostgreSQL smoke test passed: schema, pg_trgm indexes, model writes, portable searches, and atomic import rollback are healthy.',
+			'PostgreSQL smoke test passed: schema, pg_trgm indexes, model writes, provider-aware media/member/collection/genre searches, visibility boundaries, and atomic import rollback are healthy.',
 		)
 	} finally {
 		if (mediaId) await prisma.media.deleteMany({ where: { id: mediaId } })

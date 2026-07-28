@@ -57,6 +57,63 @@ export function summarizeExplain(rows) {
 	}
 }
 
+export function assertRequiredQueryIndexes(queryPlans, requirements) {
+	if (!Array.isArray(queryPlans)) {
+		throw new Error('Query plans must be an array')
+	}
+	if (
+		!requirements ||
+		typeof requirements !== 'object' ||
+		Array.isArray(requirements)
+	) {
+		throw new Error('Query index requirements must be an object')
+	}
+
+	const missingRequirements = []
+	for (const [queryName, requiredIndex] of Object.entries(requirements)) {
+		if (
+			!queryName ||
+			typeof requiredIndex !== 'string' ||
+			!requiredIndex.trim()
+		) {
+			throw new Error('Query index requirements must map names to indexes')
+		}
+		const measurements = queryPlans.filter(plan => plan?.name === queryName)
+		const missingMeasurements = measurements.filter(
+			plan =>
+				!Array.isArray(plan.indexes) || !plan.indexes.includes(requiredIndex),
+		)
+		if (measurements.length && !missingMeasurements.length) continue
+		missingRequirements.push({
+			queryName,
+			requiredIndex,
+			measurementCount: measurements.length,
+			missingMeasurementCount: missingMeasurements.length,
+			observedIndexes: [
+				...new Set(
+					measurements.flatMap(plan =>
+						Array.isArray(plan.indexes) ? plan.indexes : [],
+					),
+				),
+			].sort(),
+		})
+	}
+	if (!missingRequirements.length) return
+
+	const failure = new Error(
+		`Required query indexes were not used by their matching queries: ${missingRequirements
+			.map(requirement => {
+				const observation = requirement.measurementCount
+					? `${requirement.missingMeasurementCount}/${requirement.measurementCount} measurements missing; observed ${requirement.observedIndexes.join(', ') || 'none'}`
+					: 'query was not measured'
+				return `${requirement.queryName} -> ${requirement.requiredIndex} (${observation})`
+			})
+			.join('; ')}`,
+	)
+	failure.missingRequirements = missingRequirements
+	throw failure
+}
+
 export function bytesLabel(value) {
 	const bytes = Number(value)
 	if (!Number.isFinite(bytes) || bytes < 0) return 'unknown'

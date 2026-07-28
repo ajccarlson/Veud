@@ -13,7 +13,7 @@ type PrismaSearchFilter<Operation extends PrismaSearchOperation> = Record<
 	mode?: 'insensitive'
 }
 
-function isPostgresDatasource(databaseUrl: string | undefined) {
+export function isPostgresDatasource(databaseUrl: string | undefined) {
 	if (!databaseUrl) return false
 	try {
 		const protocol = new URL(databaseUrl).protocol.toLowerCase()
@@ -21,6 +21,16 @@ function isPostgresDatasource(databaseUrl: string | undefined) {
 	} catch {
 		return /^postgres(?:ql)?:\/\//i.test(databaseUrl)
 	}
+}
+
+/**
+ * Escape a literal value for a LIKE/ILIKE predicate that declares `ESCAPE '!'`.
+ *
+ * Keeping this separate from Prisma's string filters is useful for the few raw
+ * indexed predicates that need exact case-insensitive PostgreSQL matching.
+ */
+export function escapeSqlLikeLiteral(value: string) {
+	return value.replace(/[!%_]/g, character => `!${character}`)
 }
 
 /**

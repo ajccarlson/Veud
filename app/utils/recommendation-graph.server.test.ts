@@ -57,7 +57,7 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 			['Graph Connected', null],
 			['Graph Circle', null],
 			['Graph Collection', null],
-			['Graph Taste', genre],
+			['Graph Taste', genre.toUpperCase()],
 			['Graph Private', null],
 			['Graph Hidden', genre],
 		].map(([title, genres]) =>
