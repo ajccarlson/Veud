@@ -51,6 +51,10 @@ import {
 } from '#app/utils/natural-language-discovery.ts'
 import { anonymousRateLimitKey } from '#app/utils/proxy-security.server.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
+import {
+	tipOfTongueImageDisclosure,
+	tipOfTongueStatus,
+} from '#app/utils/tip-of-tongue.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 import '#app/styles/discover.scss'
 
@@ -454,36 +458,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	})
 }
 
-function memorySearchStatus(data: {
-	memorySearchSource: 'ai' | 'catalog-match' | null
-	memorySearchFallbackReason:
-		| 'not-configured'
-		| 'sign-in-required'
-		| 'rate-limited'
-		| 'ai-unavailable'
-		| 'ai-error'
-		| 'ai-empty'
-		| null
-}) {
-	if (data.memorySearchSource === 'ai') return 'AI match'
-	switch (data.memorySearchFallbackReason) {
-		case 'sign-in-required':
-			return 'Local match'
-		case 'rate-limited':
-			return 'Local match · AI limit reached'
-		case 'ai-unavailable':
-			return 'Local match · AI unavailable'
-		case 'ai-error':
-			return 'Local match · AI unavailable'
-		case 'ai-empty':
-			return 'Local match'
-		case 'not-configured':
-			return 'Local match'
-		default:
-			return 'Local match'
-	}
-}
-
 function discoveryHref(
 	filters: DiscoveryQuery,
 	page: number,
@@ -576,11 +550,14 @@ export default function DiscoverRoute() {
 	const displayedTotal = fetchedMemoryItems?.length ?? data.total
 	const displayedMemoryStatus =
 		data.filters.mode === 'memory' && imageFetcher.data?.ok
-			? memorySearchStatus({
-					memorySearchSource: imageFetcher.data.source,
-					memorySearchFallbackReason: imageFetcher.data.fallbackReason,
+			? tipOfTongueStatus({
+					source: imageFetcher.data.source,
+					fallbackReason: imageFetcher.data.fallbackReason,
 				})
-			: memorySearchStatus(data)
+			: tipOfTongueStatus({
+					source: data.memorySearchSource,
+					fallbackReason: data.memorySearchFallbackReason,
+				})
 	const loginRedirectTo = `${location.pathname}${location.search}`
 	const filterKey = [
 		data.filters.q,
@@ -676,7 +653,11 @@ export default function DiscoverRoute() {
 										type="file"
 										accept="image/jpeg,image/png,image/webp"
 										aria-label="Add a screenshot or cover"
+										aria-describedby="discover-memory-image-disclosure"
 									/>
+									<small id="discover-memory-image-disclosure">
+										{tipOfTongueImageDisclosure}
+									</small>
 								</label>
 							) : null}
 						</div>

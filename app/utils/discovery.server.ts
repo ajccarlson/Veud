@@ -341,6 +341,10 @@ export async function getDiscoveryResultsForMediaIds(
 		...input,
 		q: '',
 		mode: 'standard' as const,
+		genre: '',
+		year: null,
+		status: '',
+		provider: 'all' as const,
 		page: 1,
 		sort: 'popular' as const,
 	}

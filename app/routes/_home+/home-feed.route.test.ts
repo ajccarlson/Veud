@@ -1,9 +1,13 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader } from './index.tsx'
+
+afterEach(() => {
+	vi.unstubAllEnvs()
+})
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -127,6 +131,7 @@ test('signed-in home feed contains activity only from followed members', async (
 })
 
 test('anonymous home loader does not expose a personalized feed', async () => {
+	vi.stubEnv('OPENAI_API_KEY', '')
 	const result = await loader({
 		request: new Request(BASE_URL),
 		params: {},
@@ -140,6 +145,7 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	expect(result.data.followingFeed).toEqual([])
 	expect(result.data.suggestedMembers).toEqual([])
 	expect(result.data.upcomingCalendar).toBeNull()
+	expect(result.data.imageSearchAvailable).toBe(false)
 	expect(result.data.anonymousHomeProof).toEqual({
 		catalogTotal: 0,
 		reviewTotal: 0,
