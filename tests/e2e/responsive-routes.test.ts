@@ -61,6 +61,7 @@ test.describe('mobile route audit', () => {
 		['home', '/', /Veud|Trending/i],
 		['discover', '/discover', /Discover/i],
 		['calendar', '/calendar', /Release calendar/i],
+		['calendar day', '/calendar/2026-07-21', /Jul 21/i],
 		['reviews', '/reviews', /Reviews/i],
 		['collections', '/collections', /Collections/i],
 		['credits', '/credits', /Data sources & credits/i],

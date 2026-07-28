@@ -13,6 +13,9 @@ export const releaseCalendarKinds = [
 	'manga',
 ] as const
 export const releaseCalendarScopes = ['all', 'mine'] as const
+// Busy days can schedule dozens of releases; the weekly view previews this
+// many per day and links to the full day page for the rest.
+export const releaseCalendarDayPreviewLimit = 5
 
 export type ReleaseCalendarQuery = {
 	start: string
@@ -263,15 +266,32 @@ function dateIsInRange(value: string, start: string, end: string) {
 }
 
 /** Build a deterministic seven-day release schedule from the canonical catalog. */
+// Choose which releases represent an overfull day: titles the viewer tracks
+// or has reminders for come first, then community interest, then air time.
+function dayPreviewPriority(left: ReleaseCalendarItem, right: ReleaseCalendarItem) {
+	return (
+		Number(Boolean(right.viewerTracking)) -
+			Number(Boolean(left.viewerTracking)) ||
+		Number(Boolean(right.viewerReminder)) -
+			Number(Boolean(left.viewerReminder)) ||
+		right.trackerCount - left.trackerCount ||
+		left.releaseAt.getTime() - right.releaseAt.getTime() ||
+		left.title.localeCompare(right.title) ||
+		left.id.localeCompare(right.id)
+	)
+}
+
 export async function getReleaseCalendar(
 	input: ReleaseCalendarQuery,
 	viewerId: string | null,
 	requestedTimeZone = 'UTC',
+	options: { days?: number; dayPreviewLimit?: number } = {},
 ) {
 	const now = new Date()
+	const spanDays = options.days ?? 7
 	const timeZone = normalizeTimeZone(requestedTimeZone)
 	const start = parseDateKey(input.start) ?? startOfWeek(now, timeZone)
-	const end = addDays(start, 7)
+	const end = addDays(start, spanDays)
 	const startKey = dateKey(start)
 	const endKey = dateKey(end)
 	const filters = {
@@ -518,21 +538,32 @@ export async function getReleaseCalendar(
 		filters,
 		timeZone,
 		start: dateKey(start),
-		end: dateKey(addDays(start, 6)),
-		previousStart: dateKey(addDays(start, -7)),
+		end: dateKey(addDays(start, spanDays - 1)),
+		previousStart: dateKey(addDays(start, -spanDays)),
 		nextStart: dateKey(end),
 		todayStart: dateKey(startOfWeek(now, timeZone)),
 		today: dateKeyInTimeZone(now, timeZone),
 		isSignedIn: Boolean(viewerId),
 		total: items.length,
-		days: Array.from({ length: 7 }, (_, index) => {
+		days: Array.from({ length: spanDays }, (_, index) => {
 			const date = dateKey(addDays(start, index))
-			return {
-				date,
-				items: items.filter(
-					item => eventDateKey(item.releaseAt, item.allDay, timeZone) === date,
-				),
-			}
+			const dayItems = items.filter(
+				item => eventDateKey(item.releaseAt, item.allDay, timeZone) === date,
+			)
+			const limit = options.dayPreviewLimit
+			const preview =
+				limit && dayItems.length > limit
+					? [...dayItems]
+							.sort(dayPreviewPriority)
+							.slice(0, limit)
+							.sort(
+								(left, right) =>
+									left.releaseAt.getTime() - right.releaseAt.getTime() ||
+									left.title.localeCompare(right.title) ||
+									left.id.localeCompare(right.id),
+							)
+					: dayItems
+			return { date, items: preview, totalCount: dayItems.length }
 		}),
 	}
 }
