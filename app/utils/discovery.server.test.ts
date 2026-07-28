@@ -4,6 +4,7 @@ import { prisma } from './db.server.ts'
 import {
 	getDiscoveryGenres,
 	getDiscoveryResults,
+	getDiscoveryResultsForMediaIds,
 	getDiscoveryResultsForPlan,
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
@@ -62,6 +63,74 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 		sort: 'popular',
 		page: 1,
 	})
+})
+
+test('grounded media IDs preserve candidate order and ignore stale search filters', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const movies = await Promise.all(
+		Array.from({ length: 6 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Ordered memory ${suffix} ${index + 1}`,
+					genres: 'Mystery',
+					releaseStatus: 'Released',
+					releaseStart: new Date(`202${index}-01-01T00:00:00.000Z`),
+				},
+			}),
+		),
+	)
+	const wrongKind = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: `Wrong kind memory ${suffix}`,
+		},
+	})
+	const requestedIds = [
+		movies[2]!.id,
+		movies[0]!.id,
+		movies[2]!.id,
+		movies[4]!.id,
+		movies[1]!.id,
+		movies[3]!.id,
+		movies[5]!.id,
+	]
+
+	try {
+		const result = await getDiscoveryResultsForMediaIds(
+			filters({
+				q: 'literal text that does not occur in any title',
+				kind: 'movie',
+				mode: 'memory',
+				genre: 'Comedy',
+				year: 1999,
+				status: 'Upcoming',
+				provider: 'mal',
+				sort: 'top-rated',
+				page: 8,
+			}),
+			null,
+			requestedIds,
+		)
+		expect(result.items.map(item => item.id)).toEqual([
+			movies[2]!.id,
+			movies[0]!.id,
+			movies[4]!.id,
+			movies[1]!.id,
+			movies[3]!.id,
+		])
+
+		const typeSafeResult = await getDiscoveryResultsForMediaIds(
+			filters({ kind: 'movie', mode: 'memory' }),
+			null,
+			[wrongKind.id, movies[0]!.id],
+		)
+		expect(typeSafeResult.items.map(item => item.id)).toEqual([movies[0]!.id])
+	} finally {
+		await prisma.media.deleteMany({
+			where: { id: { in: [...movies.map(item => item.id), wrongKind.id] } },
+		})
+	}
 })
 
 test('discovery searches alternate titles and filters year, status, and provider', async () => {
