@@ -1,7 +1,7 @@
 import { Link, useFetcher } from 'react-router'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
-import { type action as homeMemorySearchAction } from '#app/routes/resources+/home-memory-search.ts'
+import { type action as imageTipOfTongueAction } from '#app/routes/resources+/image-tip-of-tongue.ts'
 import {
 	type AnonymousHomeActivity,
 	type AnonymousHomeProof,
@@ -12,6 +12,10 @@ import {
 } from '#app/utils/home-trending.server.ts'
 import { scoreColor, scoreRange } from '#app/utils/lists/score-colorer.tsx'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
+import {
+	tipOfTongueImageDisclosure,
+	tipOfTongueStatus,
+} from '#app/utils/tip-of-tongue.ts'
 import { TrendingData } from './_trending.tsx'
 
 const kindLabels: Record<string, string> = {
@@ -90,10 +94,20 @@ function resultDetails(item: {
 		.join(' · ')
 }
 
-function MemoryDemo() {
-	const fetcher = useFetcher<typeof homeMemorySearchAction>()
+function MemoryDemo({
+	imageSearchAvailable,
+}: {
+	imageSearchAvailable: boolean
+}) {
+	const fetcher = useFetcher<typeof imageTipOfTongueAction>()
 	const pending = fetcher.state !== 'idle'
 	const items = fetcher.data?.ok ? fetcher.data.items : []
+	const status = fetcher.data?.ok
+		? tipOfTongueStatus({
+				source: fetcher.data.source,
+				fallbackReason: fetcher.data.fallbackReason,
+			})
+		: null
 
 	return (
 		<section
@@ -110,7 +124,8 @@ function MemoryDemo() {
 			</div>
 			<fetcher.Form
 				method="post"
-				action="/resources/home-memory-search"
+				action="/resources/image-tip-of-tongue"
+				encType="multipart/form-data"
 				className="home-anon-memory-form"
 			>
 				<label htmlFor="home-memory-query" className="sr-only">
@@ -119,12 +134,25 @@ function MemoryDemo() {
 				<textarea
 					id="home-memory-query"
 					name="q"
-					minLength={3}
 					maxLength={500}
-					required
 					rows={3}
 					placeholder="A mystery about an isolated lighthouse, a strange journal, and repeating days…"
 				/>
+				{imageSearchAvailable ? (
+					<label className="home-anon-memory-attachment">
+						<span>Add an image</span>
+						<input
+							name="image"
+							type="file"
+							accept="image/jpeg,image/png,image/webp"
+							aria-label="Add a screenshot or cover"
+							aria-describedby="home-memory-image-disclosure"
+						/>
+						<small id="home-memory-image-disclosure">
+							{tipOfTongueImageDisclosure}
+						</small>
+					</label>
+				) : null}
 				<div className="home-anon-memory-controls">
 					<label>
 						<span className="sr-only">Memory search media type</span>
@@ -159,40 +187,55 @@ function MemoryDemo() {
 					<span aria-hidden="true">
 						<Icon name="update" />
 					</span>
-					<strong>Searching Veud’s catalog</strong>
+					<div>
+						<strong>Finding five matches…</strong>
+						<small>Checking your clues against Veud’s catalog.</small>
+					</div>
 				</div>
 			) : fetcher.data && !fetcher.data.ok ? (
 				<p className="home-anon-memory-error" role="alert">
 					{fetcher.data.error}
 				</p>
-			) : items.length ? (
+			) : fetcher.data?.ok ? (
 				<div className="home-anon-memory-results" aria-live="polite">
-					<div className="home-anon-memory-result-list">
-						{items.map(item => {
-							const poster = posterFor(item.thumbnail)
-							return (
-								<Link
-									key={item.id}
-									to={`/media/${item.id}`}
-									className="home-anon-memory-result"
-								>
-									<div>
-										{poster ? (
-											<img src={poster} alt="" />
-										) : (
-											<Icon name="image" aria-hidden="true" />
-										)}
-									</div>
-									<span>
-										<strong>{item.title}</strong>
-										<small>{resultDetails(item)}</small>
-									</span>
-								</Link>
-							)
-						})}
-					</div>
+					<p className="home-anon-memory-result-status">
+						{items.length} of 5 matches · {status}
+					</p>
+					{items.length ? (
+						<div className="home-anon-memory-result-list">
+							{items.map(item => {
+								const poster = posterFor(item.thumbnail)
+								return (
+									<Link
+										key={item.id}
+										to={`/media/${item.id}`}
+										className="home-anon-memory-result"
+									>
+										<div>
+											{poster ? (
+												<img src={poster} alt="" />
+											) : (
+												<Icon name="image" aria-hidden="true" />
+											)}
+										</div>
+										<span>
+											<strong>{item.title}</strong>
+											<small>{resultDetails(item)}</small>
+											{item.memoryMatch ? (
+												<em>{item.memoryMatch.summary}</em>
+											) : null}
+										</span>
+									</Link>
+								)
+							})}
+						</div>
+					) : (
+						<p className="home-anon-memory-empty">
+							No close matches yet. Try adding another detail.
+						</p>
+					)}
 					<p>
-						Want AI and image clues? <Link to="/signup">Create an account</Link>
+						<Link to="/discover?mode=memory">Open the full search</Link>
 					</p>
 				</div>
 			) : null}
@@ -448,9 +491,11 @@ function CommunityActivity({ item }: { item: AnonymousHomeActivity }) {
 export function AnonymousHome({
 	rails,
 	proof,
+	imageSearchAvailable,
 }: {
 	rails: HomeTrendingRail[]
 	proof: AnonymousHomeProof
+	imageSearchAvailable: boolean
 }) {
 	return (
 		<div className="home-anon">
@@ -474,7 +519,7 @@ export function AnonymousHome({
 						Already a member? Sign in
 					</Link>
 				</div>
-				<MemoryDemo />
+				<MemoryDemo imageSearchAvailable={imageSearchAvailable} />
 			</section>
 
 			<div className="home-anon-trending">
