@@ -2,14 +2,16 @@ import { type Prisma } from '@prisma/client'
 import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { requireOwnedEntry } from '#app/utils/lists/authorization.server.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 async function updateEntryAndTrackingState(
 	tx: Prisma.TransactionClient,
+	ownerId: string,
 	entryId: string,
 	data: Record<string, unknown>,
 ) {
+	await serializeUserLibraryMutation(tx, ownerId)
 	await tx.entry.update({
 		where: { id: entryId },
 		data: data as any,
@@ -63,192 +65,191 @@ export async function updateEntryCellCommand(
 	},
 ) {
 	try {
-		const rowIndex = input.entryId
-		const colId = input.columnId
-		const newValue = input.value
-		const { entry, watchlist } = await requireOwnedEntry(ownerId, rowIndex)
-		const listType = await prisma.listType.findUnique({
-			where: { id: watchlist.typeId },
-			select: { columns: true, mediaType: true },
-		})
-		if (!listType) throw new Response('List type not found', { status: 400 })
-
-		let columnTypes: Record<string, unknown>
-		try {
-			const parsed = JSON.parse(listType.columns) as unknown
-			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-				throw new Error('Invalid columns')
+		return await prisma.$transaction(async tx => {
+			await serializeUserLibraryMutation(tx, ownerId)
+			const entry = input.entryId
+				? await tx.entry.findUnique({
+						where: { id: input.entryId },
+						include: {
+							watchlist: {
+								include: {
+									type: { select: { columns: true, mediaType: true } },
+								},
+							},
+						},
+					})
+				: null
+			if (!entry || entry.watchlist.ownerId !== ownerId) {
+				throw new Response('Not found', { status: 404 })
 			}
-			columnTypes = parsed as Record<string, unknown>
-		} catch {
-			throw new Response('Invalid list type columns', { status: 500 })
-		}
 
-		const historyAliases: Record<string, string> = {
-			started: 'startDate',
-			finished: 'finishedDate',
-			added: 'dateAdded',
-			lastUpdated: 'lastUpdated',
-		}
-		const protectedColumns = new Set([
-			'id',
-			'watchlistId',
-			'watchlist',
-			'position',
-			'mediaId',
-			'media',
-			'trackingStateId',
-			'trackingState',
-		])
-		const schemaColumn = historyAliases[colId ?? ''] ?? colId
-		const expectedType = schemaColumn ? columnTypes[schemaColumn] : undefined
-		if (
-			!colId ||
-			protectedColumns.has(colId) ||
-			typeof expectedType !== 'string'
-		) {
-			throw new Response('Invalid editable column', { status: 400 })
-		}
-
-		const historyObject: any = entry
-
-		// The stored `history` is free-form JSON manipulated dynamically below, so it's `any`.
-		let parsedHistoryObject: any = {}
-		try {
-			parsedHistoryObject = JSON.parse(historyObject.history)
-
-			if (Object.keys(parsedHistoryObject).length < 1) throw new Error()
-
-			parsedHistoryObject.lastUpdated = Date.now()
-
-			if (['length', 'chapters', 'volumes'].includes(colId as string)) {
-				const lengthRegex = /\d+\s*\/\s*\d+ eps/g
-
-				if (lengthRegex.test(newValue as string) || colId != 'length') {
-					const mediaTotal = [...(newValue as string).matchAll(/\d+/g)]
-					let matchResult: string | undefined
-
-					try {
-						matchResult = mediaTotal[0][0]
-					} catch (e) {}
-
-					if (matchResult) {
-						if (!parsedHistoryObject.progress) {
-							parsedHistoryObject.progress = {}
-						}
-
-						if (colId == 'length') {
-							if (!parsedHistoryObject.progress[matchResult]) {
-								parsedHistoryObject.progress[matchResult] = {
-									completed: false,
-									finishDate: [],
-								}
-							}
-
-							parsedHistoryObject.progress[matchResult].completed = true
-							parsedHistoryObject.progress[matchResult].finishDate.push(
-								Date.now(),
-							)
-						} else {
-							let mediaType: string
-							const mediaTypeArray = JSON.parse(listType.mediaType) as string[]
-							const mediaTypesFormatted = mediaTypeArray.map(
-								mediaTypeRaw => `${mediaTypeRaw}s`,
-							)
-							const typeIndex = mediaTypesFormatted.findIndex(e => e === colId)
-
-							if (!mediaTypesFormatted || mediaTypesFormatted.length < 1) {
-								mediaType = 'episode'
-							} else if (typeIndex > 0) {
-								mediaType = mediaTypeArray[typeIndex]
-							} else {
-								mediaType = mediaTypeArray[0]
-							}
-
-							if (!parsedHistoryObject.progress[mediaType]) {
-								parsedHistoryObject.progress[mediaType] = {
-									[matchResult]: {
-										completed: false,
-										finishDate: [],
-									},
-								}
-							}
-
-							if (!parsedHistoryObject.progress[mediaType][matchResult]) {
-								parsedHistoryObject.progress[mediaType][matchResult] = {
-									completed: false,
-									finishDate: [],
-								}
-							}
-
-							parsedHistoryObject.progress[mediaType][matchResult].completed =
-								true
-							parsedHistoryObject.progress[mediaType][
-								matchResult
-							].finishDate.push(Date.now())
-						}
-					}
+			let columnTypes: Record<string, unknown>
+			try {
+				const parsed = JSON.parse(entry.watchlist.type.columns) as unknown
+				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+					throw new Error('Invalid columns')
 				}
-
-				return await prisma.$transaction(tx =>
-					updateEntryAndTrackingState(tx, rowIndex as string, {
-						history: JSON.stringify(parsedHistoryObject),
-					}),
-				)
+				columnTypes = parsed as Record<string, unknown>
+			} catch {
+				throw new Response('Invalid list type columns', { status: 500 })
 			}
-		} catch (e) {
+
+			const colId = input.columnId
+			const historyAliases: Record<string, string> = {
+				started: 'startDate',
+				finished: 'finishedDate',
+				added: 'dateAdded',
+				lastUpdated: 'lastUpdated',
+			}
+			const protectedColumns = new Set([
+				'id',
+				'watchlistId',
+				'watchlist',
+				'position',
+				'mediaId',
+				'media',
+				'trackingStateId',
+				'trackingState',
+			])
+			const schemaColumn = historyAliases[colId ?? ''] ?? colId
+			const expectedType = schemaColumn ? columnTypes[schemaColumn] : undefined
 			if (
-				!parsedHistoryObject ||
-				typeof parsedHistoryObject !== 'object' ||
-				Array.isArray(parsedHistoryObject) ||
-				Object.keys(parsedHistoryObject).length === 0
+				!colId ||
+				protectedColumns.has(colId) ||
+				typeof expectedType !== 'string'
 			) {
-				parsedHistoryObject = {
+				throw new Response('Invalid editable column', { status: 400 })
+			}
+
+			let history: Record<string, any>
+			try {
+				const parsed = JSON.parse(entry.history ?? '') as unknown
+				if (
+					!parsed ||
+					typeof parsed !== 'object' ||
+					Array.isArray(parsed) ||
+					Object.keys(parsed).length === 0
+				) {
+					throw new Error('Invalid history')
+				}
+				history = parsed as Record<string, any>
+			} catch {
+				history = {
 					added: Date.now(),
 					started: null,
 					finished: null,
 					progress: null,
-					lastUpdated: Date.now(),
 				}
 			}
-		}
 
-		let valueFormatted: unknown
-		const columnName = colId
-
-			if (expectedType.toLowerCase().includes('history')) {
-				if (colId == 'length') {
-					parsedHistoryObject['progress'] = JSON.parse(newValue as string)
-				} else {
-					if (
-						newValue &&
-						newValue !== 'null' &&
-						typeof newValue !== 'string' &&
-						typeof newValue !== 'number'
-					) {
-						throw new Response('Invalid history date', { status: 400 })
+			if (['length', 'chapters', 'volumes'].includes(colId)) {
+				const textValue = String(input.value ?? '')
+				if (/\d+\s*\/\s*\d+ eps/.test(textValue) || colId !== 'length') {
+					const matchResult = textValue.match(/\d+/)?.[0]
+					if (matchResult) {
+						if (
+							!history.progress ||
+							typeof history.progress !== 'object' ||
+							Array.isArray(history.progress)
+						) {
+							history.progress = {}
+						}
+						if (colId === 'length') {
+							if (
+								!history.progress[matchResult] ||
+								typeof history.progress[matchResult] !== 'object' ||
+								Array.isArray(history.progress[matchResult])
+							) {
+								history.progress[matchResult] = {
+									completed: false,
+									finishDate: [],
+								}
+							}
+							history.progress[matchResult].finishDate = Array.isArray(
+								history.progress[matchResult].finishDate,
+							)
+								? history.progress[matchResult].finishDate
+								: []
+							history.progress[matchResult].completed = true
+							history.progress[matchResult].finishDate.push(Date.now())
+						} else {
+							const mediaTypes = JSON.parse(
+								entry.watchlist.type.mediaType,
+							) as string[]
+							const typeIndex = mediaTypes
+								.map(mediaType => `${mediaType}s`)
+								.findIndex(mediaType => mediaType === colId)
+							const mediaType =
+								typeIndex >= 0 ? mediaTypes[typeIndex] : mediaTypes[0]
+							if (mediaType) {
+								if (
+									!history.progress[mediaType] ||
+									typeof history.progress[mediaType] !== 'object' ||
+									Array.isArray(history.progress[mediaType])
+								) {
+									history.progress[mediaType] = {}
+								}
+								if (
+									!history.progress[mediaType][matchResult] ||
+									typeof history.progress[mediaType][matchResult] !==
+										'object' ||
+									Array.isArray(history.progress[mediaType][matchResult])
+								) {
+									history.progress[mediaType][matchResult] = {
+										completed: false,
+										finishDate: [],
+									}
+								}
+								history.progress[mediaType][matchResult].finishDate =
+									Array.isArray(
+										history.progress[mediaType][matchResult].finishDate,
+									)
+										? history.progress[mediaType][matchResult].finishDate
+										: []
+								history.progress[mediaType][matchResult].completed = true
+								history.progress[mediaType][matchResult].finishDate.push(
+									Date.now(),
+								)
+							}
+						}
 					}
-					parsedHistoryObject[colId as string] =
-						newValue && newValue != 'null'
-							? new Date(newValue as string | number).toISOString()
-							: null
+				}
+				history.lastUpdated = Date.now()
+				return updateEntryAndTrackingState(tx, ownerId, entry.id, {
+					history: JSON.stringify(history),
+				})
 			}
 
-			return await prisma.$transaction(tx =>
-				updateEntryAndTrackingState(tx, rowIndex as string, {
-					history: JSON.stringify(parsedHistoryObject),
-				}),
-			)
-		} else {
-			valueFormatted = castType(newValue, expectedType)
+			if (expectedType.toLowerCase().includes('history')) {
+				if (
+					input.value &&
+					input.value !== 'null' &&
+					typeof input.value !== 'string' &&
+					typeof input.value !== 'number'
+				) {
+					throw new Response('Invalid history date', { status: 400 })
+				}
+				if (input.value && input.value !== 'null') {
+					const date = new Date(input.value as string | number)
+					if (Number.isNaN(date.getTime())) {
+						throw new Response('Invalid history date', { status: 400 })
+					}
+					history[colId] = date.toISOString()
+				} else {
+					history[colId] = null
+				}
+				if (colId !== 'lastUpdated') history.lastUpdated = Date.now()
+				return updateEntryAndTrackingState(tx, ownerId, entry.id, {
+					history: JSON.stringify(history),
+				})
+			}
 
-			return await prisma.$transaction(tx =>
-				updateEntryAndTrackingState(tx, rowIndex as string, {
-					[columnName as string]: valueFormatted,
-					history: JSON.stringify(parsedHistoryObject),
-				}),
-			)
-		}
+			history.lastUpdated = Date.now()
+			return updateEntryAndTrackingState(tx, ownerId, entry.id, {
+				[colId]: castType(input.value, expectedType),
+				history: JSON.stringify(history),
+			})
+		})
 	} catch (e) {
 		// Auth/ownership failures are already Responses (401/404) — let them through.
 		if (e instanceof Response) throw e

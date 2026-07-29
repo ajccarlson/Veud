@@ -1,9 +1,11 @@
 import { type Prisma } from '@prisma/client'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 import { visibleWatchlistWhere } from './visibility.ts'
 
 export {
+	publicActivityEventWhere,
 	publicTrackingStateWhere,
 	publicWatchlistWhere,
 	visibleActivityEventWhere,
@@ -30,51 +32,81 @@ export async function requireVisibleWatchlist(
 }
 
 /**
- * Keep historical tracking activity aligned with a list's visibility. Events
- * created after LIST-013 carry exact list ids. The label fallback safely hides
- * older rows created before those provenance columns existed.
+ * Keep verified tracking activity aligned with a list's visibility. Legacy
+ * label-only rows are quarantined rather than attached by mutable label. Both
+ * branches use a fixed number of server-side updates, independent of history
+ * size.
  */
 export async function syncWatchlistActivityVisibility(
 	tx: Prisma.TransactionClient,
 	watchlist: { id: string; ownerId: string; header: string; isPublic: boolean },
+	previousHeader?: string,
 ) {
-	if (!watchlist.isPublic) {
+	await serializeUserLibraryMutation(tx, watchlist.ownerId)
+	const labels = [...new Set([watchlist.header, previousHeader])].filter(
+		(label): label is string => Boolean(label),
+	)
+	const linkedToWatchlist = {
+		OR: [
+			{ statusWatchlistId: watchlist.id },
+			{ previousStatusWatchlistId: watchlist.id },
+		],
+	} satisfies Prisma.ActivityEventWhereInput
+
+	if (labels.length) {
 		await tx.activityEvent.updateMany({
 			where: {
 				actorId: watchlist.ownerId,
-				OR: [
-					{ statusWatchlistId: watchlist.id },
-					{ previousStatusWatchlistId: watchlist.id },
-					{ statusLabel: watchlist.header },
-					{ previousStatusLabel: watchlist.header },
-				],
+				publicEligible: false,
+				OR: labels.flatMap(label => [
+					{ statusWatchlistId: null, statusLabel: label },
+					{
+						previousStatusWatchlistId: null,
+						previousStatusLabel: label,
+					},
+				]),
 			},
+			data: { isPublic: false },
+		})
+	}
+
+	if (!watchlist.isPublic) {
+		await tx.activityEvent.updateMany({
+			where: linkedToWatchlist,
 			data: { isPublic: false },
 		})
 		return
 	}
 
-	const events = await tx.activityEvent.findMany({
+	// Recompute all linked rows fail-closed in two statements. Historical and
+	// private-created rows remain private; eligible rows are public only when
+	// both immutable list relations are currently public or genuinely absent.
+	await tx.activityEvent.updateMany({
+		where: linkedToWatchlist,
+		data: { isPublic: false },
+	})
+	await tx.activityEvent.updateMany({
 		where: {
-			actorId: watchlist.ownerId,
-			OR: [
-				{ statusWatchlistId: watchlist.id },
-				{ previousStatusWatchlistId: watchlist.id },
+			...linkedToWatchlist,
+			publicEligible: true,
+			AND: [
+				{
+					OR: [
+						{ statusWatchlistId: null, statusLabel: null },
+						{ statusWatchlist: { isPublic: true } },
+					],
+				},
+				{
+					OR: [
+						{
+							previousStatusWatchlistId: null,
+							previousStatusLabel: null,
+						},
+						{ previousStatusWatchlist: { isPublic: true } },
+					],
+				},
 			],
 		},
-		select: {
-			id: true,
-			statusWatchlist: { select: { isPublic: true } },
-			previousStatusWatchlist: { select: { isPublic: true } },
-		},
+		data: { isPublic: true },
 	})
-	for (const event of events) {
-		const isPublic =
-			(event.statusWatchlist?.isPublic ?? true) &&
-			(event.previousStatusWatchlist?.isPublic ?? true)
-		await tx.activityEvent.update({
-			where: { id: event.id },
-			data: { isPublic },
-		})
-	}
 }

@@ -3,8 +3,15 @@ import {
 	type LibraryImportItem as NormalizedImportItem,
 	libraryImportProviders,
 } from './library-import.ts'
+import { syncWatchlistActivityVisibility } from './lists/visibility.server.ts'
 import { listTypeNameForMediaKind } from './media-kind.ts'
 import { setMediaTrackingStatus } from './tracking-status.server.ts'
+import {
+	assertWatchlistCreationAllowed,
+	serializeUserLibraryMutation,
+	serializeWatchlistCreation,
+	WatchlistLimitError,
+} from './watchlist-limits.ts'
 
 export const libraryImportResolutions = [
 	'add',
@@ -236,6 +243,7 @@ async function ensureStatusWatchlist(
 			409,
 		)
 	}
+	await serializeWatchlistCreation(tx, input.ownerId)
 	const existing = await tx.watchlist.findFirst({
 		where: {
 			ownerId: input.ownerId,
@@ -246,6 +254,17 @@ async function ensureStatusWatchlist(
 		select: { id: true },
 	})
 	if (existing) return { id: existing.id, created: false }
+	try {
+		await assertWatchlistCreationAllowed(tx, {
+			ownerId: input.ownerId,
+			typeId: listType.id,
+		})
+	} catch (error) {
+		if (error instanceof WatchlistLimitError) {
+			throw new LibraryImportError(error.message, error.status)
+		}
+		throw error
+	}
 	const aggregate = await tx.watchlist.aggregate({
 		where: { ownerId: input.ownerId, typeId: listType.id },
 		_max: { position: true },
@@ -413,6 +432,7 @@ export async function applyLibraryImportBatch(
 	tx: Prisma.TransactionClient,
 	input: { ownerId: string; batchId: string },
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const claim = await tx.libraryImportBatch.updateMany({
 		where: {
 			id: input.batchId,
@@ -509,6 +529,7 @@ export async function applyLibraryImportBatch(
 				progressCurrent: imported.progress[0]?.current,
 				progressTotal: imported.progress[0]?.total,
 				isPublic: false,
+				publicEligible: false,
 			},
 		})
 		const after = await memberMediaSnapshot(tx, input.ownerId, stored.mediaId)
@@ -604,6 +625,7 @@ async function restoreSnapshot(
 				actorId: input.ownerId,
 				mediaId: input.mediaId,
 				isPublic: false,
+				publicEligible: false,
 			},
 		})
 	} else {
@@ -669,6 +691,7 @@ async function restoreSnapshot(
 				status: tracking.status,
 				statusWatchlistId: tracking.statusWatchlistId,
 				isPublic: false,
+				publicEligible: false,
 			},
 		})
 	}
@@ -680,6 +703,7 @@ export async function rollbackLibraryImportBatch(
 	tx: Prisma.TransactionClient,
 	input: { ownerId: string; batchId: string },
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const claim = await tx.libraryImportBatch.updateMany({
 		where: {
 			id: input.batchId,
@@ -735,9 +759,16 @@ export async function rollbackLibraryImportBatch(
 		})
 	}
 	for (const id of createdWatchlistIds) {
-		await tx.watchlist.deleteMany({
+		const createdWatchlist = await tx.watchlist.findFirst({
 			where: { id, ownerId: input.ownerId, entries: { none: {} } },
+			select: { id: true, ownerId: true, header: true },
 		})
+		if (!createdWatchlist) continue
+		await syncWatchlistActivityVisibility(tx, {
+			...createdWatchlist,
+			isPublic: false,
+		})
+		await tx.watchlist.delete({ where: { id: createdWatchlist.id } })
 	}
 	const rolledBackAt = new Date()
 	await tx.libraryImportBatch.update({

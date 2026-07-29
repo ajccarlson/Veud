@@ -2,10 +2,12 @@ import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
+import { syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
 import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,
 } from '#app/utils/tracking-state.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 export async function deleteWatchlistCommand(
 	ownerId: string,
@@ -17,6 +19,7 @@ export async function deleteWatchlistCommand(
 	// watchlists of this type — all atomically, so a mid-sequence failure can't leave a
 	// half-deleted list or gaps in the ordering.
 	await prisma.$transaction(async tx => {
+		await serializeUserLibraryMutation(tx, ownerId)
 		const trackingStateIds = (
 			await tx.entry.findMany({
 				where: { watchlistId: watchlist.id, trackingStateId: { not: null } },
@@ -30,6 +33,13 @@ export async function deleteWatchlistCommand(
 			})
 		}
 
+		// Foreign-key deletion clears immutable watchlist ids. Quarantine linked
+		// activity first so a deleted public list cannot turn an old event into a
+		// seemingly listless public event.
+		await syncWatchlistActivityVisibility(tx, {
+			...watchlist,
+			isPublic: false,
+		})
 		await tx.watchlist.delete({ where: { id: watchlist.id } })
 
 		await tx.entry.deleteMany({

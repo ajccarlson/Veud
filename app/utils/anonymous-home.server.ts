@@ -1,5 +1,6 @@
 import { activityEventLabel } from './activity.ts'
 import { prisma } from './db.server.ts'
+import { publicActivityEventWhere } from './lists/visibility.ts'
 
 export type AnonymousHomeActivity = {
 	id: string
@@ -54,8 +55,8 @@ export async function getAnonymousHomeProof(): Promise<AnonymousHomeProof> {
 		}),
 		prisma.activityEvent.findMany({
 			where: {
-				isPublic: true,
 				actor: { is: { accountStatus: 'active' } },
+				AND: [publicActivityEventWhere],
 			},
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 			take: 8,

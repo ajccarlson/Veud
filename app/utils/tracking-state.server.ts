@@ -7,6 +7,7 @@ import {
 	trackingStateFromEntry,
 	type TrackingEntryLike,
 } from './tracking-state.ts'
+import { serializeUserLibraryMutation } from './watchlist-limits.ts'
 
 export type TrackingStateWriteMode = 'none' | 'status' | 'all'
 
@@ -23,6 +24,9 @@ export async function ensureTrackingStateForEntry(
 		recordActivity?: boolean
 	},
 ) {
+	if (input.recordActivity) {
+		await serializeUserLibraryMutation(tx, input.ownerId)
+	}
 	const existingState = await tx.trackingState.findUnique({
 		where: {
 			ownerId_mediaId: {

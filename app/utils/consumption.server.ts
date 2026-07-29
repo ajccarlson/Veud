@@ -9,6 +9,7 @@ import {
 	progressUnitsForMediaKind,
 	type SupportedProgressUnit,
 } from './media-detail.ts'
+import { serializeUserLibraryMutation } from './watchlist-limits.ts'
 
 function catalogTotal(
 	media: {
@@ -36,6 +37,7 @@ export async function recordInstallmentConsumption(
 		source?: string
 	},
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const before = await getTrackingActivityState(
 		tx,
 		input.ownerId,
