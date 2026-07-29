@@ -666,6 +666,9 @@ export type CacheOperationsSnapshot = Readonly<
 >
 
 export const cacheMetricNamespaces = [
+	'anonymous-home-summary',
+	'discovery-facets',
+	'home-trending-plan',
 	'ranked-discovery',
 	'recommendation-graph',
 ] as const
