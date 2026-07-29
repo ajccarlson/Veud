@@ -12,6 +12,65 @@ type StatusGroup = {
 	_count: { _all: number }
 }
 
+export type PublicTrackingSummary = {
+	trackerCount: number
+	ratingCount: number
+	communityScore: number | null
+}
+
+const PUBLIC_TRACKING_SUMMARY_CHUNK_SIZE = 400
+
+const emptyPublicTrackingSummary = (): PublicTrackingSummary => ({
+	trackerCount: 0,
+	ratingCount: 0,
+	communityScore: null,
+})
+
+function finiteScore(value: unknown) {
+	if (value === null || value === undefined) return null
+	const score = Number(value)
+	return Number.isFinite(score) ? score : null
+}
+
+export async function getPublicTrackingSummariesByMediaId(
+	mediaIds: readonly string[],
+) {
+	const uniqueMediaIds = [...new Set(mediaIds)]
+	const summaries = new Map<string, PublicTrackingSummary>(
+		uniqueMediaIds.map(mediaId => [mediaId, emptyPublicTrackingSummary()]),
+	)
+
+	for (
+		let offset = 0;
+		offset < uniqueMediaIds.length;
+		offset += PUBLIC_TRACKING_SUMMARY_CHUNK_SIZE
+	) {
+		const chunk = uniqueMediaIds.slice(
+			offset,
+			offset + PUBLIC_TRACKING_SUMMARY_CHUNK_SIZE,
+		)
+		const groups = await prisma.trackingState.groupBy({
+			by: ['mediaId'],
+			where: {
+				mediaId: { in: chunk },
+				AND: [publicTrackingStateWhere],
+			},
+			_count: { _all: true, score: true },
+			_avg: { score: true },
+		})
+
+		for (const group of groups) {
+			summaries.set(group.mediaId, {
+				trackerCount: group._count._all,
+				ratingCount: group._count.score,
+				communityScore: finiteScore(group._avg.score),
+			})
+		}
+	}
+
+	return summaries
+}
+
 function titleCase(value: string) {
 	return value
 		.replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -59,12 +118,8 @@ export function buildStatusBreakdown(groups: StatusGroup[]) {
 }
 
 export async function getMediaCommunityStatistics(mediaId: string) {
-	const [summary, scoreGroups, statusGroups] = await Promise.all([
-		prisma.trackingState.aggregate({
-			where: { mediaId, AND: [publicTrackingStateWhere] },
-			_count: { id: true, score: true },
-			_avg: { score: true },
-		}),
+	const [summaries, scoreGroups, statusGroups] = await Promise.all([
+		getPublicTrackingSummariesByMediaId([mediaId]),
 		prisma.trackingState.groupBy({
 			by: ['score'],
 			where: {
@@ -80,11 +135,12 @@ export async function getMediaCommunityStatistics(mediaId: string) {
 			_count: { _all: true },
 		}),
 	])
+	const summary = summaries.get(mediaId) ?? emptyPublicTrackingSummary()
 
 	return {
-		trackers: summary._count.id,
-		ratings: summary._count.score,
-		meanScore: summary._avg.score === null ? null : Number(summary._avg.score),
+		trackers: summary.trackerCount,
+		ratings: summary.ratingCount,
+		meanScore: summary.communityScore,
 		scoreDistribution: buildScoreDistribution(scoreGroups),
 		statusBreakdown: buildStatusBreakdown(statusGroups),
 	}

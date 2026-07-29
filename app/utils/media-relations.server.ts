@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { getPublicTrackingSummariesByMediaId } from './media-community.server.ts'
 import { splitLegacyThumbnail } from './media-detail.ts'
 import { type MediaIdentity } from './media-identity.ts'
 import {
@@ -20,12 +21,6 @@ const relatedMediaSelect = {
 	startSeason: true,
 	startYear: true,
 	airYear: true,
-	trackingStates: {
-		select: {
-			statusWatchlistId: true,
-			statusWatchlist: { select: { isPublic: true } },
-		},
-	},
 } satisfies Prisma.MediaSelect
 
 type RelatedMedia = Prisma.MediaGetPayload<{
@@ -96,9 +91,10 @@ export async function getMediaRelations(
 			),
 		),
 	]
-	const viewerRows =
+	const [trackingSummaries, viewerRows] = await Promise.all([
+		getPublicTrackingSummariesByMediaId(relatedMediaIds),
 		viewerId && relatedMediaIds.length
-			? await prisma.trackingState.findMany({
+			? prisma.trackingState.findMany({
 					where: { ownerId: viewerId, mediaId: { in: relatedMediaIds } },
 					select: {
 						mediaId: true,
@@ -107,7 +103,8 @@ export async function getMediaRelations(
 						statusWatchlist: { select: { header: true } },
 					},
 				})
-			: []
+			: Promise.resolve([]),
+	])
 	const viewerTrackingByMedia = new Map(
 		viewerRows.map(row => [
 			row.mediaId,
@@ -162,11 +159,7 @@ export async function getMediaRelations(
 				imageUrl: splitLegacyThumbnail(media.thumbnail).imageUrl,
 				type: media.type,
 				year: yearFor(media),
-				trackerCount: media.trackingStates.filter(
-					state =>
-						state.statusWatchlistId === null ||
-						state.statusWatchlist?.isPublic,
-				).length,
+				trackerCount: trackingSummaries.get(media.id)?.trackerCount ?? 0,
 				viewerTracking: viewerTrackingByMedia.get(media.id) ?? null,
 				chronology: chronologyFor(media),
 			},
