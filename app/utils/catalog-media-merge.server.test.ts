@@ -278,6 +278,7 @@ async function seedSafeRelationInventory() {
 				actorId: base.owner.id,
 				mediaId: 'merge-source',
 				trackingStateId: tracking.id,
+				publicEligible: true,
 			},
 		}),
 		prisma.consumptionEvent.create({
@@ -583,6 +584,12 @@ test('applies and reverses a complete safe relation inventory without data loss'
 	expect(await prisma.mediaTitle.count()).toBe(2)
 	expect(await prisma.catalogFeedItem.count()).toBe(2)
 	expect(await prisma.mediaRelation.count()).toBe(1)
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: 'merge-activity' },
+			select: { mediaId: true, publicEligible: true },
+		}),
+	).toEqual({ mediaId: 'merge-target', publicEligible: true })
 
 	const reverted = await revertCatalogMediaMerge(prisma, {
 		mergeId: prepared.merge.id,
@@ -591,6 +598,12 @@ test('applies and reverses a complete safe relation inventory without data loss'
 		now: new Date(now.getTime() + 2_000),
 	})
 	expect(reverted.status).toBe('reverted')
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: 'merge-activity' },
+			select: { mediaId: true, publicEligible: true },
+		}),
+	).toEqual({ mediaId: 'merge-source', publicEligible: true })
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: 'merge-source' },

@@ -1,9 +1,9 @@
-import { type Prisma } from '@prisma/client'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { visibleWatchlistWhere } from './visibility.ts'
 
 export {
+	publicActivityEventWhere,
 	publicTrackingStateWhere,
 	publicWatchlistWhere,
 	visibleActivityEventWhere,
@@ -27,54 +27,4 @@ export async function requireVisibleWatchlist(
 		: null
 	if (!watchlist) throw new Response('Not found', { status: 404 })
 	return { viewerId, watchlist }
-}
-
-/**
- * Keep historical tracking activity aligned with a list's visibility. Events
- * created after LIST-013 carry exact list ids. The label fallback safely hides
- * older rows created before those provenance columns existed.
- */
-export async function syncWatchlistActivityVisibility(
-	tx: Prisma.TransactionClient,
-	watchlist: { id: string; ownerId: string; header: string; isPublic: boolean },
-) {
-	if (!watchlist.isPublic) {
-		await tx.activityEvent.updateMany({
-			where: {
-				actorId: watchlist.ownerId,
-				OR: [
-					{ statusWatchlistId: watchlist.id },
-					{ previousStatusWatchlistId: watchlist.id },
-					{ statusLabel: watchlist.header },
-					{ previousStatusLabel: watchlist.header },
-				],
-			},
-			data: { isPublic: false },
-		})
-		return
-	}
-
-	const events = await tx.activityEvent.findMany({
-		where: {
-			actorId: watchlist.ownerId,
-			OR: [
-				{ statusWatchlistId: watchlist.id },
-				{ previousStatusWatchlistId: watchlist.id },
-			],
-		},
-		select: {
-			id: true,
-			statusWatchlist: { select: { isPublic: true } },
-			previousStatusWatchlist: { select: { isPublic: true } },
-		},
-	})
-	for (const event of events) {
-		const isPublic =
-			(event.statusWatchlist?.isPublic ?? true) &&
-			(event.previousStatusWatchlist?.isPublic ?? true)
-		await tx.activityEvent.update({
-			where: { id: event.id },
-			data: { isPublic },
-		})
-	}
 }

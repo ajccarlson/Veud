@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import 'dotenv/config'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -7,9 +8,11 @@ import { performance } from 'node:perf_hooks'
 import { PrismaClient } from '@prisma/client'
 import {
 	assertRequiredQueryIndexes,
+	assertRequiredQueryRows,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	calendarLoadWindow,
+	representativeProfileEntryShape,
 	representativeLoadShape,
 	summarizeDatabasePressure,
 	summarizeExplain,
@@ -20,6 +23,8 @@ const args = process.argv.slice(2)
 const prefix = 'load-catalog-'
 const syntheticBroadDescriptionNeedle = 'Shared synthetic load description'
 const syntheticDescriptionLead = `${syntheticBroadDescriptionNeedle} for indexed discovery.`
+const syntheticRareDescriptionRow = 73_003
+const syntheticRareDescriptionNeedle = `rare-nebula-token-${syntheticRareDescriptionRow}`
 const requiredTrigramIndexesByQuery = {
 	'canonical-title': 'Media_title_trgm_idx',
 	'tracking-exact-title': 'Media_title_trgm_idx',
@@ -30,6 +35,58 @@ const requiredCalendarIndexesByQuery = {
 	'calendar-media-range': 'Media_nextReleaseAt_idx',
 	'calendar-occurrence-range': 'ReleaseOccurrence_releaseAt_status_idx',
 	'calendar-public-tracker-counts': 'TrackingState_mediaId_idx',
+}
+const requiredProfileIndexesByQuery = {
+	'profile-entry-page': 'Entry_watchlistId_id_idx',
+	'profile-activity-owner': 'ActivityEvent_actorId_createdAt_id_idx',
+	'profile-activity-public':
+		'ActivityEvent_actorId_isPublic_publicEligible_createdAt_id_idx',
+	'profile-review-page': 'Review_authorId_moderationStatus_createdAt_id_idx',
+	'profile-diary-activity': 'DiaryEntry_ownerId_createdAt_id_idx',
+	'profile-diary-page': 'DiaryEntry_ownerId_loggedOn_createdAt_id_idx',
+}
+const requiredProfileRowsByQuery = {
+	'profile-entry-page': 500,
+	'profile-activity-owner': 100,
+	'profile-activity-public': 100,
+	'profile-review-page': 100,
+	'profile-diary-activity': 100,
+	'profile-diary-page': 100,
+}
+const profileActivityPublicRelationsSql = `LEFT JOIN "Watchlist" AS status_watchlist
+   ON status_watchlist.id = activity."statusWatchlistId"
+ LEFT JOIN "Watchlist" AS previous_status_watchlist
+   ON previous_status_watchlist.id = activity."previousStatusWatchlistId"`
+const profileActivityPublicPredicateSql = `activity."isPublic" = true
+ AND activity."publicEligible" = true
+ AND (
+   (
+     activity."statusWatchlistId" IS NULL
+     AND activity."statusLabel" IS NULL
+   )
+   OR (
+     status_watchlist."ownerId" = $1
+     AND status_watchlist."isPublic" = true
+   )
+ )
+ AND (
+   (
+     activity."previousStatusWatchlistId" IS NULL
+     AND activity."previousStatusLabel" IS NULL
+   )
+   OR (
+     previous_status_watchlist."ownerId" = $1
+     AND previous_status_watchlist."isPublic" = true
+   )
+ )`
+const profileFixtureTargets = {
+	reviewRowsPerMember: 10,
+	diaryRowsPerMember: 10,
+	activityRows: 120,
+	reviewRows: 120,
+	hiddenReviewRows: 600,
+	diaryRows: 2_000,
+	unsafePublicActivityRows: 1,
 }
 const communityCandidateLimit = 1_000
 const communityCandidateChunkSize = 400
@@ -82,6 +139,7 @@ Options:
   --require-trigram-indexes Fail if measured text searches avoid trigram indexes
   --require-calendar-indexes Fail if bounded calendar queries avoid their indexes
   --require-community-indexes Fail if chunked community aggregates avoid their index
+  --require-profile-indexes Fail if bounded profile queries avoid their indexes
   --help                    Show this help
 
 DATABASE_URL must use PostgreSQL and its database name must contain a clearly
@@ -131,6 +189,7 @@ function assertKnownArguments() {
 		'--require-trigram-indexes',
 		'--require-calendar-indexes',
 		'--require-community-indexes',
+		'--require-profile-indexes',
 		'--help',
 	])
 	for (let index = 0; index < args.length; index++) {
@@ -178,6 +237,68 @@ function kindSql(series = 'n') {
 		ELSE 'manga' END`
 }
 
+function profileFixtureMemberNumber(memberCount) {
+	if (!memberCount) return null
+	let memberNumber = Math.max(1, Math.floor(memberCount / 2))
+	if (memberNumber % 7 === 0) {
+		memberNumber =
+			memberNumber < memberCount ? memberNumber + 1 : memberNumber - 1
+	}
+	return Math.max(1, memberNumber)
+}
+
+function representativeProfileFixture(shape, mediaCount) {
+	const memberNumber = profileFixtureMemberNumber(shape.memberCount)
+	const reviewRowsPerMember = Math.min(
+		profileFixtureTargets.reviewRowsPerMember,
+		mediaCount,
+	)
+	const diaryRowsPerMember = profileFixtureTargets.diaryRowsPerMember
+	const reviewRows = Math.min(
+		profileFixtureTargets.reviewRows,
+		Math.max(0, mediaCount - reviewRowsPerMember),
+	)
+	const hiddenReviewRows = Math.min(
+		profileFixtureTargets.hiddenReviewRows,
+		Math.max(0, mediaCount - reviewRowsPerMember - reviewRows),
+	)
+	if (memberNumber === null) {
+		return {
+			memberNumber: null,
+			memberId: null,
+			watchlistId: null,
+			reviewRowsPerMember,
+			diaryRowsPerMember,
+			expectedEntries: 0,
+			entryRows: 0,
+			activityRows: 0,
+			reviewRows: 0,
+			hiddenReviewRows: 0,
+			diaryRows: 0,
+			unsafePublicActivityRows: 0,
+		}
+	}
+	const entryShape = representativeProfileEntryShape({
+		mediaCount,
+		trackedEntries: shape.trackingPerMember,
+	})
+
+	return {
+		memberNumber,
+		memberId: `${prefix}member-${memberNumber}`,
+		watchlistId: `${prefix}watchlist-${memberNumber}-liveaction`,
+		reviewRowsPerMember,
+		diaryRowsPerMember,
+		expectedEntries: entryShape.expectedEntries,
+		entryRows: entryShape.fixtureEntryRows,
+		activityRows: profileFixtureTargets.activityRows,
+		reviewRows,
+		hiddenReviewRows,
+		diaryRows: profileFixtureTargets.diaryRows,
+		unsafePublicActivityRows: profileFixtureTargets.unsafePublicActivityRows,
+	}
+}
+
 async function databaseMetrics(prisma) {
 	const rows = await prisma.$queryRaw`
 		SELECT
@@ -189,7 +310,9 @@ async function databaseMetrics(prisma) {
 			pg_total_relation_size('"ReleaseOccurrence"')::bigint AS "releaseOccurrenceBytes",
 			pg_total_relation_size('"TrackingState"')::bigint AS "trackingBytes",
 			pg_total_relation_size('"Entry"')::bigint AS "entryBytes",
-			pg_total_relation_size('"ActivityEvent"')::bigint AS "activityBytes"
+			pg_total_relation_size('"ActivityEvent"')::bigint AS "activityBytes",
+			pg_total_relation_size('"Review"')::bigint AS "reviewBytes",
+			pg_total_relation_size('"DiaryEntry"')::bigint AS "diaryBytes"
 	`
 	const row = rows[0]
 	return Object.fromEntries(
@@ -251,7 +374,7 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 				ELSE NULL END,
 			$3::text || ' Record ' || n || '. ' ||
 				repeat('Cast, setting, themes, and release metadata vary across this representative catalog record. ', (n % 4) + 1) ||
-				CASE n % 997 WHEN 0 THEN 'rare-nebula-token' ELSE '' END,
+				CASE WHEN n = $5::int THEN $6::text ELSE '' END,
 			CASE n % 5 WHEN 0 THEN 'Drama, Mystery' WHEN 1 THEN 'Action, Fantasy'
 				WHEN 2 THEN 'Comedy' WHEN 3 THEN 'Science Fiction' ELSE 'Romance' END,
 			CASE WHEN ${kind} IN ('movie', 'tv') THEN 'en' ELSE 'ja' END,
@@ -273,6 +396,8 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 		end,
 		syntheticDescriptionLead,
 		scheduleAnchor,
+		syntheticRareDescriptionRow,
+		syntheticRareDescriptionNeedle,
 	)
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "MediaExternalId" (
@@ -425,6 +550,7 @@ async function insertRepresentativeMemberBatch(
 	shape,
 	mediaCount,
 ) {
+	const profileFixture = representativeProfileFixture(shape, mediaCount)
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "User" (
 			"id", "email", "username", "name", "bio", "createdAt", "updatedAt", "lastActiveAt"
@@ -557,15 +683,17 @@ async function insertRepresentativeMemberBatch(
 			)
 			INSERT INTO "ActivityEvent" (
 				"id", "type", "status", "statusLabel", "score", "isPublic",
-				"createdAt", "actorId", "mediaId", "trackingStateId",
+				"publicEligible", "createdAt", "actorId", "mediaId", "trackingStateId",
 				"statusWatchlistId"
 			)
 			SELECT
 				'${prefix}activity-' || member_number || '-' || slot,
 				CASE WHEN slot % 4 = 0 THEN 'completed' ELSE 'status' END,
 				tracking.status,
-				CASE WHEN media.kind = 'manga' THEN 'Reading' ELSE 'Watching' END,
+				CASE WHEN tracking."statusWatchlistId" IS NULL THEN NULL
+					WHEN media.kind = 'manga' THEN 'Reading' ELSE 'Watching' END,
 				tracking.score,
+				COALESCE(watchlist."isPublic", true),
 				COALESCE(watchlist."isPublic", true),
 				CURRENT_TIMESTAMP - ((slot % 365) || ' days')::interval,
 				tracking."ownerId",
@@ -583,6 +711,277 @@ async function insertRepresentativeMemberBatch(
 			shape.activityPerMember,
 		)
 	}
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "Review" (
+			"id", "body", "containsSpoilers", "rating", "createdAt", "updatedAt",
+			"moderationStatus", "authorId", "mediaId"
+		)
+		SELECT
+			'${prefix}review-' || member_number || '-' || review_slot,
+			'Representative profile review ' || member_number || '-' || review_slot,
+			(review_slot % 9) = 0,
+			((review_slot % 10) + 1)::numeric,
+			CURRENT_TIMESTAMP - (
+				((member_number + review_slot) % 90) || ' days'
+			)::interval,
+			CURRENT_TIMESTAMP,
+			'visible',
+			'${prefix}member-' || member_number,
+			'${prefix}media-' || (
+				1 + mod(
+					((member_number - 1)::bigint * $3::bigint) + review_slot - 1,
+					$4::bigint
+				)
+			)
+		FROM generate_series($1::int, $2::int) AS member_number
+		CROSS JOIN generate_series(1, $5::int) AS review_slot
+		ON CONFLICT DO NOTHING`,
+		start,
+		end,
+		shape.trackingPerMember,
+		mediaCount,
+		profileFixture.reviewRowsPerMember,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "DiaryEntry" (
+			"id", "loggedOn", "isRepeat", "rating", "createdAt", "updatedAt",
+			"ownerId", "mediaId"
+		)
+		SELECT
+			'${prefix}diary-' || member_number || '-' || diary_slot,
+			CURRENT_TIMESTAMP - (
+				((member_number + diary_slot) % 120) || ' days'
+			)::interval,
+			(diary_slot % 5) = 0,
+			((diary_slot % 10) + 1)::numeric,
+			CURRENT_TIMESTAMP - (
+				((member_number + diary_slot) % 90) || ' days'
+			)::interval,
+			CURRENT_TIMESTAMP,
+			'${prefix}member-' || member_number,
+			'${prefix}media-' || (
+				1 + mod(
+					((member_number - 1)::bigint * $3::bigint) + diary_slot - 1,
+					$4::bigint
+				)
+			)
+		FROM generate_series($1::int, $2::int) AS member_number
+		CROSS JOIN generate_series(1, $5::int) AS diary_slot
+		ON CONFLICT DO NOTHING`,
+		start,
+		end,
+		shape.trackingPerMember,
+		mediaCount,
+		profileFixture.diaryRowsPerMember,
+	)
+}
+
+async function insertRepresentativeProfileFixture(prisma, shape, mediaCount) {
+	const fixture = representativeProfileFixture(shape, mediaCount)
+	if (fixture.memberNumber === null) return
+
+	await prisma.$executeRawUnsafe(
+		`WITH live_action_media AS (
+			SELECT
+				media.id,
+				media.thumbnail,
+				media.title,
+				media.type,
+				media."releaseStart",
+				media.genres,
+				ROW_NUMBER() OVER (ORDER BY media_number)::int AS media_slot,
+				COUNT(*) OVER()::int AS media_count
+			FROM generate_series(1, $3::int) AS media_number
+			JOIN "Media" AS media
+				ON media.id = '${prefix}media-' || media_number
+			WHERE media.kind IN ('movie', 'tv')
+		), assignments AS (
+			SELECT
+				slot,
+				1 + mod(
+					slot - 1,
+					(SELECT MAX(media_count) FROM live_action_media)
+				) AS media_slot
+			FROM generate_series(1, $2::int) AS slot
+		)
+		INSERT INTO "Entry" (
+			"id", "watchlistId", "mediaId", "position", "thumbnail", "title",
+			"type", "releaseStart", "history", "genres", "story", "character",
+			"presentation", "sound", "performance", "enjoyment", "averaged",
+			"personal", "airYear", "length", "tmdbScore"
+		)
+		SELECT
+			'${prefix}entry-heavy-' || $1::int || '-' || assignments.slot,
+			'${prefix}watchlist-' || $1::int || '-liveaction',
+			media.id,
+			10000 + assignments.slot,
+			media.thumbnail,
+			media.title,
+			media.type,
+			media."releaseStart",
+			json_build_object(
+				'Added',
+				to_char(
+					(CURRENT_TIMESTAMP - (assignments.slot || ' minutes')::interval)
+						AT TIME ZONE 'UTC',
+					'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+				)
+			)::text,
+			media.genres,
+			8,
+			8,
+			8,
+			8,
+			8,
+			8,
+			8,
+			8,
+			EXTRACT(YEAR FROM media."releaseStart")::int::text,
+			'120 min',
+			7.5
+		FROM assignments
+		JOIN live_action_media AS media USING (media_slot)
+		ON CONFLICT DO NOTHING`,
+		fixture.memberNumber,
+		fixture.entryRows,
+		mediaCount,
+	)
+
+	await prisma.$executeRawUnsafe(
+		`WITH activity_rows AS (
+			SELECT
+				slot,
+				1 + mod(slot - 1, $3::int) AS tracking_slot
+			FROM generate_series(1, $2::int) AS slot
+		)
+		INSERT INTO "ActivityEvent" (
+			"id", "type", "status", "statusLabel", "previousStatus",
+			"previousStatusLabel", "score", "previousScore", "progressUnit",
+			"progressCurrent", "progressPrevious", "progressTotal", "isPublic",
+			"publicEligible",
+			"createdAt", "actorId", "mediaId", "trackingStateId",
+			"statusWatchlistId", "previousStatusWatchlistId"
+		)
+		SELECT
+			'${prefix}activity-heavy-' || $1::int || '-' || activity_rows.slot,
+			CASE WHEN activity_rows.slot % 4 = 0 THEN 'completed' ELSE 'progress' END,
+			tracking.status,
+			CASE WHEN tracking."statusWatchlistId" IS NULL THEN NULL
+				WHEN media.kind = 'manga' THEN 'Reading' ELSE 'Watching' END,
+			CASE WHEN tracking."statusWatchlistId" IS NULL
+				THEN NULL ELSE 'planning' END,
+			CASE WHEN tracking."statusWatchlistId" IS NULL
+				THEN NULL ELSE 'Planning' END,
+			tracking.score,
+			NULL,
+			CASE WHEN media.kind = 'manga' THEN 'chapter' ELSE 'episode' END,
+			activity_rows.slot,
+			activity_rows.slot - 1,
+			CASE WHEN media.kind = 'manga' THEN 200 ELSE 24 END,
+			COALESCE(watchlist."isPublic", true),
+			COALESCE(watchlist."isPublic", true),
+			CURRENT_TIMESTAMP - (activity_rows.slot || ' minutes')::interval,
+			tracking."ownerId",
+			tracking."mediaId",
+			tracking.id,
+			tracking."statusWatchlistId",
+			tracking."statusWatchlistId"
+		FROM activity_rows
+		JOIN "TrackingState" AS tracking
+			ON tracking.id = '${prefix}tracking-' || $1::int || '-' ||
+				activity_rows.tracking_slot
+		JOIN "Media" AS media ON media.id = tracking."mediaId"
+		LEFT JOIN "Watchlist" AS watchlist
+			ON watchlist.id = tracking."statusWatchlistId"
+		ON CONFLICT DO NOTHING`,
+		fixture.memberNumber,
+		fixture.activityRows,
+		shape.trackingPerMember,
+	)
+
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "ActivityEvent" (
+			"id", "type", "statusLabel", "isPublic", "publicEligible",
+			"createdAt", "actorId", "mediaId"
+		)
+		SELECT
+			'${prefix}activity-unsafe-' || $1::int,
+			'status',
+			'Legacy list without immutable provenance',
+			true,
+			false,
+			CURRENT_TIMESTAMP + INTERVAL '1 minute',
+			'${prefix}member-' || $1::int,
+			'${prefix}media-1'
+		WHERE $2::int > 0
+		ON CONFLICT DO NOTHING`,
+		fixture.memberNumber,
+		fixture.unsafePublicActivityRows,
+	)
+
+	await prisma.$executeRawUnsafe(
+		`WITH review_rows AS (
+			SELECT
+				slot,
+				1 + mod(
+					(($1::int - 1)::bigint * $3::bigint) +
+						$5::bigint + slot - 1,
+					$4::bigint
+				)::int AS media_number
+			FROM generate_series(1, $2::int) AS slot
+		)
+		INSERT INTO "Review" (
+			"id", "body", "containsSpoilers", "rating", "createdAt", "updatedAt",
+			"moderationStatus", "authorId", "mediaId"
+		)
+		SELECT
+			'${prefix}review-heavy-' || $1::int || '-' || review_rows.slot,
+			'Representative profile review ' || $1::int || '-' || review_rows.slot,
+			(review_rows.slot % 9) = 0,
+			((review_rows.slot % 10) + 1)::numeric,
+			CURRENT_TIMESTAMP - (review_rows.slot || ' hours')::interval,
+			CURRENT_TIMESTAMP,
+			CASE WHEN review_rows.slot <= $6::int THEN 'visible' ELSE 'hidden' END,
+			'${prefix}member-' || $1::int,
+			'${prefix}media-' || review_rows.media_number
+		FROM review_rows
+		ON CONFLICT DO NOTHING`,
+		fixture.memberNumber,
+		fixture.reviewRows + fixture.hiddenReviewRows,
+		shape.trackingPerMember,
+		mediaCount,
+		fixture.reviewRowsPerMember,
+		fixture.reviewRows,
+	)
+
+	await prisma.$executeRawUnsafe(
+		`WITH diary_rows AS (
+			SELECT
+				slot,
+				1 + mod(slot - 1, $3::int) AS media_number
+			FROM generate_series(1, $2::int) AS slot
+		)
+		INSERT INTO "DiaryEntry" (
+			"id", "loggedOn", "isRepeat", "rating", "createdAt", "updatedAt",
+			"ownerId", "mediaId"
+		)
+		SELECT
+			'${prefix}diary-heavy-' || $1::int || '-' || diary_rows.slot,
+			CURRENT_TIMESTAMP - (
+				(1 + mod(diary_rows.slot * 37, 5000)) || ' days'
+			)::interval,
+			(diary_rows.slot % 5) = 0,
+			((diary_rows.slot % 10) + 1)::numeric,
+			CURRENT_TIMESTAMP - (diary_rows.slot || ' minutes')::interval,
+			CURRENT_TIMESTAMP,
+			'${prefix}member-' || $1::int,
+			'${prefix}media-' || diary_rows.media_number
+		FROM diary_rows
+		ON CONFLICT DO NOTHING`,
+		fixture.memberNumber,
+		fixture.diaryRows,
+		mediaCount,
+	)
 }
 
 async function insertRepresentativeMembers(prisma, shape, mediaCount) {
@@ -597,6 +996,7 @@ async function insertRepresentativeMembers(prisma, shape, mediaCount) {
 		await insertRepresentativeMemberBatch(prisma, start, end, shape, mediaCount)
 		console.log(`Loaded representative members ${end}/${shape.memberCount}`)
 	}
+	await insertRepresentativeProfileFixture(prisma, shape, mediaCount)
 }
 
 async function representativeCounts(prisma) {
@@ -620,7 +1020,17 @@ async function representativeCounts(prisma) {
 			(SELECT COUNT(*)::int FROM "TrackingState"
 			 WHERE id LIKE '${prefix}tracking-%' AND "statusWatchlistId" IS NULL) AS "nullListTrackingRows",
 			(SELECT COUNT(*)::int FROM "Entry" WHERE id LIKE '${prefix}entry-%') AS "entryRows",
-			(SELECT COUNT(*)::int FROM "ActivityEvent" WHERE id LIKE '${prefix}activity-%') AS "activityRows"`,
+			(SELECT COUNT(*)::int FROM "ActivityEvent" WHERE id LIKE '${prefix}activity-%') AS "activityRows",
+			(SELECT COUNT(*)::int FROM "Review" WHERE id LIKE '${prefix}review-%') AS "reviewRows",
+			(SELECT COUNT(*)::int FROM "DiaryEntry" WHERE id LIKE '${prefix}diary-%') AS "diaryRows",
+			(SELECT COUNT(*)::int FROM "Entry"
+			 WHERE id LIKE '${prefix}entry-heavy-%') AS "heavyEntryRows",
+			(SELECT COUNT(*)::int FROM "ActivityEvent"
+			 WHERE id LIKE '${prefix}activity-heavy-%') AS "heavyActivityRows",
+			(SELECT COUNT(*)::int FROM "Review"
+			 WHERE id LIKE '${prefix}review-heavy-%') AS "heavyReviewRows",
+			(SELECT COUNT(*)::int FROM "DiaryEntry"
+			 WHERE id LIKE '${prefix}diary-heavy-%') AS "heavyDiaryRows"`,
 	)
 	return Object.fromEntries(
 		Object.entries(rows[0]).map(([key, value]) => [key, Number(value)]),
@@ -787,7 +1197,7 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 		[
 			'rare-description',
 			'SELECT id FROM "Media" WHERE description ILIKE $1 LIMIT 24',
-			['%rare-nebula-token%'],
+			[`%${syntheticRareDescriptionNeedle}%`],
 		],
 		[
 			'broad-description',
@@ -839,12 +1249,9 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 		queries.push(await explain(prisma, ...definition))
 	}
 	if (!shape.memberCount) return queries
-	let memberNumber = Math.max(1, Math.floor(shape.memberCount / 2))
-	if (memberNumber % 7 === 0) {
-		memberNumber =
-			memberNumber < shape.memberCount ? memberNumber + 1 : memberNumber - 1
-	}
-	const memberId = `${prefix}member-${Math.max(1, memberNumber)}`
+	const profileFixture = representativeProfileFixture(shape, count)
+	const memberId = profileFixture.memberId
+	const publicWatchlistId = profileFixture.watchlistId
 	const publicTrackerCandidateIds = [
 		...Array.from(
 			{ length: Math.min(200, count) },
@@ -858,19 +1265,75 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	queries.push(
 		await explain(
 			prisma,
-			'profile-entries',
-			`SELECT entry.id FROM "Entry" AS entry
-			 JOIN "Watchlist" AS watchlist ON watchlist.id = entry."watchlistId"
-			 WHERE watchlist."ownerId" = $1
-			 ORDER BY entry.position LIMIT 500`,
+			'profile-entry-page',
+			`SELECT
+				id, "watchlistId", "mediaId", "trackingStateId", type,
+				"releaseStart", history, genres, story, character, presentation,
+				sound, performance, enjoyment, averaged, personal, "airYear",
+				"startSeason", "startYear", length, chapters, volumes,
+				"tmdbScore", "malScore"
+			 FROM "Entry"
+			 WHERE "watchlistId" = $1 AND id > $2
+			 ORDER BY id LIMIT 500`,
+			[publicWatchlistId, ''],
+		),
+		await explain(
+			prisma,
+			'profile-activity-owner',
+			`SELECT
+				id, type, status, "statusLabel", "previousStatus",
+				"previousStatusLabel", score, "previousScore", "progressUnit",
+				"progressCurrent", "progressPrevious", "progressTotal",
+				"createdAt", "mediaId"
+			 FROM "ActivityEvent"
+			 WHERE "actorId" = $1
+			 ORDER BY "createdAt" DESC, id DESC LIMIT 100`,
 			[memberId],
 		),
 		await explain(
 			prisma,
-			'profile-activity',
-			`SELECT id FROM "ActivityEvent"
-			 WHERE "actorId" = $1 AND "isPublic" = true
-			 ORDER BY "createdAt" DESC LIMIT 100`,
+			'profile-activity-public',
+			`SELECT
+				activity.id, activity.type, activity.status,
+				activity."statusLabel", activity."previousStatus",
+				activity."previousStatusLabel", activity.score,
+				activity."previousScore", activity."progressUnit",
+				activity."progressCurrent", activity."progressPrevious",
+				activity."progressTotal", activity."createdAt", activity."mediaId"
+			 FROM "ActivityEvent" AS activity
+			 ${profileActivityPublicRelationsSql}
+			 WHERE activity."actorId" = $1
+			   AND ${profileActivityPublicPredicateSql}
+			 ORDER BY activity."createdAt" DESC, activity.id DESC LIMIT 100`,
+			[memberId],
+		),
+		await explain(
+			prisma,
+			'profile-review-page',
+			`SELECT
+				id, body, "containsSpoilers", rating, "createdAt", "updatedAt",
+				"mediaId"
+			 FROM "Review"
+			 WHERE "authorId" = $1 AND "moderationStatus" = 'visible'
+			 ORDER BY "createdAt" DESC, id DESC LIMIT 100`,
+			[memberId],
+		),
+		await explain(
+			prisma,
+			'profile-diary-activity',
+			`SELECT id, "isRepeat", "createdAt", "mediaId"
+			 FROM "DiaryEntry"
+			 WHERE "ownerId" = $1
+			 ORDER BY "createdAt" DESC, id DESC LIMIT 100`,
+			[memberId],
+		),
+		await explain(
+			prisma,
+			'profile-diary-page',
+			`SELECT id, "loggedOn", "isRepeat", rating, "createdAt", "mediaId"
+			 FROM "DiaryEntry"
+			 WHERE "ownerId" = $1
+			 ORDER BY "loggedOn" DESC, "createdAt" DESC, id DESC LIMIT 100`,
 			[memberId],
 		),
 		await explain(
@@ -928,6 +1391,63 @@ function wait(milliseconds) {
 	return new Promise(resolve => setTimeout(resolve, milliseconds))
 }
 
+async function runProfileLoaderSmoke({
+	username,
+	expectedEntries,
+	expectedActivity,
+	unsafeActivityId,
+	reportPath,
+}) {
+	const smokeReportPath = `${reportPath}.profile-loaders.json`
+	if (fs.existsSync(smokeReportPath)) fs.unlinkSync(smokeReportPath)
+	const smokeScript = path.resolve('scripts/smoke-profile-loaders-postgres.ts')
+	const childArgs = [
+		'--import',
+		'tsx',
+		smokeScript,
+		'--username',
+		username,
+		'--expected-entries',
+		String(expectedEntries),
+		'--expected-activity',
+		String(expectedActivity),
+		'--unsafe-activity-id',
+		unsafeActivityId,
+		'--report',
+		smokeReportPath,
+	]
+	await new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: process.cwd(),
+			env: {
+				...process.env,
+				NODE_ENV: 'test',
+				SESSION_SECRET:
+					process.env.SESSION_SECRET ?? 'postgres-profile-smoke-only',
+			},
+			stdio: 'inherit',
+		})
+		child.once('error', reject)
+		child.once('exit', (code, signal) => {
+			if (code === 0) {
+				resolve()
+				return
+			}
+			reject(
+				new Error(
+					`Profile loader smoke failed (${signal ? `signal ${signal}` : `exit ${code}`})`,
+				),
+			)
+		})
+	})
+	if (!fs.existsSync(smokeReportPath)) {
+		throw new Error('Profile loader smoke did not write its report')
+	}
+	const report = readJson(smokeReportPath, 'Profile loader smoke report')
+	fs.unlinkSync(smokeReportPath)
+	return report
+}
+
 async function concurrentMetrics(
 	prisma,
 	count,
@@ -972,8 +1492,10 @@ async function concurrentMetrics(
 				prisma.$queryRawUnsafe(
 					`SELECT activity.id, activity."createdAt"
 					 FROM "ActivityEvent" AS activity
-					 WHERE activity."actorId" = $1 AND activity."isPublic" = true
-					 ORDER BY activity."createdAt" DESC LIMIT 100`,
+					 ${profileActivityPublicRelationsSql}
+					 WHERE activity."actorId" = $1
+					   AND ${profileActivityPublicPredicateSql}
+					 ORDER BY activity."createdAt" DESC, activity.id DESC LIMIT 100`,
 					`${prefix}member-${memberNumber}`,
 				),
 			)
@@ -1098,12 +1620,14 @@ async function main() {
 		trackingPerMember,
 		activityPerMember,
 	})
+	const profileFixture = representativeProfileFixture(shape, count)
 	const commit = args.includes('--commit')
 	const resume = args.includes('--resume')
 	const cleanupAfter = args.includes('--cleanup-after')
 	const requireTrigramIndexes = args.includes('--require-trigram-indexes')
 	const requireCalendarIndexes = args.includes('--require-calendar-indexes')
 	const requireCommunityIndexes = args.includes('--require-community-indexes')
+	const requireProfileIndexes = args.includes('--require-profile-indexes')
 	if (requireCalendarIndexes && !shape.memberCount) {
 		throw new Error(
 			'--require-calendar-indexes requires --member-count so the bounded tracker aggregation is measured',
@@ -1112,6 +1636,24 @@ async function main() {
 	if (requireCommunityIndexes && !shape.memberCount) {
 		throw new Error(
 			'--require-community-indexes requires --member-count so community aggregates are measured',
+		)
+	}
+	if (requireProfileIndexes && !shape.memberCount) {
+		throw new Error(
+			'--require-profile-indexes requires --member-count so profile queries are measured',
+		)
+	}
+	if (
+		requireProfileIndexes &&
+		(profileFixture.entryRows <= 500 ||
+			profileFixture.activityRows + shape.activityPerMember <= 100 ||
+			profileFixture.reviewRows + profileFixture.reviewRowsPerMember <= 100 ||
+			profileFixture.hiddenReviewRows <
+				profileFixtureTargets.hiddenReviewRows ||
+			profileFixture.diaryRows + profileFixture.diaryRowsPerMember <= 100)
+	) {
+		throw new Error(
+			'--require-profile-indexes requires enough media for the representative profile fixture to exceed every bounded page',
 		)
 	}
 	const target = assertSafeLoadDatabaseUrl(process.env.DATABASE_URL)
@@ -1136,6 +1678,11 @@ async function main() {
 	console.log(
 		`Representative members: ${shape.memberCount}; tracking rows: ${shape.trackingRows}; activity rows: ${shape.activityRows}`,
 	)
+	if (profileFixture.memberId) {
+		console.log(
+			`Profile fixture: ${profileFixture.memberId}; +${profileFixture.entryRows} list entries, +${profileFixture.activityRows} valid activity events, +${profileFixture.unsafePublicActivityRows} provenance-negative event, +${profileFixture.reviewRows} visible reviews, +${profileFixture.hiddenReviewRows} hidden review fixtures, +${profileFixture.diaryRows} diary rows`,
+		)
+	}
 	console.log(
 		`Mode: ${commit ? (resume ? 'COMMIT/RESUME' : 'COMMIT') : 'DRY-RUN'}`,
 	)
@@ -1251,8 +1798,23 @@ async function main() {
 			publicListTrackingRows: shape.publicListTrackingRows,
 			privateListTrackingRows: shape.privateListTrackingRows,
 			nullListTrackingRows: shape.nullListTrackingRows,
-			entryRows: shape.entryRows,
-			activityRows: shape.activityRows,
+			entryRows: shape.entryRows + profileFixture.entryRows,
+			activityRows:
+				shape.activityRows +
+				profileFixture.activityRows +
+				profileFixture.unsafePublicActivityRows,
+			reviewRows:
+				shape.memberCount * profileFixture.reviewRowsPerMember +
+				profileFixture.reviewRows +
+				profileFixture.hiddenReviewRows,
+			diaryRows:
+				shape.memberCount * profileFixture.diaryRowsPerMember +
+				profileFixture.diaryRows,
+			heavyEntryRows: profileFixture.entryRows,
+			heavyActivityRows: profileFixture.activityRows,
+			heavyReviewRows:
+				profileFixture.reviewRows + profileFixture.hiddenReviewRows,
+			heavyDiaryRows: profileFixture.diaryRows,
 		})) {
 			if (representative[field] !== expected) {
 				throw new Error(
@@ -1277,6 +1839,8 @@ async function main() {
 			await prisma.$executeRawUnsafe('ANALYZE "TrackingState"')
 			await prisma.$executeRawUnsafe('ANALYZE "Entry"')
 			await prisma.$executeRawUnsafe('ANALYZE "ActivityEvent"')
+			await prisma.$executeRawUnsafe('ANALYZE "Review"')
+			await prisma.$executeRawUnsafe('ANALYZE "DiaryEntry"')
 		}
 		const communityAggregates = shape.memberCount
 			? await communityAggregateMetrics(prisma, count)
@@ -1293,6 +1857,15 @@ async function main() {
 			shape,
 			checkpoint.startedAt,
 		)
+		const profileLoaderSmoke = profileFixture.memberNumber
+			? await runProfileLoaderSmoke({
+					username: `load_catalog_member_${profileFixture.memberNumber}`,
+					expectedEntries: profileFixture.expectedEntries,
+					expectedActivity: 100,
+					unsafeActivityId: `${prefix}activity-unsafe-${profileFixture.memberNumber}`,
+					reportPath,
+				})
+			: null
 		const concurrency = await concurrentMetrics(
 			prisma,
 			count,
@@ -1326,6 +1899,20 @@ async function main() {
 				communityQueryIndexAssertionError = error
 			}
 		}
+		let profileQueryIndexAssertionError
+		let profileQueryRowAssertionError
+		if (shape.memberCount) {
+			try {
+				assertRequiredQueryIndexes(queries, requiredProfileIndexesByQuery)
+			} catch (error) {
+				profileQueryIndexAssertionError = error
+			}
+			try {
+				assertRequiredQueryRows(queries, requiredProfileRowsByQuery)
+			} catch (error) {
+				profileQueryRowAssertionError = error
+			}
+		}
 		const missingQueryIndexes =
 			queryIndexAssertionError?.missingRequirements ?? []
 		const missingIndexes = [
@@ -1343,6 +1930,13 @@ async function main() {
 		const missingCommunityIndexes = [
 			...new Set(
 				missingCommunityQueryIndexes.map(({ requiredIndex }) => requiredIndex),
+			),
+		]
+		const missingProfileQueryIndexes =
+			profileQueryIndexAssertionError?.missingRequirements ?? []
+		const missingProfileIndexes = [
+			...new Set(
+				missingProfileQueryIndexes.map(({ requiredIndex }) => requiredIndex),
 			),
 		]
 		const insertedRows = loaded - checkpoint.initialRows
@@ -1365,8 +1959,10 @@ async function main() {
 				...representative,
 				trackingPerMember: shape.trackingPerMember,
 				activityPerMember: shape.activityPerMember,
+				profileFixture,
 			},
 			communityAggregates,
+			profileLoaderSmoke,
 			recovery: {
 				checkpointSha256,
 				interruptedAt: checkpoint.interruptedAt ?? null,
@@ -1386,6 +1982,9 @@ async function main() {
 			missingCalendarQueryIndexes,
 			missingCommunityIndexes,
 			missingCommunityQueryIndexes,
+			missingProfileIndexes,
+			missingProfileQueryIndexes,
+			profileQueryRowFailures: profileQueryRowAssertionError?.rowFailures ?? [],
 		}
 		writePrivateJson(reportPath, report)
 		console.log(
@@ -1404,9 +2003,16 @@ async function main() {
 				`Community aggregates: ${communityAggregates.candidateCount} candidates in ${communityAggregates.chunks.length} chunks; groups=${communityAggregates.total.groups}; trackers=${communityAggregates.total.trackers}; ratings=${communityAggregates.total.ratings}; weighted mean=${communityAggregates.total.weightedMean ?? 'none'}.`,
 			)
 		}
+		if (profileLoaderSmoke) {
+			console.log(
+				`Real profile loaders: overview=${profileLoaderSmoke.overview.wallMs}ms/${profileLoaderSmoke.overview.bytes}B, stats=${profileLoaderSmoke.stats.wallMs}ms/${profileLoaderSmoke.stats.bytes}B, activity=${profileLoaderSmoke.activity.wallMs}ms/${profileLoaderSmoke.activity.bytes}B.`,
+			)
+		}
 		console.log(`Report written: ${reportPath}`)
 		if (cleanupAfter) {
 			const cleaned = await cleanup(prisma)
+			report.cleanup = cleaned
+			writePrivateJson(reportPath, report)
 			console.log(
 				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
@@ -1424,6 +2030,10 @@ async function main() {
 			...(requireCommunityIndexes && communityQueryIndexAssertionError
 				? [communityQueryIndexAssertionError]
 				: []),
+			...(requireProfileIndexes && profileQueryIndexAssertionError
+				? [profileQueryIndexAssertionError]
+				: []),
+			...(profileQueryRowAssertionError ? [profileQueryRowAssertionError] : []),
 		]
 		if (validationErrors.length === 1) {
 			throw validationErrors[0]

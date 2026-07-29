@@ -71,6 +71,7 @@ import {
 	type TrackingEntryLike,
 } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 const catalogEntrySelect = {
 	id: true,
@@ -838,6 +839,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		throw new Response('Invalid media update', { status: 400 })
 
 	return prisma.$transaction(async tx => {
+		if (
+			parsed.data.intent === 'status' ||
+			parsed.data.intent === 'score' ||
+			parsed.data.intent === 'progress'
+		) {
+			await serializeUserLibraryMutation(tx, userId)
+		}
 		const media = await tx.media.findUnique({
 			where: { id: mediaId },
 			select: {

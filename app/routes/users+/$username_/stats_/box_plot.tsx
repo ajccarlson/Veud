@@ -1,193 +1,256 @@
-import { ResponsiveBoxPlot } from '@nivo/boxplot'
-import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
+import { useId } from 'react'
+import { ProfileChartDataTable } from '#app/routes/users+/$username_/stats_/visualization-boundary.tsx'
+import { veudChartColors } from '#app/utils/nivo-theme.ts'
+import {
+	type ProfileAnalyticsResult,
+	type ProfileObjectiveScoreSummary,
+	type ProfileObjectiveScores,
+} from '#app/utils/profile-analytics.ts'
+import { type ListTypeMeta } from '#app/utils/profile.ts'
 
-function MyResponsiveBoxPlot(data: any) {
-  return (
-    <div className="user-landing-stats-chart-container user-landing-stats-box-plot-chart">
-      <ResponsiveBoxPlot
-        colors={veudChartColors}
-        theme={veudNivoTheme as any}
-          data={data}
-          margin={{ top: 60, right: 140, bottom: 60, left: 60 }}
-          minValue={0}
-          maxValue={10}
-          subGroupBy="group"
-          padding={0.12}
-          enableGridX={true}
-          axisTop={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              legend: '',
-              legendOffset: 36,
-              truncateTickAt: 0
-          }}
-          axisRight={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              legend: '',
-              legendOffset: 0,
-              truncateTickAt: 0
-          }}
-          axisBottom={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              legend: 'group',
-              legendPosition: 'middle',
-              legendOffset: 32,
-              truncateTickAt: 0
-          }}
-          axisLeft={{
-              tickSize: 5,
-              tickPadding: 5,
-              tickRotation: 0,
-              legend: 'value',
-              legendPosition: 'middle',
-              legendOffset: -40,
-              truncateTickAt: 0
-          }}
-          colorBy="group"
-          borderRadius={2}
-          borderWidth={2}
-          borderColor={{
-              from: 'color',
-              modifiers: [
-                  [
-                      'darker',
-                      0.3
-                  ]
-              ]
-          }}
-          medianWidth={2}
-          medianColor={{
-              from: 'color',
-              modifiers: [
-                  [
-                      'darker',
-                      0.3
-                  ]
-              ]
-          }}
-          whiskerEndSize={0.6}
-          whiskerColor={{
-              from: 'color',
-              modifiers: [
-                  [
-                      'darker',
-                      0.3
-                  ]
-              ]
-          }}
-          motionConfig="stiff"
-          tooltip={(point: any) => {
-            //console.log(point)
-            return (
-              <div
-                style={{
-                  background: 'black',
-                  color: point.color,
-                  padding: '9px 12px',
-                  border: '1px solid #ccc',
-                }}
-              >
-                <div>{`${point.group} (${point.data.n})`}</div>
-                <div>{`Mean: ${Number(point.formatted.mean).toFixed(1)}`}</div>
-                <div>{`Min: ${point.data.extrema[0]}`}</div>
-                <div>{`Max: ${point.data.extrema[1]}`}</div>
-              </div>
-            )
-          }} 
-          legends={[
-          {
-            anchor: 'bottom-right',
-            direction: 'column',
-            justify: false,
-            translateX: 120,
-            translateY: 0,
-            itemsSpacing: 10,
-            itemWidth: 100,
-            itemHeight: 18,
-            itemTextColor: 'white',
-            itemDirection: 'left-to-right',
-            itemOpacity: 1,
-            symbolSize: 18,
-            symbolShape: 'square',
-            effects: [
-              {
-                on: 'hover',
-                style: {
-                  itemTextColor: '#66563d'
-                }
-              }
-            ]
-          }
-        ]}
-      />
-    </div>
-  )
+const WIDTH = 840
+const HEIGHT = 440
+const LEFT = 64
+const RIGHT = 816
+const TOP = 32
+const BOTTOM = 380
+
+function xPosition(score: number) {
+	return LEFT + ((score - 1) / 9) * (RIGHT - LEFT)
 }
 
-export function renderBoxPlotChart(loaderData: any, chartType: string, listType: any) {
-  if (chartType == "objective scores") {
-    const typedEntry = loaderData.typedEntries[listType.id]
-
-    let scoredBars: any[] = []
-    for (let i = 0; i < 10; i++) {
-      scoredBars[i] = {
-        value: (i + 1),
-        personal: []
-      }
-    }
-
-    let objectiveType: any
-    if (typedEntry && typedEntry.length >= 1 && typedEntry[0]) {
-      if ("tmdbScore" in typedEntry[0]) {
-        objectiveType = "tmdbScore"
-      }
-      else if ("malScore" in typedEntry[0]) {
-        objectiveType = "malScore"
-      }
-    }
-    else {
-      return
-    }
-
-    if (!objectiveType) {
-      throw new Error ("No objective score type found!")
-    }
-
-    typedEntry.forEach((typedEntry: any) => {
-      if ((!isNaN(typedEntry[objectiveType]) && !isNaN(typedEntry["personal"])) && ((typedEntry[objectiveType] >= 1 && typedEntry[objectiveType] <= 10)  && (typedEntry["personal"] >= 1 && typedEntry["personal"] <= 10))) {
-        scoredBars[Math.floor(typedEntry[objectiveType])]["personal"].push(typedEntry["personal"])
-      }
-    })
-
-    let scoresFormatted: any[] = []
-    for (const scoreBar of scoredBars) {
-      if (scoreBar.personal.length > 0) {
-        const dataLength = scoreBar.personal.length
-        const dataAverage = scoreBar.personal.reduce((a: any, b: any) => Number(a) + Number(b)) / dataLength
-        const stdDeviation = Math.sqrt(scoreBar.personal.map((x: any) => Math.pow(x - dataAverage, 2)).reduce((a: any, b: any) => Number(a) + Number(b)) / dataLength)
-
-        for (const personalScore of scoreBar.personal) {
-          scoresFormatted.push({
-            group: scoreBar.value,
-            subgroup: scoreBar.value,
-            value: personalScore,
-            mu: dataAverage,
-            sd: stdDeviation,
-            n: dataLength,
-          })
-        }
-      }
-    }
-    
-    return MyResponsiveBoxPlot(scoresFormatted)
-  }
+function yPosition(score: number) {
+	return BOTTOM - ((score - 1) / 9) * (BOTTOM - TOP)
 }
 
-export function BoxPlotChart({ data, listType }: any) {
-  return renderBoxPlotChart(data, 'objective scores', listType)
+function sourceLabel(source: ProfileObjectiveScores['source']) {
+	if (source === 'tmdbScore') return 'TMDB'
+	if (source === 'malScore') return 'MAL'
+	return 'Objective'
+}
+
+function summaryLabel(
+	summary: ProfileObjectiveScoreSummary,
+	source: ProfileObjectiveScores['source'],
+) {
+	return `${sourceLabel(source)} score ${summary.score}: ${summary.count} paired ${summary.count === 1 ? 'rating' : 'ratings'}, personal median ${summary.median.toFixed(1)}, mean ${summary.mean.toFixed(1)}, range ${summary.min.toFixed(1)} to ${summary.max.toFixed(1)}`
+}
+
+export function renderBoxPlotChart(
+	data: Pick<ProfileAnalyticsResult, 'objectiveScores'>,
+	listType: ListTypeMeta | undefined,
+	titleId = 'profile-objective-score-chart',
+) {
+	const scores = listType ? data.objectiveScores[listType.id] : undefined
+	if (!scores?.groups.length) {
+		return (
+			<div
+				className="user-landing-stats-chart-container user-landing-stats-box-plot-chart"
+				role="status"
+			>
+				No paired personal and public scores yet.
+			</div>
+		)
+	}
+
+	const provider = sourceLabel(scores.source)
+
+	return (
+		<div className="user-landing-stats-chart-container user-landing-stats-box-plot-chart">
+			<svg
+				viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+				width="100%"
+				height="100%"
+				role="img"
+				aria-labelledby={titleId}
+				preserveAspectRatio="xMidYMid meet"
+			>
+				<title id={titleId}>
+					{`Personal score distribution by ${provider} score`}
+				</title>
+
+				{Array.from({ length: 10 }, (_, index) => index + 1).map(score => {
+					const y = yPosition(score)
+					return (
+						<g key={`y-${score}`}>
+							<line
+								x1={LEFT}
+								x2={RIGHT}
+								y1={y}
+								y2={y}
+								stroke="rgba(255, 255, 255, 0.1)"
+							/>
+							<text
+								x={LEFT - 14}
+								y={y + 4}
+								textAnchor="end"
+								fill="#FFEFCC"
+								fontSize="12"
+							>
+								{score}
+							</text>
+						</g>
+					)
+				})}
+
+				<line x1={LEFT} x2={RIGHT} y1={BOTTOM} y2={BOTTOM} stroke="#6F6F6F" />
+				<line x1={LEFT} x2={LEFT} y1={TOP} y2={BOTTOM} stroke="#6F6F6F" />
+
+				{Array.from({ length: 10 }, (_, index) => index + 1).map(score => {
+					const x = xPosition(score)
+					return (
+						<g key={`x-${score}`}>
+							<line
+								x1={x}
+								x2={x}
+								y1={BOTTOM}
+								y2={BOTTOM + 5}
+								stroke="#6F6F6F"
+							/>
+							<text
+								x={x}
+								y={BOTTOM + 22}
+								textAnchor="middle"
+								fill="#FFEFCC"
+								fontSize="12"
+							>
+								{score}
+							</text>
+						</g>
+					)
+				})}
+
+				<text
+					x={(LEFT + RIGHT) / 2}
+					y={HEIGHT - 10}
+					textAnchor="middle"
+					fill="#dbffcc"
+					fontSize="13"
+				>
+					{`${provider} score`}
+				</text>
+				<text
+					x="14"
+					y={(TOP + BOTTOM) / 2}
+					textAnchor="middle"
+					fill="#dbffcc"
+					fontSize="13"
+					transform={`rotate(-90 14 ${(TOP + BOTTOM) / 2})`}
+				>
+					Personal score
+				</text>
+
+				{scores.groups.map((summary, index) => {
+					const x = xPosition(summary.score)
+					const minY = yPosition(summary.min)
+					const q1Y = yPosition(summary.q1)
+					const medianY = yPosition(summary.median)
+					const q3Y = yPosition(summary.q3)
+					const maxY = yPosition(summary.max)
+					const meanY = yPosition(summary.mean)
+					const color = veudChartColors[index % veudChartColors.length]
+					const boxWidth = 38
+
+					return (
+						<g
+							key={summary.score}
+							tabIndex={0}
+							role="img"
+							aria-label={summaryLabel(summary, scores.source)}
+						>
+							<title>{summaryLabel(summary, scores.source)}</title>
+							<line
+								x1={x}
+								x2={x}
+								y1={maxY}
+								y2={minY}
+								stroke={color}
+								strokeWidth="2"
+							/>
+							<line
+								x1={x - boxWidth / 3}
+								x2={x + boxWidth / 3}
+								y1={maxY}
+								y2={maxY}
+								stroke={color}
+								strokeWidth="2"
+							/>
+							<line
+								x1={x - boxWidth / 3}
+								x2={x + boxWidth / 3}
+								y1={minY}
+								y2={minY}
+								stroke={color}
+								strokeWidth="2"
+							/>
+							<rect
+								x={x - boxWidth / 2}
+								y={q3Y}
+								width={boxWidth}
+								height={Math.max(2, q1Y - q3Y)}
+								fill={color}
+								fillOpacity="0.72"
+								stroke={color}
+								strokeWidth="2"
+								rx="3"
+							/>
+							<line
+								x1={x - boxWidth / 2}
+								x2={x + boxWidth / 2}
+								y1={medianY}
+								y2={medianY}
+								stroke="#2e2f2b"
+								strokeWidth="3"
+							/>
+							<circle
+								cx={x}
+								cy={meanY}
+								r="4"
+								fill="#FFEFCC"
+								stroke="#2e2f2b"
+								strokeWidth="1.5"
+							/>
+						</g>
+					)
+				})}
+			</svg>
+			<ProfileChartDataTable
+				label={`Personal score distribution by ${provider} score values`}
+				columns={[
+					`${provider} score`,
+					'Ratings',
+					'Minimum',
+					'Lower quartile',
+					'Median',
+					'Upper quartile',
+					'Maximum',
+					'Mean',
+				]}
+				rows={scores.groups.map(summary => ({
+					key: String(summary.score),
+					cells: [
+						summary.score,
+						summary.count,
+						summary.min,
+						summary.q1,
+						summary.median,
+						summary.q3,
+						summary.max,
+						summary.mean,
+					],
+				}))}
+			/>
+		</div>
+	)
+}
+
+export function BoxPlotChart({
+	data,
+	listType,
+}: {
+	data: Pick<ProfileAnalyticsResult, 'objectiveScores'>
+	listType?: ListTypeMeta
+}) {
+	const titleId = useId()
+	return renderBoxPlotChart(data, listType, titleId)
 }

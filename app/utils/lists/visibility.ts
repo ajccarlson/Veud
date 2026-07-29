@@ -29,10 +29,34 @@ export function visibleTrackingStateWhere(viewerId: string | null) {
 		: publicTrackingStateWhere
 }
 
+/**
+ * Public activity must have immutable public-list provenance and must have
+ * been safe to disclose when created. Historical or private-created rows stay
+ * owner-only even if a related list is later made public.
+ */
+export const publicActivityEventWhere = {
+	isPublic: true,
+	publicEligible: true,
+	AND: [
+		{
+			OR: [
+				{ statusWatchlist: { isPublic: true } },
+				{ statusWatchlistId: null, statusLabel: null },
+			],
+		},
+		{
+			OR: [
+				{ previousStatusWatchlist: { isPublic: true } },
+				{ previousStatusWatchlistId: null, previousStatusLabel: null },
+			],
+		},
+	],
+} satisfies Prisma.ActivityEventWhereInput
+
 export function visibleActivityEventWhere(viewerId: string | null) {
 	return viewerId
 		? ({
-				OR: [{ isPublic: true }, { actorId: viewerId }],
+				OR: [publicActivityEventWhere, { actorId: viewerId }],
 			} satisfies Prisma.ActivityEventWhereInput)
-		: ({ isPublic: true } satisfies Prisma.ActivityEventWhereInput)
+		: publicActivityEventWhere
 }

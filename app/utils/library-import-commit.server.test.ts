@@ -1,3 +1,6 @@
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from './db.server.ts'
@@ -7,10 +10,40 @@ import {
 	rollbackLibraryImportBatch,
 } from './library-import-commit.server.ts'
 import { type LibraryImportItem } from './library-import.ts'
+import { syncWatchlistActivityVisibility } from './lists/activity-visibility.server.ts'
+import {
+	MAX_WATCHLISTS_PER_TYPE,
+	MAX_WATCHLISTS_PER_USER,
+} from './watchlist-limits.ts'
 
 function suffix() {
 	return faker.string.alphanumeric({ length: 10 }).toLowerCase()
 }
+
+test('imports the library writer without request-session credentials', () => {
+	const environment = { ...process.env }
+	Reflect.deleteProperty(environment, 'SESSION_SECRET')
+	const moduleUrl = pathToFileURL(
+		path.join(process.cwd(), 'app/utils/library-import-commit.server.ts'),
+	).href
+	const result = spawnSync(
+		process.execPath,
+		[
+			'--import',
+			'tsx',
+			'--input-type=module',
+			'--eval',
+			`await import(${JSON.stringify(moduleUrl)})`,
+		],
+		{
+			cwd: process.cwd(),
+			encoding: 'utf8',
+			env: environment,
+		},
+	)
+
+	expect(result.status, result.stderr).toBe(0)
+})
 
 async function owner() {
 	const id = suffix()
@@ -36,6 +69,40 @@ async function animeListType() {
 			completionType:
 				'{"present":"watch","past":"watched","continuous":"watching"}',
 		},
+	})
+}
+
+async function auxiliaryListType(name: string) {
+	return prisma.listType.create({
+		data: {
+			name,
+			header: name,
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+}
+
+async function seedWatchlists({
+	ownerId,
+	typeId,
+	count,
+	prefix,
+}: {
+	ownerId: string
+	typeId: string
+	count: number
+	prefix: string
+}) {
+	await prisma.watchlist.createMany({
+		data: Array.from({ length: count }, (_, index) => ({
+			ownerId,
+			typeId,
+			position: index + 1,
+			name: `${prefix}-${index + 1}`,
+			header: `${prefix} ${index + 1}`,
+		})),
 	})
 }
 
@@ -140,9 +207,31 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 	expect(
 		await prisma.activityEvent.findMany({
 			where: { actorId: member.id, mediaId: work.id },
-			select: { type: true, isPublic: true },
+			select: { type: true, isPublic: true, publicEligible: true },
 		}),
-	).toEqual([{ type: 'library_import', isPublic: false }])
+	).toEqual([
+		{ type: 'library_import', isPublic: false, publicEligible: false },
+	])
+	if (!applied.statusWatchlistId) {
+		throw new Error('test setup: import destination list was not created')
+	}
+	await prisma.$transaction(async tx => {
+		const published = await tx.watchlist.update({
+			where: { id: applied.statusWatchlistId! },
+			data: { isPublic: true },
+		})
+		await syncWatchlistActivityVisibility(tx, published)
+	})
+	expect(
+		await prisma.activityEvent.findFirstOrThrow({
+			where: {
+				actorId: member.id,
+				mediaId: work.id,
+				type: 'library_import',
+			},
+			select: { isPublic: true, publicEligible: true },
+		}),
+	).toEqual({ isPublic: false, publicEligible: false })
 	await expect(
 		prisma.$transaction(tx =>
 			applyLibraryImportBatch(tx, {
@@ -172,6 +261,18 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 		where: { id: storedItem.id },
 		data: { journal: JSON.stringify(legacyJournal) },
 	})
+	const linkedActivity = await prisma.activityEvent.create({
+		data: {
+			type: 'score',
+			actorId: member.id,
+			mediaId: work.id,
+			trackingStateId: applied.id,
+			statusWatchlistId: applied.statusWatchlistId,
+			score: 9,
+			isPublic: true,
+			publicEligible: true,
+		},
+	})
 
 	await prisma.$transaction(tx =>
 		rollbackLibraryImportBatch(tx, {
@@ -198,6 +299,175 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 			},
 		}),
 	).toBe(1)
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: linkedActivity.id },
+			select: {
+				statusWatchlistId: true,
+				isPublic: true,
+				publicEligible: true,
+			},
+		}),
+	).toEqual({
+		statusWatchlistId: null,
+		isPublic: false,
+		publicEligible: true,
+	})
+})
+
+test('rejects an import-created list at the per-type limit', async () => {
+	const type = await animeListType()
+	const [member, work] = await Promise.all([
+		owner(),
+		media(`Type-limited import ${suffix()}`),
+	])
+	await seedWatchlists({
+		ownerId: member.id,
+		typeId: type.id,
+		count: MAX_WATCHLISTS_PER_TYPE,
+		prefix: 'type-limit',
+	})
+	const importBatch = await batch(member.id, [
+		{
+			sourceKey: 'mal:anime:type-limit',
+			mediaId: work.id,
+			resolution: 'add',
+			payload: payload('mal:anime:type-limit', work.title!),
+		},
+	])
+
+	await expect(
+		prisma.$transaction(tx =>
+			applyLibraryImportBatch(tx, {
+				ownerId: member.id,
+				batchId: importBatch.id,
+			}),
+		),
+	).rejects.toEqual(
+		expect.objectContaining<Partial<LibraryImportError>>({
+			status: 409,
+			message: expect.stringContaining(
+				`${MAX_WATCHLISTS_PER_TYPE} watchlists for each media type`,
+			),
+		}),
+	)
+	expect(
+		await prisma.libraryImportBatch.findUniqueOrThrow({
+			where: { id: importBatch.id },
+			select: { status: true },
+		}),
+	).toEqual({ status: 'previewed' })
+	expect(
+		await prisma.trackingState.count({ where: { ownerId: member.id } }),
+	).toBe(0)
+})
+
+test('reuses an existing import list at the per-type limit', async () => {
+	const type = await animeListType()
+	const [member, work] = await Promise.all([
+		owner(),
+		media(`Existing-list import ${suffix()}`),
+	])
+	const completed = await prisma.watchlist.create({
+		data: {
+			ownerId: member.id,
+			typeId: type.id,
+			position: 1,
+			name: 'completed',
+			header: 'Completed',
+			isPublic: false,
+		},
+	})
+	await seedWatchlists({
+		ownerId: member.id,
+		typeId: type.id,
+		count: MAX_WATCHLISTS_PER_TYPE - 1,
+		prefix: 'existing-limit',
+	})
+	const importBatch = await batch(member.id, [
+		{
+			sourceKey: 'mal:anime:existing-limit',
+			mediaId: work.id,
+			resolution: 'add',
+			payload: payload('mal:anime:existing-limit', work.title!),
+		},
+	])
+
+	await prisma.$transaction(tx =>
+		applyLibraryImportBatch(tx, {
+			ownerId: member.id,
+			batchId: importBatch.id,
+		}),
+	)
+
+	expect(
+		await prisma.watchlist.count({
+			where: { ownerId: member.id, typeId: type.id },
+		}),
+	).toBe(MAX_WATCHLISTS_PER_TYPE)
+	expect(
+		await prisma.trackingState.findUniqueOrThrow({
+			where: { ownerId_mediaId: { ownerId: member.id, mediaId: work.id } },
+			select: { statusWatchlistId: true },
+		}),
+	).toEqual({ statusWatchlistId: completed.id })
+})
+
+test('rejects an import-created list at the total limit', async () => {
+	const type = await animeListType()
+	const id = suffix()
+	const [member, work, secondType, thirdType] = await Promise.all([
+		owner(),
+		media(`Total-limited import ${id}`),
+		auxiliaryListType(`import-total-b-${id}`),
+		auxiliaryListType(`import-total-c-${id}`),
+	])
+	await seedWatchlists({
+		ownerId: member.id,
+		typeId: type.id,
+		count: MAX_WATCHLISTS_PER_TYPE - 1,
+		prefix: 'total-limit-a',
+	})
+	await seedWatchlists({
+		ownerId: member.id,
+		typeId: secondType.id,
+		count: MAX_WATCHLISTS_PER_TYPE,
+		prefix: 'total-limit-b',
+	})
+	await seedWatchlists({
+		ownerId: member.id,
+		typeId: thirdType.id,
+		count:
+			MAX_WATCHLISTS_PER_USER -
+			(MAX_WATCHLISTS_PER_TYPE - 1) -
+			MAX_WATCHLISTS_PER_TYPE,
+		prefix: 'total-limit-c',
+	})
+	const importBatch = await batch(member.id, [
+		{
+			sourceKey: 'mal:anime:total-limit',
+			mediaId: work.id,
+			resolution: 'add',
+			payload: payload('mal:anime:total-limit', work.title!),
+		},
+	])
+
+	await expect(
+		prisma.$transaction(tx =>
+			applyLibraryImportBatch(tx, {
+				ownerId: member.id,
+				batchId: importBatch.id,
+			}),
+		),
+	).rejects.toEqual(
+		expect.objectContaining<Partial<LibraryImportError>>({
+			status: 409,
+			message: expect.stringContaining(`${MAX_WATCHLISTS_PER_USER} watchlists`),
+		}),
+	)
+	expect(await prisma.watchlist.count({ where: { ownerId: member.id } })).toBe(
+		MAX_WATCHLISTS_PER_USER,
+	)
 })
 
 test('merge preserves stronger progress and rollback restores prior state', async () => {

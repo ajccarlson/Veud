@@ -196,6 +196,33 @@ test('anonymous home loader does not expose a personalized feed', async () => {
 	})
 })
 
+test('anonymous home hides public-marked activity with unresolved list provenance', async () => {
+	vi.stubEnv('OPENAI_API_KEY', '')
+	const actor = await createUser('anonymous_privacy')
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Anonymous privacy fixture' },
+	})
+	const unresolved = await prisma.activityEvent.create({
+		data: {
+			type: 'score',
+			actorId: actor.id,
+			mediaId: media.id,
+			statusLabel: 'Former private list',
+			score: 10,
+			isPublic: true,
+		},
+	})
+
+	const result = await loader({
+		request: new Request(BASE_URL),
+		params: {},
+	} as any)
+
+	expect(
+		result.data.anonymousHomeProof?.activity.map(item => item.id),
+	).not.toContain(`tracking:${unresolved.id}`)
+})
+
 test('new members receive discovery suggestions that exclude themselves', async () => {
 	const [viewer, candidate] = await Promise.all([
 		createUser('new_viewer'),

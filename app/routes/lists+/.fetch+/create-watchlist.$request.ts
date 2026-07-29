@@ -2,6 +2,10 @@ import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	assertWatchlistCreationAllowed,
+	WatchlistLimitError,
+} from '#app/utils/watchlist-limits.ts'
 
 const wrapped = <T extends z.ZodTypeAny>(value: T) =>
 	z.object({ value, type: z.string() })
@@ -55,55 +59,66 @@ export async function createWatchlistCommand(
 	})
 	if (!type) throw new Response('List type not found', { status: 400 })
 
-	return prisma.$transaction(async tx => {
-		const count = await tx.watchlist.count({
-			where: { ownerId, typeId: type.id },
+	try {
+		return await prisma.$transaction(async tx => {
+			await assertWatchlistCreationAllowed(tx, {
+				ownerId,
+				typeId: type.id,
+			})
+			const count = await tx.watchlist.count({
+				where: { ownerId, typeId: type.id },
+			})
+			const position = Math.min(input.position ?? count + 1, count + 1)
+			const requestedSlug = watchlistSlug(input.name ?? input.header)
+			const existingNames = new Set(
+				(
+					await tx.watchlist.findMany({
+						where: { ownerId, typeId: type.id },
+						select: { name: true },
+					})
+				).map(watchlist => watchlist.name),
+			)
+			let name = requestedSlug
+			for (let suffix = 2; existingNames.has(name); suffix++) {
+				name = `${requestedSlug.slice(0, 72)}-${suffix}`
+			}
+			const displayedColumns =
+				input.displayedColumns ??
+				Object.keys(JSON.parse(type.columns) as Record<string, unknown>)
+					.filter(
+						column =>
+							column !== 'id' &&
+							column !== 'watchlistId' &&
+							column !== 'watchlist',
+					)
+					.join(', ')
+			await tx.watchlist.updateMany({
+				where: {
+					ownerId,
+					typeId: type.id,
+					position: { gte: position },
+				},
+				data: { position: { increment: 1 } },
+			})
+			return tx.watchlist.create({
+				data: {
+					ownerId,
+					typeId: type.id,
+					position,
+					name,
+					header: input.header,
+					displayedColumns,
+					description: input.description,
+					isPublic: input.isPublic,
+				},
+			})
 		})
-		const position = Math.min(input.position ?? count + 1, count + 1)
-		const requestedSlug = watchlistSlug(input.name ?? input.header)
-		const existingNames = new Set(
-			(
-				await tx.watchlist.findMany({
-					where: { ownerId, typeId: type.id },
-					select: { name: true },
-				})
-			).map(watchlist => watchlist.name),
-		)
-		let name = requestedSlug
-		for (let suffix = 2; existingNames.has(name); suffix++) {
-			name = `${requestedSlug.slice(0, 72)}-${suffix}`
+	} catch (error) {
+		if (error instanceof WatchlistLimitError) {
+			throw new Response(error.message, { status: error.status })
 		}
-		const displayedColumns =
-			input.displayedColumns ??
-			Object.keys(JSON.parse(type.columns) as Record<string, unknown>)
-				.filter(
-					column =>
-						column !== 'id' &&
-						column !== 'watchlistId' &&
-						column !== 'watchlist',
-				)
-				.join(', ')
-		await tx.watchlist.updateMany({
-			where: {
-				ownerId,
-				typeId: type.id,
-				position: { gte: position },
-			},
-			data: { position: { increment: 1 } },
-		})
-		return tx.watchlist.create({
-			data: {
-				ownerId,
-				typeId: type.id,
-				position,
-				name,
-				header: input.header,
-				displayedColumns,
-				description: input.description,
-				isPublic: input.isPublic,
-			},
-		})
-	})
+		throw error
+	}
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {

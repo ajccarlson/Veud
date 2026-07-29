@@ -1,5 +1,6 @@
 import { activityEventLabel, diaryActivityLabel } from './activity.ts'
 import { prisma } from './db.server.ts'
+import { publicActivityEventWhere } from './lists/visibility.ts'
 
 export type FollowingActivityFeedItem = {
 	id: string
@@ -74,7 +75,10 @@ export async function getFollowingActivityFeed(
 	const [trackingRows, reviewRows, diaryRows, collectionRows] =
 		await Promise.all([
 			prisma.activityEvent.findMany({
-				where: { actorId: { in: uniqueActorIds }, isPublic: true },
+				where: {
+					actorId: { in: uniqueActorIds },
+					AND: [publicActivityEventWhere],
+				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take,
 				select: {

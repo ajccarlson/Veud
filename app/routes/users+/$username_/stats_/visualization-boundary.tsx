@@ -1,5 +1,52 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
+export type ProfileChartDataRow = {
+	key: string
+	cells: readonly ReactNode[]
+}
+
+export function ProfileChartDataTable({
+	label,
+	columns,
+	rows,
+	emptyText = 'No values.',
+}: {
+	label: string
+	columns: readonly string[]
+	rows: readonly ProfileChartDataRow[]
+	emptyText?: string
+}) {
+	return (
+		<table className="sr-only">
+			<caption>{label}</caption>
+			<thead>
+				<tr>
+					{columns.map(column => (
+						<th key={column} scope="col">
+							{column}
+						</th>
+					))}
+				</tr>
+			</thead>
+			<tbody>
+				{rows.length ? (
+					rows.map(row => (
+						<tr key={row.key}>
+							{row.cells.map((cell, index) => (
+								<td key={`${row.key}:${columns[index] ?? index}`}>{cell}</td>
+							))}
+						</tr>
+					))
+				) : (
+					<tr>
+						<td colSpan={Math.max(1, columns.length)}>{emptyText}</td>
+					</tr>
+				)}
+			</tbody>
+		</table>
+	)
+}
+
 export class ProfileVisualizationBoundary extends Component<
 	{ children: ReactNode },
 	{ failed: boolean }

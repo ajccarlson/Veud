@@ -1,9 +1,11 @@
 import { expect, test } from 'vitest'
 import {
 	assertRequiredQueryIndexes,
+	assertRequiredQueryRows,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	calendarLoadWindow,
+	representativeProfileEntryShape,
 	representativeLoadShape,
 	summarizeDatabasePressure,
 	summarizeExplain,
@@ -164,6 +166,53 @@ test('rejects an unmeasured required query and a partial duplicate measurement',
 	).toThrow(/1\/2 measurements missing.*alternate-title/s)
 })
 
+test('requires every representative query plan to return meaningful rows', () => {
+	expect(() =>
+		assertRequiredQueryRows(
+			[
+				{ name: 'profile-entry-page', actualRows: 500 },
+				{ name: 'profile-activity-public', actualRows: 100 },
+			],
+			{
+				'profile-entry-page': 500,
+				'profile-activity-public': 100,
+			},
+		),
+	).not.toThrow()
+
+	let failure
+	try {
+		assertRequiredQueryRows(
+			[
+				{ name: 'profile-entry-page', actualRows: 0 },
+				{ name: 'profile-entry-page', actualRows: 500 },
+			],
+			{
+				'profile-entry-page': 500,
+				'profile-activity-public': 100,
+			},
+		)
+	} catch (error) {
+		failure = error
+	}
+
+	expect(failure).toBeInstanceOf(Error)
+	expect(failure.message).toMatch(
+		/profile-entry-page >= 500.*profile-activity-public >= 100/,
+	)
+	expect(failure.rowFailures).toEqual([
+		expect.objectContaining({
+			queryName: 'profile-entry-page',
+			invalidMeasurementCount: 1,
+			observedRows: [0, 500],
+		}),
+		expect.objectContaining({
+			queryName: 'profile-activity-public',
+			measurementCount: 0,
+		}),
+	])
+})
+
 test('derives a bounded representative catalog and member load shape', () => {
 	expect(
 		representativeLoadShape({
@@ -209,6 +258,45 @@ test('derives a bounded representative catalog and member load shape', () => {
 			releaseOccurrenceRows: 0,
 		}),
 	)
+})
+
+test.each([
+	{
+		mediaCount: 2_000,
+		trackedEntries: 100,
+		expected: { expectedEntries: 2_000, fixtureEntryRows: 1_900 },
+	},
+	{
+		mediaCount: 100_000,
+		trackedEntries: 100,
+		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+	},
+	{
+		mediaCount: 150_000,
+		trackedEntries: 100,
+		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+	},
+	{
+		mediaCount: 80,
+		trackedEntries: 80,
+		expected: { expectedEntries: 80, fixtureEntryRows: 0 },
+	},
+])(
+	'derives a $expected.expectedEntries-entry real profile fixture',
+	({ mediaCount, trackedEntries, expected }) => {
+		expect(
+			representativeProfileEntryShape({ mediaCount, trackedEntries }),
+		).toEqual(expected)
+	},
+)
+
+test('rejects a representative profile with more tracked rows than its target', () => {
+	expect(() =>
+		representativeProfileEntryShape({
+			mediaCount: 80,
+			trackedEntries: 81,
+		}),
+	).toThrow('trackedEntries may not exceed')
 })
 
 test('requires each bounded calendar query to use its assigned index', () => {
