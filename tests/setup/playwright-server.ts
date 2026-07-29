@@ -5,6 +5,8 @@ import {
 	removePlaywrightDatabase,
 } from './playwright-database.ts'
 
+process.env.CACHE_DATABASE_PATH = ':memory:'
+
 // Playwright starts the production server, so always build the current source.
 // Without this, direct `playwright test` runs can silently exercise an old build.
 await execa('npm', ['run', 'build'], {
@@ -19,6 +21,7 @@ const server = execa('npm', ['run', 'start:mocks'], {
 	env: {
 		...process.env,
 		DATABASE_URL: PLAYWRIGHT_DATABASE_URL,
+		CACHE_DATABASE_PATH: ':memory:',
 		VEUD_E2E: '1',
 	},
 })
