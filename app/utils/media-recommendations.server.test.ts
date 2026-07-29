@@ -179,8 +179,9 @@ test('titles without genres fall back to same-kind community popularity', async 
 })
 
 test('private-list tracking does not affect recommendation rank or statistics', async () => {
-	const [publicMember, privateMember] = await Promise.all([
+	const [publicMember, listlessMember, privateMember] = await Promise.all([
 		createUser('public_recommendation_member'),
+		createUser('listless_recommendation_member'),
 		createUser('private_recommendation_member'),
 	])
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -247,6 +248,14 @@ test('private-list tracking does not affect recommendation rank or statistics', 
 		}),
 		prisma.trackingState.create({
 			data: {
+				ownerId: listlessMember.id,
+				mediaId: publicCandidate.id,
+				status: 'watching',
+				score: 6.5,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
 				ownerId: privateMember.id,
 				mediaId: privateCandidate.id,
 				status: 'completed',
@@ -263,9 +272,9 @@ test('private-list tracking does not affect recommendation rank or statistics', 
 	])
 	expect(result.items.find(item => item.id === publicCandidate.id)).toEqual(
 		expect.objectContaining({
-			communityScore: 8,
-			ratingCount: 1,
-			trackerCount: 1,
+			communityScore: 7.25,
+			ratingCount: 2,
+			trackerCount: 2,
 		}),
 	)
 	expect(result.items.find(item => item.id === privateCandidate.id)).toEqual(

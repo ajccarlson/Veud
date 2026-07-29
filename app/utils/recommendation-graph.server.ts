@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
+import { publicTrackingStateWhere } from './lists/visibility.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
 	type RecommendationGraph,
@@ -30,12 +31,7 @@ const recommendationMediaSelect = {
 	_count: {
 		select: {
 			trackingStates: {
-				where: {
-					OR: [
-						{ statusWatchlistId: null },
-						{ statusWatchlist: { isPublic: true } },
-					],
-				},
+				where: publicTrackingStateWhere,
 			},
 			reviews: true,
 			diaryEntries: true,
@@ -412,11 +408,8 @@ export async function getRecommendationGraph(
 				? prisma.trackingState.findMany({
 						where: {
 							ownerId: { in: followedIds },
-							OR: [
-								{ statusWatchlistId: null },
-								{ statusWatchlist: { isPublic: true } },
-							],
 							AND: [
+								publicTrackingStateWhere,
 								{
 									OR: [{ score: { gte: 8 } }, { repeatCount: { gt: 0 } }],
 								},
