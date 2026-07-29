@@ -11,7 +11,7 @@ import {
 	type recordTrackingActivityDiff,
 } from '#app/utils/activity.server.ts'
 import { type applyLibraryImportBatch } from '#app/utils/library-import-commit.server.ts'
-import { type syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
+import { type syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { type setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 import { type serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 import { assertSafeLoadDatabaseUrl } from './postgres-load-utils.mjs'
@@ -975,7 +975,7 @@ async function main() {
 		import('#app/utils/profile-data.server.ts'),
 		import('#app/utils/library-import-commit.server.ts'),
 		import('#app/utils/activity.server.ts'),
-		import('#app/utils/lists/visibility.server.ts'),
+		import('#app/utils/lists/activity-visibility.server.ts'),
 		import('#app/routes/media+/$mediaId.tsx'),
 		import('#app/routes/lists+/.fetch+/update-cell.$request.ts'),
 		import('#app/utils/tracking-status.server.ts'),

@@ -1,3 +1,6 @@
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from './db.server.ts'
@@ -7,7 +10,7 @@ import {
 	rollbackLibraryImportBatch,
 } from './library-import-commit.server.ts'
 import { type LibraryImportItem } from './library-import.ts'
-import { syncWatchlistActivityVisibility } from './lists/visibility.server.ts'
+import { syncWatchlistActivityVisibility } from './lists/activity-visibility.server.ts'
 import {
 	MAX_WATCHLISTS_PER_TYPE,
 	MAX_WATCHLISTS_PER_USER,
@@ -16,6 +19,31 @@ import {
 function suffix() {
 	return faker.string.alphanumeric({ length: 10 }).toLowerCase()
 }
+
+test('imports the library writer without request-session credentials', () => {
+	const environment = { ...process.env }
+	Reflect.deleteProperty(environment, 'SESSION_SECRET')
+	const moduleUrl = pathToFileURL(
+		path.join(process.cwd(), 'app/utils/library-import-commit.server.ts'),
+	).href
+	const result = spawnSync(
+		process.execPath,
+		[
+			'--import',
+			'tsx',
+			'--input-type=module',
+			'--eval',
+			`await import(${JSON.stringify(moduleUrl)})`,
+		],
+		{
+			cwd: process.cwd(),
+			encoding: 'utf8',
+			env: environment,
+		},
+	)
+
+	expect(result.status, result.stderr).toBe(0)
+})
 
 async function owner() {
 	const id = suffix()

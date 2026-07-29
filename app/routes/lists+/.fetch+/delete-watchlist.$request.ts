@@ -1,8 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
-import { syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
 import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,

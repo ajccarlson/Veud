@@ -2,13 +2,13 @@ import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
 import {
 	getSortableWatchlistColumns,
 	normalizeWatchlistSortColumn,
 	normalizeWatchlistSortDirection,
 } from '#app/utils/lists/default-sort.ts'
-import { syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
 import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 // Only these watchlist fields may be changed via the settings form. Everything else

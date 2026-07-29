@@ -3,7 +3,7 @@ import {
 	type LibraryImportItem as NormalizedImportItem,
 	libraryImportProviders,
 } from './library-import.ts'
-import { syncWatchlistActivityVisibility } from './lists/visibility.server.ts'
+import { syncWatchlistActivityVisibility } from './lists/activity-visibility.server.ts'
 import { listTypeNameForMediaKind } from './media-kind.ts'
 import { setMediaTrackingStatus } from './tracking-status.server.ts'
 import {
