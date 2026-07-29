@@ -36,10 +36,13 @@ ARCHIVE_PATH="$archive" RECEIPT_PATH="$receipt" "$NODE_BIN" --input-type=module 
 	}
 '
 
-DATABASE_URL="$DATABASE_URL" "$NODE_BIN" -e '
-	const url = new URL(process.env.DATABASE_URL)
-	if (url.hostname !== "127.0.0.1" || url.port !== "5433" || url.pathname !== "/veud_production") {
-		throw new Error("Refusing to prepare an unexpected production target")
+DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
+	import { assertProductionDatabaseUrl } from "./scripts/production-environment-utils.mjs"
+	try {
+		assertProductionDatabaseUrl(process.env.DATABASE_URL)
+	} catch {
+		console.error("Refusing to prepare an unexpected production target")
+		process.exit(1)
 	}
 '
 

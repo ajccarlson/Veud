@@ -16,7 +16,10 @@ import {
 	mediaIdentityMatchesListType,
 	type MediaIdentity,
 } from './media-identity.ts'
-import { syncNextReleaseOccurrence } from './release-occurrences.server.ts'
+import {
+	deriveNextReleaseAt,
+	syncNextReleaseOccurrence,
+} from './release-occurrences.server.ts'
 
 export async function hydrateMediaCatalog(
 	tx: Prisma.TransactionClient,
@@ -60,11 +63,21 @@ export async function hydrateMediaCatalog(
 	}
 
 	if (Object.keys(data).length > 0) {
+		const writesNextRelease = Object.prototype.hasOwnProperty.call(
+			data,
+			'nextRelease',
+		)
+		const mediaData = writesNextRelease
+			? {
+					...data,
+					nextReleaseAt: deriveNextReleaseAt(data.nextRelease),
+				}
+			: data
 		await tx.media.update({
 			where: { id: mediaId },
-			data: data as Prisma.MediaUpdateInput,
+			data: mediaData as Prisma.MediaUpdateInput,
 		})
-		if (Object.prototype.hasOwnProperty.call(data, 'nextRelease')) {
+		if (writesNextRelease) {
 			await syncNextReleaseOccurrence(tx, mediaId, data.nextRelease)
 		}
 		const legacyData = Object.fromEntries(

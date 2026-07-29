@@ -35,7 +35,12 @@ async function main() {
 	}
 	const rawDatabaseUrl = process.env.DATABASE_URL
 	if (!rawDatabaseUrl) throw new Error('DATABASE_URL is required.')
-	const databaseUrl = new URL(rawDatabaseUrl)
+	let databaseUrl: URL
+	try {
+		databaseUrl = new URL(rawDatabaseUrl)
+	} catch {
+		throw new Error('DATABASE_URL must be a valid PostgreSQL URL.')
+	}
 	if (!['postgres:', 'postgresql:'].includes(databaseUrl.protocol)) {
 		throw new Error('DATABASE_URL must point to PostgreSQL.')
 	}

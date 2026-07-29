@@ -20,6 +20,13 @@ function preferenceFormData(config: HomeDashboardConfig) {
 	return formData
 }
 
+export function availableHomeDashboardModules(
+	moduleOrder: HomeDashboardModule[],
+	modules: Record<HomeDashboardModule, ReactNode>,
+) {
+	return moduleOrder.filter(module => modules[module] !== null)
+}
+
 export function HomeDashboard({
 	initialConfig,
 	modules,
@@ -51,6 +58,7 @@ export function HomeDashboard({
 	}
 
 	function renderModule(module: HomeDashboardModule) {
+		if (modules[module] === null) return null
 		const collapsed = config.collapsedModules.includes(module)
 		return (
 			<section
@@ -77,12 +85,16 @@ export function HomeDashboard({
 		)
 	}
 
-	const primaryModules = config.moduleOrder.filter(module =>
+	const availableModules = availableHomeDashboardModules(
+		config.moduleOrder,
+		modules,
+	)
+	const primaryModules = availableModules.filter(module =>
 		(
 			['continue', 'recommendations', 'following'] as HomeDashboardModule[]
 		).includes(module),
 	)
-	const sidebarModules = config.moduleOrder.filter(module =>
+	const sidebarModules = availableModules.filter(module =>
 		(['library', 'upcoming'] as HomeDashboardModule[]).includes(module),
 	)
 
@@ -123,7 +135,7 @@ export function HomeDashboard({
 					<fieldset>
 						<legend>Section visibility</legend>
 						<ul className="home-dashboard-module-controls">
-							{config.moduleOrder.map(module => {
+							{availableModules.map(module => {
 								const collapsed = config.collapsedModules.includes(module)
 								return (
 									<li key={module}>
