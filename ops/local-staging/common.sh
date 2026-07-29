@@ -83,7 +83,13 @@ postgres_cli_url() {
 	[[ -n "${DATABASE_URL:-}" ]] || die 'DATABASE_URL is not configured'
 	verify_node_22
 	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" -e '
-		const url = new URL(process.env.DATABASE_URL)
+		let url
+		try {
+			url = new URL(process.env.DATABASE_URL)
+		} catch {
+			console.error("DATABASE_URL must be a valid PostgreSQL URL")
+			process.exit(1)
+		}
 		url.searchParams.delete("schema")
 		process.stdout.write(url.toString())
 	'

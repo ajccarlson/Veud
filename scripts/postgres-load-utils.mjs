@@ -170,17 +170,40 @@ export function representativeLoadShape({
 			'representative member load may not exceed 5,000,000 tracking rows',
 		)
 	}
+	const nullListSlotsPerMember = Math.floor(effectiveTrackingPerMember / 11)
+	const listedTrackingRowsPerMember =
+		effectiveTrackingPerMember - nullListSlotsPerMember
+	const privateMemberCount = Math.floor(memberCount / 7)
 
 	return {
 		memberCount,
 		watchlistRows: memberCount * 3,
 		trackingPerMember: effectiveTrackingPerMember,
 		trackingRows,
+		publicListTrackingRows:
+			(memberCount - privateMemberCount) * listedTrackingRowsPerMember,
+		privateListTrackingRows: privateMemberCount * listedTrackingRowsPerMember,
+		nullListTrackingRows: memberCount * nullListSlotsPerMember,
 		entryRows: trackingRows,
 		activityPerMember: effectiveActivityPerMember,
 		activityRows,
 		relationRows: Math.floor((mediaCount - 1) / 10),
 		feedRows: Math.floor(mediaCount / 100),
+		nextReleaseRows: Math.floor(mediaCount / 20),
+		releaseOccurrenceRows: Math.floor(mediaCount / 25),
+	}
+}
+
+export function calendarLoadWindow(anchor) {
+	const reference = new Date(anchor)
+	if (!Number.isFinite(reference.getTime())) {
+		throw new Error('calendar load anchor must be a valid timestamp')
+	}
+	const dayMs = 24 * 60 * 60 * 1_000
+	return {
+		reference,
+		start: new Date(reference.getTime() - dayMs),
+		end: new Date(reference.getTime() + 8 * dayMs),
 	}
 }
 
