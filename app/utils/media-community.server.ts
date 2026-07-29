@@ -1,6 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
-import { publicTrackingStateWhere } from './lists/visibility.server.ts'
+import { publicTrackingStateWhere } from './lists/visibility.ts'
 
 type ScoreGroup = {
 	score: unknown

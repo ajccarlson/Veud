@@ -17,12 +17,14 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { getHints } from '#app/utils/client-hints.tsx'
 import {
 	getReleaseCalendar,
+	parseReleaseCalendarDateKey,
 	parseReleaseCalendarQuery,
 	type ReleaseCalendarQuery,
 } from '#app/utils/release-calendar.server.ts'
-import { releaseReminderAction } from './calendar.server.ts'
-
-const DAY_PARAM = /^\d{4}-\d{2}-\d{2}$/
+import {
+	loadReleaseCalendarOrUnavailable,
+	releaseReminderAction,
+} from './calendar.server.ts'
 
 function dayHref(filters: ReleaseCalendarQuery, week: string, date: string) {
 	const search = new URLSearchParams({
@@ -35,10 +37,7 @@ function dayHref(filters: ReleaseCalendarQuery, week: string, date: string) {
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const day = params.day ?? ''
-	if (
-		!DAY_PARAM.test(day) ||
-		Number.isNaN(new Date(`${day}T00:00:00.000Z`).getTime())
-	) {
+	if (!parseReleaseCalendarDateKey(day)) {
 		throw new Response('Not found', { status: 404 })
 	}
 	const viewerId = await getUserId(request)
@@ -47,16 +46,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const search = new URLSearchParams(url.searchParams)
 	search.set('start', day)
 	const filters = parseReleaseCalendarQuery(search, new Date(), timeZone)
-	const calendar = await getReleaseCalendar(filters, viewerId, timeZone, {
-		days: 1,
-	})
+	const calendar = await loadReleaseCalendarOrUnavailable(() =>
+		getReleaseCalendar(filters, viewerId, timeZone, {
+			days: 1,
+		}),
+	)
 	const week = url.searchParams.get('week')
 	return json({
 		...calendar,
 		day,
 		// The overflow link that brought the visitor here remembers its week so
 		// the back link returns to the exact view they left.
-		weekStart: week && DAY_PARAM.test(week) ? week : null,
+		weekStart: parseReleaseCalendarDateKey(week) ? week : null,
 	})
 }
 

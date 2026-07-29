@@ -35,7 +35,7 @@ test('replaces only allowlisted environment values and preserves formatting', ()
 test('rejects an unexpected production database URL', () => {
 	expect(() =>
 		assertProductionDatabaseUrl(
-			'postgresql://user:password@127.0.0.1:5433/veud_production',
+			'postgresql://veud_production_app:password@127.0.0.1:5433/veud_production?schema=public',
 		),
 	).not.toThrow()
 	expect(() =>
@@ -43,6 +43,22 @@ test('rejects an unexpected production database URL', () => {
 			'postgresql://user:password@127.0.0.1:5433/veud_staging',
 		),
 	).toThrow('unexpected production database')
+	for (const value of [
+		'postgresql://veud_production_app:password@127.0.0.1:5433/veud_production',
+		'postgresql://other:password@127.0.0.1:5433/veud_production?schema=public',
+		'postgresql://veud_production_app:password@127.0.0.1:5433/veud_production?schema=public&schema=private',
+		'postgresql://secret:password@[',
+	]) {
+		let message = ''
+		try {
+			assertProductionDatabaseUrl(value)
+		} catch (error) {
+			message = error instanceof Error ? error.message : String(error)
+		}
+		expect(message).toBe('Refusing to select an unexpected production database')
+		expect(message).not.toContain(value)
+		expect(message).not.toContain('password')
+	}
 })
 
 test('resolves the explicit SQLite path before a URL with query parameters', () => {

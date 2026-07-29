@@ -3,6 +3,7 @@ import {
 	assertRequiredQueryIndexes,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
+	calendarLoadWindow,
 	representativeLoadShape,
 	summarizeDatabasePressure,
 	summarizeExplain,
@@ -176,11 +177,16 @@ test('derives a bounded representative catalog and member load shape', () => {
 		watchlistRows: 75,
 		trackingPerMember: 120,
 		trackingRows: 3_000,
+		publicListTrackingRows: 2_420,
+		privateListTrackingRows: 330,
+		nullListTrackingRows: 250,
 		entryRows: 3_000,
 		activityPerMember: 15,
 		activityRows: 375,
 		relationRows: 99,
 		feedRows: 10,
+		nextReleaseRows: 50,
+		releaseOccurrenceRows: 40,
 	})
 
 	expect(
@@ -194,9 +200,59 @@ test('derives a bounded representative catalog and member load shape', () => {
 		expect.objectContaining({
 			trackingPerMember: 8,
 			trackingRows: 16,
+			publicListTrackingRows: 16,
+			privateListTrackingRows: 0,
+			nullListTrackingRows: 0,
 			activityPerMember: 8,
 			activityRows: 16,
+			nextReleaseRows: 0,
+			releaseOccurrenceRows: 0,
 		}),
+	)
+})
+
+test('requires each bounded calendar query to use its assigned index', () => {
+	const requirements = {
+		'calendar-media-range': 'Media_nextReleaseAt_idx',
+		'calendar-occurrence-range': 'ReleaseOccurrence_releaseAt_status_idx',
+		'calendar-public-tracker-counts': 'TrackingState_mediaId_idx',
+	}
+	const plans = [
+		{
+			name: 'calendar-media-range',
+			indexes: ['Media_nextReleaseAt_idx'],
+		},
+		{
+			name: 'calendar-occurrence-range',
+			indexes: ['ReleaseOccurrence_releaseAt_status_idx'],
+		},
+		{
+			name: 'calendar-public-tracker-counts',
+			indexes: ['TrackingState_mediaId_idx', 'Watchlist_pkey'],
+		},
+	]
+
+	expect(() => assertRequiredQueryIndexes(plans, requirements)).not.toThrow()
+	expect(() =>
+		assertRequiredQueryIndexes(
+			plans.map((plan, index) => ({
+				...plan,
+				indexes: plans[(index + 1) % plans.length].indexes,
+			})),
+			requirements,
+		),
+	).toThrow(/calendar-media-range -> Media_nextReleaseAt_idx/)
+})
+
+test('derives a deterministic calendar window from the persisted load anchor', () => {
+	const window = calendarLoadWindow('2026-07-28T12:30:00.000Z')
+	expect(window).toEqual({
+		reference: new Date('2026-07-28T12:30:00.000Z'),
+		start: new Date('2026-07-27T12:30:00.000Z'),
+		end: new Date('2026-08-05T12:30:00.000Z'),
+	})
+	expect(() => calendarLoadWindow('not-a-timestamp')).toThrow(
+		/calendar load anchor/,
 	)
 })
 

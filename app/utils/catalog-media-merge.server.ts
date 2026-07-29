@@ -7,6 +7,11 @@ import {
 	type CatalogMediaField,
 	type CatalogMediaMergePreflight,
 } from './catalog-media-merge.ts'
+import {
+	deriveNextReleaseAt,
+	releaseScheduleSources,
+	syncNextReleaseOccurrence,
+} from './release-occurrences.server.ts'
 
 const mergeMediaInclude = {
 	externalIds: { select: { id: true } },
@@ -17,17 +22,38 @@ const mergeMediaInclude = {
 	entries: { select: { id: true, watchlistId: true } },
 	favorites: { select: { id: true, ownerId: true, typeId: true } },
 	trackingStates: { select: { id: true, ownerId: true } },
+	seasons: { select: { id: true, number: true } },
+	installments: {
+		select: {
+			id: true,
+			kind: true,
+			seasonNumber: true,
+			number: true,
+		},
+	},
+	consumptionEvents: { select: { id: true } },
 	activityEvents: { select: { id: true } },
 	reviews: { select: { id: true, authorId: true } },
 	diaryEntries: { select: { id: true } },
 	collectionItems: { select: { id: true, collectionId: true } },
 	releaseReminders: { select: { id: true, ownerId: true } },
+	releaseOccurrences: true,
 	primaryQualityIssues: {
 		select: { id: true, primaryMediaId: true, secondaryMediaId: true },
 	},
 	secondaryQualityIssues: {
 		select: { id: true, primaryMediaId: true, secondaryMediaId: true },
 	},
+	catalogMetricSnapshots: {
+		select: {
+			id: true,
+			provider: true,
+			kind: true,
+			observedAt: true,
+		},
+	},
+	recommendationFeedback: { select: { id: true, ownerId: true } },
+	libraryImportItems: { select: { id: true } },
 } satisfies Prisma.MediaInclude
 
 type MergeMedia = Prisma.MediaGetPayload<{
@@ -80,6 +106,7 @@ type MergeContext = {
 
 type MergeJournal = {
 	version: 1
+	inventoryVersion?: 2
 	appliedAt: string
 	sourceMedia: Record<string, unknown>
 	targetPatch: {
@@ -93,11 +120,18 @@ type MergeJournal = {
 		entries: string[]
 		favorites: string[]
 		trackingStates: string[]
+		seasons?: string[]
+		installments?: string[]
+		consumptionEvents?: string[]
 		activityEvents: string[]
 		reviews: string[]
 		diaryEntries: string[]
 		collectionItems: string[]
 		releaseReminders: string[]
+		releaseOccurrences?: string[]
+		catalogMetricSnapshots?: string[]
+		recommendationFeedback?: string[]
+		libraryImportItems?: string[]
 		relations: RelationPlan['move']
 	}
 	pruned: {
@@ -181,6 +215,49 @@ function titleKey(title: MergeMedia['titles'][number]) {
 
 function feedKey(feed: MergeMedia['catalogFeedItems'][number]) {
 	return stableJson([feed.provider, feed.kind, feed.feed])
+}
+
+function seasonKey(season: MergeMedia['seasons'][number]) {
+	return String(season.number)
+}
+
+function installmentKey(installment: MergeMedia['installments'][number]) {
+	return stableJson([
+		installment.kind,
+		installment.seasonNumber,
+		installment.number,
+	])
+}
+
+function releaseOccurrenceKey(
+	occurrence: MergeMedia['releaseOccurrences'][number],
+) {
+	return stableJson([occurrence.source, occurrence.sourceKey])
+}
+
+function isDerivedNextReleaseOccurrence(
+	occurrence: MergeMedia['releaseOccurrences'][number],
+) {
+	return (
+		occurrence.sourceKey === 'next' &&
+		(releaseScheduleSources as readonly string[]).includes(occurrence.source)
+	)
+}
+
+function movableReleaseOccurrences(media: MergeMedia) {
+	return media.releaseOccurrences.filter(
+		occurrence => !isDerivedNextReleaseOccurrence(occurrence),
+	)
+}
+
+function metricSnapshotKey(
+	snapshot: MergeMedia['catalogMetricSnapshots'][number],
+) {
+	return stableJson([
+		snapshot.provider,
+		snapshot.kind,
+		snapshot.observedAt.toISOString(),
+	])
 }
 
 function relationKey(input: {
@@ -372,6 +449,18 @@ async function readMergeContext(
 			target.trackingStates.map(row => row.ownerId),
 		),
 		collisionBlocker(
+			'media-season-collision',
+			'media season',
+			source.seasons.map(seasonKey),
+			target.seasons.map(seasonKey),
+		),
+		collisionBlocker(
+			'media-installment-collision',
+			'media installment',
+			source.installments.map(installmentKey),
+			target.installments.map(installmentKey),
+		),
+		collisionBlocker(
 			'review-collision',
 			'member review',
 			source.reviews.map(row => row.authorId),
@@ -388,6 +477,24 @@ async function readMergeContext(
 			'member release reminder',
 			source.releaseReminders.map(row => row.ownerId),
 			target.releaseReminders.map(row => row.ownerId),
+		),
+		collisionBlocker(
+			'release-occurrence-collision',
+			'release occurrence',
+			movableReleaseOccurrences(source).map(releaseOccurrenceKey),
+			movableReleaseOccurrences(target).map(releaseOccurrenceKey),
+		),
+		collisionBlocker(
+			'catalog-metric-snapshot-collision',
+			'catalog metric snapshot',
+			source.catalogMetricSnapshots.map(metricSnapshotKey),
+			target.catalogMetricSnapshots.map(metricSnapshotKey),
+		),
+		collisionBlocker(
+			'recommendation-feedback-collision',
+			'member recommendation feedback',
+			source.recommendationFeedback.map(row => row.ownerId),
+			target.recommendationFeedback.map(row => row.ownerId),
 		),
 	].filter((value): value is MergeBlocker => Boolean(value))
 
@@ -424,11 +531,28 @@ function fingerprintContext(context: MergeContext) {
 		entries: media.entries.map(row => row.id).sort(),
 		favorites: media.favorites.map(row => row.id).sort(),
 		trackingStates: media.trackingStates.map(row => row.id).sort(),
+		seasons: media.seasons
+			.map(serializedRow)
+			.sort((left, right) => String(left.id).localeCompare(String(right.id))),
+		installments: media.installments
+			.map(serializedRow)
+			.sort((left, right) => String(left.id).localeCompare(String(right.id))),
+		consumptionEvents: media.consumptionEvents.map(row => row.id).sort(),
 		activityEvents: media.activityEvents.map(row => row.id).sort(),
 		reviews: media.reviews.map(row => row.id).sort(),
 		diaryEntries: media.diaryEntries.map(row => row.id).sort(),
 		collectionItems: media.collectionItems.map(row => row.id).sort(),
 		releaseReminders: media.releaseReminders.map(row => row.id).sort(),
+		releaseOccurrences: media.releaseOccurrences
+			.map(serializedRow)
+			.sort((left, right) => String(left.id).localeCompare(String(right.id))),
+		catalogMetricSnapshots: media.catalogMetricSnapshots
+			.map(serializedRow)
+			.sort((left, right) => String(left.id).localeCompare(String(right.id))),
+		recommendationFeedback: media.recommendationFeedback
+			.map(serializedRow)
+			.sort((left, right) => String(left.id).localeCompare(String(right.id))),
+		libraryImportItems: media.libraryImportItems.map(row => row.id).sort(),
 		qualityIssues: uniqueById([
 			...media.primaryQualityIssues,
 			...media.secondaryQualityIssues,
@@ -482,11 +606,18 @@ function preflightFromContext(
 			entries: context.source.entries.length,
 			favorites: context.source.favorites.length,
 			trackingStates: context.source.trackingStates.length,
+			seasons: context.source.seasons.length,
+			installments: context.source.installments.length,
+			consumptionEvents: context.source.consumptionEvents.length,
 			activityEvents: context.source.activityEvents.length,
 			reviews: context.source.reviews.length,
 			diaryEntries: context.source.diaryEntries.length,
 			collectionItems: context.source.collectionItems.length,
 			releaseReminders: context.source.releaseReminders.length,
+			releaseOccurrences: movableReleaseOccurrences(context.source).length,
+			catalogMetricSnapshots: context.source.catalogMetricSnapshots.length,
+			recommendationFeedback: context.source.recommendationFeedback.length,
+			libraryImportItems: context.source.libraryImportItems.length,
 			qualityIssues: uniqueById([
 				...context.source.primaryQualityIssues,
 				...context.source.secondaryQualityIssues,
@@ -613,6 +744,7 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 	) as MergeJournal['targetPatch']['applied']
 	return {
 		version: 1,
+		inventoryVersion: 2,
 		appliedAt: now.toISOString(),
 		sourceMedia: serializedMedia(context.source),
 		targetPatch: { previous: targetPrevious, applied: targetApplied },
@@ -627,11 +759,24 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 			entries: context.source.entries.map(row => row.id),
 			favorites: context.source.favorites.map(row => row.id),
 			trackingStates: context.source.trackingStates.map(row => row.id),
+			seasons: context.source.seasons.map(row => row.id),
+			installments: context.source.installments.map(row => row.id),
+			consumptionEvents: context.source.consumptionEvents.map(row => row.id),
 			activityEvents: context.source.activityEvents.map(row => row.id),
 			reviews: context.source.reviews.map(row => row.id),
 			diaryEntries: context.source.diaryEntries.map(row => row.id),
 			collectionItems: context.source.collectionItems.map(row => row.id),
 			releaseReminders: context.source.releaseReminders.map(row => row.id),
+			releaseOccurrences: movableReleaseOccurrences(context.source).map(
+				row => row.id,
+			),
+			catalogMetricSnapshots: context.source.catalogMetricSnapshots.map(
+				row => row.id,
+			),
+			recommendationFeedback: context.source.recommendationFeedback.map(
+				row => row.id,
+			),
+			libraryImportItems: context.source.libraryImportItems.map(row => row.id),
 			relations: context.relationPlan.move,
 		},
 		pruned: {
@@ -672,11 +817,17 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 			| 'entry'
 			| 'userFavorite'
 			| 'trackingState'
+			| 'mediaSeason'
+			| 'mediaInstallment'
+			| 'consumptionEvent'
 			| 'activityEvent'
 			| 'review'
 			| 'diaryEntry'
 			| 'mediaCollectionItem'
-			| 'releaseReminder',
+			| 'releaseReminder'
+			| 'catalogMetricSnapshot'
+			| 'recommendationFeedback'
+			| 'libraryImportItem',
 	) => {
 		await (
 			tx[model] as unknown as {
@@ -696,11 +847,37 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 	await move('entry')
 	await move('userFavorite')
 	await move('trackingState')
+	await move('mediaSeason')
+	await move('mediaInstallment')
+	await move('consumptionEvent')
 	await move('activityEvent')
 	await move('review')
 	await move('diaryEntry')
 	await move('mediaCollectionItem')
 	await move('releaseReminder')
+	await move('catalogMetricSnapshot')
+	await move('recommendationFeedback')
+	await move('libraryImportItem')
+
+	const releaseOccurrenceIds = movableReleaseOccurrences(context.source).map(
+		row => row.id,
+	)
+	if (releaseOccurrenceIds.length) {
+		await tx.releaseOccurrence.updateMany({
+			where: {
+				id: { in: releaseOccurrenceIds },
+				mediaId: sourceId,
+			},
+			data: { mediaId: targetId },
+		})
+	}
+	await tx.releaseOccurrence.deleteMany({
+		where: {
+			mediaId: sourceId,
+			sourceKey: 'next',
+			source: { in: [...releaseScheduleSources] },
+		},
+	})
 
 	for (const relation of context.relationPlan.move) {
 		await tx.mediaRelation.update({
@@ -740,14 +917,21 @@ async function assertSourceDrained(
 					entries: true,
 					favorites: true,
 					trackingStates: true,
+					seasons: true,
+					installments: true,
+					consumptionEvents: true,
 					activityEvents: true,
 					reviews: true,
 					diaryEntries: true,
 					collectionItems: true,
 					releaseReminders: true,
+					releaseOccurrences: true,
 					catalogFeedItems: true,
+					catalogMetricSnapshots: true,
 					primaryQualityIssues: true,
 					secondaryQualityIssues: true,
+					recommendationFeedback: true,
+					libraryImportItems: true,
 				},
 			},
 		},
@@ -805,12 +989,20 @@ export async function applyCatalogMediaMerge(
 		const journal = journalFromContext(context, now)
 		await deletePrunedCatalogRows(tx, context)
 		await moveRowsToTarget(tx, context)
-		if (Object.keys(context.targetFills).length) {
-			await tx.media.update({
-				where: { id: context.target.id },
-				data: context.targetFills as Prisma.MediaUpdateInput,
-			})
-		}
+		const targetNextRelease = Object.prototype.hasOwnProperty.call(
+			context.targetFills,
+			'nextRelease',
+		)
+			? context.targetFills.nextRelease
+			: context.target.nextRelease
+		await tx.media.update({
+			where: { id: context.target.id },
+			data: {
+				...context.targetFills,
+				nextReleaseAt: deriveNextReleaseAt(targetNextRelease),
+			} as Prisma.MediaUpdateInput,
+		})
+		await syncNextReleaseOccurrence(tx, context.target.id, targetNextRelease)
 		await assertSourceDrained(tx, context.source.id)
 		await tx.media.delete({ where: { id: context.source.id } })
 		await tx.catalogQualityIssue.update({
@@ -891,11 +1083,18 @@ async function assertMovedRowsStillTargeted(
 		['entry', journal.moved.entries],
 		['userFavorite', journal.moved.favorites],
 		['trackingState', journal.moved.trackingStates],
+		['mediaSeason', journal.moved.seasons ?? []],
+		['mediaInstallment', journal.moved.installments ?? []],
+		['consumptionEvent', journal.moved.consumptionEvents ?? []],
 		['activityEvent', journal.moved.activityEvents],
 		['review', journal.moved.reviews],
 		['diaryEntry', journal.moved.diaryEntries],
 		['mediaCollectionItem', journal.moved.collectionItems],
 		['releaseReminder', journal.moved.releaseReminders],
+		['releaseOccurrence', journal.moved.releaseOccurrences ?? []],
+		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
+		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
+		['libraryImportItem', journal.moved.libraryImportItems ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -941,11 +1140,18 @@ async function moveJournalRowsBack(
 		['entry', journal.moved.entries],
 		['userFavorite', journal.moved.favorites],
 		['trackingState', journal.moved.trackingStates],
+		['mediaSeason', journal.moved.seasons ?? []],
+		['mediaInstallment', journal.moved.installments ?? []],
+		['consumptionEvent', journal.moved.consumptionEvents ?? []],
 		['activityEvent', journal.moved.activityEvents],
 		['review', journal.moved.reviews],
 		['diaryEntry', journal.moved.diaryEntries],
 		['mediaCollectionItem', journal.moved.collectionItems],
 		['releaseReminder', journal.moved.releaseReminders],
+		['releaseOccurrence', journal.moved.releaseOccurrences ?? []],
+		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
+		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
+		['libraryImportItem', journal.moved.libraryImportItems ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -1047,6 +1253,11 @@ export async function revertCatalogMediaMerge(
 		})
 		if (claim.count !== 1) throw new Error('Catalog merge is already changing')
 		const journal = parseJournal(merge.journal)
+		if (journal.inventoryVersion !== 2) {
+			throw new Error(
+				'Legacy merge reversal requires a manual relation-integrity audit',
+			)
+		}
 		const [source, target] = await Promise.all([
 			tx.media.findUnique({
 				where: { id: merge.sourceMediaId },
@@ -1080,13 +1291,32 @@ export async function revertCatalogMediaMerge(
 			)
 		}
 
-		await tx.media.create({ data: restoredMediaData(journal.sourceMedia) })
-		if (Object.keys(journal.targetPatch.previous).length) {
-			await tx.media.update({
-				where: { id: merge.targetMediaId },
-				data: journal.targetPatch.previous as Prisma.MediaUpdateInput,
-			})
-		}
+		const sourceMediaData = restoredMediaData(journal.sourceMedia)
+		const targetNextRelease = Object.prototype.hasOwnProperty.call(
+			journal.targetPatch.previous,
+			'nextRelease',
+		)
+			? journal.targetPatch.previous.nextRelease
+			: target.nextRelease
+		await tx.media.create({
+			data: {
+				...sourceMediaData,
+				nextReleaseAt: deriveNextReleaseAt(sourceMediaData.nextRelease),
+			},
+		})
+		await tx.media.update({
+			where: { id: merge.targetMediaId },
+			data: {
+				...journal.targetPatch.previous,
+				nextReleaseAt: deriveNextReleaseAt(targetNextRelease),
+			} as Prisma.MediaUpdateInput,
+		})
+		await syncNextReleaseOccurrence(
+			tx,
+			merge.sourceMediaId,
+			sourceMediaData.nextRelease,
+		)
+		await syncNextReleaseOccurrence(tx, merge.targetMediaId, targetNextRelease)
 		await moveJournalRowsBack(tx, journal, merge.sourceMediaId)
 		await restorePrunedRows(tx, journal)
 		for (const issue of journal.qualityIssues) {

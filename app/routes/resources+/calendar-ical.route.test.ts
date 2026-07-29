@@ -58,6 +58,7 @@ test('personal calendar exports require a member and include only tracked titles
 					releaseDate: '2026-07-21T18:30:00.000Z',
 					episode: 3,
 				}),
+				nextReleaseAt: new Date('2026-07-21T18:30:00.000Z'),
 			},
 		}),
 		prisma.media.create({

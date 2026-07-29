@@ -182,6 +182,7 @@ model Media {
   releaseStart      DateTime?
   releaseEnd        DateTime?
   nextRelease       String?
+  nextReleaseAt     DateTime?
   genres            String?
   description       String?
   airYear           String?
@@ -235,6 +236,7 @@ model Media {
   @@index([catalogPopularity])
   @@index([catalogScore])
   @@index([releaseStart])
+  @@index([nextReleaseAt])
   @@index([releaseStatus])
   @@index([title])
   @@index([runtimeMinutes])

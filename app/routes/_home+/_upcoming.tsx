@@ -23,7 +23,7 @@ type UpcomingCalendar = {
 	start: string
 	timeZone: string
 	total: number
-	days: Array<{ date: string; items: UpcomingItem[] }>
+	days: Array<{ date: string; items: UpcomingItem[]; totalCount: number }>
 }
 
 function displayDay(value: string) {
@@ -156,9 +156,9 @@ export function UpcomingData({
 										</article>
 									))}
 								</div>
-								{day.items.length > visibleItems.length ? (
+								{day.totalCount > visibleItems.length ? (
 									<div className="border-t border-[#54806c]/60 px-4 py-2 text-xs text-[#a2ffd5]">
-										+{day.items.length - visibleItems.length} more on the full
+										+{day.totalCount - visibleItems.length} more on the full
 										calendar
 									</div>
 								) : null}

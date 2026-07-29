@@ -34,12 +34,21 @@ export function replaceEnvironmentValues(source, replacements) {
 }
 
 export function assertProductionDatabaseUrl(value) {
-	const url = new URL(value)
+	let url
+	try {
+		url = new URL(value)
+	} catch {
+		throw new Error('Refusing to select an unexpected production database')
+	}
 	if (
 		url.protocol !== 'postgresql:' ||
+		url.username !== 'veud_production_app' ||
 		url.hostname !== '127.0.0.1' ||
 		url.port !== '5433' ||
-		url.pathname !== '/veud_production'
+		url.pathname !== '/veud_production' ||
+		url.searchParams.size !== 1 ||
+		url.searchParams.getAll('schema').length !== 1 ||
+		url.searchParams.get('schema') !== 'public'
 	) {
 		throw new Error('Refusing to select an unexpected production database')
 	}

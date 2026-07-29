@@ -12,13 +12,21 @@ cd "$REPO_ROOT"
 
 DATABASE_URL="$DATABASE_URL" npm run --silent db:verify:postgres
 DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
-	const url = new URL(process.env.DATABASE_URL)
+	const { parsePostgresConnection } =
+		await import("./scripts/postgres-backup-utils.mjs")
+	let connection
+	try {
+		connection = parsePostgresConnection(process.env.DATABASE_URL, "DATABASE_URL")
+	} catch {
+		console.error("Production DATABASE_URL is invalid")
+		process.exit(1)
+	}
 	const env = {
-		PGHOST: url.hostname,
-		PGPORT: url.port,
-		PGUSER: decodeURIComponent(url.username),
-		PGPASSWORD: decodeURIComponent(url.password),
-		PGDATABASE: url.pathname.slice(1),
+		PGHOST: connection.host,
+		PGPORT: connection.port,
+		PGUSER: connection.user,
+		PGPASSWORD: connection.password,
+		PGDATABASE: connection.database,
 	}
 	const child = await import("node:child_process")
 	const result = child.spawnSync(process.env.PSQL_BIN, [
