@@ -596,6 +596,35 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 				},
 			}),
 		])
+	const canonicalThumbnail =
+		'https://image.tmdb.org/t/p/original/canonical-privacy.jpg'
+	const [, linkedFavorite] = await Promise.all([
+		prisma.media.update({
+			where: { id: publicMedia.id },
+			data: {
+				thumbnail: canonicalThumbnail,
+				externalIds: {
+					create: {
+						provider: 'tmdb',
+						kind: 'tv',
+						externalId: `privacy-${suffix}`,
+					},
+				},
+			},
+		}),
+		prisma.userFavorite.create({
+			data: {
+				ownerId: owner.id,
+				typeId: listType.id,
+				mediaId: publicMedia.id,
+				position: 1,
+				title: 'Private favorite snapshot',
+				thumbnail: 'https://member.example/private-favorite.jpg',
+				mediaType: 'Private favorite type',
+				startYear: '2099',
+			},
+		}),
+	])
 	await prisma.entry.create({
 		data: {
 			watchlistId: privateList.id,
@@ -688,20 +717,40 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 		} as any)
 		expect(v1.data.ok).toBe(true)
 		if (!v1.data.ok) throw new Error('Expected the public v1 list response')
+		const landing = await listTypeLoader({
+			request: new Request(
+				`${BASE_URL}/lists/${owner.username}/${listType.name}`,
+				{ headers: headers(cookie) },
+			),
+			params: {
+				username: owner.username,
+				'list-type': listType.name,
+			},
+		} as any)
+		const landingEntries =
+			landing.data.watchListData.find(
+				item => item.watchlist.id === publicList.id,
+			)?.listEntries ?? []
 		return {
-			detail: detail.data.listEntries,
-			legacy,
-			v1: v1.data.data,
+			entries: {
+				detail: detail.data.listEntries,
+				legacy,
+				v1: v1.data.data,
+			},
+			landingEntries,
+			typedFavorites: detail.data.typedFavorites,
 		}
 	}
 
 	const expectVisitorPrivacy = (entries: Array<Record<string, unknown>>) => {
-		for (const title of [
-			'Public duplicate',
-			'Cross-owner state',
-			'Mismatched state',
-		]) {
-			expect(entries.find(entry => entry.title === title)).toMatchObject({
+		for (const [position, canonicalTitle] of [
+			[1, 'Hidden canonical title'],
+			[3, 'Cross-owner title'],
+			[4, 'Mismatched entry title'],
+		] as const) {
+			const hidden = entries.find(entry => entry.position === position)
+			expect(hidden).toMatchObject({
+				title: canonicalTitle,
 				personal: null,
 				differencePersonal: null,
 				differenceObjective: null,
@@ -709,30 +758,61 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 				chapters: null,
 				volumes: null,
 			})
-			const hidden = entries.find(entry => entry.title === title)
 			expect(hidden).not.toHaveProperty('trackingState')
 			expect(JSON.parse(String(hidden?.history))).toEqual({ started: null })
 		}
-		const visible = entries.find(entry => entry.title === 'Visible state')
+		const visible = entries.find(entry => entry.position === 2)
 		expect(visible).toMatchObject({
+			title: 'Visible canonical title',
 			personal: 7.25,
 		})
 		expect(visible).not.toHaveProperty('trackingState')
 		expect(JSON.parse(String(visible?.history))).toEqual({ started: null })
+		expect(entries.map(entry => entry.title)).not.toEqual(
+			expect.arrayContaining([
+				'Public duplicate',
+				'Visible state',
+				'Cross-owner state',
+				'Mismatched state',
+			]),
+		)
 	}
 
 	for (const cookie of [undefined, otherCookie]) {
-		const surfaces = await loadSurfaces(cookie)
-		for (const entries of Object.values(surfaces)) {
+		const result = await loadSurfaces(cookie)
+		for (const entries of Object.values(result.entries)) {
 			expectVisitorPrivacy(entries as Array<Record<string, unknown>>)
 		}
+		expect(
+			result.landingEntries.map((entry: { title: string }) => entry.title),
+		).toEqual([
+			'Hidden canonical title',
+			'Visible canonical title',
+			'Cross-owner title',
+			'Mismatched entry title',
+		])
+		expect(result.landingEntries[1]).toMatchObject({
+			thumbnail: canonicalThumbnail,
+		})
+		expect(result.typedFavorites).toEqual({})
+		expect(
+			result.entries.detail.find(entry => entry.position === 2)?.media,
+		).toMatchObject({
+			kind: 'tv',
+			externalIds: [
+				{
+					provider: 'tmdb',
+					kind: 'tv',
+					externalId: `privacy-${suffix}`,
+				},
+			],
+		})
 	}
 
-	const ownerSurfaces = await loadSurfaces(ownerCookie)
-	for (const entries of Object.values(ownerSurfaces)) {
-		expect(
-			entries.find(entry => entry.title === 'Public duplicate'),
-		).toMatchObject({
+	const ownerResult = await loadSurfaces(ownerCookie)
+	for (const entries of Object.values(ownerResult.entries)) {
+		expect(entries.find(entry => entry.position === 1)).toMatchObject({
+			title: 'Hidden canonical title',
 			personal: 9.75,
 			differencePersonal: 6.5,
 			differenceObjective: 5.5,
@@ -742,17 +822,70 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 			volumes: '3',
 			trackingState: { score: 9.75 },
 		})
-		for (const title of ['Cross-owner state', 'Mismatched state']) {
-			expect(entries.find(entry => entry.title === title)).toMatchObject({
+		for (const [position, canonicalTitle] of [
+			[3, 'Cross-owner title'],
+			[4, 'Mismatched entry title'],
+		] as const) {
+			expect(entries.find(entry => entry.position === position)).toMatchObject({
+				title: canonicalTitle,
 				personal: null,
 				history: null,
 				trackingState: null,
 			})
 		}
+		expect(entries.map(entry => entry.title)).not.toEqual(
+			expect.arrayContaining([
+				'Public duplicate',
+				'Visible state',
+				'Cross-owner state',
+				'Mismatched state',
+			]),
+		)
 	}
-	const ownerDetailState = ownerSurfaces.detail.find(
-		entry => entry.title === 'Public duplicate',
+	expect(
+		ownerResult.landingEntries.map((entry: { title: string }) => entry.title),
+	).toEqual([
+		'Hidden canonical title',
+		'Visible canonical title',
+		'Cross-owner title',
+		'Mismatched entry title',
+	])
+	expect(ownerResult.typedFavorites).toEqual({
+		[listType.id]: [
+			{
+				id: linkedFavorite.id,
+				typeId: listType.id,
+				thumbnail: canonicalThumbnail,
+			},
+		],
+	})
+	const ownerDetailState = ownerResult.entries.detail.find(
+		entry => entry.position === 1,
 	)?.trackingState
+	expect(
+		ownerResult.entries.detail.find(entry => entry.position === 2)?.media,
+	).toMatchObject({
+		kind: 'tv',
+		externalIds: [
+			{
+				provider: 'tmdb',
+				kind: 'tv',
+				externalId: `privacy-${suffix}`,
+			},
+		],
+	})
+	for (const entries of [ownerResult.entries.legacy, ownerResult.entries.v1]) {
+		expect(entries.find(entry => entry.position === 2)?.media).toMatchObject({
+			kind: 'tv',
+			externalIds: [
+				{
+					provider: 'tmdb',
+					kind: 'tv',
+					externalId: `privacy-${suffix}`,
+				},
+			],
+		})
+	}
 	const ownerDetailProgress = (
 		ownerDetailState as { progress: Array<{ unit: string }> } | null | undefined
 	)?.progress

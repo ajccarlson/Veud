@@ -30,8 +30,8 @@ bound to `127.0.0.1:5433`; no database port is exposed publicly.
 
 ## Prepare the production target
 
-Use a current, restore-verified custom-format dump from the approved
-production-like catalog database:
+Use the exact migrated, restore-tested custom-format archive produced by the
+local staging cutover:
 
 ```sh
 npm run production:postgres:prepare -- \
@@ -40,11 +40,12 @@ npm run production:postgres:prepare -- \
 ```
 
 The typed confirmation protects the destructive `public` schema replacement. The
-command validates the archive, restores without source ownership or ACLs,
-applies any newer production migrations, rejects schema drift, prints
-credential-free core counts, then creates a new production-native backup. That
-backup must restore into `veud_production_restore` and copy successfully to the
-separate backup filesystem.
+command verifies the staging source/restore identities, receipt, checksum, and
+core counts before restoring without source ownership or ACLs. It applies any
+newer production migrations, rejects schema drift, prints credential-free core
+counts, then creates a new production-native backup. That backup must restore
+into `veud_production_restore` and copy successfully to the separate backup
+filesystem.
 
 Run the read-only status gate at any time:
 

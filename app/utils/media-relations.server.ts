@@ -1,5 +1,6 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from './media-catalog.ts'
 import { getPublicTrackingSummariesByMediaId } from './media-community.server.ts'
 import { splitLegacyThumbnail } from './media-detail.ts'
 import { type MediaIdentity } from './media-identity.ts'
@@ -9,7 +10,7 @@ import {
 	type MediaRelationCandidate,
 	type MediaRelationType,
 } from './media-relations.ts'
-import { ensureMediaForIdentity } from './media.server.ts'
+import { ensureMediaForIdentity, hydrateMediaCatalog } from './media.server.ts'
 
 const relatedMediaSelect = {
 	id: true,
@@ -74,6 +75,7 @@ export async function getMediaRelations(
 ) {
 	const rows = await prisma.mediaRelation.findMany({
 		where: {
+			catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 			OR: [{ sourceMediaId: mediaId }, { targetMediaId: mediaId }],
 		},
 		select: {
@@ -201,7 +203,8 @@ export async function getMediaRelations(
 /**
  * Replace one provider's outgoing relation snapshot. Related works are resolved
  * through their external identities, creating lightweight canonical records
- * until a richer provider payload hydrates them later.
+ * until a richer provider payload hydrates them later. This is a trusted
+ * provider-ingestion boundary and must not receive browser-controlled data.
  */
 export async function syncMediaRelations(
 	tx: Prisma.TransactionClient,
@@ -212,6 +215,13 @@ export async function syncMediaRelations(
 		requestTargetHydration?: boolean
 	},
 ) {
+	const source = await tx.media.findUniqueOrThrow({
+		where: { id: input.sourceMediaId },
+		select: { catalogProvenanceVersion: true },
+	})
+	if (source.catalogProvenanceVersion !== TRUSTED_CATALOG_PROVENANCE_VERSION) {
+		throw new Error('Relation source has not crossed the provenance boundary')
+	}
 	const deduplicated = new Map<string, MediaRelationCandidate>()
 	for (const relation of input.relations) {
 		const target = relation.targetIdentity
@@ -224,9 +234,22 @@ export async function syncMediaRelations(
 		const targetMediaId = await ensureMediaForIdentity(
 			tx,
 			relation.targetIdentity,
-			relation.targetCatalog,
-			{ requestHydration: input.requestTargetHydration },
+			{
+				requestHydration: input.requestTargetHydration,
+			},
 		)
+		if (relation.targetCatalog) {
+			await hydrateMediaCatalog(tx, targetMediaId, relation.targetCatalog)
+		}
+		const target = await tx.media.findUniqueOrThrow({
+			where: { id: targetMediaId },
+			select: { catalogProvenanceVersion: true },
+		})
+		if (
+			target.catalogProvenanceVersion !== TRUSTED_CATALOG_PROVENANCE_VERSION
+		) {
+			throw new Error('Relation target has not crossed the provenance boundary')
+		}
 		if (targetMediaId === input.sourceMediaId) continue
 		const saved = await tx.mediaRelation.upsert({
 			where: {
@@ -236,12 +259,16 @@ export async function syncMediaRelations(
 					relationType: relation.relationType,
 				},
 			},
-			update: { provider: input.sourceIdentity.provider },
+			update: {
+				provider: input.sourceIdentity.provider,
+				catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+			},
 			create: {
 				sourceMediaId: input.sourceMediaId,
 				targetMediaId,
 				relationType: relation.relationType,
 				provider: input.sourceIdentity.provider,
+				catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 			},
 			select: { id: true },
 		})

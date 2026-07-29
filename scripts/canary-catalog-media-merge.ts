@@ -9,32 +9,21 @@ import {
 	expectedCatalogMergeConfirmation,
 	expectedCatalogMergeReversal,
 } from '../app/utils/catalog-media-merge.ts'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from '../app/utils/media-catalog.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+import { assertSafeLoadDatabaseUrl } from './postgres-load-utils.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 function assertSafeDatabase() {
 	if (!process.argv.includes('--run')) {
 		throw new Error(
-			'Dry run only. Pass --run with an isolated restore, verify, or drill database.',
+			'Dry run only. Pass --run with an isolated release-gate database.',
 		)
 	}
 	const rawUrl = process.env.DATABASE_URL
 	if (!rawUrl) throw new Error('DATABASE_URL is required')
-	let url: URL
-	try {
-		url = new URL(rawUrl)
-	} catch {
-		throw new Error('DATABASE_URL must be a valid PostgreSQL URL')
-	}
-	const databaseName = url.pathname.slice(1).toLowerCase()
-	if (
-		!['127.0.0.1', 'localhost'].includes(url.hostname) ||
-		!['restore', 'verify', 'drill'].some(marker =>
-			databaseName.includes(marker),
-		)
-	) {
-		throw new Error(
-			'Catalog merge canary requires a local isolated restore, verify, or drill database.',
-		)
-	}
+	assertSafeLoadDatabaseUrl(rawUrl)
 }
 
 async function main() {
@@ -60,11 +49,13 @@ async function main() {
 					kind: 'anime',
 					title: 'Merge canary source',
 					description: 'Journaled source description',
+					catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 				},
 				{
 					id: targetId,
 					kind: 'anime',
 					title: 'Merge canary target',
+					catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 				},
 			],
 		})
@@ -84,6 +75,7 @@ async function main() {
 				status: 'confirmed',
 				severity: 'warning',
 				summary: 'Synthetic PostgreSQL merge canary',
+				evidence: JSON.stringify({ source: 'postgres-merge-canary' }),
 				primaryMediaId: sourceId,
 				secondaryMediaId: targetId,
 				reviewedAt: new Date(),

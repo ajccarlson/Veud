@@ -66,6 +66,7 @@ test('community and following statistics exclude private-list tracking', async (
 				data: {
 					email: `public_${suffix}@example.com`,
 					username: `public_${suffix}`,
+					name: 'PUBLIC MEMBER REAL NAME MUST STAY PRIVATE',
 				},
 			}),
 			prisma.user.create({
@@ -161,6 +162,10 @@ test('community and following statistics exclude private-list tracking', async (
 	const followed = await getFollowedMediaTracking(media.id, viewer.id)
 	expect(followed.total).toBe(1)
 	expect(followed.items.map(item => item.member.id)).toEqual([publicMember.id])
+	expect(followed.items[0]?.member).not.toHaveProperty('name')
+	expect(JSON.stringify(followed)).not.toContain(
+		'PUBLIC MEMBER REAL NAME MUST STAY PRIVATE',
+	)
 })
 
 test('public tracking summaries deduplicate and merge bounded chunks', async () => {

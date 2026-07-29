@@ -7,6 +7,7 @@ import {
 	type CatalogMediaField,
 	type CatalogMediaMergePreflight,
 } from './catalog-media-merge.ts'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from './media-catalog.ts'
 import {
 	deriveNextReleaseAt,
 	releaseScheduleSources,
@@ -17,8 +18,16 @@ const mergeMediaInclude = {
 	externalIds: { select: { id: true } },
 	titles: true,
 	catalogFeedItems: true,
-	outgoingRelations: true,
-	incomingRelations: true,
+	outgoingRelations: {
+		where: {
+			catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+		},
+	},
+	incomingRelations: {
+		where: {
+			catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+		},
+	},
 	entries: { select: { id: true, watchlistId: true } },
 	favorites: { select: { id: true, ownerId: true, typeId: true } },
 	trackingStates: { select: { id: true, ownerId: true } },
@@ -90,6 +99,7 @@ type MergeContext = {
 		id: string
 		status: string
 		issueType: string
+		evidence: string | null
 		primaryMediaId: string
 		secondaryMediaId: string | null
 	}
@@ -106,7 +116,7 @@ type MergeContext = {
 
 type MergeJournal = {
 	version: 1
-	inventoryVersion?: 2
+	inventoryVersion?: 3
 	appliedAt: string
 	sourceMedia: Record<string, unknown>
 	targetPatch: {
@@ -184,6 +194,7 @@ function serializedMedia(media: MergeMedia) {
 	return serializedRow({
 		id: media.id,
 		kind: media.kind,
+		catalogProvenanceVersion: media.catalogProvenanceVersion,
 		...Object.fromEntries(
 			catalogMediaFields.map(field => [field, media[field]]),
 		),
@@ -346,6 +357,7 @@ async function readMergeContext(
 			id: true,
 			status: true,
 			issueType: true,
+			evidence: true,
 			primaryMediaId: true,
 			secondaryMediaId: true,
 		},
@@ -357,6 +369,11 @@ async function readMergeContext(
 	if (issue.status !== 'confirmed') {
 		throw new Error(
 			'Duplicate candidate must be confirmed before merge planning',
+		)
+	}
+	if (!issue.evidence) {
+		throw new Error(
+			'Duplicate candidate requires fresh provider-scan evidence before merge planning',
 		)
 	}
 	const pair = [issue.primaryMediaId, issue.secondaryMediaId]
@@ -380,6 +397,7 @@ async function readMergeContext(
 		tx.catalogMediaMerge.findMany({
 			where: {
 				status: 'applied',
+				catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 				OR: [{ sourceMediaId: { in: pair } }, { targetMediaId: { in: pair } }],
 			},
 			select: { id: true },
@@ -413,6 +431,16 @@ async function readMergeContext(
 	}
 
 	const blockers = [
+		source.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION &&
+		target.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION
+			? null
+			: {
+					code: 'untrusted-catalog-provenance',
+					message:
+						'Both media records must pass the catalog provenance repair before merging.',
+					count: 1,
+					examples: [],
+				},
 		source.kind === target.kind
 			? null
 			: {
@@ -668,7 +696,8 @@ export async function prepareCatalogMediaMerge(
 		if (
 			existing &&
 			existing.status !== 'planned' &&
-			existing.status !== 'reverted'
+			existing.status !== 'reverted' &&
+			existing.status !== 'invalidated'
 		) {
 			throw new Error('This duplicate issue already has a merge in progress')
 		}
@@ -688,6 +717,7 @@ export async function prepareCatalogMediaMerge(
 						preparedById: input.actorId,
 						appliedById: null,
 						revertedById: null,
+						catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 					},
 				})
 			: await tx.catalogMediaMerge.create({
@@ -700,6 +730,7 @@ export async function prepareCatalogMediaMerge(
 						preflightFingerprint: preflight.fingerprint,
 						preparedAt: now,
 						preparedById: input.actorId,
+						catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 					},
 				})
 		await tx.catalogMediaMergeEvent.create({
@@ -744,7 +775,7 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 	) as MergeJournal['targetPatch']['applied']
 	return {
 		version: 1,
-		inventoryVersion: 2,
+		inventoryVersion: 3,
 		appliedAt: now.toISOString(),
 		sourceMedia: serializedMedia(context.source),
 		targetPatch: { previous: targetPrevious, applied: targetApplied },
@@ -961,6 +992,9 @@ export async function applyCatalogMediaMerge(
 		})
 		if (!merge || merge.status !== 'planned') {
 			throw new Error('Catalog merge is not in a planned state')
+		}
+		if (merge.catalogProvenanceVersion !== TRUSTED_CATALOG_PROVENANCE_VERSION) {
+			throw new Error('Catalog merge predates the trusted provenance boundary')
 		}
 		if (
 			input.confirmation !==
@@ -1236,6 +1270,9 @@ export async function revertCatalogMediaMerge(
 		if (!merge || merge.status !== 'applied') {
 			throw new Error('Catalog merge is not in an applied state')
 		}
+		if (merge.catalogProvenanceVersion !== TRUSTED_CATALOG_PROVENANCE_VERSION) {
+			throw new Error('Catalog merge predates the trusted provenance boundary')
+		}
 		if (input.confirmation !== expectedCatalogMergeReversal(merge.id)) {
 			throw new Error('Catalog merge reversal phrase does not match')
 		}
@@ -1253,7 +1290,7 @@ export async function revertCatalogMediaMerge(
 		})
 		if (claim.count !== 1) throw new Error('Catalog merge is already changing')
 		const journal = parseJournal(merge.journal)
-		if (journal.inventoryVersion !== 2) {
+		if (journal.inventoryVersion !== 3) {
 			throw new Error(
 				'Legacy merge reversal requires a manual relation-integrity audit',
 			)

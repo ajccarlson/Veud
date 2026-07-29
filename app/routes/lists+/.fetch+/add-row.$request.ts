@@ -2,15 +2,12 @@ import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
+import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 import {
 	ensureMediaForIdentity,
-	hydrateMediaCatalog,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
-import { parseMediaRelationCandidates } from '#app/utils/media-relations.ts'
-import { syncMediaRelations } from '#app/utils/media-relations.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
-import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
 import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 export async function addEntryCommand(ownerId: string, row: unknown) {
@@ -53,10 +50,6 @@ export async function addEntryCommand(ownerId: string, row: unknown) {
 				status: 400,
 			})
 		}
-		const mediaRelations = parseMediaRelationCandidates(
-			rowObj.mediaRelations,
-			mediaIdentity,
-		)
 		const entryCount = await tx.entry.count({
 			where: { watchlistId: watchlist.id },
 		})
@@ -71,17 +64,6 @@ export async function addEntryCommand(ownerId: string, row: unknown) {
 		})
 
 		const mediaId = await ensureMediaForIdentity(tx, mediaIdentity)
-		await hydrateMediaCatalog(tx, mediaId, data, {
-			authoritativeFields: ['nextRelease'],
-			syncLegacyFields: ['nextRelease'],
-		})
-		if (mediaRelations) {
-			await syncMediaRelations(tx, {
-				sourceMediaId: mediaId,
-				sourceIdentity: mediaIdentity,
-				relations: mediaRelations,
-			})
-		}
 		const trackingStateId = await ensureTrackingStateForEntry(tx, {
 			ownerId,
 			mediaId,

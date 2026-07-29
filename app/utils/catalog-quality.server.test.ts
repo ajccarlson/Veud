@@ -217,6 +217,48 @@ test('review transitions are audited, reversible, and queue safe provider repair
 	)
 })
 
+test('confirmation requires evidence from a fresh catalog scan', async () => {
+	const actor = await prisma.user.create({
+		data: {
+			id: 'quality-evidence-admin',
+			email: 'quality-evidence-admin@example.com',
+			username: 'quality-evidence-admin',
+		},
+	})
+	const [source, target] = await Promise.all([
+		prisma.media.create({ data: { kind: 'movie', title: 'Evidence source' } }),
+		prisma.media.create({ data: { kind: 'movie', title: 'Evidence target' } }),
+	])
+	const issue = await prisma.catalogQualityIssue.create({
+		data: {
+			fingerprint: 'quality-evidence-required',
+			issueType: 'possible_duplicate',
+			summary: 'Finding awaiting a fresh provider scan',
+			primaryMediaId: source.id,
+			secondaryMediaId: target.id,
+		},
+	})
+
+	await expect(
+		transitionCatalogQualityIssue(prisma, {
+			issueId: issue.id,
+			action: 'confirm',
+			actorId: actor.id,
+		}),
+	).rejects.toThrow('fresh provider-scan evidence')
+	await prisma.catalogQualityIssue.update({
+		where: { id: issue.id },
+		data: { evidence: JSON.stringify({ source: 'tmdb' }) },
+	})
+	await expect(
+		transitionCatalogQualityIssue(prisma, {
+			issueId: issue.id,
+			action: 'confirm',
+			actorId: actor.id,
+		}),
+	).resolves.toMatchObject({ issue: { status: 'confirmed' } })
+})
+
 test('snapshot keeps actionable findings ahead of more recently scanned reviews', async () => {
 	const actor = await prisma.user.create({
 		data: {

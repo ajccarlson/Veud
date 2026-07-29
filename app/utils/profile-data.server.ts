@@ -115,7 +115,14 @@ const analyticsEntrySelect = {
 	personal: true,
 	tmdbScore: true,
 	malScore: true,
-	media: { select: { kind: true, tmdbScore: true, malScore: true } },
+	media: {
+		select: {
+			kind: true,
+			releaseStart: true,
+			tmdbScore: true,
+			malScore: true,
+		},
+	},
 	trackingState: {
 		select: {
 			id: true,
@@ -220,7 +227,9 @@ type ProfileCategoryTextProjection = {
 }
 
 type ProfileActivityEntryTextProjection = ProfileHistoryProjection & {
-	title: string
+	linkedMediaId: string | null
+	mediaKind: string | null
+	title: string | null
 	thumbnail: string | null
 }
 
@@ -265,7 +274,10 @@ type BoundedProfileActivityEventText = Omit<
 
 type ProfileFavoriteTextProjection = {
 	id: string
-	title: string
+	linkedMediaId: string | null
+	mediaKind: string | null
+	canonicalReleaseStart: Date | string | number | null
+	title: string | null
 	thumbnail: string | null
 	mediaType: string | null
 	startYear: string | null
@@ -489,18 +501,19 @@ async function loadBoundedProfileAnalyticsText(
 	const history = historyProjection(historyBudget, entryIds.length)
 	const rows = await db.$queryRaw<ProfileAnalyticsTextProjection[]>(Prisma.sql`
 		SELECT
-			"id",
+			entry."id",
 			${history.sql} AS "history",
-			substr("type", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_TYPE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "type",
-			substr("genres", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_GENRES_CODE_UNIT_LIMIT)} AS INTEGER)) AS "genres",
-			substr("airYear", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "airYear",
-			substr("startSeason", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "startSeason",
-			substr("startYear", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "startYear",
-			substr("length", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "length",
-			substr("chapters", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "chapters",
-			substr("volumes", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "volumes"
-		FROM "Entry"
-		WHERE "id" IN (${Prisma.join(entryIds)})
+			substr(CASE WHEN media."id" IS NULL THEN entry."type" ELSE media."type" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_TYPE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "type",
+			substr(CASE WHEN media."id" IS NULL THEN entry."genres" ELSE media."genres" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_GENRES_CODE_UNIT_LIMIT)} AS INTEGER)) AS "genres",
+			substr(CASE WHEN media."id" IS NULL THEN entry."airYear" ELSE media."airYear" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "airYear",
+			substr(CASE WHEN media."id" IS NULL THEN entry."startSeason" ELSE media."startSeason" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "startSeason",
+			substr(CASE WHEN media."id" IS NULL THEN entry."startYear" ELSE media."startYear" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "startYear",
+			substr(entry."length", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "length",
+			substr(entry."chapters", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "chapters",
+			substr(entry."volumes", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_PROGRESS_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "volumes"
+		FROM "Entry" AS entry
+		LEFT JOIN "Media" AS media ON media."id" = entry."mediaId"
+		WHERE entry."id" IN (${Prisma.join(entryIds)})
 	`)
 
 	return new Map(
@@ -569,11 +582,12 @@ async function loadBoundedProfileCategoryText(
 	if (!entryIds.length) return new Map<string, BoundedCategoryEntryText>()
 	const rows = await db.$queryRaw<ProfileCategoryTextProjection[]>(Prisma.sql`
 		SELECT
-			"id",
-			substr("type", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_TYPE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "type",
-			substr("genres", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_GENRES_CODE_UNIT_LIMIT)} AS INTEGER)) AS "genres"
-		FROM "Entry"
-		WHERE "id" IN (${Prisma.join(entryIds)})
+			entry."id",
+			substr(CASE WHEN media."id" IS NULL THEN entry."type" ELSE media."type" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_TYPE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "type",
+			substr(CASE WHEN media."id" IS NULL THEN entry."genres" ELSE media."genres" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_CATEGORY_GENRES_CODE_UNIT_LIMIT)} AS INTEGER)) AS "genres"
+		FROM "Entry" AS entry
+		LEFT JOIN "Media" AS media ON media."id" = entry."mediaId"
+		WHERE entry."id" IN (${Prisma.join(entryIds)})
 	`)
 	return new Map(
 		rows.map(row => [row.id, consumeProjectedCategoryRow(row, categoryBudget)]),
@@ -590,16 +604,23 @@ async function loadBoundedProfileActivityEntryText(
 	const rows = await db.$queryRaw<ProfileActivityEntryTextProjection[]>(
 		Prisma.sql`
 			SELECT
-				"id",
+				entry."id",
+				media."id" AS "linkedMediaId",
+				substr(media."kind", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_FAVORITE_META_CODE_UNIT_LIMIT)} AS INTEGER)) AS "mediaKind",
 				${history.sql} AS "history",
-				substr("title", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "title",
-				substr("thumbnail", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_THUMBNAIL_CODE_UNIT_LIMIT)} AS INTEGER)) AS "thumbnail"
-			FROM "Entry"
-			WHERE "id" IN (${Prisma.join(entryIds)})
+				substr(CASE WHEN media."id" IS NULL THEN entry."title" ELSE media."title" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "title",
+				substr(CASE WHEN media."id" IS NULL THEN entry."thumbnail" ELSE media."thumbnail" END, 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_THUMBNAIL_CODE_UNIT_LIMIT)} AS INTEGER)) AS "thumbnail"
+			FROM "Entry" AS entry
+			LEFT JOIN "Media" AS media ON media."id" = entry."mediaId"
+			WHERE entry."id" IN (${Prisma.join(entryIds)})
 		`,
 	)
 	return new Map(
 		rows.map(row => {
+			const mediaKind = boundedProjectedText(
+				row.mediaKind,
+				PROFILE_FAVORITE_META_CODE_UNIT_LIMIT,
+			)
 			const title = boundedProjectedText(
 				row.title,
 				PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT,
@@ -617,7 +638,12 @@ async function loadBoundedProfileActivityEntryText(
 						history.projectedCharacterLimit,
 						historyBudget,
 					),
-					title: title.truncated ? `${title.value}…` : (title.value ?? ''),
+					title: title.truncated
+						? `${title.value}…`
+						: row.linkedMediaId
+							? title.value?.trim() ||
+								`Untitled ${mediaKind.value?.trim() || 'media'}`
+							: (title.value ?? ''),
 					thumbnail: thumbnail.truncated ? null : thumbnail.value,
 				},
 			]
@@ -736,16 +762,45 @@ async function loadBoundedProfileFavoriteText(
 	if (!favoriteIds.length) return new Map<string, BoundedProfileFavoriteText>()
 	const rows = await db.$queryRaw<ProfileFavoriteTextProjection[]>(Prisma.sql`
 		SELECT
-			"id",
-			substr("title", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT)} AS INTEGER)) AS "title",
-			substr("thumbnail", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_THUMBNAIL_CODE_UNIT_LIMIT)} AS INTEGER)) AS "thumbnail",
-			substr("mediaType", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_FAVORITE_META_CODE_UNIT_LIMIT)} AS INTEGER)) AS "mediaType",
-			substr("startYear", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)) AS "startYear"
-		FROM "UserFavorite"
-		WHERE "id" IN (${Prisma.join(favoriteIds)})
+			favorite."id",
+			media."id" AS "linkedMediaId",
+			substr(media."kind", 1, CAST(${sqlProjectionCharacterLimit(PROFILE_FAVORITE_META_CODE_UNIT_LIMIT)} AS INTEGER)) AS "mediaKind",
+			media."releaseStart" AS "canonicalReleaseStart",
+			substr(
+				CASE WHEN media."id" IS NULL THEN favorite."title" ELSE media."title" END,
+				1,
+				CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT)} AS INTEGER)
+			) AS "title",
+			substr(
+				CASE WHEN media."id" IS NULL THEN favorite."thumbnail" ELSE media."thumbnail" END,
+				1,
+				CAST(${sqlProjectionCharacterLimit(PROFILE_ACTIVITY_THUMBNAIL_CODE_UNIT_LIMIT)} AS INTEGER)
+			) AS "thumbnail",
+			substr(
+				CASE WHEN media."id" IS NULL THEN favorite."mediaType" ELSE media."type" END,
+				1,
+				CAST(${sqlProjectionCharacterLimit(PROFILE_FAVORITE_META_CODE_UNIT_LIMIT)} AS INTEGER)
+			) AS "mediaType",
+			substr(
+				CASE
+					WHEN media."id" IS NULL THEN favorite."startYear"
+					WHEN media."kind" = 'anime' THEN media."startSeason"
+					WHEN media."kind" = 'manga' THEN media."startYear"
+					ELSE media."airYear"
+				END,
+				1,
+				CAST(${sqlProjectionCharacterLimit(PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT)} AS INTEGER)
+			) AS "startYear"
+		FROM "UserFavorite" AS favorite
+		LEFT JOIN "Media" AS media ON media."id" = favorite."mediaId"
+		WHERE favorite."id" IN (${Prisma.join(favoriteIds)})
 	`)
 	return new Map(
 		rows.map(row => {
+			const mediaKind = boundedProjectedText(
+				row.mediaKind,
+				PROFILE_FAVORITE_META_CODE_UNIT_LIMIT,
+			)
 			const title = boundedProjectedText(
 				row.title,
 				PROFILE_ACTIVITY_TITLE_CODE_UNIT_LIMIT,
@@ -762,14 +817,30 @@ async function loadBoundedProfileFavoriteText(
 				row.startYear,
 				PROFILE_YEAR_TEXT_CODE_UNIT_LIMIT,
 			)
+			const linkedTitle =
+				title.value?.trim() || `Untitled ${mediaKind.value?.trim() || 'media'}`
+			const releaseStart =
+				row.canonicalReleaseStart instanceof Date
+					? row.canonicalReleaseStart
+					: row.canonicalReleaseStart === null
+						? null
+						: new Date(row.canonicalReleaseStart)
+			const releaseYear =
+				releaseStart && Number.isFinite(releaseStart.getTime())
+					? String(releaseStart.getUTCFullYear())
+					: ''
 			return [
 				row.id,
 				{
-					title: title.truncated ? `${title.value}…` : (title.value ?? ''),
+					title: title.truncated
+						? `${title.value}…`
+						: row.linkedMediaId
+							? linkedTitle
+							: (title.value ?? ''),
 					thumbnail: thumbnail.truncated ? null : thumbnail.value,
 					mediaType: mediaType.value ?? '',
-					startYear: startYear.value ?? '',
-					truncated: [title, thumbnail, mediaType, startYear].some(
+					startYear: startYear.value?.trim() || releaseYear,
+					truncated: [mediaKind, title, thumbnail, mediaType, startYear].some(
 						value => value.truncated,
 					),
 				},
@@ -957,11 +1028,18 @@ function normalizeAnalyticsEntry(
 	)
 	const entryPersonal = redactLegacyTracking ? null : entry.personal
 	const personal = preferredScore(trackingState?.score, entryPersonal)
-	const tmdbScore = preferredScore(entry.media?.tmdbScore, entry.tmdbScore)
-	const malScore = preferredScore(entry.media?.malScore, entry.malScore)
+	const tmdbScore = preferredScore(
+		entry.media?.tmdbScore,
+		entry.media ? null : entry.tmdbScore,
+	)
+	const malScore = preferredScore(
+		entry.media?.malScore,
+		entry.media ? null : entry.malScore,
+	)
 
 	return {
 		...entry,
+		releaseStart: entry.media ? entry.media.releaseStart : entry.releaseStart,
 		history: redactLegacyTracking ? null : entry.history,
 		length: redactLegacyTracking ? null : entry.length,
 		chapters: redactLegacyTracking ? null : entry.chapters,

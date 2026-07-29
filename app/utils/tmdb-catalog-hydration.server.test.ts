@@ -661,11 +661,11 @@ test('a 429 checkpoints successes, defers the provider, and resumes after Retry-
 
 test('ensuring a TMDB identity queues user-demand hydration', async () => {
 	await prisma.$transaction(tx =>
-		ensureMediaForIdentity(
-			tx,
-			{ provider: 'tmdb', kind: 'movie', externalId: '99' },
-			{ title: 'Quick Added Movie' },
-		),
+		ensureMediaForIdentity(tx, {
+			provider: 'tmdb',
+			kind: 'movie',
+			externalId: '99',
+		}),
 	)
 
 	expect(
@@ -677,12 +677,18 @@ test('ensuring a TMDB identity queues user-demand hydration', async () => {
 					externalId: '99',
 				},
 			},
+			include: { media: true },
 		}),
 	).toEqual(
 		expect.objectContaining({
 			hydrationPriority: catalogHydrationPriorities.userDemand,
 			hydrationReason: 'user-demand',
 			hydrationRequestedAt: expect.any(Date),
+			media: expect.objectContaining({
+				kind: 'movie',
+				title: null,
+				thumbnail: null,
+			}),
 		}),
 	)
 })

@@ -155,11 +155,13 @@ test('duplicate merge actions require a prepared plan and exact confirmation phr
 				kind: 'movie',
 				title: 'Route duplicate',
 				description: 'Preserved metadata',
+				catalogProvenanceVersion: 1,
 			},
 			{
 				id: 'route-merge-target',
 				kind: 'movie',
 				title: 'Route duplicate',
+				catalogProvenanceVersion: 1,
 			},
 		],
 	})
@@ -171,6 +173,7 @@ test('duplicate merge actions require a prepared plan and exact confirmation phr
 			status: 'confirmed',
 			severity: 'warning',
 			summary: 'Confirmed route duplicate',
+			evidence: JSON.stringify({ source: 'admin-route-test-fixture' }),
 			primaryMediaId: 'route-merge-source',
 			secondaryMediaId: 'route-merge-target',
 			reviewedById: admin.id,

@@ -6,7 +6,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { PrismaClient } from '@prisma/client'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
 import {
+	assertMediaDetailLoadEvidence,
 	assertPublicSurfaceLoadBudgets,
 	assertRequiredQueryIndexes,
 	assertRequiredQueryRows,
@@ -19,6 +21,8 @@ import {
 	summarizeExplain,
 	validateLoadCheckpoint,
 } from './postgres-load-utils.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const args = process.argv.slice(2)
 const prefix = 'load-catalog-'
@@ -126,7 +130,7 @@ Options:
   --batch-size N            Rows per generate_series batch (default: 10000)
   --search-iterations N     Concurrent search reads (default: 20)
   --update-batches N        Concurrent hydration-style updates (default: 5)
-  --member-count N          Synthetic members (default: 0; staging requires >0)
+  --member-count N          Synthetic members (default: 0)
   --tracking-per-member N   Titles tracked by each member (default: 100)
   --activity-per-member N   Activity events per member (default: 20)
   --member-read-iterations N Concurrent profile/activity reads (default: 20)
@@ -144,7 +148,7 @@ Options:
   --help                    Show this help
 
 DATABASE_URL must use PostgreSQL and its database name must contain a clearly
-delimited load, bench, perf, stag, stage, staging, or test marker. Synthetic
+delimited load, bench, perf, or test marker. Synthetic
 records never use provider content.`
 
 function valueFor(flag) {
@@ -336,7 +340,8 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 			"id", "kind", "thumbnail", "title", "type", "releaseStart",
 			"releaseEnd", "nextRelease", "nextReleaseAt", "description", "genres",
 			"language", "studios", "serialization", "authors", "catalogScore",
-			"catalogPopularity", "releaseStatus", "createdAt", "updatedAt"
+			"catalogPopularity", "releaseStatus", "catalogProvenanceVersion",
+			"createdAt", "updatedAt"
 		)
 		SELECT
 			'${prefix}media-' || n,
@@ -385,14 +390,17 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 			((n % 100)::double precision / 10.0),
 			(1.0 / n::double precision),
 			CASE n % 3 WHEN 0 THEN 'Released' WHEN 1 THEN 'Returning Series' ELSE 'Planned' END,
+			1,
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP
 		FROM generate_series($1::int, $2::int) AS n
 		ON CONFLICT ("id") DO UPDATE SET
 			"nextRelease" = EXCLUDED."nextRelease",
-			"nextReleaseAt" = EXCLUDED."nextReleaseAt"
+			"nextReleaseAt" = EXCLUDED."nextReleaseAt",
+			"catalogProvenanceVersion" = EXCLUDED."catalogProvenanceVersion"
 		WHERE "Media"."nextRelease" IS DISTINCT FROM EXCLUDED."nextRelease"
-			OR "Media"."nextReleaseAt" IS DISTINCT FROM EXCLUDED."nextReleaseAt"`,
+			OR "Media"."nextReleaseAt" IS DISTINCT FROM EXCLUDED."nextReleaseAt"
+			OR "Media"."catalogProvenanceVersion" IS DISTINCT FROM 1`,
 		start,
 		end,
 		syntheticDescriptionLead,
@@ -468,7 +476,7 @@ async function insertCatalogContext(prisma, count, scheduleAnchor) {
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "MediaRelation" (
 			"id", "relationType", "provider", "createdAt", "updatedAt",
-			"sourceMediaId", "targetMediaId"
+			"sourceMediaId", "targetMediaId", "catalogProvenanceVersion"
 		)
 		SELECT
 			'${prefix}relation-' || n,
@@ -477,10 +485,13 @@ async function insertCatalogContext(prisma, count, scheduleAnchor) {
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP,
 			'${prefix}media-' || n,
-			'${prefix}media-' || (n + 1)
+			'${prefix}media-' || (n + 1),
+			1
 		FROM generate_series(10, $1::int, 10) AS n
 		WHERE n < $1::int
-		ON CONFLICT DO NOTHING`,
+		ON CONFLICT ("sourceMediaId", "targetMediaId", "relationType")
+		DO UPDATE SET
+			"catalogProvenanceVersion" = EXCLUDED."catalogProvenanceVersion"`,
 		count,
 	)
 	await prisma.$executeRawUnsafe(
@@ -1552,6 +1563,10 @@ async function runProfileLoaderSmoke({
 		throw new Error('Profile loader smoke did not write its report')
 	}
 	const report = readJson(smokeReportPath, 'Profile loader smoke report')
+	if (!report || typeof report !== 'object' || report.version !== 1) {
+		throw new Error('Profile loader smoke report must use version 1')
+	}
+	assertMediaDetailLoadEvidence(report.mediaDetail)
 	fs.unlinkSync(smokeReportPath)
 	return report
 }
@@ -2171,6 +2186,9 @@ async function main() {
 		if (profileLoaderSmoke) {
 			console.log(
 				`Real profile loaders: overview=${profileLoaderSmoke.overview.wallMs}ms/${profileLoaderSmoke.overview.bytes}B, stats=${profileLoaderSmoke.stats.wallMs}ms/${profileLoaderSmoke.stats.bytes}B, activity=${profileLoaderSmoke.activity.wallMs}ms/${profileLoaderSmoke.activity.bytes}B.`,
+			)
+			console.log(
+				`Real media loaders: anonymous=${profileLoaderSmoke.mediaDetail.anonymous.logicalQueries}/${profileLoaderSmoke.mediaDetail.anonymous.sqlQueries}, normalized signed=${profileLoaderSmoke.mediaDetail.normalizedSigned.logicalQueries}/${profileLoaderSmoke.mediaDetail.normalizedSigned.sqlQueries}, bounded legacy=${profileLoaderSmoke.mediaDetail.boundedLegacy.logicalQueries}/${profileLoaderSmoke.mediaDetail.boundedLegacy.sqlQueries} logical/SQL queries; Entry SQL reads=0/0/1; signed state SQL reads=0/1/1; legacy plan rows=${profileLoaderSmoke.mediaDetail.legacyEntryPlan.actualRows}, indexes=${profileLoaderSmoke.mediaDetail.legacyEntryPlan.indexes.join(', ') || 'none'}.`,
 			)
 		}
 		if (publicSurfaceSmoke) {

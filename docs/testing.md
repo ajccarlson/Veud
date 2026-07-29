@@ -61,7 +61,7 @@ npm run validate:release
 The PostgreSQL gate must target a new, isolated database:
 
 ```sh
-DATABASE_URL=postgresql://.../veud_release_gate \
+DATABASE_URL=postgresql://.../veud_release_test \
   npm run validate:release:postgres
 ```
 

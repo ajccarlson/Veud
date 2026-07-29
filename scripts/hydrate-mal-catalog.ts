@@ -16,6 +16,9 @@ import {
 	malCatalogKinds,
 	type MalCatalogKind,
 } from '#app/utils/mal-catalog-inventory.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage: npm run catalog:mal-hydrate -- [options]
 

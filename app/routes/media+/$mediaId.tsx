@@ -26,10 +26,16 @@ import {
 import { activityEventLabel } from '#app/utils/activity.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import {
+	authoritativeLegacyTrackingEntry,
+	loadOwnerLegacyTrackingEntries,
+	type LegacyTrackingEntry,
+} from '#app/utils/legacy-tracking-entry.server.ts'
 import { visibleActivityEventWhere } from '#app/utils/lists/visibility.server.ts'
 import {
 	mediaCatalogSelect,
 	resolveMediaCatalog,
+	TRUSTED_CATALOG_PROVENANCE_VERSION,
 	type MediaCatalogSnapshot,
 } from '#app/utils/media-catalog.ts'
 import {
@@ -66,41 +72,9 @@ import {
 	toggleReviewLike,
 } from '#app/utils/review-engagement.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
-import {
-	trackingStateFromEntry,
-	type TrackingEntryLike,
-} from '#app/utils/tracking-state.ts'
+import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
-
-const catalogEntrySelect = {
-	id: true,
-	thumbnail: true,
-	title: true,
-	type: true,
-	releaseStart: true,
-	releaseEnd: true,
-	nextRelease: true,
-	genres: true,
-	description: true,
-	airYear: true,
-	startSeason: true,
-	startYear: true,
-	length: true,
-	chapters: true,
-	volumes: true,
-	rating: true,
-	language: true,
-	studios: true,
-	serialization: true,
-	authors: true,
-	tmdbScore: true,
-	malScore: true,
-} satisfies Prisma.EntrySelect
-
-type CatalogEntry = Prisma.EntryGetPayload<{
-	select: typeof catalogEntrySelect
-}>
 
 const OptionalRatingSchema = z.preprocess(
 	value =>
@@ -192,25 +166,6 @@ const ActionSchema = z.discriminatedUnion('intent', [
 	z.object({ intent: z.literal('release-reminder-delete') }),
 ])
 
-function catalogRichness(entry: CatalogEntry) {
-	return (
-		(entry.thumbnail ? 4 : 0) +
-		(entry.description?.length ?? 0) +
-		(entry.genres ? 2 : 0) +
-		(entry.releaseStart ? 2 : 0) +
-		(entry.length || entry.chapters || entry.volumes ? 2 : 0)
-	)
-}
-
-function representativeEntry(entries: CatalogEntry[]) {
-	return entries
-		.slice()
-		.sort(
-			(a, b) =>
-				catalogRichness(b) - catalogRichness(a) || a.id.localeCompare(b.id),
-		)[0]
-}
-
 function progressTotal(entry: MediaCatalogSnapshot | undefined, unit: string) {
 	if (unit === 'episode') return totalFromLegacyCounter(entry?.length)
 	if (unit === 'chapter') return totalFromLegacyCounter(entry?.chapters)
@@ -284,12 +239,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				select: { provider: true, kind: true, externalId: true },
 				orderBy: [{ provider: 'asc' }, { externalId: 'asc' }],
 			},
-			entries: { select: catalogEntrySelect },
 		},
 	})
 	if (!media) {
 		const appliedMerge = await prisma.catalogMediaMerge.findFirst({
-			where: { sourceMediaId: mediaId, status: 'applied' },
+			where: {
+				sourceMediaId: mediaId,
+				status: 'applied',
+				catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+			},
 			select: { targetMediaId: true },
 		})
 		if (appliedMerge) {
@@ -298,15 +256,33 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	}
 	invariantResponse(media, 'Media not found', { status: 404 })
 
-	const catalog = resolveMediaCatalog(media, representativeEntry(media.entries))
+	const catalog = resolveMediaCatalog(media)
 	const listTypeName = listTypeNameForMediaKind(media.kind)
+	const viewerStatePromise = viewerId
+		? prisma.trackingState.findUnique({
+				where: {
+					ownerId_mediaId: { ownerId: viewerId, mediaId: media.id },
+				},
+				select: {
+					status: true,
+					statusWatchlistId: true,
+					score: true,
+					startedAt: true,
+					completedAt: true,
+					repeatCount: true,
+					progress: {
+						select: { unit: true, current: true, total: true },
+					},
+				},
+			})
+		: Promise.resolve(null)
 	const [
 		community,
 		followedTracking,
 		recommendations,
 		relations,
 		viewerState,
-		viewerEntries,
+		legacyEntries,
 		viewerWatchlists,
 		activityRows,
 		reviewRows,
@@ -323,32 +299,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			viewerId,
 		),
 		getMediaRelations(media.id, viewerId),
+		viewerStatePromise,
 		viewerId
-			? prisma.trackingState.findUnique({
-					where: {
-						ownerId_mediaId: { ownerId: viewerId, mediaId: media.id },
-					},
-					select: {
-						status: true,
-						statusWatchlistId: true,
-						score: true,
-						startedAt: true,
-						completedAt: true,
-						repeatCount: true,
-						progress: {
-							select: { unit: true, current: true, total: true },
-						},
-					},
-				})
-			: null,
-		viewerId
-			? prisma.entry.findMany({
-					where: { mediaId: media.id, watchlist: { ownerId: viewerId } },
-					include: {
-						watchlist: { select: { id: true, name: true } },
-					},
-				})
-			: [],
+			? viewerStatePromise.then(state =>
+					state
+						? { entries: [], overflowed: false }
+						: loadOwnerLegacyTrackingEntries(prisma, {
+								ownerId: viewerId,
+								mediaId: media.id,
+							}),
+				)
+			: Promise.resolve({ entries: [], overflowed: false }),
 		viewerId && listTypeName
 			? prisma.watchlist.findMany({
 					where: { ownerId: viewerId, type: { name: listTypeName } },
@@ -378,7 +339,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				progressTotal: true,
 				createdAt: true,
 				actor: {
-					select: { username: true, name: true },
+					select: { username: true },
 				},
 			},
 		}),
@@ -393,7 +354,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				rating: true,
 				createdAt: true,
 				updatedAt: true,
-				author: { select: { id: true, username: true, name: true } },
+				author: { select: { id: true, username: true } },
 				_count: {
 					select: {
 						likes: true,
@@ -415,7 +376,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 						parentId: true,
 						createdAt: true,
 						author: {
-							select: { id: true, username: true, name: true },
+							select: { id: true, username: true },
 						},
 					},
 				},
@@ -485,20 +446,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			: null,
 	])
 
-	const legacyTracking = viewerEntries
-		.map(entry => ({
-			entry,
-			snapshot: trackingStateFromEntry(entry, {
-				status: entry.watchlist.name,
-				statusWatchlistId: entry.watchlist.id,
+	const legacyEntry = authoritativeLegacyTrackingEntry(
+		legacyEntries.entries,
+		media.kind,
+	)
+	const legacyTracking = legacyEntry
+		? trackingStateFromEntry(legacyEntry, {
+				status: legacyEntry.watchlist.name,
+				statusWatchlistId: legacyEntry.watchlist.id,
 				mediaKind: media.kind,
-			}),
-		}))
-		.sort(
-			(a, b) =>
-				b.snapshot.sourceUpdatedAt - a.snapshot.sourceUpdatedAt ||
-				a.entry.id.localeCompare(b.entry.id),
-		)[0]?.snapshot
+			})
+		: null
 	const tracking = viewerState
 		? {
 				status: viewerState.status,
@@ -620,7 +578,7 @@ type ReviewCommentItem = {
 	parentId: string | null
 	createdAt: Date | string
 	isRemoved: boolean
-	author: { id: string; username: string; name: string | null }
+	author: { id: string; username: string }
 }
 
 function ReviewCommentForm({
@@ -802,32 +760,6 @@ function ReviewDiscussion({
 	)
 }
 
-function authoritativeEntry<
-	T extends TrackingEntryLike & {
-		id: string
-		watchlistId: string
-		watchlist: { id: string; name: string }
-	},
->(entries: T[], mediaKind: string, statusWatchlistId?: string | null) {
-	const statusEntry = statusWatchlistId
-		? entries.find(entry => entry.watchlistId === statusWatchlistId)
-		: null
-	if (statusEntry) return statusEntry
-	return entries.slice().sort((a, b) => {
-		const aUpdated = trackingStateFromEntry(a, {
-			status: a.watchlist.name,
-			statusWatchlistId: a.watchlist.id,
-			mediaKind,
-		}).sourceUpdatedAt
-		const bUpdated = trackingStateFromEntry(b, {
-			status: b.watchlist.name,
-			statusWatchlistId: b.watchlist.id,
-			mediaKind,
-		}).sourceUpdatedAt
-		return bUpdated - aUpdated || a.id.localeCompare(b.id)
-	})[0]
-}
-
 export async function action({ request, params }: ActionFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -852,12 +784,15 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				id: true,
 				kind: true,
 				...mediaCatalogSelect,
-				entries: { select: catalogEntrySelect },
 			},
 		})
 		if (!media) {
 			const appliedMerge = await tx.catalogMediaMerge.findFirst({
-				where: { sourceMediaId: mediaId, status: 'applied' },
+				where: {
+					sourceMediaId: mediaId,
+					status: 'applied',
+					catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+				},
 				select: { targetMediaId: true },
 			})
 			if (appliedMerge) {
@@ -995,10 +930,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		}
 
 		if (parsed.data.intent === 'favorite-toggle') {
-			const catalog = resolveMediaCatalog(
-				media,
-				representativeEntry(media.entries),
-			)
+			const catalog = resolveMediaCatalog(media)
 			const favorite = await toggleMediaFavorite(tx, {
 				ownerId: userId,
 				mediaId,
@@ -1034,30 +966,37 @@ export async function action({ request, params }: ActionFunctionArgs) {
 		const listTypeName = listTypeNameForMediaKind(media.kind)
 		if (!listTypeName)
 			throw new Response('Unsupported media kind', { status: 400 })
-		const catalog = resolveMediaCatalog(
-			media,
-			representativeEntry(media.entries),
-		)
-		const entries = await tx.entry.findMany({
-			where: { mediaId, watchlist: { ownerId: userId } },
-			include: { watchlist: true, media: true },
-		})
+		const catalog = resolveMediaCatalog(media)
 		let state = await tx.trackingState.findUnique({
 			where: { ownerId_mediaId: { ownerId: userId, mediaId } },
 			select: { id: true, statusWatchlistId: true },
 		})
-
-		const primary = authoritativeEntry(
-			entries,
-			media.kind,
-			state?.statusWatchlistId,
-		)
-		if (!primary) {
-			throw new Response('Choose a status before editing tracking data', {
-				status: 400,
+		let legacyResult:
+			Awaited<ReturnType<typeof loadOwnerLegacyTrackingEntries>> | undefined
+		let primary: LegacyTrackingEntry | undefined
+		const loadPrimary = async () => {
+			legacyResult ??= await loadOwnerLegacyTrackingEntries(tx, {
+				ownerId: userId,
+				mediaId,
 			})
+			if (legacyResult.overflowed) {
+				throw new Response('Tracking data needs repair before editing', {
+					status: 409,
+				})
+			}
+			return authoritativeLegacyTrackingEntry(
+				legacyResult.entries,
+				media.kind,
+				state?.statusWatchlistId,
+			)
 		}
 		if (!state) {
+			primary = await loadPrimary()
+			if (!primary) {
+				throw new Response('Choose a status before editing tracking data', {
+					status: 400,
+				})
+			}
 			const stateId = await ensureTrackingStateForEntry(tx, {
 				ownerId: userId,
 				mediaId,
@@ -1096,6 +1035,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
 			return json({ ok: true })
 		}
 
+		primary ??= await loadPrimary()
+		if (!primary) {
+			throw new Response('Choose a status before editing tracking data', {
+				status: 400,
+			})
+		}
 		if (!progressUnitsForMediaKind(media.kind).includes(parsed.data.unit)) {
 			throw new Response('Progress unit does not match this media', {
 				status: 400,
@@ -1145,6 +1090,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 				total,
 				now,
 			}) as Prisma.EntryUpdateInput,
+			select: { id: true },
 		})
 		const after = await getTrackingActivityState(tx, userId, mediaId)
 		if (!after) throw new Error('Tracking state missing after progress update')
