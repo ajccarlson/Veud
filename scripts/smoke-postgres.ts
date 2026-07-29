@@ -6,7 +6,7 @@ import {
 	rollbackLibraryImportBatch,
 } from '#app/utils/library-import-commit.server.ts'
 import { type LibraryImportItem } from '#app/utils/library-import.ts'
-import { publicTrackingStateWhere } from '#app/utils/lists/visibility.server.ts'
+import { publicTrackingStateWhere } from '#app/utils/lists/visibility.ts'
 import {
 	escapeSqlLikeLiteral,
 	prismaSearchFilter,
