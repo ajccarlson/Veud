@@ -2,6 +2,7 @@ import { data as json } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { isReleaseCalendarCapacityError } from '#app/utils/release-calendar.server.ts'
 import {
 	releaseReminderLeadMinutes,
 	removeReleaseReminder,
@@ -28,6 +29,23 @@ const ReminderActionSchema = z.discriminatedUnion('intent', [
 		mediaId: z.string().min(1).max(100),
 	}),
 ])
+
+export async function loadReleaseCalendarOrUnavailable<T>(
+	load: () => Promise<T>,
+) {
+	try {
+		return await load()
+	} catch (error) {
+		if (!isReleaseCalendarCapacityError(error)) throw error
+		throw new Response('Release calendar is temporarily unavailable.', {
+			status: 503,
+			headers: {
+				'Cache-Control': 'no-store',
+				'Retry-After': '60',
+			},
+		})
+	}
+}
 
 // Both the weekly calendar and the per-day pages post reminder toggles to
 // their own URL, so they share this action.

@@ -144,7 +144,12 @@ export function assertPostgresDatabaseUrl(value) {
 
 export function postgresTargetIdentity(value) {
 	assertPostgresDatabaseUrl(value)
-	const url = new URL(value)
+	let url
+	try {
+		url = new URL(value)
+	} catch {
+		throw new Error('DATABASE_URL must be a valid PostgreSQL URL')
+	}
 	const port = url.port || '5432'
 	return `${url.hostname.toLowerCase()}:${port}/${decodeURIComponent(
 		url.pathname.replace(/^\//, ''),

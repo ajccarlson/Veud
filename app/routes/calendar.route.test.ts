@@ -2,7 +2,9 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { ReleaseCalendarCapacityError } from '#app/utils/release-calendar.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { loadReleaseCalendarOrUnavailable } from './calendar.server.ts'
 import { action, loader } from './calendar.tsx'
 
 async function viewerFixture() {
@@ -50,6 +52,20 @@ function actionRequest(cookie: string, values: Record<string, string>) {
 	})
 }
 
+test('calendar capacity failures become retryable no-store 503 responses', async () => {
+	const response = await loadReleaseCalendarOrUnavailable(async () => {
+		throw new ReleaseCalendarCapacityError('candidate-union', 10_000)
+	}).catch(error => error)
+
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(503)
+	expect((response as Response).headers.get('cache-control')).toBe('no-store')
+	expect((response as Response).headers.get('retry-after')).toBe('60')
+	expect(await (response as Response).text()).toBe(
+		'Release calendar is temporarily unavailable.',
+	)
+})
+
 test('calendar loader groups canonical releases and rejects stale ended schedules', async () => {
 	const { viewer, watching, cookie } = await viewerFixture()
 	const [episode, premiere, outside, ended] = await Promise.all([
@@ -64,6 +80,7 @@ test('calendar loader groups canonical releases and rejects stale ended schedule
 					episode: 4,
 					name: 'A scheduled episode',
 				}),
+				nextReleaseAt: new Date('2026-07-21T18:30:00.000Z'),
 			},
 		}),
 		prisma.media.create({
@@ -91,6 +108,7 @@ test('calendar loader groups canonical releases and rejects stale ended schedule
 					releaseDate: '2026-07-20T18:30:00.000Z',
 					episode: 2,
 				}),
+				nextReleaseAt: new Date('2026-07-20T18:30:00.000Z'),
 			},
 		}),
 	])
@@ -166,6 +184,7 @@ test('calendar groups timed releases by local date while preserving all-day date
 					releaseDate: '2026-07-20T01:30:00.000Z',
 					episode: 1,
 				}),
+				nextReleaseAt: new Date('2026-07-20T01:30:00.000Z'),
 			},
 		}),
 		prisma.media.create({
@@ -176,6 +195,7 @@ test('calendar groups timed releases by local date while preserving all-day date
 					releaseDate: '2026-07-27T01:30:00.000Z',
 					episode: 2,
 				}),
+				nextReleaseAt: new Date('2026-07-27T01:30:00.000Z'),
 			},
 		}),
 		prisma.media.create({
@@ -226,6 +246,7 @@ test('calendar actions set and remove the viewer reminder shown on a release', a
 			kind: 'anime',
 			title: 'Calendar Reminder Action',
 			nextRelease: JSON.stringify({ releaseDate: releaseAt.toISOString() }),
+			nextReleaseAt: releaseAt,
 		},
 	})
 

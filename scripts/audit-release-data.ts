@@ -30,7 +30,12 @@ function valueAfter(name: string) {
 function databaseIdentity() {
 	const raw = process.env.DATABASE_URL
 	if (!raw) throw new Error('DATABASE_URL is required.')
-	const url = new URL(raw)
+	let url: URL
+	try {
+		url = new URL(raw)
+	} catch {
+		throw new Error('DATABASE_URL must be a valid PostgreSQL URL.')
+	}
 	if (!['postgres:', 'postgresql:'].includes(url.protocol)) {
 		throw new Error('Committed release cleanup requires PostgreSQL.')
 	}

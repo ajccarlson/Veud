@@ -97,6 +97,9 @@ test('requires an explicit PostgreSQL transfer target', () => {
 			'postgresql://veud:secret@Database.EXAMPLE:5433/veud_stage',
 		),
 	).toBe('database.example:5433/veud_stage')
+	expect(() =>
+		postgresTargetIdentity('postgresql://secret:do-not-log@['),
+	).toThrow('DATABASE_URL must be a valid PostgreSQL URL')
 })
 
 test('distinguishes migration-seeded reference rows from occupied targets', () => {

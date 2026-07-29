@@ -25,7 +25,10 @@ import {
 	releaseCalendarDayPreviewLimit,
 	type ReleaseCalendarQuery,
 } from '#app/utils/release-calendar.server.ts'
-import { releaseReminderAction } from './calendar.server.ts'
+import {
+	loadReleaseCalendarOrUnavailable,
+	releaseReminderAction,
+} from './calendar.server.ts'
 
 function calendarHref(filters: ReleaseCalendarQuery, start: string) {
 	const search = new URLSearchParams({
@@ -80,9 +83,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		timeZone,
 	)
 	return json(
-		await getReleaseCalendar(filters, viewerId, timeZone, {
-			dayPreviewLimit: releaseCalendarDayPreviewLimit,
-		}),
+		await loadReleaseCalendarOrUnavailable(() =>
+			getReleaseCalendar(filters, viewerId, timeZone, {
+				dayPreviewLimit: releaseCalendarDayPreviewLimit,
+			}),
+		),
 	)
 }
 

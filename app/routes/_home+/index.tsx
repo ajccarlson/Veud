@@ -26,11 +26,8 @@ import {
 import { type HomeDashboardModule } from '#app/utils/home-dashboard.ts'
 import { getHomeLibrarySummary } from '#app/utils/home-library.server.ts'
 import { getHomeTrending } from '#app/utils/home-trending.server.ts'
+import { loadHomeUpcomingCalendar } from '#app/utils/home-upcoming.server.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
-import {
-	dateKeyInTimeZone,
-	getReleaseCalendar,
-} from '#app/utils/release-calendar.server.ts'
 import { excludedUserIdsFor } from '#app/utils/user-safety.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { AnonymousHome } from './anonymous-home.tsx'
@@ -85,15 +82,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						})
 					: Promise.resolve([]),
 				expanded('upcoming')
-					? getReleaseCalendar(
-							{
-								start: dateKeyInTimeZone(new Date(), timeZone),
-								kind: 'all',
-								scope: 'mine',
-							},
-							userId,
-							timeZone,
-						)
+					? loadHomeUpcomingCalendar(userId, timeZone)
 					: Promise.resolve(null),
 				expanded('continue')
 					? getContinuationQueue(userId)
@@ -215,7 +204,9 @@ export default function Index() {
 											destinationCount={data.watchlists.length}
 										/>
 									) : null,
-									upcoming: <UpcomingData calendar={data.upcomingCalendar} />,
+									upcoming: data.upcomingCalendar ? (
+										<UpcomingData calendar={data.upcomingCalendar} />
+									) : null,
 								}}
 							/>
 						</>

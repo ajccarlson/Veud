@@ -39,6 +39,7 @@ test('member can browse a release week and focus on tracked titles', async ({
 					episode: 4,
 					name: 'Browser episode fixture',
 				}),
+				nextReleaseAt: new Date('2026-07-21T18:30:00.000Z'),
 			},
 		}),
 		prisma.media.create({
@@ -163,7 +164,9 @@ test('busy calendar days link to a full day page', async ({ page }) => {
 
 	try {
 		await page.goto('/calendar?start=2026-07-20&kind=movie')
-		const day = page.locator('section[aria-labelledby="calendar-day-2026-07-21"]')
+		const day = page.locator(
+			'section[aria-labelledby="calendar-day-2026-07-21"]',
+		)
 		await expect(day.getByText('6 releases', { exact: true })).toBeVisible()
 		await expect(day.getByRole('article')).toHaveCount(5)
 

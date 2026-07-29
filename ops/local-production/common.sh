@@ -35,10 +35,18 @@ load_production_worker_environment() {
 
 production_database_identity() {
 	verify_node_22
-	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" -e '
-		const url = new URL(process.env.DATABASE_URL)
-		process.stdout.write(`${url.hostname}:${url.port || "5432"}${url.pathname}`)
-	'
+	(
+		cd "$REPO_ROOT"
+		DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
+			import { assertProductionDatabaseUrl } from "./scripts/production-environment-utils.mjs"
+			try {
+				process.stdout.write(assertProductionDatabaseUrl(process.env.DATABASE_URL))
+			} catch {
+				console.error("Production DATABASE_URL is invalid")
+				process.exit(1)
+			}
+		'
+	)
 }
 
 verify_active_release() {

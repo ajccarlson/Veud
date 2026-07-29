@@ -105,15 +105,17 @@ test('home shows a unified activity feed from followed members', async ({
 }) => {
 	const viewer = await login()
 	const followed = await insertNewUser()
+	const nextReleaseAt = new Date(Date.now() + 24 * 60 * 60 * 1_000)
 	const media = await prisma.media.create({
 		data: {
 			kind: 'anime',
 			title: 'Following Feed Browser Test',
 			nextRelease: JSON.stringify({
-				releaseDate: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+				releaseDate: nextReleaseAt,
 				episode: 2,
 				name: 'The canonical home schedule',
 			}),
+			nextReleaseAt,
 		},
 	})
 	await Promise.all([
