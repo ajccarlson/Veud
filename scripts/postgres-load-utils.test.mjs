@@ -1,10 +1,12 @@
 import { expect, test } from 'vitest'
 import {
+	assertPublicSurfaceLoadBudgets,
 	assertRequiredQueryIndexes,
 	assertRequiredQueryRows,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	calendarLoadWindow,
+	publicSurfaceLoadBudgets,
 	representativeProfileEntryShape,
 	representativeLoadShape,
 	summarizeDatabasePressure,
@@ -213,6 +215,78 @@ test('requires every representative query plan to return meaningful rows', () =>
 	])
 })
 
+test('enforces cold, warm, and payload budgets for public surfaces', () => {
+	const report = {
+		version: 1,
+		anonymousHome: {
+			coldQueries: 12,
+			warmQueries: 4,
+			coldSqlQueries: 19,
+			warmSqlQueries: 11,
+			payloadBytes: 40_000,
+		},
+		signedTrending: {
+			coldQueries: 6,
+			warmQueries: 2,
+			coldSqlQueries: 6,
+			warmSqlQueries: 2,
+			payloadBytes: 35_000,
+		},
+		discoveryFacets: {
+			coldQueries: 2,
+			warmQueries: 0,
+			coldSqlQueries: 2,
+			warmSqlQueries: 0,
+			payloadBytes: 12_000,
+		},
+	}
+
+	expect(publicSurfaceLoadBudgets.discoveryFacets.payloadBytes).toBe(48 * 1024)
+	expect(() => assertPublicSurfaceLoadBudgets(report)).not.toThrow()
+
+	report.anonymousHome.coldQueries = 13
+	report.discoveryFacets.warmQueries = 1
+	report.discoveryFacets.warmSqlQueries = 1
+	let failure
+	try {
+		assertPublicSurfaceLoadBudgets(report)
+	} catch (error) {
+		failure = error
+	}
+
+	expect(failure).toBeInstanceOf(Error)
+	expect(failure.message).toMatch(
+		/anonymousHome\.coldQueries=13.*discoveryFacets\.warmQueries=1/s,
+	)
+	expect(failure.budgetFailures).toEqual([
+		{
+			surface: 'anonymousHome',
+			field: 'coldQueries',
+			observed: 13,
+			budget: 12,
+		},
+		{
+			surface: 'discoveryFacets',
+			field: 'warmQueries',
+			observed: 1,
+			budget: 0,
+		},
+		{
+			surface: 'discoveryFacets',
+			field: 'warmSqlQueries',
+			observed: 1,
+			budget: 0,
+		},
+	])
+
+	report.anonymousHome.coldQueries = 12
+	report.discoveryFacets.warmQueries = 1
+	report.discoveryFacets.warmSqlQueries = 0
+	expect(() => assertPublicSurfaceLoadBudgets(report)).toThrow(
+		/discoveryFacets\.warmSqlQueries=0 < 1/,
+	)
+})
+
 test('derives a bounded representative catalog and member load shape', () => {
 	expect(
 		representativeLoadShape({
@@ -224,6 +298,8 @@ test('derives a bounded representative catalog and member load shape', () => {
 	).toEqual({
 		memberCount: 25,
 		watchlistRows: 75,
+		collectionRows: 50,
+		publicCollectionRows: 25,
 		trackingPerMember: 120,
 		trackingRows: 3_000,
 		publicListTrackingRows: 2_420,

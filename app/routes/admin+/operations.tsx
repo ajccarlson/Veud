@@ -18,6 +18,7 @@ import {
 	getAiGatewayOperationsTelemetry,
 	isAiCapabilityConfigured,
 } from '#app/utils/ai-gateway.server.ts'
+import { getCacheOperationsSnapshot } from '#app/utils/cache.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { getRuntimeOperationsSnapshot } from '#app/utils/operations-observability.server.ts'
 import { requireUserWithPermission } from '#app/utils/permissions.server.ts'
@@ -131,6 +132,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			},
 			incidents,
 			ai,
+			cacheOperations: getCacheOperationsSnapshot(),
 		},
 		{ headers: { 'Cache-Control': 'private, no-store' } },
 	)
@@ -446,6 +448,64 @@ export default function OperationsAdminRoute() {
 						</tbody>
 					</table>
 				</div>
+			</VeudPanel>
+
+			<VeudPanel aria-labelledby="cache-operations-heading">
+				<div>
+					<h2
+						id="cache-operations-heading"
+						className="text-xl font-black text-veud-yellow"
+					>
+						Cache operation counters
+					</h2>
+					<p className="mt-1 text-sm text-veud-copy">
+						Aggregate process totals by static cache family.
+					</p>
+				</div>
+				{Object.entries(snapshot.cacheOperations).length ? (
+					<div className="mt-4 overflow-x-auto">
+						<table className="w-full min-w-[660px] text-left text-sm">
+							<thead className="text-xs uppercase tracking-wide text-veud-mint">
+								<tr>
+									{[
+										'Cache family',
+										'Hit',
+										'Miss',
+										'Refresh',
+										'Refresh error',
+										'Write error',
+										'Invalid',
+									].map(label => (
+										<th key={label} className="px-3 py-2">
+											{label}
+										</th>
+									))}
+								</tr>
+							</thead>
+							<tbody className="divide-y divide-veud-border/60">
+								{Object.entries(snapshot.cacheOperations).map(
+									([namespace, counts]) => (
+										<tr key={namespace}>
+											<td className="px-3 py-2 font-black text-veud-cream">
+												{namespace.replaceAll('-', ' ')}
+											</td>
+											<td className="px-3 py-2">{counts.hit}</td>
+											<td className="px-3 py-2">{counts.miss}</td>
+											<td className="px-3 py-2">{counts.refresh}</td>
+											<td className="px-3 py-2">{counts['refresh-error']}</td>
+											<td className="px-3 py-2">{counts['write-error']}</td>
+											<td className="px-3 py-2">{counts.invalid}</td>
+										</tr>
+									),
+								)}
+							</tbody>
+						</table>
+					</div>
+				) : (
+					<p className="mt-4 rounded-xl border border-dashed border-veud-border p-5 text-sm text-veud-mint">
+						No cache activity has been recorded since this server started.
+					</p>
+				)}
 			</VeudPanel>
 
 			<VeudPanel aria-labelledby="recent-errors-heading">

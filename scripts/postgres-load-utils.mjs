@@ -161,6 +161,113 @@ export function assertRequiredQueryRows(queryPlans, requirements) {
 	throw error
 }
 
+export const publicSurfaceLoadBudgets = Object.freeze({
+	anonymousHome: Object.freeze({
+		coldQueries: 12,
+		warmQueries: 4,
+		coldSqlQueries: 20,
+		warmSqlQueries: 12,
+		payloadBytes: 128 * 1024,
+	}),
+	signedTrending: Object.freeze({
+		coldQueries: 6,
+		warmQueries: 2,
+		coldSqlQueries: 6,
+		warmSqlQueries: 2,
+		payloadBytes: 128 * 1024,
+	}),
+	discoveryFacets: Object.freeze({
+		coldQueries: 2,
+		warmQueries: 0,
+		coldSqlQueries: 2,
+		warmSqlQueries: 0,
+		payloadBytes: 48 * 1024,
+	}),
+})
+
+function publicSurfaceMeasurement(report, name) {
+	const measurement = report?.[name]
+	if (!measurement || typeof measurement !== 'object') {
+		throw new Error(`Public-surface smoke report is missing ${name}`)
+	}
+	for (const field of [
+		'coldQueries',
+		'warmQueries',
+		'coldSqlQueries',
+		'warmSqlQueries',
+		'payloadBytes',
+	]) {
+		if (!Number.isSafeInteger(measurement[field]) || measurement[field] < 0) {
+			throw new Error(
+				`Public-surface smoke ${name}.${field} must be a non-negative integer`,
+			)
+		}
+	}
+	return measurement
+}
+
+export function assertPublicSurfaceLoadBudgets(
+	report,
+	budgets = publicSurfaceLoadBudgets,
+) {
+	if (!report || typeof report !== 'object' || report.version !== 1) {
+		throw new Error('Public-surface smoke report must use version 1')
+	}
+	const failures = []
+	for (const [name, budget] of Object.entries(budgets)) {
+		const measurement = publicSurfaceMeasurement(report, name)
+		for (const field of [
+			'coldQueries',
+			'warmQueries',
+			'coldSqlQueries',
+			'warmSqlQueries',
+			'payloadBytes',
+		]) {
+			if (measurement[field] <= budget[field]) continue
+			failures.push({
+				surface: name,
+				field,
+				observed: measurement[field],
+				budget: budget[field],
+			})
+		}
+		if (measurement.warmQueries > measurement.coldQueries) {
+			failures.push({
+				surface: name,
+				field: 'warmQueries',
+				observed: measurement.warmQueries,
+				budget: measurement.coldQueries,
+			})
+		}
+		for (const phase of ['cold', 'warm']) {
+			const logicalField = `${phase}Queries`
+			const sqlField = `${phase}SqlQueries`
+			if (measurement[sqlField] >= measurement[logicalField]) continue
+			failures.push({
+				surface: name,
+				field: sqlField,
+				observed: measurement[sqlField],
+				budget: measurement[logicalField],
+				reason: 'below-logical-query-count',
+			})
+		}
+	}
+	if (!failures.length) return
+
+	const error = new Error(
+		`Public-surface load budgets exceeded: ${failures
+			.map(
+				failure =>
+					`${failure.surface}.${failure.field}=${failure.observed} ${
+						failure.reason === 'below-logical-query-count' ? '<' : '>'
+					} ${failure.budget}`,
+			)
+			.join('; ')}`,
+	)
+	error.budgetFailures = failures
+	throw error
+}
+
 export function bytesLabel(value) {
 	const bytes = Number(value)
 	if (!Number.isFinite(bytes) || bytes < 0) return 'unknown'
@@ -225,6 +332,8 @@ export function representativeLoadShape({
 	return {
 		memberCount,
 		watchlistRows: memberCount * 3,
+		collectionRows: memberCount * 2,
+		publicCollectionRows: memberCount,
 		trackingPerMember: effectiveTrackingPerMember,
 		trackingRows,
 		publicListTrackingRows:
