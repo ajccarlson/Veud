@@ -7,6 +7,7 @@ import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { PrismaClient } from '@prisma/client'
 import {
+	assertPublicSurfaceLoadBudgets,
 	assertRequiredQueryIndexes,
 	assertRequiredQueryRows,
 	assertSafeLoadDatabaseUrl,
@@ -484,7 +485,8 @@ async function insertCatalogContext(prisma, count, scheduleAnchor) {
 	)
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "CatalogFeedItem" (
-			"id", "provider", "kind", "feed", "rank", "observedAt", "mediaId"
+			"id", "provider", "kind", "feed", "rank", "audience",
+			"rankingScore", "rankingVersion", "observedAt", "mediaId"
 		)
 		SELECT
 			'${prefix}feed-' || n,
@@ -492,10 +494,19 @@ async function insertCatalogContext(prisma, count, scheduleAnchor) {
 			${kindSql()},
 			CASE n % 300 WHEN 0 THEN 'popular' ELSE 'trending' END,
 			(n / 100)::int,
+			(($1::int - n) + 1) * 10,
+			(1.0 / n::double precision),
+			3,
 			CURRENT_TIMESTAMP,
 			'${prefix}media-' || n
 		FROM generate_series(100, $1::int, 100) AS n
-		ON CONFLICT DO NOTHING`,
+		ON CONFLICT ("id") DO UPDATE SET
+			"feed" = EXCLUDED."feed",
+			"rank" = EXCLUDED."rank",
+			"audience" = EXCLUDED."audience",
+			"rankingScore" = EXCLUDED."rankingScore",
+			"rankingVersion" = EXCLUDED."rankingVersion",
+			"observedAt" = EXCLUDED."observedAt"`,
 		count,
 	)
 	await prisma.$executeRawUnsafe(
@@ -565,6 +576,29 @@ async function insertRepresentativeMemberBatch(
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP - ((n % 72) || ' hours')::interval
 		FROM generate_series($1::int, $2::int) AS n
+		ON CONFLICT DO NOTHING`,
+		start,
+		end,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "MediaCollection" (
+			"id", "title", "description", "isPublic", "createdAt", "updatedAt",
+			"moderationStatus", "ownerId"
+		)
+		SELECT
+			'${prefix}collection-' || member_number || '-' || visibility.label,
+			'Representative ' || visibility.label || ' collection ' || member_number,
+			'Representative PostgreSQL public-surface collection fixture.',
+			visibility.is_public,
+			CURRENT_TIMESTAMP - ((member_number % 45) || ' days')::interval,
+			CURRENT_TIMESTAMP,
+			'visible',
+			'${prefix}member-' || member_number
+		FROM generate_series($1::int, $2::int) AS member_number
+		CROSS JOIN (VALUES
+			('public', true),
+			('private', false)
+		) AS visibility(label, is_public)
 		ON CONFLICT DO NOTHING`,
 		start,
 		end,
@@ -1010,6 +1044,11 @@ async function representativeCounts(prisma) {
 			 WHERE id LIKE '${prefix}occurrence-%') AS "releaseOccurrenceRows",
 			(SELECT COUNT(*)::int FROM "User" WHERE id LIKE '${prefix}member-%') AS "memberCount",
 			(SELECT COUNT(*)::int FROM "Watchlist" WHERE id LIKE '${prefix}watchlist-%') AS "watchlistRows",
+			(SELECT COUNT(*)::int FROM "MediaCollection"
+			 WHERE id LIKE '${prefix}collection-%') AS "collectionRows",
+			(SELECT COUNT(*)::int FROM "MediaCollection"
+			 WHERE id LIKE '${prefix}collection-%' AND "isPublic" = true
+			   AND "moderationStatus" = 'visible') AS "publicCollectionRows",
 			(SELECT COUNT(*)::int FROM "TrackingState" WHERE id LIKE '${prefix}tracking-%') AS "trackingRows",
 			(SELECT COUNT(*)::int FROM "TrackingState" AS tracking
 			 JOIN "Watchlist" AS watchlist ON watchlist.id = tracking."statusWatchlistId"
@@ -1225,8 +1264,63 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 		[
 			'trending-feed',
 			`SELECT "mediaId" FROM "CatalogFeedItem"
-			 WHERE kind = $1 AND feed = $2 ORDER BY rank LIMIT 18`,
-			['movie', 'trending'],
+			 WHERE provider = $1
+			   AND kind = $2
+			   AND feed = $3
+			   AND "rankingScore" IS NOT NULL
+			   AND "rankingVersion" >= $4
+			   AND "observedAt" >= $5
+			 ORDER BY "observedAt" DESC, "rankingScore" DESC, rank ASC
+			 LIMIT 18`,
+			[
+				'tmdb',
+				'movie',
+				'trending',
+				3,
+				new Date(new Date(scheduleAnchor).getTime() - 8 * 24 * 60 * 60 * 1_000),
+			],
+		],
+		[
+			'popular-feed-fallback',
+			`SELECT "mediaId" FROM "CatalogFeedItem"
+			 WHERE provider = $1
+			   AND kind = $2
+			   AND feed = $3
+			   AND "rankingScore" IS NOT NULL
+			   AND "rankingVersion" >= $4
+			 ORDER BY "rankingScore" DESC, rank ASC, "mediaId" ASC
+			 LIMIT 18`,
+			['tmdb', 'movie', 'popular', 3],
+		],
+		[
+			'catalog-popularity-fallback',
+			`SELECT id FROM "Media"
+			 WHERE kind = $1
+			   AND title IS NOT NULL
+			   AND "catalogPopularity" IS NOT NULL
+			 ORDER BY "catalogPopularity" DESC, "releaseStart" DESC, title ASC
+			 LIMIT 18`,
+			['movie'],
+		],
+		[
+			'discovery-genre-facets',
+			`SELECT DISTINCT genres AS value
+			 FROM "Media"
+			 WHERE genres IS NOT NULL
+			   AND length(genres) BETWEEN 1 AND $1
+			 ORDER BY genres ASC
+			 LIMIT $2`,
+			[512, 4_097],
+		],
+		[
+			'discovery-status-facets',
+			`SELECT DISTINCT "releaseStatus" AS value
+			 FROM "Media"
+			 WHERE "releaseStatus" IS NOT NULL
+			   AND length("releaseStatus") BETWEEN 1 AND $1
+			 ORDER BY "releaseStatus" ASC
+			 LIMIT $2`,
+			[60, 257],
 		],
 		[
 			'calendar-media-range',
@@ -1317,6 +1411,20 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			 WHERE "authorId" = $1 AND "moderationStatus" = 'visible'
 			 ORDER BY "createdAt" DESC, id DESC LIMIT 100`,
 			[memberId],
+		),
+		await explain(
+			prisma,
+			'anonymous-public-collection-count',
+			`SELECT COUNT(*)::int
+			 FROM "MediaCollection" AS collection
+			 WHERE collection."isPublic" = true
+			   AND collection."moderationStatus" = 'visible'
+			   AND EXISTS (
+			     SELECT 1
+			     FROM "User" AS owner
+			     WHERE owner.id = collection."ownerId"
+			       AND owner."accountStatus" = 'active'
+			   )`,
 		),
 		await explain(
 			prisma,
@@ -1445,6 +1553,53 @@ async function runProfileLoaderSmoke({
 	}
 	const report = readJson(smokeReportPath, 'Profile loader smoke report')
 	fs.unlinkSync(smokeReportPath)
+	return report
+}
+
+async function runPublicSurfaceSmoke({ username, reportPath }) {
+	const smokeReportPath = `${reportPath}.public-surfaces.json`
+	if (fs.existsSync(smokeReportPath)) fs.unlinkSync(smokeReportPath)
+	const smokeScript = path.resolve('scripts/smoke-public-surfaces-postgres.ts')
+	const childArgs = [
+		'--import',
+		'tsx',
+		smokeScript,
+		'--username',
+		username,
+		'--report',
+		smokeReportPath,
+	]
+	await new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: process.cwd(),
+			env: {
+				...process.env,
+				NODE_ENV: 'test',
+				CACHE_DATABASE_PATH: ':memory:',
+				SESSION_SECRET:
+					process.env.SESSION_SECRET ?? 'postgres-public-surface-smoke-only',
+			},
+			stdio: 'inherit',
+		})
+		child.once('error', reject)
+		child.once('exit', (code, signal) => {
+			if (code === 0) {
+				resolve()
+				return
+			}
+			reject(
+				new Error(
+					`Public-surface smoke failed (${signal ? `signal ${signal}` : `exit ${code}`})`,
+				),
+			)
+		})
+	})
+	if (!fs.existsSync(smokeReportPath)) {
+		throw new Error('Public-surface smoke did not write its report')
+	}
+	const report = readJson(smokeReportPath, 'Public-surface smoke report')
+	fs.unlinkSync(smokeReportPath)
+	assertPublicSurfaceLoadBudgets(report)
 	return report
 }
 
@@ -1794,6 +1949,8 @@ async function main() {
 			releaseOccurrenceRows: shape.releaseOccurrenceRows,
 			memberCount: shape.memberCount,
 			watchlistRows: shape.watchlistRows,
+			collectionRows: shape.collectionRows,
+			publicCollectionRows: shape.publicCollectionRows,
 			trackingRows: shape.trackingRows,
 			publicListTrackingRows: shape.publicListTrackingRows,
 			privateListTrackingRows: shape.privateListTrackingRows,
@@ -1840,6 +1997,7 @@ async function main() {
 			await prisma.$executeRawUnsafe('ANALYZE "Entry"')
 			await prisma.$executeRawUnsafe('ANALYZE "ActivityEvent"')
 			await prisma.$executeRawUnsafe('ANALYZE "Review"')
+			await prisma.$executeRawUnsafe('ANALYZE "MediaCollection"')
 			await prisma.$executeRawUnsafe('ANALYZE "DiaryEntry"')
 		}
 		const communityAggregates = shape.memberCount
@@ -1863,6 +2021,12 @@ async function main() {
 					expectedEntries: profileFixture.expectedEntries,
 					expectedActivity: 100,
 					unsafeActivityId: `${prefix}activity-unsafe-${profileFixture.memberNumber}`,
+					reportPath,
+				})
+			: null
+		const publicSurfaceSmoke = profileFixture.memberNumber
+			? await runPublicSurfaceSmoke({
+					username: 'load_catalog_member_1',
 					reportPath,
 				})
 			: null
@@ -1963,6 +2127,7 @@ async function main() {
 			},
 			communityAggregates,
 			profileLoaderSmoke,
+			publicSurfaceSmoke,
 			recovery: {
 				checkpointSha256,
 				interruptedAt: checkpoint.interruptedAt ?? null,
@@ -2006,6 +2171,11 @@ async function main() {
 		if (profileLoaderSmoke) {
 			console.log(
 				`Real profile loaders: overview=${profileLoaderSmoke.overview.wallMs}ms/${profileLoaderSmoke.overview.bytes}B, stats=${profileLoaderSmoke.stats.wallMs}ms/${profileLoaderSmoke.stats.bytes}B, activity=${profileLoaderSmoke.activity.wallMs}ms/${profileLoaderSmoke.activity.bytes}B.`,
+			)
+		}
+		if (publicSurfaceSmoke) {
+			console.log(
+				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries} cold/warm queries.`,
 			)
 		}
 		console.log(`Report written: ${reportPath}`)

@@ -196,6 +196,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 		},
 		{
 			headers: combineHeaders(
+				{ 'Cache-Control': 'private, no-store' },
 				{ 'Server-Timing': timings.toString() },
 				toastHeaders,
 			),
@@ -205,6 +206,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 
 export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
 	return combineHeaders(
+		{ 'Cache-Control': 'private, no-store' },
 		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
 		loaderHeaders.has('Set-Cookie')
 			? { 'Set-Cookie': loaderHeaders.get('Set-Cookie') ?? '' }
