@@ -1,35 +1,57 @@
 import { ResponsiveWaffle } from '@nivo/waffle'
+import { ProfileChartDataTable } from '#app/routes/users+/$username_/stats_/visualization-boundary.tsx'
 import { veudChartColors, veudNivoTheme } from '#app/utils/nivo-theme.ts'
+import {
+	compactProfileStatuses,
+	type ListTypeMeta,
+	type ProfileStatsData,
+} from '#app/utils/profile.ts'
 
-function MyResponsiveWaffle(data: any, waffleDimensions: any) {
+type WaffleDatum = {
+	id: string
+	label: string
+	value: number
+	total: number
+}
+
+type WatchlistStatus = {
+	key: string
+	label: string
+	count: number
+}
+
+export function aggregateWatchlistStatuses(
+	statuses: readonly WatchlistStatus[],
+) {
+	return compactProfileStatuses(statuses)
+}
+
+function MyResponsiveWaffle(data: WaffleDatum[], waffleSide: number) {
 	return (
 		<div className="user-landing-stats-waffle-chart">
-			<ResponsiveWaffle
+			<ResponsiveWaffle<WaffleDatum>
 				colors={veudChartColors}
 				theme={veudNivoTheme}
 				data={data}
 				total={100}
-				rows={waffleDimensions.x}
-				columns={waffleDimensions.y}
+				rows={waffleSide}
+				columns={waffleSide}
 				padding={1}
 				valueFormat=".2f"
 				margin={{ top: 10, right: 10, bottom: 10, left: 120 }}
-				tooltip={(point: any) => {
-					// console.log(point)
-					return (
-						<div
-							style={{
-								background: 'black',
-								color: point.data.color,
-								padding: '9px 12px',
-								border: '1px solid #ccc',
-							}}
-						>
-							<div>{`${point.data.label}: ${point.data.data.total}`}</div>
-							<center>{`(${point.data.formattedValue}%)`}</center>
-						</div>
-					)
-				}}
+				tooltip={point => (
+					<div
+						style={{
+							background: 'black',
+							color: point.data.color,
+							padding: '9px 12px',
+							border: '1px solid #ccc',
+						}}
+					>
+						<div>{`${point.data.label}: ${point.data.data.total}`}</div>
+						<div>{`${point.data.formattedValue}%`}</div>
+					</div>
+				)}
 				borderRadius={3}
 				borderColor={{
 					from: 'color',
@@ -61,6 +83,16 @@ function MyResponsiveWaffle(data: any, waffleDimensions: any) {
 						],
 					},
 				]}
+				role="img"
+				ariaLabel="Watchlist status distribution"
+			/>
+			<ProfileChartDataTable
+				label="Watchlist status distribution values"
+				columns={['Status', 'Titles', 'Percent']}
+				rows={data.map(status => ({
+					key: status.id,
+					cells: [status.label, status.total, `${status.value.toFixed(2)}%`],
+				}))}
 			/>
 		</div>
 	)
@@ -92,27 +124,31 @@ function progressUnitLabel(unit: string) {
 	return /s$/i.test(normalized) ? normalized : `${normalized}s`
 }
 
-export function watchlistOverview(loaderData: any, listType: any) {
-	const summary = loaderData.trackingSummaries?.[listType.id] ?? {
+export function watchlistOverview(
+	loaderData: Pick<ProfileStatsData, 'trackingSummaries'>,
+	listType: ListTypeMeta | undefined,
+) {
+	if (!listType) {
+		return (
+			<div
+				className="user-landing-stats-chart-container user-landing-stats-waffle-chart-container"
+				role="status"
+			>
+				No watchlist data yet.
+			</div>
+		)
+	}
+
+	const summary = loaderData.trackingSummaries[listType.id] ?? {
 		totalTitles: 0,
 		meanScore: null,
+		repeatCount: 0,
 		progress: [],
 		statuses: [],
 	}
-	const totalTitles = Number.isFinite(summary.totalTitles)
-		? Math.max(0, summary.totalTitles)
-		: 0
-	const statuses = Array.isArray(summary.statuses)
-		? summary.statuses.filter(
-				(status: any) =>
-					status &&
-					typeof status.key === 'string' &&
-					typeof status.label === 'string' &&
-					Number.isFinite(status.count) &&
-					status.count > 0,
-			)
-		: []
-	const waffleData = statuses.map((status: any) => ({
+	const totalTitles = Math.max(0, summary.totalTitles)
+	const statuses = aggregateWatchlistStatuses(summary.statuses)
+	const waffleData: WaffleDatum[] = statuses.map(status => ({
 		id: status.key,
 		label: status.label,
 		value: totalTitles ? (status.count / totalTitles) * 100 : 0,
@@ -120,26 +156,15 @@ export function watchlistOverview(loaderData: any, listType: any) {
 	}))
 	const smallestPercentage = Math.min(
 		100,
-		...waffleData.map((status: any) => status.value),
+		...waffleData.map(status => status.value),
 	)
 	const waffleSide = Math.min(
 		20,
 		Math.max(10, Math.ceil(Math.sqrt(100 / smallestPercentage))),
 	)
-	const meanScore =
-		typeof summary.meanScore === 'number' && Number.isFinite(summary.meanScore)
-			? summary.meanScore.toFixed(2)
-			: 'N/A'
+	const meanScore = summary.meanScore?.toFixed(2) ?? 'N/A'
 	const completed = completionLabel(listType.completionType)
-	const progress = Array.isArray(summary.progress)
-		? summary.progress.filter(
-				(item: any) =>
-					item &&
-					typeof item.unit === 'string' &&
-					Number.isFinite(item.current) &&
-					item.current > 0,
-			)
-		: []
+	const progress = summary.progress.filter(item => item.current > 0)
 
 	return (
 		<div className="user-landing-stats-chart-container user-landing-stats-waffle-chart-container">
@@ -150,7 +175,7 @@ export function watchlistOverview(loaderData: any, listType: any) {
 				<div className="user-landing-stats-waffle-chart-text-right">
 					{`Mean Score: ${meanScore}`}
 					<div>
-						{progress.map((item: any) => (
+						{progress.map(item => (
 							<div key={item.unit}>
 								<span>
 									{`${item.current} ${progressUnitLabel(item.unit)} ${completed}`}
@@ -160,14 +185,23 @@ export function watchlistOverview(loaderData: any, listType: any) {
 					</div>
 				</div>
 			</div>
-			{MyResponsiveWaffle(waffleData, {
-				x: waffleSide,
-				y: waffleSide,
-			})}
+			{waffleData.length ? (
+				MyResponsiveWaffle(waffleData, waffleSide)
+			) : (
+				<div className="user-landing-stats-waffle-chart" role="status">
+					No status data yet.
+				</div>
+			)}
 		</div>
 	)
 }
 
-export function WatchlistChart({ data, listType }: any) {
+export function WatchlistChart({
+	data,
+	listType,
+}: {
+	data: Pick<ProfileStatsData, 'trackingSummaries'>
+	listType?: ListTypeMeta
+}) {
 	return watchlistOverview(data, listType)
 }

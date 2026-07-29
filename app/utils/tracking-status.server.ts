@@ -10,6 +10,7 @@ import {
 	trackingStateFromEntry,
 	type TrackingEntryLike,
 } from './tracking-state.ts'
+import { serializeUserLibraryMutation } from './watchlist-limits.ts'
 
 const catalogEntrySelect = {
 	id: true,
@@ -116,6 +117,7 @@ export async function setMediaTrackingStatus(
 		recordActivity?: boolean
 	},
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const media = await tx.media.findUnique({
 		where: { id: input.mediaId },
 		select: {

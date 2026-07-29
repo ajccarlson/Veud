@@ -14,6 +14,7 @@ import {
 } from '#app/utils/media-detail.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 const categoryScoreFields = [
 	'story',
@@ -139,7 +140,7 @@ export async function advancedEditEntryCommand(
 		throw new Response('Invalid advanced edit payload', { status: 400 })
 	}
 	const editable = fields as Record<string, unknown>
-	const { entry, watchlist } = await requireOwnedEntry(ownerId, entryId)
+	const { entry } = await requireOwnedEntry(ownerId, entryId)
 	const unknownField = Object.keys(editable).find(
 		field => !editableFields.has(field),
 	)
@@ -194,25 +195,15 @@ export async function advancedEditEntryCommand(
 		throw new Response('Invalid status', { status: 400 })
 	}
 
-	if (
-		Object.hasOwn(editable, 'started') ||
-		Object.hasOwn(editable, 'finished') ||
-		repeatCount !== null
-	) {
-		const history = parseHistory(entry.history)
-		if (Object.hasOwn(editable, 'started')) {
-			history.started = parseDate(editable.started)
-		}
-		if (Object.hasOwn(editable, 'finished')) {
-			history.finished = parseDate(editable.finished)
-		}
-		if (repeatCount !== null) history.repeatCount = repeatCount
-		history.lastUpdated = Date.now()
-		data.history = JSON.stringify(history)
-	}
+	const hasStarted = Object.hasOwn(editable, 'started')
+	const hasFinished = Object.hasOwn(editable, 'finished')
+	const started = hasStarted ? parseDate(editable.started) : undefined
+	const finished = hasFinished ? parseDate(editable.finished) : undefined
+	const hasHistoryEdits = hasStarted || hasFinished || repeatCount !== null
 
 	if (
 		!Object.keys(data).length &&
+		!hasHistoryEdits &&
 		progress === null &&
 		destinationWatchlistId === null
 	) {
@@ -221,6 +212,7 @@ export async function advancedEditEntryCommand(
 
 	try {
 		return await prisma.$transaction(async tx => {
+			await serializeUserLibraryMutation(tx, ownerId)
 			const current = await tx.entry.findUnique({
 				where: { id: entry.id },
 				include: {
@@ -242,9 +234,18 @@ export async function advancedEditEntryCommand(
 				throw new Response('Not found', { status: 404 })
 			}
 
+			const transactionData = { ...data }
+			if (hasHistoryEdits) {
+				const history = parseHistory(current.history)
+				if (hasStarted) history.started = started
+				if (hasFinished) history.finished = finished
+				if (repeatCount !== null) history.repeatCount = repeatCount
+				history.lastUpdated = Date.now()
+				transactionData.history = JSON.stringify(history)
+			}
 			const mediaKind = mediaKindForEntry(current)
 			const allowedProgress = new Set(progressUnitsForMediaKind(mediaKind))
-			let pendingEntry = { ...current, ...data }
+			let pendingEntry = { ...current, ...transactionData }
 			if (progress) {
 				for (const [unit, currentProgress] of Object.entries(progress)) {
 					if (!allowedProgress.has(unit as any)) {
@@ -274,14 +275,14 @@ export async function advancedEditEntryCommand(
 						previousCurrent: saved?.current ?? legacy?.current ?? 0,
 						total,
 					})
-					Object.assign(data, progressUpdate)
+					Object.assign(transactionData, progressUpdate)
 					pendingEntry = { ...pendingEntry, ...progressUpdate }
 				}
 			}
 
 			await tx.entry.update({
 				where: { id: current.id },
-				data: data as Prisma.EntryUpdateInput,
+				data: transactionData as Prisma.EntryUpdateInput,
 			})
 
 			if (
@@ -297,7 +298,7 @@ export async function advancedEditEntryCommand(
 			}
 
 			await tx.watchlist.update({
-				where: { id: watchlist.id },
+				where: { id: current.watchlist.id },
 				data: { updatedAt: new Date() },
 			})
 			await syncTrackingStateForEntry(tx, current.id)

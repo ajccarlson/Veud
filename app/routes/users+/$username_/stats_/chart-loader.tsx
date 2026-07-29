@@ -5,6 +5,11 @@ import {
 	type LazyExoticComponent,
 } from 'react'
 import {
+	type ListTypeMeta,
+	type ProfileShellData,
+	type ProfileStatsData,
+} from '#app/utils/profile.ts'
+import {
 	ProfileVisualizationBoundary,
 	ProfileVisualizationLoading,
 } from './visualization-boundary.tsx'
@@ -20,8 +25,8 @@ export type ProfileChartKey =
 	| 'type'
 
 type ChartModuleProps = {
-	data: any
-	listType?: any
+	data: Pick<ProfileShellData, 'listTypes'> & ProfileStatsData
+	listType?: ListTypeMeta
 	mode?: 'release' | 'watched'
 }
 
@@ -75,8 +80,8 @@ export function ProfileChart({
 }: {
 	chartKey: ProfileChartKey
 	label: string
-	data: any
-	listType?: any
+	data: Pick<ProfileShellData, 'listTypes'> & ProfileStatsData
+	listType?: ListTypeMeta
 }) {
 	const Chart = CHART_MODULES[chartKey]
 	const mode =

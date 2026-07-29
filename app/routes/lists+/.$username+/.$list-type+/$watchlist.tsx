@@ -1,14 +1,19 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { data as json, type LoaderFunctionArgs } from 'react-router'
-import { useLoaderData, useNavigate, useRevalidator } from 'react-router'
+import {
+	data as json,
+	type LoaderFunctionArgs,
+	useLoaderData,
+	useNavigate,
+	useRevalidator,
+} from 'react-router'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { listNavButtons } from '#app/components/list-nav-buttons.tsx'
 import { TrackingAssistantDialog } from '#app/components/tracking-assistant-dialog.tsx'
+import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { mediaIdentityKey } from '#app/utils/media-identity.ts'
-import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
 import {
+	prepareWatchlistEntryForViewer,
 	publicEntryPayload,
 	publicListOwnerSelect,
 	publicListTypeSelect,
@@ -16,6 +21,7 @@ import {
 } from '#app/utils/lists/public-watchlist.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
+import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
 
@@ -51,7 +57,7 @@ export async function loader(params: LoaderFunctionArgs) {
 
 	let watchListData
 
-	const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
+	watchLists.sort((a, b) => a.position - b.position)
 
 	for (const watchList of watchLists) {
 		if (watchList.typeId == listTypeData.id) {
@@ -97,6 +103,8 @@ export async function loader(params: LoaderFunctionArgs) {
 				},
 				trackingState: {
 					select: {
+						ownerId: true,
+						mediaId: true,
 						status: true,
 						statusWatchlistId: true,
 						score: true,
@@ -104,8 +112,14 @@ export async function loader(params: LoaderFunctionArgs) {
 						completedAt: true,
 						repeatCount: true,
 						progress: {
+							where: {
+								unit: { in: ['episode', 'chapter', 'volume'] },
+							},
+							orderBy: { unit: 'asc' },
+							take: 3,
 							select: { unit: true, current: true, total: true },
 						},
+						statusWatchlist: { select: { ownerId: true, isPublic: true } },
 					},
 				},
 			},
@@ -138,15 +152,16 @@ export async function loader(params: LoaderFunctionArgs) {
 			: Promise.resolve([]),
 	])
 
+	const isOwner = viewerId === listOwner.id
 	const normalizedEntries = listEntries
+		.map(entry => prepareWatchlistEntryForViewer(entry, listOwner.id, isOwner))
 		.map(normalizeWatchlistEntryScores)
 		.sort((a, b) => a.position - b.position)
-	const listEntriesSorted =
-		viewerId === listOwner.id
-			? normalizedEntries
-			: normalizedEntries.map(entry =>
-					publicEntryPayload(entry, watchListData.displayedColumns),
-				)
+	const listEntriesSorted = isOwner
+		? normalizedEntries
+		: normalizedEntries.map(entry =>
+				publicEntryPayload(entry, watchListData.displayedColumns),
+			)
 
 	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
 		(x, y) => {

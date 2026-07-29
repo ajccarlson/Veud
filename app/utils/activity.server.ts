@@ -1,4 +1,5 @@
 import { type Prisma } from '@prisma/client'
+import { serializeUserLibraryMutation } from './watchlist-limits.ts'
 
 export const trackingActivityStateSelect = {
 	id: true,
@@ -40,15 +41,19 @@ export async function recordTrackingActivityDiff(
 		after: TrackingActivityState
 	},
 ) {
+	await serializeUserLibraryMutation(tx, input.actorId)
 	const events: Prisma.ActivityEventUncheckedCreateInput[] = []
 	const watchlistIds = [
 		input.before?.statusWatchlistId,
 		input.after.statusWatchlistId,
-	].filter((id): id is string => Boolean(id))
+	]
+		.filter((id): id is string => Boolean(id))
+		.filter((id, index, ids) => ids.indexOf(id) === index)
+		.sort()
 	const watchlists = watchlistIds.length
 		? await tx.watchlist.findMany({
 				where: { id: { in: watchlistIds } },
-				select: { id: true, header: true, isPublic: true },
+				select: { id: true, ownerId: true, header: true, isPublic: true },
 			})
 		: []
 	const watchlistById = new Map(
@@ -60,7 +65,22 @@ export async function recordTrackingActivityDiff(
 	const previousWatchlist = input.before?.statusWatchlistId
 		? watchlistById.get(input.before.statusWatchlistId)
 		: null
-	const currentIsPublic = currentWatchlist?.isPublic ?? true
+	const currentVisibility = input.after.statusWatchlistId
+		? {
+				verified: currentWatchlist?.ownerId === input.actorId,
+				isPublic:
+					currentWatchlist?.ownerId === input.actorId &&
+					currentWatchlist.isPublic,
+			}
+		: { verified: true, isPublic: true }
+	const previousVisibility = input.before?.statusWatchlistId
+		? {
+				verified: previousWatchlist?.ownerId === input.actorId,
+				isPublic:
+					previousWatchlist?.ownerId === input.actorId &&
+					previousWatchlist.isPublic,
+			}
+		: { verified: true, isPublic: true }
 	const statusChanged =
 		!input.before ||
 		input.before.status !== input.after.status ||
@@ -74,16 +94,20 @@ export async function recordTrackingActivityDiff(
 			trackingStateId: input.after.id,
 			status: input.after.status,
 			statusLabel: input.after.statusWatchlistId
-				? currentWatchlist?.header
+				? currentVisibility.verified
+					? currentWatchlist?.header
+					: null
 				: null,
 			statusWatchlistId: input.after.statusWatchlistId,
 			previousStatus: input.before?.status ?? null,
 			previousStatusLabel: input.before?.statusWatchlistId
-				? previousWatchlist?.header
+				? previousVisibility.verified
+					? previousWatchlist?.header
+					: null
 				: null,
-			previousStatusWatchlistId:
-				input.before?.statusWatchlistId ?? null,
-			isPublic: currentIsPublic && (previousWatchlist?.isPublic ?? true),
+			previousStatusWatchlistId: input.before?.statusWatchlistId ?? null,
+			isPublic: currentVisibility.isPublic && previousVisibility.isPublic,
+			publicEligible: currentVisibility.isPublic && previousVisibility.isPublic,
 		})
 	}
 
@@ -97,8 +121,14 @@ export async function recordTrackingActivityDiff(
 			trackingStateId: input.after.id,
 			score: afterScore,
 			previousScore: beforeScore,
+			statusLabel: input.after.statusWatchlistId
+				? currentVisibility.verified
+					? currentWatchlist?.header
+					: null
+				: null,
 			statusWatchlistId: input.after.statusWatchlistId,
-			isPublic: currentIsPublic,
+			isPublic: currentVisibility.isPublic,
+			publicEligible: currentVisibility.isPublic,
 		})
 	}
 
@@ -124,8 +154,14 @@ export async function recordTrackingActivityDiff(
 			progressCurrent: current,
 			progressPrevious: previous,
 			progressTotal: after?.total ?? before?.total ?? null,
+			statusLabel: input.after.statusWatchlistId
+				? currentVisibility.verified
+					? currentWatchlist?.header
+					: null
+				: null,
 			statusWatchlistId: input.after.statusWatchlistId,
-			isPublic: currentIsPublic,
+			isPublic: currentVisibility.isPublic,
+			publicEligible: currentVisibility.isPublic,
 		})
 	}
 

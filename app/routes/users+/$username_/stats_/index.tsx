@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
 	ProfileEmptyState,
 	ProfileOptionNavigator,
@@ -8,9 +8,10 @@ import {
 	ProfileChart,
 	type ProfileChartKey,
 } from '#app/routes/users+/$username_/stats_/chart-loader.tsx'
+import { type ProfileAnalyticsDiagnostic } from '#app/utils/profile-analytics.ts'
 import {
-	type ProfileAnalyticsData,
 	type ProfileShellData,
+	type ProfileStatsData,
 } from '#app/utils/profile.ts'
 
 const PROFILE_CHARTS: Array<{
@@ -27,7 +28,7 @@ const PROFILE_CHARTS: Array<{
 	{ key: 'score', header: 'Score Distribution', typed: true },
 	{
 		key: 'objectiveScores',
-		header: 'Public Score Deviation',
+		header: 'Personal vs Public Scores',
 		typed: true,
 	},
 	{ key: 'release', header: 'Release Date Distribution', typed: false },
@@ -36,18 +37,82 @@ const PROFILE_CHARTS: Array<{
 	{ key: 'type', header: 'Media Type Distribution', typed: false },
 ]
 
+export function firstPopulatedListTypeIndex(
+	listTypes: ProfileShellData['listTypes'],
+	listTypeCounts: ProfileStatsData['listTypeCounts'],
+) {
+	const populatedIndex = listTypes.findIndex(
+		listType => (listTypeCounts[listType.id] ?? 0) > 0,
+	)
+	return populatedIndex >= 0 ? populatedIndex : 0
+}
+
+export function statsDiagnosticText(diagnostic: ProfileAnalyticsDiagnostic) {
+	const details: string[] = []
+	if (diagnostic.truncated) details.push('entry limit reached')
+	if (diagnostic.watchlistsTruncated) details.push('watchlist limit reached')
+	if (
+		diagnostic.historyEntriesRejected > 0 ||
+		diagnostic.historyFinishEventsTruncated > 0
+	) {
+		details.push('some history could not be fully read')
+	}
+	if (diagnostic.categoryCandidatesApproximate) {
+		details.push('category groups are approximate')
+	}
+	if (diagnostic.categoryCandidatesTruncated) {
+		details.push('category groups are limited')
+	}
+	return details.length ? ` Partial data: ${details.join('; ')}.` : ''
+}
+
 export function StatsData({
 	data: loaderData,
 }: {
-	data: ProfileShellData & ProfileAnalyticsData
+	data: Pick<ProfileShellData, 'listTypes' | 'user'> & ProfileStatsData
 }) {
 	const [chartIndex, setChartIndex] = useState(0)
-	const [typeIndex, setTypeIndex] = useState(0)
+	const defaultTypeId =
+		loaderData.listTypes[
+			firstPopulatedListTypeIndex(
+				loaderData.listTypes,
+				loaderData.listTypeCounts,
+			)
+		]?.id ?? ''
+	const [typeSelection, setTypeSelection] = useState(() => ({
+		profileId: loaderData.user.id,
+		typeId: defaultTypeId,
+	}))
+	const selectionIsCurrent =
+		typeSelection.profileId === loaderData.user.id &&
+		loaderData.listTypes.some(type => type.id === typeSelection.typeId)
+	const selectedTypeId = selectionIsCurrent
+		? typeSelection.typeId
+		: defaultTypeId
+
+	useEffect(() => {
+		if (
+			typeSelection.profileId === loaderData.user.id &&
+			typeSelection.typeId === selectedTypeId
+		) {
+			return
+		}
+		setTypeSelection({
+			profileId: loaderData.user.id,
+			typeId: selectedTypeId,
+		})
+	}, [
+		loaderData.user.id,
+		selectedTypeId,
+		typeSelection.profileId,
+		typeSelection.typeId,
+	])
 	const selectedType =
-		loaderData.listTypes[typeIndex] ?? loaderData.listTypes[0]
+		loaderData.listTypes.find(type => type.id === selectedTypeId) ??
+		loaderData.listTypes[0]
 	const selectedChart = PROFILE_CHARTS[chartIndex] ?? PROFILE_CHARTS[0]
-	const hasEntries = Object.values(loaderData.typedEntries ?? {}).some(
-		entries => entries.length > 0,
+	const hasEntries = Object.values(loaderData.listTypeCounts).some(
+		count => count > 0,
 	)
 
 	return (
@@ -55,7 +120,10 @@ export function StatsData({
 			<header className="user-landing-section-heading">
 				<span>Deep dive</span>
 				<h2>{selectedChart.header}</h2>
-				<p>Use the controls to explore a different view of this library.</p>
+				<p>
+					Use the controls to explore a different view of this library.
+					{statsDiagnosticText(loaderData.diagnostic)}
+				</p>
 			</header>
 			{hasEntries ? (
 				<>
@@ -88,12 +156,12 @@ export function StatsData({
 										label: listType.header,
 									}))}
 									value={selectedType?.id ?? ''}
-									onValueChange={value => {
-										const nextIndex = loaderData.listTypes.findIndex(
-											listType => listType.id === value,
-										)
-										if (nextIndex >= 0) setTypeIndex(nextIndex)
-									}}
+									onValueChange={typeId =>
+										setTypeSelection({
+											profileId: loaderData.user.id,
+											typeId,
+										})
+									}
 								/>
 							</div>
 						) : null}

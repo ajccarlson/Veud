@@ -1,10 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import {
-	requireOwnedWatchlist,
-	stripProtectedFields,
-} from '#app/utils/lists/authorization.server.ts'
+import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 import {
 	ensureMediaForIdentity,
 	hydrateMediaCatalog,
@@ -14,36 +11,13 @@ import { parseMediaRelationCandidates } from '#app/utils/media-relations.ts'
 import { syncMediaRelations } from '#app/utils/media-relations.server.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 export async function addEntryCommand(ownerId: string, row: unknown) {
 	if (!row || typeof row !== 'object' || Array.isArray(row)) {
 		throw new Response('Invalid row payload', { status: 400 })
 	}
 	const rowObj = row as Record<string, unknown>
-
-	const watchlist = await requireOwnedWatchlist(
-		ownerId,
-		rowObj.watchlistId as string | null | undefined,
-	)
-
-	const listType = await prisma.listType.findUnique({
-		where: { id: watchlist.typeId },
-		select: { name: true },
-	})
-	if (!listType) throw new Response('List type not found', { status: 400 })
-	const mediaIdentity = parseMediaIdentityForListType(
-		rowObj.mediaIdentity,
-		listType.name,
-		typeof rowObj.thumbnail === 'string' ? rowObj.thumbnail : null,
-	)
-	if (!mediaIdentity) {
-		throw new Response('Choose a catalog title before adding it to a list', {
-			status: 400,
-		})
-	}
-	const mediaRelations = mediaIdentity
-		? parseMediaRelationCandidates(rowObj.mediaRelations, mediaIdentity)
-		: null
 
 	// Identity and relations are server-managed. The client may describe a provider
 	// identity, but it cannot directly connect an entry to an arbitrary Media row.
@@ -59,6 +33,30 @@ export async function addEntryCommand(ownerId: string, row: unknown) {
 	])
 
 	return await prisma.$transaction(async tx => {
+		await serializeUserLibraryMutation(tx, ownerId)
+		const watchlistId =
+			typeof rowObj.watchlistId === 'string' ? rowObj.watchlistId : null
+		const watchlist = watchlistId
+			? await tx.watchlist.findFirst({
+					where: { id: watchlistId, ownerId },
+					include: { type: { select: { name: true } } },
+				})
+			: null
+		if (!watchlist) throw new Response('Not found', { status: 404 })
+		const mediaIdentity = parseMediaIdentityForListType(
+			rowObj.mediaIdentity,
+			watchlist.type.name,
+			typeof rowObj.thumbnail === 'string' ? rowObj.thumbnail : null,
+		)
+		if (!mediaIdentity) {
+			throw new Response('Choose a catalog title before adding it to a list', {
+				status: 400,
+			})
+		}
+		const mediaRelations = parseMediaRelationCandidates(
+			rowObj.mediaRelations,
+			mediaIdentity,
+		)
 		const entryCount = await tx.entry.count({
 			where: { watchlistId: watchlist.id },
 		})

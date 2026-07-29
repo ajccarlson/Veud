@@ -2,13 +2,14 @@ import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
 import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
 import {
 	getSortableWatchlistColumns,
 	normalizeWatchlistSortColumn,
 	normalizeWatchlistSortDirection,
 } from '#app/utils/lists/default-sort.ts'
-import { syncWatchlistActivityVisibility } from '#app/utils/lists/visibility.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
 // Only these watchlist fields may be changed via the settings form. Everything else
 // (id, position, typeId, ownerId, timestamps, relations) is off-limits, so a client can't
@@ -96,29 +97,27 @@ export async function updateWatchlistSettingsCommand(
 		}
 	}
 
-	// Apply the (whitelisted) settings and renumber the owner's watchlists of this type
-	// atomically, so a failure can't leave settings half-applied or the ordering off.
+	// Apply the whitelisted settings atomically. Settings do not change list
+	// positions, so unrelated sibling rows are deliberately left untouched.
 	const updated = await prisma.$transaction(async tx => {
+		await serializeUserLibraryMutation(tx, ownerId)
+		const current = await tx.watchlist.findFirst({
+			where: { id: watchlist.id, ownerId },
+		})
+		if (!current) throw new Response('Not found', { status: 404 })
 		const result =
 			Object.keys(data).length > 0
 				? await tx.watchlist.update({
-						where: { id: watchlist.id },
+						where: { id: current.id },
 						data: data as any,
 					})
-				: watchlist
+				: current
 
-		await syncWatchlistActivityVisibility(tx, result)
-
-		const remaining = await tx.watchlist.findMany({
-			where: { typeId: watchlist.typeId, ownerId },
-			orderBy: { position: 'asc' },
-		})
-
-		for (let i = 0; i < remaining.length; i++) {
-			await tx.watchlist.update({
-				where: { id: remaining[i].id },
-				data: { position: i + 1 },
-			})
+		if (
+			result.isPublic !== current.isPublic ||
+			result.header !== current.header
+		) {
+			await syncWatchlistActivityVisibility(tx, result, current.header)
 		}
 
 		return result

@@ -7,7 +7,7 @@ import {
 import { ProfilePageHeader } from '#app/components/profile-ui.tsx'
 import { StatsOverview } from '#app/routes/users+/$username_/stats-overview.tsx'
 import { StatsData } from '#app/routes/users+/$username_/stats_/index.tsx'
-import { loadProfileAnalytics } from '#app/utils/profile-data.server.ts'
+import { loadProfileStats } from '#app/utils/profile-data.server.ts'
 import { profileHeaders } from '#app/utils/profile-headers.ts'
 import { type ProfileShellData } from '#app/utils/profile.ts'
 import { makeTimings } from '#app/utils/timing.server.ts'
@@ -16,12 +16,8 @@ export { ProfileTabErrorBoundary as ErrorBoundary } from '#app/components/profil
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const timings = makeTimings('profile_stats', 'profile stats loader')
-	const analytics = await loadProfileAnalytics(
-		request,
-		params['username'],
-		timings,
-	)
-	return json(analytics, {
+	const stats = await loadProfileStats(request, params['username'], timings)
+	return json(stats, {
 		headers: { 'Server-Timing': timings.toString() },
 	})
 }

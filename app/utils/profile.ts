@@ -3,10 +3,39 @@ import {
 	type UserFavorite,
 	type Watchlist,
 } from '@prisma/client'
+import {
+	type ProfileAnalyticsDiagnostic,
+	type ProfileAnalyticsResult,
+} from './profile-analytics.ts'
+import { type CompletionHistory } from './profile-completion-history.ts'
 import { type ProfileTrackingSummary } from './profile-tracking.ts'
 
 export const PROFILE_COMMENT_MAX_LENGTH = 1000
 export const PROFILE_BIO_MAX_LENGTH = 5000
+export const PROFILE_STATUS_DISPLAY_LIMIT = 12
+
+export function compactProfileStatuses(
+	statuses: readonly { key: string; label: string; count: number }[],
+) {
+	const populated = statuses.filter(status => status.count > 0)
+	if (populated.length <= PROFILE_STATUS_DISPLAY_LIMIT) return populated
+	const ranked = populated
+		.slice()
+		.sort(
+			(left, right) =>
+				right.count - left.count || left.label.localeCompare(right.label),
+		)
+	return [
+		...ranked.slice(0, PROFILE_STATUS_DISPLAY_LIMIT - 1),
+		{
+			key: '__other_statuses__',
+			label: 'Other statuses',
+			count: ranked
+				.slice(PROFILE_STATUS_DISPLAY_LIMIT - 1)
+				.reduce((sum, status) => sum + status.count, 0),
+		},
+	]
+}
 
 /**
  * Shared types for the profile page (`users+/$username`).
@@ -39,7 +68,7 @@ export type FavoriteItem = Pick<
 	| 'mediaId'
 >
 
-/** The watchlist (status list) metadata the profile reads for status breakdowns. */
+/** The watchlist (status list) metadata used while building profile summaries. */
 export type WatchlistMeta = Pick<
 	Watchlist,
 	'id' | 'name' | 'header' | 'typeId' | 'position'
@@ -128,7 +157,6 @@ export type ProfileShellData = {
 	userJoinedDisplay: string
 	lastActiveDisplay: string | null
 	listTypes: ListTypeMeta[]
-	watchLists: WatchlistMeta[]
 	followerCount: number
 	followingCount: number
 	isFollowing: boolean
@@ -139,15 +167,25 @@ export type ProfileShellData = {
 	}
 }
 
-/** Heavy chart inputs, loaded only for Overview and Stats. */
-export type ProfileAnalyticsData = {
-	typedEntries: Record<string, any[]>
+/** Compact Overview-only aggregates; no raw library rows cross this boundary. */
+export type ProfileOverviewData = {
 	trackingSummaries: Record<string, ProfileTrackingSummary>
+	completionHistory: CompletionHistory
+	diagnostic: ProfileAnalyticsDiagnostic
 }
+
+/** Compact Stats-only aggregates; all variable dimensions are server-bounded. */
+export type ProfileStatsData = {
+	trackingSummaries: Record<string, ProfileTrackingSummary>
+} & Omit<ProfileAnalyticsResult, 'completionDays'>
+
+/** Compatibility alias for components shared within the Stats route. */
+export type ProfileAnalyticsData = ProfileStatsData
 
 /** Bounded normalized activity with legacy history merged on the server. */
 export type ProfileActivityData = Pick<ProfileShellData, 'listTypes'> & {
-	activityEvents: ProfileActivityEvent[]
+	activityEvents: ReadonlyArray<ProfileActivityEvent>
+	activityLimited: boolean
 }
 
 export type ProfileReviewsData = Pick<
@@ -166,11 +204,13 @@ export type ProfileFavoritesData = Pick<
 	'user' | 'listTypes'
 > & {
 	favorites: FavoriteItem[]
+	favoritesLimited: boolean
 }
 
 /** Compatibility shape for code that intentionally consumes every profile area. */
 export type ProfileData = ProfileShellData &
-	ProfileAnalyticsData &
+	ProfileOverviewData &
+	ProfileStatsData &
 	ProfileActivityData &
 	ProfileReviewsData &
 	ProfileDiaryData &

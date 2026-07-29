@@ -1,3 +1,5 @@
+import { preferredScore } from './lists/watchlist-entry-scores.server.ts'
+import { parseBoundedProfileHistory } from './profile-history-bounds.ts'
 import {
 	trackingStateFromEntry,
 	type TrackingEntryLike,
@@ -36,7 +38,8 @@ type TrackingWatchlist = {
 
 type NormalizedState = {
 	id: string
-	status: string
+	/** Compatibility-only input; aggregation derives the bounded list name. */
+	status?: string
 	statusWatchlistId: string | null
 	score: unknown
 	repeatCount: number
@@ -61,11 +64,7 @@ type SummaryItem = {
 }
 
 const preferredUnitOrder = ['episode', 'chapter', 'volume']
-
-function numberOrNull(value: unknown) {
-	const number = Number(value)
-	return Number.isFinite(number) && number > 0 ? number : null
-}
+const supportedProgressUnits = new Set(preferredUnitOrder)
 
 function labelFromStatus(status: string) {
 	return status
@@ -83,20 +82,52 @@ function compareUnits(a: string, b: string) {
 	return a.localeCompare(b)
 }
 
+function supportedProgressUnit(value: unknown) {
+	if (typeof value !== 'string') return null
+	const normalized = value.toLowerCase().replace(/[^a-z]/g, '')
+	const singular =
+		normalized === 'episodes'
+			? 'episode'
+			: normalized === 'chapters'
+				? 'chapter'
+				: normalized === 'volumes'
+					? 'volume'
+					: normalized
+	return supportedProgressUnits.has(singular) ? singular : null
+}
+
+function boundedHistory(value: unknown) {
+	const parsed = parseBoundedProfileHistory(value)
+	return parsed.history
+}
+
+function supportedProgress(
+	progress: Iterable<{ unit: string; current: number }>,
+) {
+	const result = new Map<string, number>()
+	for (const item of progress) {
+		const unit = supportedProgressUnit(item.unit)
+		const current = Number(item.current)
+		if (!unit || !Number.isFinite(current)) continue
+		result.set(unit, Math.max(result.get(unit) ?? 0, Math.max(0, current)))
+	}
+	return result
+}
+
 /**
- * Build profile-level totals from normalized tracking rows. Entries without a
- * TrackingState remain readable during rollout and are deduplicated by Media
- * when canonical identity is already available.
+ * Incrementally builds profile-level totals from normalized tracking rows.
+ * Callers may feed deterministic database pages without retaining the full
+ * Entry result set in memory. The compact item map is required to preserve the
+ * rollout rule that a normalized state wins over every legacy snapshot and
+ * that the newest canonical legacy snapshot wins otherwise.
  */
-export function buildProfileTrackingSummaries({
+export function createProfileTrackingAccumulator({
 	listTypes,
 	watchlists,
-	entries,
 }: {
 	listTypes: TrackingListType[]
 	watchlists: TrackingWatchlist[]
-	entries: ProfileTrackingEntry[]
-}): Record<string, ProfileTrackingSummary> {
+}) {
 	const watchlistById = new Map(
 		watchlists.map(watchlist => [watchlist.id, watchlist]),
 	)
@@ -105,9 +136,13 @@ export function buildProfileTrackingSummaries({
 		SummaryItem & { sourceUpdatedAt: number; sourceId: string }
 	>()
 
-	for (const entry of entries) {
+	function add(entry: ProfileTrackingEntry) {
 		const entryWatchlist = watchlistById.get(entry.watchlistId)
-		if (!entryWatchlist) continue
+		if (!entryWatchlist) return
+		const boundedEntry = {
+			...entry,
+			history: boundedHistory(entry.history),
+		}
 
 		if (entry.trackingState) {
 			const state = entry.trackingState
@@ -119,32 +154,29 @@ export function buildProfileTrackingSummaries({
 					? stateWatchlist
 					: entryWatchlist
 			const key = entry.mediaId ? `media:${entry.mediaId}` : `state:${state.id}`
-			if (items.get(key)?.sourceUpdatedAt === Infinity) continue
-			const legacySnapshot = trackingStateFromEntry(entry, {
-				status: state.status,
+			if (items.get(key)?.sourceUpdatedAt === Infinity) return
+			const legacySnapshot = trackingStateFromEntry(boundedEntry, {
+				status: statusWatchlist.name,
 				statusWatchlistId: state.statusWatchlistId,
 				mediaKind: entry.media?.kind ?? 'unknown',
 			})
-			const recoveredProgress = new Map(
-				state.progress.map(progress => [
-					progress.unit,
-					Math.max(0, progress.current),
-				]),
-			)
+			const recoveredProgress = supportedProgress(state.progress)
 			for (const progress of legacySnapshot.progress) {
-				const current = recoveredProgress.get(progress.unit)
+				const unit = supportedProgressUnit(progress.unit)
+				if (!unit) continue
+				const current = recoveredProgress.get(unit)
 				if (
 					current === undefined ||
 					(current === 0 && progress.current > current)
 				) {
-					recoveredProgress.set(progress.unit, progress.current)
+					recoveredProgress.set(unit, progress.current)
 				}
 			}
 			items.set(key, {
 				typeId: statusWatchlist.typeId,
 				statusKey: statusWatchlist.id,
-				status: state.status,
-				score: numberOrNull(state.score),
+				status: statusWatchlist.name,
+				score: preferredScore(state.score, boundedEntry.personal),
 				repeatCount: Math.max(0, state.repeatCount),
 				progress: [...recoveredProgress].map(([unit, current]) => ({
 					unit,
@@ -153,10 +185,10 @@ export function buildProfileTrackingSummaries({
 				sourceUpdatedAt: Infinity,
 				sourceId: entry.id,
 			})
-			continue
+			return
 		}
 
-		const snapshot = trackingStateFromEntry(entry, {
+		const snapshot = trackingStateFromEntry(boundedEntry, {
 			status: entryWatchlist.name,
 			statusWatchlistId: entryWatchlist.id,
 			mediaKind: entry.media?.kind ?? 'unknown',
@@ -169,85 +201,140 @@ export function buildProfileTrackingSummaries({
 				(previous.sourceUpdatedAt === snapshot.sourceUpdatedAt &&
 					previous.sourceId <= entry.id))
 		)
-			continue
+			return
 		items.set(key, {
 			typeId: entryWatchlist.typeId,
 			statusKey: entryWatchlist.id,
 			status: snapshot.status,
 			score: snapshot.score,
 			repeatCount: snapshot.repeatCount,
-			progress: snapshot.progress.map(progress => ({
-				unit: progress.unit,
-				current: progress.current,
-			})),
+			progress: [...supportedProgress(snapshot.progress)].map(
+				([unit, current]) => ({ unit, current }),
+			),
 			sourceUpdatedAt: snapshot.sourceUpdatedAt,
 			sourceId: entry.id,
 		})
 	}
 
-	const summaries: Record<string, ProfileTrackingSummary> = {}
-	for (const listType of listTypes) {
-		const typeItems = [...items.values()].filter(
-			item => item.typeId === listType.id,
+	function addMany(entries: Iterable<ProfileTrackingEntry>) {
+		for (const entry of entries) add(entry)
+	}
+
+	function finish(): Record<string, ProfileTrackingSummary> {
+		const aggregateByType = new Map(
+			listTypes.map(listType => [
+				listType.id,
+				{
+					totalTitles: 0,
+					scoreTotal: 0,
+					scoreCount: 0,
+					repeatCount: 0,
+					progress: new Map<string, number>(),
+					statusCounts: new Map<string, number>(),
+					unconfiguredStatusCounts: new Map<string, number>(),
+				},
+			]),
 		)
-		const scored = typeItems
-			.map(item => item.score)
-			.filter((score): score is number => score !== null)
-		const progressByUnit = new Map<string, number>()
-		for (const item of typeItems) {
+
+		const configuredStatusKeysByType = new Map<string, Set<string>>()
+		for (const listType of listTypes) {
+			configuredStatusKeysByType.set(
+				listType.id,
+				new Set(
+					watchlists
+						.filter(watchlist => watchlist.typeId === listType.id)
+						.map(watchlist => watchlist.id),
+				),
+			)
+		}
+
+		for (const item of items.values()) {
+			const aggregate = aggregateByType.get(item.typeId)
+			if (!aggregate) continue
+			aggregate.totalTitles += 1
+			if (item.score !== null) {
+				aggregate.scoreTotal += item.score
+				aggregate.scoreCount += 1
+			}
+			aggregate.repeatCount += item.repeatCount
 			for (const progress of item.progress) {
-				progressByUnit.set(
+				aggregate.progress.set(
 					progress.unit,
-					(progressByUnit.get(progress.unit) ?? 0) + progress.current,
+					(aggregate.progress.get(progress.unit) ?? 0) + progress.current,
+				)
+			}
+			if (configuredStatusKeysByType.get(item.typeId)?.has(item.statusKey)) {
+				aggregate.statusCounts.set(
+					item.statusKey,
+					(aggregate.statusCounts.get(item.statusKey) ?? 0) + 1,
+				)
+			} else {
+				aggregate.unconfiguredStatusCounts.set(
+					item.status,
+					(aggregate.unconfiguredStatusCounts.get(item.status) ?? 0) + 1,
 				)
 			}
 		}
 
-		const typeWatchlists = watchlists
-			.filter(watchlist => watchlist.typeId === listType.id)
-			.slice()
-			.sort(
-				(a, b) => a.position - b.position || a.header.localeCompare(b.header),
-			)
-		const configuredStatusKeys = new Set(
-			typeWatchlists.map(status => status.id),
-		)
-		const statuses = typeWatchlists.map(watchlist => ({
-			key: watchlist.id,
-			label: watchlist.header,
-			count: typeItems.filter(item => item.statusKey === watchlist.id).length,
-		}))
-		const unconfiguredStatuses = new Map<string, number>()
-		for (const item of typeItems) {
-			if (configuredStatusKeys.has(item.statusKey)) continue
-			unconfiguredStatuses.set(
-				item.status,
-				(unconfiguredStatuses.get(item.status) ?? 0) + 1,
-			)
-		}
-		for (const [status, count] of unconfiguredStatuses) {
-			statuses.push({
-				key: `status:${status}`,
-				label: labelFromStatus(status),
-				count,
-			})
+		const summaries: Record<string, ProfileTrackingSummary> = {}
+		for (const listType of listTypes) {
+			const aggregate = aggregateByType.get(listType.id)
+			if (!aggregate) continue
+			const typeWatchlists = watchlists
+				.filter(watchlist => watchlist.typeId === listType.id)
+				.slice()
+				.sort(
+					(a, b) => a.position - b.position || a.header.localeCompare(b.header),
+				)
+			const statuses = typeWatchlists.map(watchlist => ({
+				key: watchlist.id,
+				label: watchlist.header,
+				count: aggregate.statusCounts.get(watchlist.id) ?? 0,
+			}))
+			for (const [status, count] of aggregate.unconfiguredStatusCounts) {
+				statuses.push({
+					key: `status:${status}`,
+					label: labelFromStatus(status),
+					count,
+				})
+			}
+
+			summaries[listType.id] = {
+				totalTitles: aggregate.totalTitles,
+				meanScore: aggregate.scoreCount
+					? aggregate.scoreTotal / aggregate.scoreCount
+					: null,
+				repeatCount: aggregate.repeatCount,
+				progress: [...aggregate.progress]
+					.map(([unit, current]) => ({ unit, current }))
+					.sort((a, b) => compareUnits(a.unit, b.unit)),
+				statuses,
+			}
 		}
 
-		summaries[listType.id] = {
-			totalTitles: typeItems.length,
-			meanScore: scored.length
-				? scored.reduce((total, score) => total + score, 0) / scored.length
-				: null,
-			repeatCount: typeItems.reduce(
-				(total, item) => total + item.repeatCount,
-				0,
-			),
-			progress: [...progressByUnit]
-				.map(([unit, current]) => ({ unit, current }))
-				.sort((a, b) => compareUnits(a.unit, b.unit)),
-			statuses,
-		}
+		return summaries
 	}
 
-	return summaries
+	return { add, addMany, finish }
+}
+
+/**
+ * Compatibility wrapper for callers that already have a row array. New
+ * database callers should prefer `createProfileTrackingAccumulator`.
+ */
+export function buildProfileTrackingSummaries({
+	listTypes,
+	watchlists,
+	entries,
+}: {
+	listTypes: TrackingListType[]
+	watchlists: TrackingWatchlist[]
+	entries: ProfileTrackingEntry[]
+}): Record<string, ProfileTrackingSummary> {
+	const accumulator = createProfileTrackingAccumulator({
+		listTypes,
+		watchlists,
+	})
+	accumulator.addMany(entries)
+	return accumulator.finish()
 }

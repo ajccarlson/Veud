@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { action as deleteRow } from '#app/routes/lists+/.fetch+/delete-row.$request.ts'
+import { action as legacyDeleteRow } from '#app/routes/lists+/.fetch+/fix-watchlist-order.$request.ts'
 import { action as moveRow } from '#app/routes/lists+/.fetch+/move-row.$request.ts'
 import { action as reorderRows } from '#app/routes/lists+/.fetch+/reorder-rows.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
@@ -248,7 +249,9 @@ test('rejects a canonical media kind that does not match the destination type', 
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(400)
 	expect(
-		await prisma.entry.findUniqueOrThrow({ where: { id: incompatibleEntry.id } }),
+		await prisma.entry.findUniqueOrThrow({
+			where: { id: incompatibleEntry.id },
+		}),
 	).toMatchObject({ watchlistId: data.source.id, position: 4 })
 })
 
@@ -310,4 +313,23 @@ test('deleting an entry closes its position gap in the same transaction', async 
 		{ id: data.first.id, position: 1, title: 'First' },
 		{ id: data.third.id, position: 2, title: 'Third' },
 	])
+})
+
+test('the legacy delete endpoint delegates to the reconciled deletion command', async () => {
+	const data = await fixture()
+	await legacyDeleteRow({
+		request: data.request,
+		params: {
+			request: new URLSearchParams({ id: data.moved.id }).toString(),
+		},
+	} as any)
+	expect(await orderedEntries(data.source.id)).toEqual([
+		{ id: data.first.id, position: 1, title: 'First' },
+		{ id: data.third.id, position: 2, title: 'Third' },
+	])
+	expect(
+		await prisma.trackingState.findUnique({
+			where: { id: data.trackingState.id },
+		}),
+	).toBeNull()
 })
