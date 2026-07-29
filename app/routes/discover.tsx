@@ -38,6 +38,7 @@ import {
 	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
+	type DiscoveryResults,
 } from '#app/utils/discovery.server.ts'
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import {
@@ -332,7 +333,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		discoverySession && discoverySession.currentStep > 0
 			? (sessionPlans[discoverySession.currentStep - 1] ?? null)
 			: null
-	const recommendationGraphPromise =
+	const rendersRecommendationGraph = Boolean(
 		viewerId &&
 		filters.mode === 'standard' &&
 		!filters.q &&
@@ -342,7 +343,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		!filters.status &&
 		filters.provider === 'all' &&
 		filters.sort === 'for-you' &&
-		filters.page === 1
+		filters.page === 1,
+	)
+	const recommendationGraphPromise =
+		rendersRecommendationGraph && viewerId
 			? getRecommendationGraph(viewerId)
 			: Promise.resolve(null)
 	const memoryQueryTooShort = filters.mode === 'memory' && filters.q.length < 3
@@ -401,7 +405,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 						viewerId,
 						memorySearch.matches.map(match => match.mediaId),
 					)
-				: getDiscoveryResults(filters, viewerId),
+				: rendersRecommendationGraph
+					? Promise.resolve({
+							filters,
+							items: [],
+							total: 0,
+							pageCount: 1,
+							preferredGenres: [],
+						} satisfies DiscoveryResults)
+					: getDiscoveryResults(filters, viewerId),
 		genresPromise,
 		statusesPromise,
 		watchlistsPromise,

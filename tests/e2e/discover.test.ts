@@ -187,6 +187,63 @@ test('member can filter the catalog and discover an unseen personalized title', 
 	}
 })
 
+test('ranked discovery recomputes plans during browser tests', async ({
+	page,
+}) => {
+	const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+	const query = `Browser Cache Bypass ${suffix}`
+	const initial = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: `${query} Initial`,
+			catalogScore: 6,
+			externalIds: {
+				create: {
+					provider: 'tmdb',
+					kind: 'movie',
+					externalId: `cache-initial-${suffix}`,
+					sourceRatingCount: 100,
+				},
+			},
+		},
+	})
+	let addedId: string | null = null
+
+	try {
+		const url = `/discover?q=${encodeURIComponent(query)}&kind=movie&sort=top-rated`
+		await page.goto(url)
+		await expect(page.getByText(initial.title!, { exact: true })).toBeVisible()
+
+		const added = await prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: `${query} Added`,
+				catalogScore: 10,
+				externalIds: {
+					create: {
+						provider: 'tmdb',
+						kind: 'movie',
+						externalId: `cache-added-${suffix}`,
+						sourceRatingCount: 1_000_000,
+					},
+				},
+			},
+		})
+		addedId = added.id
+
+		await page.reload()
+		await expect(page.getByText(added.title!, { exact: true })).toBeVisible()
+	} finally {
+		await prisma.media
+			.deleteMany({
+				where: {
+					id: { in: [initial.id, ...(addedId ? [addedId] : [])] },
+				},
+			})
+			.catch(() => {})
+	}
+})
+
 test('global advanced search returns five grounded local matches without provider inference', async ({
 	page,
 }) => {
