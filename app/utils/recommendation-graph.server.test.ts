@@ -230,3 +230,88 @@ test('show-less feedback subtracts genre affinity without affecting public data'
 		await prisma.trackingState.count({ where: { mediaId: seed.id } }),
 	).toBe(1)
 })
+
+test('graph popularity uses public tracking counts and ignores private lists', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const [viewer, publicMember, privateMember] = await Promise.all([
+		createUser('Graph privacy viewer'),
+		createUser('Graph public member'),
+		createUser('Graph private member'),
+	])
+	const listType = await prisma.listType.create({
+		data: {
+			name: `graph-privacy-${suffix}`,
+			header: 'Graph privacy',
+			columns: '{}',
+			mediaType: '["movie"]',
+			completionType: '{}',
+		},
+	})
+	const privateList = await prisma.watchlist.create({
+		data: {
+			ownerId: privateMember.id,
+			typeId: listType.id,
+			name: 'private',
+			header: 'Private',
+			isPublic: false,
+		},
+	})
+	const [seed, publicCandidate, privateCandidate] = await Promise.all([
+		prisma.media.create({
+			data: { kind: 'movie', title: `Graph ranking seed ${suffix}` },
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: `Graph Z public ${suffix}` },
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: `Graph A private ${suffix}` },
+		}),
+	])
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: seed.id,
+				status: 'completed',
+				score: 9,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: publicMember.id,
+				mediaId: publicCandidate.id,
+				status: 'completed',
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: privateMember.id,
+				mediaId: privateCandidate.id,
+				status: 'completed',
+				statusWatchlistId: privateList.id,
+			},
+		}),
+		prisma.mediaRelation.create({
+			data: {
+				sourceMediaId: seed.id,
+				targetMediaId: publicCandidate.id,
+				relationType: 'sequel',
+			},
+		}),
+		prisma.mediaRelation.create({
+			data: {
+				sourceMediaId: seed.id,
+				targetMediaId: privateCandidate.id,
+				relationType: 'sequel',
+			},
+		}),
+	])
+
+	const graph = await getRecommendationGraph(viewer.id)
+	const connected = graph.lanes.find(lane => lane.key === 'connected')
+
+	expect(connected?.items.map(item => item.id)).toEqual([
+		publicCandidate.id,
+		privateCandidate.id,
+	])
+})

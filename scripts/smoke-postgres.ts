@@ -477,60 +477,111 @@ async function main() {
 		if (!liveActionType) {
 			throw new Error('Live-action list type is unavailable')
 		}
-		const privateTracker = await prisma.user.create({
-			data: {
-				email: `postgres-smoke-private-${suffix}@example.com`,
-				username: `PostgresSmokePrivate${suffix}`,
-				name: `PostgreSQL private tracker ${suffix}`,
-			},
-		})
-		userIds.push(privateTracker.id)
-		const nullListTracker = await prisma.user.create({
-			data: {
-				email: `postgres-smoke-null-${suffix}@example.com`,
-				username: `PostgresSmokeNull${suffix}`,
-				name: `PostgreSQL null-list tracker ${suffix}`,
-			},
-		})
-		userIds.push(nullListTracker.id)
-		const [publicWatchlist, privateWatchlist] = await Promise.all([
+		const createTracker = async (
+			key: string,
+			usernameLabel: string,
+			nameLabel: string,
+		) => {
+			const tracker = await prisma.user.create({
+				data: {
+					email: `postgres-smoke-${key}-${suffix}@example.com`,
+					username: `PostgresSmoke${usernameLabel}${suffix}`,
+					name: `PostgreSQL ${nameLabel} tracker ${suffix}`,
+				},
+			})
+			userIds.push(tracker.id)
+			return tracker
+		}
+		const publicUnscoredTracker = await createTracker(
+			'public-unscored',
+			'PublicUnscored',
+			'public unscored',
+		)
+		const privateScoredTracker = await createTracker(
+			'private-scored',
+			'PrivateScored',
+			'private scored',
+		)
+		const privateUnscoredTracker = await createTracker(
+			'private-unscored',
+			'PrivateUnscored',
+			'private unscored',
+		)
+		const listlessScoredTracker = await createTracker(
+			'listless-scored',
+			'ListlessScored',
+			'listless scored',
+		)
+		const listlessUnscoredTracker = await createTracker(
+			'listless-unscored',
+			'ListlessUnscored',
+			'listless unscored',
+		)
+		const createTrackerWatchlist = (ownerId: string, isPublic: boolean) =>
 			prisma.watchlist.create({
 				data: {
-					ownerId: user.id,
+					ownerId,
 					typeId: liveActionType.id,
 					name: 'watching',
 					header: 'Watching',
-					isPublic: true,
+					isPublic,
 				},
-			}),
-			prisma.watchlist.create({
-				data: {
-					ownerId: privateTracker.id,
-					typeId: liveActionType.id,
-					name: 'watching',
-					header: 'Watching',
-					isPublic: false,
-				},
-			}),
-		])
+			})
+		const publicScoredWatchlist = await createTrackerWatchlist(user.id, true)
+		const publicUnscoredWatchlist = await createTrackerWatchlist(
+			publicUnscoredTracker.id,
+			true,
+		)
+		const privateScoredWatchlist = await createTrackerWatchlist(
+			privateScoredTracker.id,
+			false,
+		)
+		const privateUnscoredWatchlist = await createTrackerWatchlist(
+			privateUnscoredTracker.id,
+			false,
+		)
 		await prisma.trackingState.createMany({
 			data: [
 				{
 					ownerId: user.id,
 					mediaId: media.id,
 					status: 'watching',
-					statusWatchlistId: publicWatchlist.id,
+					score: 8,
+					statusWatchlistId: publicScoredWatchlist.id,
 				},
 				{
-					ownerId: privateTracker.id,
+					ownerId: publicUnscoredTracker.id,
 					mediaId: media.id,
 					status: 'watching',
-					statusWatchlistId: privateWatchlist.id,
+					score: null,
+					statusWatchlistId: publicUnscoredWatchlist.id,
 				},
 				{
-					ownerId: nullListTracker.id,
+					ownerId: privateScoredTracker.id,
 					mediaId: media.id,
 					status: 'watching',
+					score: 10,
+					statusWatchlistId: privateScoredWatchlist.id,
+				},
+				{
+					ownerId: privateUnscoredTracker.id,
+					mediaId: media.id,
+					status: 'watching',
+					score: null,
+					statusWatchlistId: privateUnscoredWatchlist.id,
+				},
+				{
+					ownerId: listlessScoredTracker.id,
+					mediaId: media.id,
+					status: 'watching',
+					score: 7,
+					statusWatchlistId: null,
+				},
+				{
+					ownerId: listlessUnscoredTracker.id,
+					mediaId: media.id,
+					status: 'watching',
+					score: null,
 					statusWatchlistId: null,
 				},
 			],
@@ -538,23 +589,28 @@ async function main() {
 		const publicTrackerCounts = await prisma.trackingState.groupBy({
 			by: ['mediaId'],
 			where: {
-				mediaId: media.id,
+				mediaId: {
+					in: [media.id, `postgres-smoke-untracked-${suffix}`],
+				},
 				AND: [publicTrackingStateWhere],
 			},
-			_count: { _all: true },
+			_count: { _all: true, score: true },
+			_avg: { score: true },
 		})
 		if (
 			publicTrackerCounts.length !== 1 ||
 			publicTrackerCounts[0]?.mediaId !== media.id ||
-			publicTrackerCounts[0]._count._all !== 2
+			publicTrackerCounts[0]._count._all !== 4 ||
+			publicTrackerCounts[0]._count.score !== 2 ||
+			Number(publicTrackerCounts[0]._avg.score) !== 7.5
 		) {
 			throw new Error(
-				'Candidate-bounded tracker count did not include public/null-list tracking while excluding private-list tracking',
+				'Candidate-bounded community aggregates did not preserve public/listless visibility and scored/unscored semantics',
 			)
 		}
 
 		console.log(
-			'PostgreSQL smoke test passed: schema, required indexes, model writes, provider-aware searches, release ranges, tracker privacy, visibility boundaries, and atomic import rollback are healthy.',
+			'PostgreSQL smoke test passed: schema, required indexes, model writes, provider-aware searches, release ranges, community aggregates, visibility boundaries, and atomic import rollback are healthy.',
 		)
 	} finally {
 		if (mediaId) await prisma.media.deleteMany({ where: { id: mediaId } })

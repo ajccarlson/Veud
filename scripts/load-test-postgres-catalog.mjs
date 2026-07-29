@@ -31,6 +31,36 @@ const requiredCalendarIndexesByQuery = {
 	'calendar-occurrence-range': 'ReleaseOccurrence_releaseAt_status_idx',
 	'calendar-public-tracker-counts': 'TrackingState_mediaId_idx',
 }
+const communityCandidateLimit = 1_000
+const communityCandidateChunkSize = 400
+const requiredCommunityIndex = 'TrackingState_mediaId_idx'
+const communityAggregateGroupsSql = `SELECT
+	tracking."mediaId",
+	COUNT(*)::int AS "trackerCount",
+	COUNT(tracking.score)::int AS "ratingCount",
+	AVG(tracking.score)::double precision AS "communityScore"
+ FROM "TrackingState" AS tracking
+ LEFT JOIN "Watchlist" AS watchlist
+   ON watchlist.id = tracking."statusWatchlistId"
+ WHERE tracking."mediaId" = ANY($1::text[])
+   AND (
+     tracking."statusWatchlistId" IS NULL
+     OR watchlist."isPublic" = true
+   )
+ GROUP BY tracking."mediaId"`
+const communityAggregateReferenceSql = `SELECT
+	COUNT(DISTINCT tracking."mediaId")::int AS "groupCount",
+	COUNT(*)::int AS "trackerCount",
+	COUNT(tracking.score)::int AS "ratingCount",
+	AVG(tracking.score)::double precision AS "communityScore"
+ FROM "TrackingState" AS tracking
+ LEFT JOIN "Watchlist" AS watchlist
+   ON watchlist.id = tracking."statusWatchlistId"
+ WHERE tracking."mediaId" = ANY($1::text[])
+   AND (
+     tracking."statusWatchlistId" IS NULL
+     OR watchlist."isPublic" = true
+   )`
 const usage = `Usage: npm run db:loadtest:postgres -- [options]
 
 Options:
@@ -51,6 +81,7 @@ Options:
   --cleanup-after           Delete only load-catalog-* records after reporting
   --require-trigram-indexes Fail if measured text searches avoid trigram indexes
   --require-calendar-indexes Fail if bounded calendar queries avoid their indexes
+  --require-community-indexes Fail if chunked community aggregates avoid their index
   --help                    Show this help
 
 DATABASE_URL must use PostgreSQL and its database name must contain a clearly
@@ -99,6 +130,7 @@ function assertKnownArguments() {
 		'--cleanup-after',
 		'--require-trigram-indexes',
 		'--require-calendar-indexes',
+		'--require-community-indexes',
 		'--help',
 	])
 	for (let index = 0; index < args.length; index++) {
@@ -608,6 +640,130 @@ async function explain(prisma, name, sql, values = []) {
 	}
 }
 
+function communityAggregateChunks(count) {
+	const candidateIds = Array.from(
+		{ length: Math.min(communityCandidateLimit, count) },
+		(_, index) => `${prefix}media-${index + 1}`,
+	)
+	const chunks = []
+	for (
+		let offset = 0;
+		offset < candidateIds.length;
+		offset += communityCandidateChunkSize
+	) {
+		chunks.push({
+			name: `community-aggregate-chunk-${offset / communityCandidateChunkSize + 1}`,
+			candidateIds: candidateIds.slice(
+				offset,
+				offset + communityCandidateChunkSize,
+			),
+		})
+	}
+	return { candidateIds, chunks }
+}
+
+function summarizeCommunityAggregateRows(rows) {
+	let trackerCount = 0
+	let ratingCount = 0
+	let scoreTotal = 0
+	for (const row of rows) {
+		const rowTrackerCount = Number(row.trackerCount)
+		const rowRatingCount = Number(row.ratingCount)
+		const rowCommunityScore =
+			row.communityScore === null ? null : Number(row.communityScore)
+		if (
+			!Number.isSafeInteger(rowTrackerCount) ||
+			rowTrackerCount < 1 ||
+			!Number.isSafeInteger(rowRatingCount) ||
+			rowRatingCount < 0 ||
+			rowRatingCount > rowTrackerCount ||
+			(rowRatingCount === 0
+				? rowCommunityScore !== null
+				: !Number.isFinite(rowCommunityScore))
+		) {
+			throw new Error('Community aggregate query returned invalid values')
+		}
+		trackerCount += rowTrackerCount
+		ratingCount += rowRatingCount
+		scoreTotal += (rowCommunityScore ?? 0) * rowRatingCount
+	}
+	return {
+		groups: rows.length,
+		trackers: trackerCount,
+		ratings: ratingCount,
+		weightedMean: ratingCount ? scoreTotal / ratingCount : null,
+	}
+}
+
+function matchingCommunitySummaries(left, right) {
+	const scoresMatch =
+		left.weightedMean === null || right.weightedMean === null
+			? left.weightedMean === right.weightedMean
+			: Math.abs(left.weightedMean - right.weightedMean) <=
+				1e-10 *
+					Math.max(1, Math.abs(left.weightedMean), Math.abs(right.weightedMean))
+	return (
+		left.groups === right.groups &&
+		left.trackers === right.trackers &&
+		left.ratings === right.ratings &&
+		scoresMatch
+	)
+}
+
+async function communityAggregateMetrics(prisma, count) {
+	const { candidateIds, chunks } = communityAggregateChunks(count)
+	const chunkMetrics = []
+	for (const chunk of chunks) {
+		const rows = await prisma.$queryRawUnsafe(
+			communityAggregateGroupsSql,
+			chunk.candidateIds,
+		)
+		chunkMetrics.push({
+			name: chunk.name,
+			candidateCount: chunk.candidateIds.length,
+			...summarizeCommunityAggregateRows(rows),
+		})
+	}
+	const totalRatingCount = chunkMetrics.reduce(
+		(total, chunk) => total + chunk.ratings,
+		0,
+	)
+	const total = {
+		groups: chunkMetrics.reduce((total, chunk) => total + chunk.groups, 0),
+		trackers: chunkMetrics.reduce((total, chunk) => total + chunk.trackers, 0),
+		ratings: totalRatingCount,
+		weightedMean: totalRatingCount
+			? chunkMetrics.reduce(
+					(total, chunk) => total + (chunk.weightedMean ?? 0) * chunk.ratings,
+					0,
+				) / totalRatingCount
+			: null,
+	}
+	const referenceRows = await prisma.$queryRawUnsafe(
+		communityAggregateReferenceSql,
+		candidateIds,
+	)
+	if (referenceRows.length !== 1) {
+		throw new Error('Community aggregate reference query returned no result')
+	}
+	const reference = {
+		groups: Number(referenceRows[0].groupCount),
+		trackers: Number(referenceRows[0].trackerCount),
+		ratings: Number(referenceRows[0].ratingCount),
+		weightedMean:
+			referenceRows[0].communityScore === null
+				? null
+				: Number(referenceRows[0].communityScore),
+	}
+	return {
+		candidateCount: candidateIds.length,
+		chunks: chunkMetrics,
+		total,
+		reference,
+		matchesReference: matchingCommunitySummaries(total, reference),
+	}
+}
+
 async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
@@ -733,7 +889,24 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			[publicTrackerCandidateIds],
 		),
 	)
+	const { chunks: communityChunks } = communityAggregateChunks(count)
+	for (const chunk of communityChunks) {
+		queries.push(
+			await explain(prisma, chunk.name, communityAggregateGroupsSql, [
+				chunk.candidateIds,
+			]),
+		)
+	}
 	return queries
+}
+
+function requiredCommunityIndexesByQuery(count) {
+	return Object.fromEntries(
+		communityAggregateChunks(count).chunks.map(chunk => [
+			chunk.name,
+			requiredCommunityIndex,
+		]),
+	)
 }
 
 async function databasePressureSnapshot(prisma) {
@@ -930,9 +1103,15 @@ async function main() {
 	const cleanupAfter = args.includes('--cleanup-after')
 	const requireTrigramIndexes = args.includes('--require-trigram-indexes')
 	const requireCalendarIndexes = args.includes('--require-calendar-indexes')
+	const requireCommunityIndexes = args.includes('--require-community-indexes')
 	if (requireCalendarIndexes && !shape.memberCount) {
 		throw new Error(
 			'--require-calendar-indexes requires --member-count so the bounded tracker aggregation is measured',
+		)
+	}
+	if (requireCommunityIndexes && !shape.memberCount) {
+		throw new Error(
+			'--require-community-indexes requires --member-count so community aggregates are measured',
 		)
 	}
 	const target = assertSafeLoadDatabaseUrl(process.env.DATABASE_URL)
@@ -1094,10 +1273,20 @@ async function main() {
 		await prisma.$executeRawUnsafe('ANALYZE "CatalogFeedItem"')
 		await prisma.$executeRawUnsafe('ANALYZE "ReleaseOccurrence"')
 		if (shape.memberCount) {
+			await prisma.$executeRawUnsafe('ANALYZE "Watchlist"')
 			await prisma.$executeRawUnsafe('ANALYZE "TrackingState"')
 			await prisma.$executeRawUnsafe('ANALYZE "Entry"')
 			await prisma.$executeRawUnsafe('ANALYZE "ActivityEvent"')
 		}
+		const communityAggregates = shape.memberCount
+			? await communityAggregateMetrics(prisma, count)
+			: null
+		const communityAggregateAssertionError =
+			communityAggregates && !communityAggregates.matchesReference
+				? new Error(
+						`Chunked community aggregates differ from the scalar reference: chunks=${JSON.stringify(communityAggregates.total)} reference=${JSON.stringify(communityAggregates.reference)}`,
+					)
+				: undefined
 		const queries = await queryMetrics(
 			prisma,
 			count,
@@ -1126,6 +1315,17 @@ async function main() {
 		} catch (error) {
 			calendarQueryIndexAssertionError = error
 		}
+		let communityQueryIndexAssertionError
+		if (shape.memberCount) {
+			try {
+				assertRequiredQueryIndexes(
+					queries,
+					requiredCommunityIndexesByQuery(count),
+				)
+			} catch (error) {
+				communityQueryIndexAssertionError = error
+			}
+		}
 		const missingQueryIndexes =
 			queryIndexAssertionError?.missingRequirements ?? []
 		const missingIndexes = [
@@ -1136,6 +1336,13 @@ async function main() {
 		const missingCalendarIndexes = [
 			...new Set(
 				missingCalendarQueryIndexes.map(({ requiredIndex }) => requiredIndex),
+			),
+		]
+		const missingCommunityQueryIndexes =
+			communityQueryIndexAssertionError?.missingRequirements ?? []
+		const missingCommunityIndexes = [
+			...new Set(
+				missingCommunityQueryIndexes.map(({ requiredIndex }) => requiredIndex),
 			),
 		]
 		const insertedRows = loaded - checkpoint.initialRows
@@ -1159,6 +1366,7 @@ async function main() {
 				trackingPerMember: shape.trackingPerMember,
 				activityPerMember: shape.activityPerMember,
 			},
+			communityAggregates,
 			recovery: {
 				checkpointSha256,
 				interruptedAt: checkpoint.interruptedAt ?? null,
@@ -1176,6 +1384,8 @@ async function main() {
 			missingQueryIndexes,
 			missingCalendarIndexes,
 			missingCalendarQueryIndexes,
+			missingCommunityIndexes,
+			missingCommunityQueryIndexes,
 		}
 		writePrivateJson(reportPath, report)
 		console.log(
@@ -1189,6 +1399,11 @@ async function main() {
 		console.log(
 			`Concurrent work: ${searches} searches + ${updateBatches} hydration updates + ${concurrency.memberReads} member reads + ${concurrency.trackingWriteBatches} tracking writes in ${concurrency.wallMs}ms.`,
 		)
+		if (communityAggregates) {
+			console.log(
+				`Community aggregates: ${communityAggregates.candidateCount} candidates in ${communityAggregates.chunks.length} chunks; groups=${communityAggregates.total.groups}; trackers=${communityAggregates.total.trackers}; ratings=${communityAggregates.total.ratings}; weighted mean=${communityAggregates.total.weightedMean ?? 'none'}.`,
+			)
+		}
 		console.log(`Report written: ${reportPath}`)
 		if (cleanupAfter) {
 			const cleaned = await cleanup(prisma)
@@ -1196,21 +1411,27 @@ async function main() {
 				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
 		}
-		const requiredIndexErrors = [
+		const validationErrors = [
+			...(communityAggregateAssertionError
+				? [communityAggregateAssertionError]
+				: []),
 			...(requireTrigramIndexes && queryIndexAssertionError
 				? [queryIndexAssertionError]
 				: []),
 			...(requireCalendarIndexes && calendarQueryIndexAssertionError
 				? [calendarQueryIndexAssertionError]
 				: []),
+			...(requireCommunityIndexes && communityQueryIndexAssertionError
+				? [communityQueryIndexAssertionError]
+				: []),
 		]
-		if (requiredIndexErrors.length === 1) {
-			throw requiredIndexErrors[0]
+		if (validationErrors.length === 1) {
+			throw validationErrors[0]
 		}
-		if (requiredIndexErrors.length > 1) {
+		if (validationErrors.length > 1) {
 			throw new AggregateError(
-				requiredIndexErrors,
-				'Required PostgreSQL query indexes were not used',
+				validationErrors,
+				'PostgreSQL aggregate and query-index validations failed',
 			)
 		}
 	} finally {
