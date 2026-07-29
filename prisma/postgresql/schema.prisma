@@ -616,7 +616,7 @@ model Entry {
   malScore      Decimal? // anime, manga
 
   // non-unique foreign key
-  @@index([watchlistId])
+  @@index([watchlistId, id])
   @@index([mediaId])
   @@index([trackingStateId])
 }
@@ -842,6 +842,8 @@ model ActivityEvent {
   progressPrevious    Int?
   progressTotal       Int?
   isPublic            Boolean  @default(true)
+  /// True only when immutable provenance was valid and the event was public-safe at creation.
+  publicEligible      Boolean  @default(false)
   createdAt           DateTime @default(now())
 
   actor                     User           @relation(fields: [actorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -855,11 +857,13 @@ model ActivityEvent {
   previousStatusWatchlist   Watchlist?     @relation("ActivityEventPreviousStatusWatchlist", fields: [previousStatusWatchlistId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   previousStatusWatchlistId String?
 
-  @@index([actorId, createdAt])
+  @@index([actorId, createdAt, id])
+  @@index([actorId, isPublic, publicEligible, createdAt, id])
   @@index([mediaId, createdAt])
   @@index([trackingStateId])
   @@index([statusWatchlistId])
   @@index([previousStatusWatchlistId])
+  @@index([isPublic, publicEligible, createdAt, id])
   @@index([isPublic, createdAt])
   @@index([type, createdAt])
 }
@@ -887,7 +891,7 @@ model Review {
   notifications Notification[]
 
   @@unique([authorId, mediaId])
-  @@index([authorId, createdAt])
+  @@index([authorId, moderationStatus, createdAt, id])
   @@index([mediaId, createdAt])
   @@index([moderationStatus, createdAt])
 }
@@ -1005,7 +1009,8 @@ model DiaryEntry {
   media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   mediaId String
 
-  @@index([ownerId, loggedOn])
+  @@index([ownerId, createdAt, id])
+  @@index([ownerId, loggedOn, createdAt, id])
   @@index([mediaId, loggedOn])
 }
 

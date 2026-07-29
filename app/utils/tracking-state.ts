@@ -1,3 +1,5 @@
+import { profileHistoryTimestamp } from './profile-history-bounds.ts'
+
 export type TrackingProgressSnapshot = {
 	unit: string
 	current: number
@@ -36,6 +38,8 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function parseHistory(value: unknown): Record<string, unknown> {
+	const record = asRecord(value)
+	if (record) return record
 	if (typeof value !== 'string' || !value || value === 'null') return {}
 	try {
 		return asRecord(JSON.parse(value)) ?? {}
@@ -45,11 +49,8 @@ function parseHistory(value: unknown): Record<string, unknown> {
 }
 
 function dateFromUnknown(value: unknown): Date | null {
-	if (value === null || value === undefined || value === '' || value === 0) {
-		return null
-	}
-	const date = new Date(value as string | number | Date)
-	return Number.isNaN(date.getTime()) ? null : date
+	const timestamp = profileHistoryTimestamp(value)
+	return timestamp === null ? null : new Date(timestamp)
 }
 
 function dateMs(value: unknown) {

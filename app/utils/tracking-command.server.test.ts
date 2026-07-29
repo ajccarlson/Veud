@@ -1,3 +1,4 @@
+import { type Prisma, type PrismaClient } from '@prisma/client'
 import { afterEach, expect, test, vi } from 'vitest'
 import { resetAiGatewayStateForTests } from './ai-gateway.server.ts'
 import { prisma } from './db.server.ts'
@@ -25,6 +26,194 @@ function aiResponse(output: unknown) {
 		{ status: 200, headers: { 'content-type': 'application/json' } },
 	)
 }
+
+type TransactionCallback = (tx: Prisma.TransactionClient) => Promise<unknown>
+
+function transactionConflict() {
+	return Object.assign(new Error('serialization conflict'), { code: 'P2034' })
+}
+
+function createTransactionHarness(commitErrors: readonly unknown[]) {
+	const attempts: string[][] = []
+	const options: Array<{ isolationLevel?: string } | undefined> = []
+	let createTransactionClient!: () => Prisma.TransactionClient
+	let activeAttempt: string[] | undefined
+	const transaction = vi.fn(
+		async (
+			callback: TransactionCallback,
+			transactionOptions?: { isolationLevel?: string },
+		) => {
+			activeAttempt = []
+			attempts.push(activeAttempt)
+			options.push(transactionOptions)
+			const result = await callback(createTransactionClient())
+			const error = commitErrors[attempts.length - 1]
+			if (error !== undefined) throw error
+			return result
+		},
+	)
+
+	return {
+		client: { $transaction: transaction } as unknown as PrismaClient,
+		attempts,
+		options,
+		record(operation: string) {
+			if (!activeAttempt) {
+				throw new Error('Transaction operation recorded outside an attempt.')
+			}
+			activeAttempt.push(operation)
+		},
+		useTransactionClientFactory(value: () => Prisma.TransactionClient) {
+			createTransactionClient = value
+		},
+	}
+}
+
+function appliedPreviewTransaction(
+	record: (operation: string) => void,
+	summary = 'Already applied.',
+) {
+	return {
+		$executeRaw: vi.fn(async () => {
+			record('mutex')
+			return 1
+		}),
+		trackingCommandPreview: {
+			findFirst: vi.fn(async () => {
+				record('preview')
+				return {
+					status: 'applied',
+					operations: JSON.stringify({ summary, operations: [] }),
+				}
+			}),
+		},
+	} as unknown as Prisma.TransactionClient
+}
+
+test('apply retries a P2034 transaction with the owner mutex first each time', async () => {
+	const conflict = transactionConflict()
+	const harness = createTransactionHarness([conflict])
+	harness.useTransactionClientFactory(() =>
+		appliedPreviewTransaction(operation => harness.record(operation)),
+	)
+
+	await expect(
+		applyTrackingCommandPreview(harness.client, {
+			ownerId: 'retry-owner',
+			previewId: 'retry-preview',
+		}),
+	).resolves.toEqual({
+		summary: 'Already applied.',
+		operations: [],
+		alreadyApplied: true,
+	})
+	expect(harness.attempts).toEqual([
+		['mutex', 'preview'],
+		['mutex', 'preview'],
+	])
+	expect(harness.options).toEqual([
+		{ isolationLevel: 'Serializable' },
+		{ isolationLevel: 'Serializable' },
+	])
+})
+
+test('undo retries the complete Serializable transaction after P2034', async () => {
+	const now = new Date('2026-07-29T08:00:00.000Z')
+	const conflict = transactionConflict()
+	const harness = createTransactionHarness([conflict])
+	const record = (operation: string) => harness.record(operation)
+	const snapshot = {
+		operations: [],
+		states: [],
+		favorites: [],
+		collectionItems: [],
+		entries: [],
+	}
+	harness.useTransactionClientFactory(
+		() =>
+			({
+				$executeRaw: vi.fn(async () => {
+					record('mutex')
+					return 1
+				}),
+				trackingCommandPreview: {
+					findFirst: vi.fn(async () => {
+						record('preview')
+						return {
+							id: 'undo-preview',
+							journal: JSON.stringify({ before: snapshot, after: snapshot }),
+							appliedAt: now,
+							operations: JSON.stringify({
+								summary: 'Undo applied command.',
+								operations: [],
+							}),
+						}
+					}),
+					update: vi.fn(async () => ({ id: 'undo-preview' })),
+				},
+				trackingState: { findMany: vi.fn(async () => []) },
+				userFavorite: {
+					findMany: vi.fn(async () => []),
+					deleteMany: vi.fn(async () => ({ count: 0 })),
+				},
+				mediaCollectionItem: { findMany: vi.fn(async () => []) },
+				entry: {
+					findMany: vi.fn(async () => []),
+					deleteMany: vi.fn(async () => ({ count: 0 })),
+				},
+			}) as unknown as Prisma.TransactionClient,
+	)
+
+	await expect(
+		undoTrackingCommandPreview(harness.client, {
+			ownerId: 'retry-owner',
+			previewId: 'undo-preview',
+			now,
+		}),
+	).resolves.toEqual({ summary: 'Undo applied command.' })
+	expect(harness.attempts).toHaveLength(2)
+	expect(harness.attempts.map(attempt => attempt.slice(0, 2))).toEqual([
+		['mutex', 'preview'],
+		['mutex', 'preview'],
+	])
+	expect(harness.options).toEqual([
+		{ isolationLevel: 'Serializable' },
+		{ isolationLevel: 'Serializable' },
+	])
+})
+
+test('Serializable retries stop after three P2034 attempts', async () => {
+	const conflict = transactionConflict()
+	const harness = createTransactionHarness([conflict, conflict, conflict])
+	harness.useTransactionClientFactory(() =>
+		appliedPreviewTransaction(operation => harness.record(operation)),
+	)
+
+	await expect(
+		applyTrackingCommandPreview(harness.client, {
+			ownerId: 'bounded-owner',
+			previewId: 'bounded-preview',
+		}),
+	).rejects.toBe(conflict)
+	expect(harness.attempts).toHaveLength(3)
+	expect(harness.attempts.every(attempt => attempt[0] === 'mutex')).toBe(true)
+})
+
+test('Serializable transactions do not retry non-P2034 failures', async () => {
+	const failure = new Error('domain failure')
+	const harness = createTransactionHarness([failure])
+	harness.useTransactionClientFactory(() =>
+		appliedPreviewTransaction(operation => harness.record(operation)),
+	)
+
+	await expect(
+		applyTrackingCommandPreview(harness.client, {
+			ownerId: 'single-owner',
+			previewId: 'single-preview',
+		}),
+	).rejects.toBe(failure)
+	expect(harness.attempts).toEqual([['mutex', 'preview']])
+})
 
 test('builds a local preview and requires explicit application', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')

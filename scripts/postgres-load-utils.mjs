@@ -114,6 +114,53 @@ export function assertRequiredQueryIndexes(queryPlans, requirements) {
 	throw failure
 }
 
+export function assertRequiredQueryRows(queryPlans, requirements) {
+	if (!Array.isArray(queryPlans)) {
+		throw new Error('Query plans must be an array')
+	}
+	if (
+		!requirements ||
+		typeof requirements !== 'object' ||
+		Array.isArray(requirements)
+	) {
+		throw new Error('Query row requirements must be an object')
+	}
+
+	const failures = []
+	for (const [queryName, requiredRows] of Object.entries(requirements)) {
+		if (!queryName || !Number.isSafeInteger(requiredRows) || requiredRows < 1) {
+			throw new Error(
+				'Query row requirements must map names to positive integer minimums',
+			)
+		}
+		const measurements = queryPlans.filter(plan => plan?.name === queryName)
+		const invalidMeasurements = measurements.filter(
+			plan =>
+				!Number.isFinite(plan.actualRows) || plan.actualRows < requiredRows,
+		)
+		if (measurements.length && !invalidMeasurements.length) continue
+		failures.push({
+			queryName,
+			requiredRows,
+			measurementCount: measurements.length,
+			invalidMeasurementCount: invalidMeasurements.length,
+			observedRows: measurements.map(plan => plan.actualRows),
+		})
+	}
+
+	if (!failures.length) return
+	const error = new Error(
+		`Required PostgreSQL queries returned too few rows: ${failures
+			.map(
+				failure =>
+					`${failure.queryName} >= ${failure.requiredRows} (observed ${failure.observedRows.join(', ') || 'unmeasured'})`,
+			)
+			.join('; ')}`,
+	)
+	error.rowFailures = failures
+	throw error
+}
+
 export function bytesLabel(value) {
 	const bytes = Number(value)
 	if (!Number.isFinite(bytes) || bytes < 0) return 'unknown'
@@ -191,6 +238,24 @@ export function representativeLoadShape({
 		feedRows: Math.floor(mediaCount / 100),
 		nextReleaseRows: Math.floor(mediaCount / 20),
 		releaseOccurrenceRows: Math.floor(mediaCount / 25),
+	}
+}
+
+export function representativeProfileEntryShape({
+	mediaCount,
+	trackedEntries,
+}) {
+	boundedInteger('mediaCount', mediaCount, { minimum: 1, maximum: 2_000_000 })
+	boundedInteger('trackedEntries', trackedEntries, { maximum: 100_000 })
+	const expectedEntries = Math.min(mediaCount, 100_000)
+	if (trackedEntries > expectedEntries) {
+		throw new Error(
+			'trackedEntries may not exceed the representative profile target',
+		)
+	}
+	return {
+		expectedEntries,
+		fixtureEntryRows: expectedEntries - trackedEntries,
 	}
 }
 

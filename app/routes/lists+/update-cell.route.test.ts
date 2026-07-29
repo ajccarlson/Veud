@@ -92,6 +92,40 @@ test('the owner can update a cell', async () => {
 	expect((result as { title?: string }).title).toBe('Updated Title')
 })
 
+test('a regular cell edit preserves current history and refreshes its timestamp', async () => {
+	const { userId, entryId } = await createOwnerWithEntry()
+	await prisma.entry.update({
+		where: { id: entryId },
+		data: {
+			history: JSON.stringify({
+				added: 1,
+				progress: { episode: 7 },
+				concurrentMarker: 'keep',
+				lastUpdated: 2,
+			}),
+		},
+	})
+	const request = await authedRequestFor(userId)
+
+	await action({
+		request,
+		params: { request: updateTitleParams(entryId, 'History-safe title') },
+	} as any)
+
+	const saved = await prisma.entry.findUniqueOrThrow({
+		where: { id: entryId },
+		select: { history: true },
+	})
+	const history = JSON.parse(saved.history ?? '{}') as {
+		progress?: { episode?: number }
+		concurrentMarker?: string
+		lastUpdated?: number
+	}
+	expect(history.progress?.episode).toBe(7)
+	expect(history.concurrentMarker).toBe('keep')
+	expect(history.lastUpdated).toBeGreaterThan(2)
+})
+
 test('a logged-in non-owner cannot update the cell (404)', async () => {
 	const { entryId } = await createOwnerWithEntry()
 	const other = await createUserRecord()

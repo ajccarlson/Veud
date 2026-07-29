@@ -1,3 +1,7 @@
+import { profileHistoryTimestamp } from '#app/utils/profile-history-bounds.ts'
+
+const PUBLIC_HISTORY_CODE_UNIT_LIMIT = 64 * 1024
+
 const publicEntryBaseFields = new Set([
 	'id',
 	'watchlistId',
@@ -5,12 +9,7 @@ const publicEntryBaseFields = new Set([
 	'position',
 	'thumbnail',
 	'title',
-	'type',
-	'personal',
-	'tmdbScore',
-	'malScore',
 	'media',
-	'trackingState',
 ])
 
 const publicEntryFields = new Set([
@@ -48,6 +47,117 @@ const publicEntryFields = new Set([
 	'type',
 	'volumes',
 ])
+
+const publicHistoryFields = [
+	'started',
+	'finished',
+	'added',
+	'lastUpdated',
+] as const
+
+const privateMirroredTrackingFields = [
+	'personal',
+	'differencePersonal',
+	'differenceObjective',
+	'history',
+	'length',
+	'chapters',
+	'volumes',
+] as const
+
+type TrackingStateVisibilityProbe = Record<string, unknown> & {
+	ownerId: string
+	mediaId: string
+	statusWatchlistId: string | null
+	statusWatchlist: { ownerId: string; isPublic: boolean } | null
+}
+
+type WatchlistEntryVisibilityProbe = Record<string, unknown> & {
+	mediaId: string | null
+	trackingState: TrackingStateVisibilityProbe | null
+	personal: unknown
+	differencePersonal: unknown
+	differenceObjective: unknown
+	history: unknown
+	length: unknown
+	chapters: unknown
+	volumes: unknown
+}
+
+type PublicTrackingState<TEntry extends WatchlistEntryVisibilityProbe> = Omit<
+	NonNullable<TEntry['trackingState']>,
+	| 'ownerId'
+	| 'mediaId'
+	| 'owner'
+	| 'media'
+	| 'statusWatchlistId'
+	| 'statusWatchlist'
+> & {
+	statusWatchlistId?: NonNullable<TEntry['trackingState']>['statusWatchlistId']
+}
+
+type PreparedWatchlistEntry<TEntry extends WatchlistEntryVisibilityProbe> =
+	Omit<TEntry, 'trackingState'> & {
+		trackingState: PublicTrackingState<TEntry> | null
+	}
+
+function withoutVisibilityProbe<TEntry extends WatchlistEntryVisibilityProbe>(
+	trackingState: NonNullable<TEntry['trackingState']>,
+	keepStatusWatchlistId: boolean,
+): PublicTrackingState<TEntry> {
+	const publicState: Record<string, unknown> = { ...trackingState }
+	delete publicState.ownerId
+	delete publicState.mediaId
+	delete publicState.owner
+	delete publicState.media
+	delete publicState.statusWatchlist
+	if (!keepStatusWatchlistId) delete publicState.statusWatchlistId
+	return publicState as PublicTrackingState<TEntry>
+}
+
+/**
+ * Remove the relation fields fetched only to enforce public-list privacy.
+ *
+ * A public duplicate can still point at the owner's canonical TrackingState
+ * whose current status lives on a private list. In that case the Entry's
+ * mirrored score/history/progress fields are private too and must not become
+ * normalization fallbacks.
+ */
+export function prepareWatchlistEntryForViewer<
+	TEntry extends WatchlistEntryVisibilityProbe,
+>(
+	entry: TEntry,
+	watchlistOwnerId: string,
+	isOwner: boolean,
+): PreparedWatchlistEntry<TEntry> {
+	const trackingState = entry.trackingState
+	const validIdentity =
+		trackingState &&
+		trackingState.ownerId === watchlistOwnerId &&
+		entry.mediaId !== null &&
+		trackingState.mediaId === entry.mediaId
+	const trackingStateVisible =
+		validIdentity &&
+		(isOwner ||
+			trackingState.statusWatchlistId === null ||
+			(trackingState.statusWatchlist?.ownerId === watchlistOwnerId &&
+				trackingState.statusWatchlist.isPublic))
+
+	const prepared = {
+		...entry,
+		trackingState: trackingState
+			? withoutVisibilityProbe<TEntry>(trackingState, isOwner)
+			: null,
+	} as PreparedWatchlistEntry<TEntry>
+
+	if (!trackingState || trackingStateVisible) return prepared
+
+	prepared.trackingState = null
+	for (const field of privateMirroredTrackingFields) {
+		;(prepared as Record<string, unknown>)[field] = null
+	}
+	return prepared
+}
 
 export const publicListOwnerSelect = {
 	id: true,
@@ -89,17 +199,55 @@ export function publicEntryPayload<
 	const visibleFields = new Set(
 		configuredFields.filter(field => publicEntryFields.has(field)),
 	)
-	if (
-		['started', 'finished', 'added', 'lastUpdated'].some(field =>
-			configuredFields.includes(field),
-		)
-	) {
-		visibleFields.add('history')
-	}
-
-	return Object.fromEntries(
+	const payload = Object.fromEntries(
 		Object.entries(entry).filter(
 			([key]) => publicEntryBaseFields.has(key) || visibleFields.has(key),
 		),
 	) as Pick<TEntry, 'watchlistId' | 'position'> & Record<string, unknown>
+
+	const visibleHistoryFields = publicHistoryFields.filter(field =>
+		configuredFields.includes(field),
+	)
+	if (visibleHistoryFields.length) {
+		let legacyHistory: Record<string, unknown> = {}
+		if (
+			typeof entry.history === 'string' &&
+			entry.history.length <= PUBLIC_HISTORY_CODE_UNIT_LIMIT
+		) {
+			try {
+				const parsed = JSON.parse(entry.history) as unknown
+				if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+					legacyHistory = parsed as Record<string, unknown>
+				}
+			} catch {
+				// Invalid legacy history is represented by null values below.
+			}
+		}
+		const trackingState =
+			entry.trackingState &&
+			typeof entry.trackingState === 'object' &&
+			!Array.isArray(entry.trackingState)
+				? (entry.trackingState as Record<string, unknown>)
+				: null
+		const history = Object.fromEntries(
+			visibleHistoryFields.map(field => {
+				const canonical =
+					field === 'started'
+						? trackingState?.startedAt
+						: field === 'finished'
+							? trackingState?.completedAt
+							: null
+				const timestamp = profileHistoryTimestamp(
+					canonical ?? legacyHistory[field],
+				)
+				return [
+					field,
+					timestamp === null ? null : new Date(timestamp).toISOString(),
+				]
+			}),
+		)
+		payload.history = JSON.stringify(history)
+	}
+
+	return payload
 }

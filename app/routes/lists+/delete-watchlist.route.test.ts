@@ -7,8 +7,10 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import * as deleteWatchlistRoute from '#app/routes/lists+/.fetch+/delete-watchlist.$request.ts'
+import { updateWatchlistSettingsCommand } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { publicActivityEventWhere } from '#app/utils/lists/visibility.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 const { action } = deleteWatchlistRoute
@@ -150,6 +152,71 @@ test('deleting the current list restores a surviving private tracking status', a
 			isPublic: false,
 		}),
 	)
+})
+
+test('deleting a list quarantines linked activity across later header reuse', async () => {
+	const { userId, watchlistId, listTypeId } = await seedOwnedWatchlist()
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Deleted provenance fixture' },
+	})
+	const event = await prisma.activityEvent.create({
+		data: {
+			type: 'score',
+			actorId: userId,
+			mediaId: media.id,
+			statusWatchlistId: watchlistId,
+			statusLabel: 'LiveAction',
+			score: 8,
+			isPublic: true,
+			publicEligible: true,
+		},
+	})
+
+	await action({
+		request: await authedRequestFor(userId),
+		params: { request: requestParamFor(watchlistId) },
+	} as any)
+
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: event.id },
+			select: {
+				statusWatchlistId: true,
+				isPublic: true,
+				publicEligible: true,
+			},
+		}),
+	).toEqual({
+		statusWatchlistId: null,
+		isPublic: false,
+		publicEligible: true,
+	})
+
+	const replacement = await prisma.watchlist.create({
+		data: {
+			ownerId: userId,
+			typeId: listTypeId,
+			name: 'replacement',
+			header: 'LiveAction',
+			position: 1,
+			isPublic: false,
+		},
+	})
+	await updateWatchlistSettingsCommand(userId, replacement.id, {
+		isPublic: true,
+	})
+
+	expect(
+		await prisma.activityEvent.findUniqueOrThrow({
+			where: { id: event.id },
+			select: { statusWatchlistId: true, isPublic: true },
+		}),
+	).toEqual({ statusWatchlistId: null, isPublic: false })
+	expect(
+		await prisma.activityEvent.findFirst({
+			where: { id: event.id, AND: [publicActivityEventWhere] },
+		}),
+	).toBeNull()
 })
 
 test('a logged-in non-owner cannot delete the watchlist (404, and it survives)', async () => {
