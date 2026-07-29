@@ -13,6 +13,7 @@ process.env.SESSION_SECRET = E2E_SESSION_SECRET
 process.env.VERIFICATION_SECRET_KEYS = ''
 process.env.INTERNAL_COMMAND_TOKEN = ''
 process.env.HONEYPOT_SECRET = E2E_HONEYPOT_SECRET
+process.env.CACHE_DATABASE_PATH = ':memory:'
 
 export default defineConfig({
 	testDir: './tests/e2e',
@@ -58,6 +59,7 @@ export default defineConfig({
 			VERIFICATION_SECRET_KEYS: '',
 			INTERNAL_COMMAND_TOKEN: '',
 			HONEYPOT_SECRET: E2E_HONEYPOT_SECRET,
+			CACHE_DATABASE_PATH: ':memory:',
 			VEUD_E2E: '1',
 			// The server runs in production mode, so this marker is what relaxes
 			// rate limits enough for a full browser suite from one address.

@@ -12,7 +12,13 @@ const schema = z
 		VERIFICATION_SECRET_KEYS: z.string().optional(),
 		INTERNAL_COMMAND_TOKEN: z.string(),
 		HONEYPOT_SECRET: z.string(),
-		CACHE_DATABASE_PATH: z.string(),
+		CACHE_DATABASE_PATH: z
+			.string()
+			.min(1)
+			.refine(
+				value => value.trim().length > 0 && value === value.trim(),
+				'CACHE_DATABASE_PATH must be non-empty and have no surrounding whitespace.',
+			),
 		// If you plan on using Sentry, uncomment this line
 		// SENTRY_DSN: z.string(),
 		// If you plan to use Resend, uncomment this line

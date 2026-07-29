@@ -172,3 +172,28 @@ describe('environment cryptographic secrets', () => {
 		).toBe(true)
 	})
 })
+
+describe('cache database path', () => {
+	test.each([
+		['empty', ''],
+		['whitespace-only', '   '],
+		['leading whitespace', ' other/cache.db'],
+		['trailing whitespace', 'other/cache.db '],
+		['leading newline', '\nother/cache.db'],
+	])('rejects an %s path', (_label, CACHE_DATABASE_PATH) => {
+		expect(
+			fieldErrors(productionEnvironment({ CACHE_DATABASE_PATH }))
+				.CACHE_DATABASE_PATH,
+		).toBeDefined()
+	})
+
+	test.each(['other/cache.db', '/var/lib/veud/cache.db', ':memory:'])(
+		'accepts the nonblank path %s',
+		CACHE_DATABASE_PATH => {
+			expect(
+				parseEnvironment(productionEnvironment({ CACHE_DATABASE_PATH }))
+					.success,
+			).toBe(true)
+		},
+	)
+})
