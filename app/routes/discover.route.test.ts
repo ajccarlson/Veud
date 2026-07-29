@@ -12,7 +12,10 @@ vi.mock('#app/utils/discovery.server.ts', async importOriginal => {
 	const actual = (await importOriginal()) as typeof discoveryServer
 	return {
 		...actual,
+		getDiscoveryFacets: vi.fn(actual.getDiscoveryFacets),
+		getDiscoveryGenres: vi.fn(actual.getDiscoveryGenres),
 		getDiscoveryResults: vi.fn(actual.getDiscoveryResults),
+		getDiscoveryStatuses: vi.fn(actual.getDiscoveryStatuses),
 	}
 })
 
@@ -49,7 +52,12 @@ async function cookieFor(userId: string) {
 
 test('anonymous discovery loads filters and falls back from personalized ranking', async () => {
 	await prisma.media.create({
-		data: { kind: 'movie', title: 'Anonymous Discovery', genres: 'Drama' },
+		data: {
+			kind: 'movie',
+			title: 'Anonymous Discovery',
+			genres: 'Drama',
+			releaseStatus: 'Released',
+		},
 	})
 
 	const result = await loader({
@@ -75,6 +83,11 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 		expect.objectContaining({ title: 'Anonymous Discovery' }),
 	])
 	expect(result.data.genres).toEqual(['Drama'])
+	expect(result.data.statuses).toEqual(['Released'])
+	expect(discoveryServer.getDiscoveryFacets).toHaveBeenCalledOnce()
+	expect(discoveryServer.getDiscoveryGenres).not.toHaveBeenCalled()
+	expect(discoveryServer.getDiscoveryStatuses).not.toHaveBeenCalled()
+	expect(result.data).not.toHaveProperty('truncated')
 })
 
 test('signed-in discovery returns unseen recommendation graph results', async () => {

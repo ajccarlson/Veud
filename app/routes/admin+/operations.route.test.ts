@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import { createSafeCacheReporter } from '#app/utils/cache.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action, loader } from './operations.tsx'
@@ -99,6 +100,16 @@ test('keeps runtime telemetry private to unauthorized members', async () => {
 })
 
 test('returns private runtime and database readiness to site operators', async () => {
+	const privateEventPayload = 'member-private-cache-input'
+	const report = createSafeCacheReporter('anonymous-home-summary')({} as never)
+	report({
+		name: 'getCachedValueEmpty',
+		key: privateEventPayload,
+	} as never)
+	report({
+		name: 'getFreshValueStart',
+		key: privateEventPayload,
+	} as never)
 	const operator = await createUser('site-operator')
 	const response = await loader(await requestFor(operator.id))
 	expect(response.init?.headers).toEqual(
@@ -112,7 +123,16 @@ test('returns private runtime and database readiness to site operators', async (
 				requests: expect.any(Object),
 				process: expect.objectContaining({ node: expect.any(String) }),
 			}),
+			cacheOperations: {
+				'anonymous-home-summary': expect.objectContaining({
+					miss: 1,
+					refresh: 1,
+				}),
+			},
 		}),
+	)
+	expect(JSON.stringify(response.data.cacheOperations)).not.toContain(
+		privateEventPayload,
 	)
 })
 

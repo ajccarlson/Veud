@@ -11,7 +11,7 @@ export const profileHeaders: HeadersFunction = ({
 	]
 		.filter(Boolean)
 		.join(',')
-	const headers = new Headers()
+	const headers = new Headers({ 'Cache-Control': 'private, no-store' })
 	if (serverTiming) headers.set('Server-Timing', serverTiming)
 	return headers
 }

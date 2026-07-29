@@ -37,6 +37,7 @@
     "db:cutover:postgres": "node scripts/check-postgres-cutover.mjs",
     "db:loadtest:postgres": "node scripts/load-test-postgres-catalog.mjs",
     "db:migrate:postgres": "npm run prisma:postgres:check && prisma migrate deploy --schema=prisma/postgresql/schema.prisma",
+    "db:smoke:public-surfaces:postgres": "tsx scripts/smoke-public-surfaces-postgres.ts",
     "db:smoke:postgres": "tsx scripts/smoke-postgres.ts",
     "db:transfer:postgres": "node scripts/transfer-sqlite-to-postgres.mjs",
     "db:verify:postgres": "npm run prisma:postgres:check && prisma migrate status --schema=prisma/postgresql/schema.prisma && prisma migrate diff --exit-code --from-schema-datasource=prisma/postgresql/schema.prisma --to-schema-datamodel=prisma/postgresql/schema.prisma",
