@@ -9,6 +9,7 @@ import {
 	assertRequiredQueryIndexes,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
+	calendarLoadWindow,
 	representativeLoadShape,
 	summarizeDatabasePressure,
 	summarizeExplain,
@@ -24,6 +25,11 @@ const requiredTrigramIndexesByQuery = {
 	'tracking-exact-title': 'Media_title_trgm_idx',
 	'alternate-title': 'MediaTitle_normalized_trgm_idx',
 	'rare-description': 'Media_description_trgm_idx',
+}
+const requiredCalendarIndexesByQuery = {
+	'calendar-media-range': 'Media_nextReleaseAt_idx',
+	'calendar-occurrence-range': 'ReleaseOccurrence_releaseAt_status_idx',
+	'calendar-public-tracker-counts': 'TrackingState_mediaId_idx',
 }
 const usage = `Usage: npm run db:loadtest:postgres -- [options]
 
@@ -44,6 +50,7 @@ Options:
   --resume                  Continue a deterministic interrupted load
   --cleanup-after           Delete only load-catalog-* records after reporting
   --require-trigram-indexes Fail if measured text searches avoid trigram indexes
+  --require-calendar-indexes Fail if bounded calendar queries avoid their indexes
   --help                    Show this help
 
 DATABASE_URL must use PostgreSQL and its database name must contain a clearly
@@ -91,6 +98,7 @@ function assertKnownArguments() {
 		'--resume',
 		'--cleanup-after',
 		'--require-trigram-indexes',
+		'--require-calendar-indexes',
 		'--help',
 	])
 	for (let index = 0; index < args.length; index++) {
@@ -129,7 +137,9 @@ function sha256File(filename) {
 }
 
 function kindSql(series = 'n') {
-	return `CASE ${series} % 4
+	// The small block offset keeps the overall distribution balanced while
+	// ensuring every twentieth (scheduled) row rotates through all four kinds.
+	return `CASE (${series} + (${series} / 20)) % 4
 		WHEN 0 THEN 'movie'
 		WHEN 1 THEN 'tv'
 		WHEN 2 THEN 'anime'
@@ -144,6 +154,7 @@ async function databaseMetrics(prisma) {
 			pg_total_relation_size('"MediaTitle"')::bigint AS "titleBytes",
 			pg_total_relation_size('"MediaExternalId"')::bigint AS "identityBytes",
 			pg_total_relation_size('"MediaRelation"')::bigint AS "relationBytes",
+			pg_total_relation_size('"ReleaseOccurrence"')::bigint AS "releaseOccurrenceBytes",
 			pg_total_relation_size('"TrackingState"')::bigint AS "trackingBytes",
 			pg_total_relation_size('"Entry"')::bigint AS "entryBytes",
 			pg_total_relation_size('"ActivityEvent"')::bigint AS "activityBytes"
@@ -162,14 +173,14 @@ async function syntheticCount(prisma) {
 	return Number(rows[0].count)
 }
 
-async function insertBatch(prisma, start, end) {
+async function insertBatch(prisma, start, end, scheduleAnchor) {
 	const kind = kindSql()
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "Media" (
 			"id", "kind", "thumbnail", "title", "type", "releaseStart",
-			"releaseEnd", "description", "genres", "language", "studios",
-			"serialization", "authors", "catalogScore", "catalogPopularity",
-			"releaseStatus", "createdAt", "updatedAt"
+			"releaseEnd", "nextRelease", "nextReleaseAt", "description", "genres",
+			"language", "studios", "serialization", "authors", "catalogScore",
+			"catalogPopularity", "releaseStatus", "createdAt", "updatedAt"
 		)
 		SELECT
 			'${prefix}media-' || n,
@@ -182,6 +193,30 @@ async function insertBatch(prisma, start, end) {
 				WHEN 'anime' THEN 'TV' ELSE 'Manga' END,
 			DATE '1960-01-01' + ((n * 17) % 24000),
 			CASE WHEN n % 3 = 0 THEN DATE '1960-01-01' + ((n * 17) % 24000) + (n % 800) ELSE NULL END,
+			CASE WHEN n % 20 = 0 THEN json_build_object(
+				'releaseDate',
+				to_char(
+					(
+						date_trunc('hour', $4::timestamptz)
+						+ make_interval(days => mod(n, 180))
+					) AT TIME ZONE 'UTC',
+					'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+				),
+				'source',
+				CASE WHEN ${kind} IN ('movie', 'tv') THEN 'tmdb' ELSE 'anilist' END,
+				'observedAt',
+				to_char(
+					$4::timestamptz AT TIME ZONE 'UTC',
+					'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+				),
+				'episode',
+				CASE WHEN ${kind} IN ('tv', 'anime') THEN mod(n, 24) + 1 ELSE NULL END,
+				'chapter',
+				CASE WHEN ${kind} = 'manga' THEN mod(n, 200) + 1 ELSE NULL END
+			)::text ELSE NULL END,
+			CASE WHEN n % 20 = 0
+				THEN date_trunc('hour', $4::timestamptz) + make_interval(days => mod(n, 180))
+				ELSE NULL END,
 			$3::text || ' Record ' || n || '. ' ||
 				repeat('Cast, setting, themes, and release metadata vary across this representative catalog record. ', (n % 4) + 1) ||
 				CASE n % 997 WHEN 0 THEN 'rare-nebula-token' ELSE '' END,
@@ -197,10 +232,15 @@ async function insertBatch(prisma, start, end) {
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP
 		FROM generate_series($1::int, $2::int) AS n
-		ON CONFLICT ("id") DO NOTHING`,
+		ON CONFLICT ("id") DO UPDATE SET
+			"nextRelease" = EXCLUDED."nextRelease",
+			"nextReleaseAt" = EXCLUDED."nextReleaseAt"
+		WHERE "Media"."nextRelease" IS DISTINCT FROM EXCLUDED."nextRelease"
+			OR "Media"."nextReleaseAt" IS DISTINCT FROM EXCLUDED."nextReleaseAt"`,
 		start,
 		end,
 		syntheticDescriptionLead,
+		scheduleAnchor,
 	)
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "MediaExternalId" (
@@ -266,7 +306,7 @@ async function insertBatch(prisma, start, end) {
 	)
 }
 
-async function insertCatalogContext(prisma, count) {
+async function insertCatalogContext(prisma, count, scheduleAnchor) {
 	await prisma.$executeRawUnsafe(
 		`INSERT INTO "MediaRelation" (
 			"id", "relationType", "provider", "createdAt", "updatedAt",
@@ -300,6 +340,37 @@ async function insertCatalogContext(prisma, count) {
 		FROM generate_series(100, $1::int, 100) AS n
 		ON CONFLICT DO NOTHING`,
 		count,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "ReleaseOccurrence" (
+			"id", "source", "sourceKey", "eventType", "releaseAt", "allDay",
+			"season", "episode", "volume", "chapter", "name", "status",
+			"observedAt", "expiresAt", "createdAt", "updatedAt", "mediaId"
+		)
+		SELECT
+			'${prefix}occurrence-' || n,
+			CASE WHEN ${kindSql()} IN ('movie', 'tv') THEN 'tmdb' ELSE 'anilist' END,
+			'calendar-' || n,
+			CASE WHEN ${kindSql()} = 'manga' THEN 'chapter'
+				WHEN ${kindSql()} IN ('tv', 'anime') THEN 'episode'
+				ELSE 'release' END,
+			date_trunc('hour', $2::timestamptz) + make_interval(days => mod(n, 180)),
+			false,
+			CASE WHEN ${kindSql()} IN ('tv', 'anime') THEN mod(n, 8) + 1 ELSE NULL END,
+			CASE WHEN ${kindSql()} IN ('tv', 'anime') THEN mod(n, 24) + 1 ELSE NULL END,
+			CASE WHEN ${kindSql()} = 'manga' THEN mod(n, 30) + 1 ELSE NULL END,
+			CASE WHEN ${kindSql()} = 'manga' THEN mod(n, 200) + 1 ELSE NULL END,
+			'Synthetic scheduled release ' || n,
+			'scheduled',
+			$2::timestamptz,
+			$2::timestamptz + INTERVAL '365 days',
+			$2::timestamptz,
+			$2::timestamptz,
+			'${prefix}media-' || n
+		FROM generate_series(25, $1::int, 25) AS n
+		ON CONFLICT DO NOTHING`,
+		count,
+		scheduleAnchor,
 	)
 }
 
@@ -392,8 +463,10 @@ async function insertRepresentativeMemberBatch(
 			CURRENT_TIMESTAMP - ((slot % 48) || ' hours')::interval,
 			'${prefix}member-' || member_number,
 			media.id,
-			'${prefix}watchlist-' || member_number || '-' ||
-				CASE WHEN media.kind IN ('movie', 'tv') THEN 'liveaction' ELSE media.kind END
+			CASE WHEN slot % 11 = 0 THEN NULL ELSE
+				'${prefix}watchlist-' || member_number || '-' ||
+					CASE WHEN media.kind IN ('movie', 'tv') THEN 'liveaction' ELSE media.kind END
+			END
 		FROM assignments
 		JOIN "Media" AS media ON media.id = '${prefix}media-' || media_number
 		ON CONFLICT DO NOTHING`,
@@ -461,7 +534,7 @@ async function insertRepresentativeMemberBatch(
 				tracking.status,
 				CASE WHEN media.kind = 'manga' THEN 'Reading' ELSE 'Watching' END,
 				tracking.score,
-				watchlist."isPublic",
+				COALESCE(watchlist."isPublic", true),
 				CURRENT_TIMESTAMP - ((slot % 365) || ' days')::interval,
 				tracking."ownerId",
 				tracking."mediaId",
@@ -471,7 +544,7 @@ async function insertRepresentativeMemberBatch(
 			JOIN "TrackingState" AS tracking
 				ON tracking.id = '${prefix}tracking-' || member_number || '-' || slot
 			JOIN "Media" AS media ON media.id = tracking."mediaId"
-			JOIN "Watchlist" AS watchlist ON watchlist.id = tracking."statusWatchlistId"
+			LEFT JOIN "Watchlist" AS watchlist ON watchlist.id = tracking."statusWatchlistId"
 			ON CONFLICT DO NOTHING`,
 			start,
 			end,
@@ -499,9 +572,21 @@ async function representativeCounts(prisma) {
 		`SELECT
 			(SELECT COUNT(*)::int FROM "MediaRelation" WHERE id LIKE '${prefix}relation-%') AS "relationRows",
 			(SELECT COUNT(*)::int FROM "CatalogFeedItem" WHERE id LIKE '${prefix}feed-%') AS "feedRows",
+			(SELECT COUNT(*)::int FROM "Media"
+			 WHERE id LIKE '${prefix}media-%' AND "nextReleaseAt" IS NOT NULL) AS "nextReleaseRows",
+			(SELECT COUNT(*)::int FROM "ReleaseOccurrence"
+			 WHERE id LIKE '${prefix}occurrence-%') AS "releaseOccurrenceRows",
 			(SELECT COUNT(*)::int FROM "User" WHERE id LIKE '${prefix}member-%') AS "memberCount",
 			(SELECT COUNT(*)::int FROM "Watchlist" WHERE id LIKE '${prefix}watchlist-%') AS "watchlistRows",
 			(SELECT COUNT(*)::int FROM "TrackingState" WHERE id LIKE '${prefix}tracking-%') AS "trackingRows",
+			(SELECT COUNT(*)::int FROM "TrackingState" AS tracking
+			 JOIN "Watchlist" AS watchlist ON watchlist.id = tracking."statusWatchlistId"
+			 WHERE tracking.id LIKE '${prefix}tracking-%' AND watchlist."isPublic" = true) AS "publicListTrackingRows",
+			(SELECT COUNT(*)::int FROM "TrackingState" AS tracking
+			 JOIN "Watchlist" AS watchlist ON watchlist.id = tracking."statusWatchlistId"
+			 WHERE tracking.id LIKE '${prefix}tracking-%' AND watchlist."isPublic" = false) AS "privateListTrackingRows",
+			(SELECT COUNT(*)::int FROM "TrackingState"
+			 WHERE id LIKE '${prefix}tracking-%' AND "statusWatchlistId" IS NULL) AS "nullListTrackingRows",
 			(SELECT COUNT(*)::int FROM "Entry" WHERE id LIKE '${prefix}entry-%') AS "entryRows",
 			(SELECT COUNT(*)::int FROM "ActivityEvent" WHERE id LIKE '${prefix}activity-%') AS "activityRows"`,
 	)
@@ -523,9 +608,10 @@ async function explain(prisma, name, sql, values = []) {
 	}
 }
 
-async function queryMetrics(prisma, count, shape) {
+async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
+	const calendarWindow = calendarLoadWindow(scheduleAnchor)
 	const definitions = [
 		[
 			'canonical-title',
@@ -576,6 +662,21 @@ async function queryMetrics(prisma, count, shape) {
 			 WHERE kind = $1 AND feed = $2 ORDER BY rank LIMIT 18`,
 			['movie', 'trending'],
 		],
+		[
+			'calendar-media-range',
+			`SELECT id FROM "Media"
+			 WHERE "nextReleaseAt" >= $1 AND "nextReleaseAt" < $2
+			 ORDER BY id LIMIT 10001`,
+			[calendarWindow.start, calendarWindow.end],
+		],
+		[
+			'calendar-occurrence-range',
+			`SELECT "mediaId", "releaseAt" FROM "ReleaseOccurrence"
+			 WHERE "releaseAt" >= $1 AND "releaseAt" < $2
+			   AND status = 'scheduled' AND "expiresAt" > $3
+			 ORDER BY "releaseAt", id LIMIT 10001`,
+			[calendarWindow.start, calendarWindow.end, calendarWindow.reference],
+		],
 	]
 	const queries = []
 	for (const definition of definitions) {
@@ -588,6 +689,16 @@ async function queryMetrics(prisma, count, shape) {
 			memberNumber < shape.memberCount ? memberNumber + 1 : memberNumber - 1
 	}
 	const memberId = `${prefix}member-${Math.max(1, memberNumber)}`
+	const publicTrackerCandidateIds = [
+		...Array.from(
+			{ length: Math.min(200, count) },
+			(_, index) => `${prefix}media-${index + 1}`,
+		),
+		...Array.from(
+			{ length: Math.min(200, Math.max(0, count - 600)) },
+			(_, index) => `${prefix}media-${index + 601}`,
+		),
+	]
 	queries.push(
 		await explain(
 			prisma,
@@ -605,6 +716,21 @@ async function queryMetrics(prisma, count, shape) {
 			 WHERE "actorId" = $1 AND "isPublic" = true
 			 ORDER BY "createdAt" DESC LIMIT 100`,
 			[memberId],
+		),
+		await explain(
+			prisma,
+			'calendar-public-tracker-counts',
+			`SELECT tracking."mediaId", COUNT(*)::int AS "trackerCount"
+			 FROM "TrackingState" AS tracking
+			 LEFT JOIN "Watchlist" AS watchlist
+			   ON watchlist.id = tracking."statusWatchlistId"
+			 WHERE tracking."mediaId" = ANY($1::text[])
+			   AND (
+			     tracking."statusWatchlistId" IS NULL
+			     OR watchlist."isPublic" = true
+			   )
+			 GROUP BY tracking."mediaId"`,
+			[publicTrackerCandidateIds],
 		),
 	)
 	return queries
@@ -802,7 +928,13 @@ async function main() {
 	const commit = args.includes('--commit')
 	const resume = args.includes('--resume')
 	const cleanupAfter = args.includes('--cleanup-after')
-	const requireIndexes = args.includes('--require-trigram-indexes')
+	const requireTrigramIndexes = args.includes('--require-trigram-indexes')
+	const requireCalendarIndexes = args.includes('--require-calendar-indexes')
+	if (requireCalendarIndexes && !shape.memberCount) {
+		throw new Error(
+			'--require-calendar-indexes requires --member-count so the bounded tracker aggregation is measured',
+		)
+	}
 	const target = assertSafeLoadDatabaseUrl(process.env.DATABASE_URL)
 	const reportPath = path.resolve(
 		valueFor('--report') ??
@@ -900,7 +1032,7 @@ async function main() {
 		for (let start = 1; start <= count; start += batchSize) {
 			const end = Math.min(count, start + batchSize - 1)
 			const batchStarted = performance.now()
-			await insertBatch(prisma, start, end)
+			await insertBatch(prisma, start, end, checkpoint.startedAt)
 			checkpoint.insertWallMs += performance.now() - batchStarted
 			checkpoint.loadedRows = Math.max(checkpoint.loadedRows, end)
 			checkpoint.batchesCompleted += 1
@@ -919,7 +1051,7 @@ async function main() {
 			}
 		}
 		const relatedStarted = performance.now()
-		await insertCatalogContext(prisma, count)
+		await insertCatalogContext(prisma, count, checkpoint.startedAt)
 		await insertRepresentativeMembers(prisma, shape, count)
 		checkpoint.insertWallMs += performance.now() - relatedStarted
 		const loaded = await syntheticCount(prisma)
@@ -932,9 +1064,14 @@ async function main() {
 		for (const [field, expected] of Object.entries({
 			relationRows: shape.relationRows,
 			feedRows: shape.feedRows,
+			nextReleaseRows: shape.nextReleaseRows,
+			releaseOccurrenceRows: shape.releaseOccurrenceRows,
 			memberCount: shape.memberCount,
 			watchlistRows: shape.watchlistRows,
 			trackingRows: shape.trackingRows,
+			publicListTrackingRows: shape.publicListTrackingRows,
+			privateListTrackingRows: shape.privateListTrackingRows,
+			nullListTrackingRows: shape.nullListTrackingRows,
 			entryRows: shape.entryRows,
 			activityRows: shape.activityRows,
 		})) {
@@ -955,12 +1092,18 @@ async function main() {
 		await prisma.$executeRawUnsafe('ANALYZE "MediaExternalId"')
 		await prisma.$executeRawUnsafe('ANALYZE "MediaRelation"')
 		await prisma.$executeRawUnsafe('ANALYZE "CatalogFeedItem"')
+		await prisma.$executeRawUnsafe('ANALYZE "ReleaseOccurrence"')
 		if (shape.memberCount) {
 			await prisma.$executeRawUnsafe('ANALYZE "TrackingState"')
 			await prisma.$executeRawUnsafe('ANALYZE "Entry"')
 			await prisma.$executeRawUnsafe('ANALYZE "ActivityEvent"')
 		}
-		const queries = await queryMetrics(prisma, count, shape)
+		const queries = await queryMetrics(
+			prisma,
+			count,
+			shape,
+			checkpoint.startedAt,
+		)
 		const concurrency = await concurrentMetrics(
 			prisma,
 			count,
@@ -977,10 +1120,23 @@ async function main() {
 		} catch (error) {
 			queryIndexAssertionError = error
 		}
+		let calendarQueryIndexAssertionError
+		try {
+			assertRequiredQueryIndexes(queries, requiredCalendarIndexesByQuery)
+		} catch (error) {
+			calendarQueryIndexAssertionError = error
+		}
 		const missingQueryIndexes =
 			queryIndexAssertionError?.missingRequirements ?? []
 		const missingIndexes = [
 			...new Set(missingQueryIndexes.map(({ requiredIndex }) => requiredIndex)),
+		]
+		const missingCalendarQueryIndexes =
+			calendarQueryIndexAssertionError?.missingRequirements ?? []
+		const missingCalendarIndexes = [
+			...new Set(
+				missingCalendarQueryIndexes.map(({ requiredIndex }) => requiredIndex),
+			),
 		]
 		const insertedRows = loaded - checkpoint.initialRows
 		const insertMs = checkpoint.insertWallMs
@@ -1018,6 +1174,8 @@ async function main() {
 			concurrency,
 			missingTrigramIndexes: missingIndexes,
 			missingQueryIndexes,
+			missingCalendarIndexes,
+			missingCalendarQueryIndexes,
 		}
 		writePrivateJson(reportPath, report)
 		console.log(
@@ -1038,8 +1196,22 @@ async function main() {
 				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
 		}
-		if (requireIndexes && queryIndexAssertionError) {
-			throw queryIndexAssertionError
+		const requiredIndexErrors = [
+			...(requireTrigramIndexes && queryIndexAssertionError
+				? [queryIndexAssertionError]
+				: []),
+			...(requireCalendarIndexes && calendarQueryIndexAssertionError
+				? [calendarQueryIndexAssertionError]
+				: []),
+		]
+		if (requiredIndexErrors.length === 1) {
+			throw requiredIndexErrors[0]
+		}
+		if (requiredIndexErrors.length > 1) {
+			throw new AggregateError(
+				requiredIndexErrors,
+				'Required PostgreSQL query indexes were not used',
+			)
 		}
 	} finally {
 		await prisma.$disconnect()

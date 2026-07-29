@@ -18,7 +18,12 @@ function assertSafeDatabase() {
 	}
 	const rawUrl = process.env.DATABASE_URL
 	if (!rawUrl) throw new Error('DATABASE_URL is required')
-	const url = new URL(rawUrl)
+	let url: URL
+	try {
+		url = new URL(rawUrl)
+	} catch {
+		throw new Error('DATABASE_URL must be a valid PostgreSQL URL')
+	}
 	const databaseName = url.pathname.slice(1).toLowerCase()
 	if (
 		!['127.0.0.1', 'localhost'].includes(url.hostname) ||

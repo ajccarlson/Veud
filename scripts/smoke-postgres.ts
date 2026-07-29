@@ -6,6 +6,7 @@ import {
 	rollbackLibraryImportBatch,
 } from '#app/utils/library-import-commit.server.ts'
 import { type LibraryImportItem } from '#app/utils/library-import.ts'
+import { publicTrackingStateWhere } from '#app/utils/lists/visibility.ts'
 import {
 	escapeSqlLikeLiteral,
 	prismaSearchFilter,
@@ -16,6 +17,9 @@ const requiredIndexes = new Set([
 	'Media_title_trgm_idx',
 	'Media_description_trgm_idx',
 	'MediaTitle_normalized_trgm_idx',
+	'Media_nextReleaseAt_idx',
+	'ReleaseOccurrence_releaseAt_status_idx',
+	'TrackingState_mediaId_idx',
 ])
 
 function assertPostgresUrl(value: string | undefined) {
@@ -23,6 +27,20 @@ function assertPostgresUrl(value: string | undefined) {
 		throw new Error(
 			'DATABASE_URL must point to the disposable PostgreSQL target',
 		)
+	}
+}
+
+function storedReleaseDate(value: string | null) {
+	if (!value) return null
+	try {
+		const parsed: unknown = JSON.parse(value)
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			return null
+		}
+		const releaseDate = (parsed as Record<string, unknown>).releaseDate
+		return typeof releaseDate === 'string' ? releaseDate : null
+	} catch {
+		return null
 	}
 }
 
@@ -34,8 +52,9 @@ async function main() {
 	const displayName = `PostgreSQL smoke test ${suffix}`
 	const collectionTitleMarker = `PostgreSQL Collection Search ${suffix}`
 	const collectionDescriptionMarker = `Provider Search Boundary ${suffix}`
-	let userId: string | undefined
+	const userIds: string[] = []
 	let mediaId: string | undefined
+	let cleanupResidueMessage: string | undefined
 
 	try {
 		const extension = await prisma.$queryRaw<Array<{ installed: boolean }>>`
@@ -56,7 +75,7 @@ async function main() {
 		)
 		if (missingIndexes.length) {
 			throw new Error(
-				`Missing PostgreSQL search indexes: ${missingIndexes.join(', ')}`,
+				`Missing required PostgreSQL indexes: ${missingIndexes.join(', ')}`,
 			)
 		}
 
@@ -81,7 +100,7 @@ async function main() {
 			prisma.permission.count(),
 			prisma.listType.findMany({
 				where: { name: { in: ['liveaction', 'anime', 'manga'] } },
-				select: { name: true },
+				select: { id: true, name: true },
 			}),
 		])
 		const rolePermissions = new Map(
@@ -132,13 +151,36 @@ async function main() {
 				name: displayName,
 			},
 		})
-		userId = user.id
+		userIds.push(user.id)
+		const releaseObservedAt = new Date()
+		const releaseAt = new Date(
+			releaseObservedAt.getTime() + 3 * 24 * 60 * 60 * 1_000,
+		)
 		const media = await prisma.media.create({
 			data: {
 				kind: 'movie',
 				title: `PostgreSQL Catalog Smoke Test 100%_Literal ${suffix}`,
 				description: 'Temporary provider-scale search verification.',
 				genres: 'Space Opera',
+				releaseStatus: 'Planned',
+				nextRelease: JSON.stringify({
+					releaseDate: releaseAt.toISOString(),
+					source: 'tmdb',
+					observedAt: releaseObservedAt.toISOString(),
+				}),
+				nextReleaseAt: releaseAt,
+				releaseOccurrences: {
+					create: {
+						source: 'tmdb',
+						sourceKey: `postgres-smoke:${suffix}`,
+						eventType: 'release',
+						releaseAt,
+						observedAt: releaseObservedAt,
+						expiresAt: new Date(
+							releaseObservedAt.getTime() + 14 * 24 * 60 * 60 * 1_000,
+						),
+					},
+				},
 				titles: {
 					create: {
 						provider: 'tmdb',
@@ -152,6 +194,44 @@ async function main() {
 			},
 		})
 		mediaId = media.id
+		const rangeStart = new Date(releaseAt.getTime() - 60 * 60 * 1_000)
+		const rangeEnd = new Date(releaseAt.getTime() + 60 * 60 * 1_000)
+		const mirroredMedia = await prisma.media.findMany({
+			where: {
+				id: media.id,
+				nextReleaseAt: { gte: rangeStart, lt: rangeEnd },
+			},
+			select: { id: true, nextRelease: true, nextReleaseAt: true },
+		})
+		if (
+			mirroredMedia.length !== 1 ||
+			mirroredMedia[0]?.id !== media.id ||
+			mirroredMedia[0].nextReleaseAt?.getTime() !== releaseAt.getTime() ||
+			storedReleaseDate(mirroredMedia[0].nextRelease) !==
+				releaseAt.toISOString()
+		) {
+			throw new Error(
+				'Indexed next-release mirror range did not preserve the raw schedule',
+			)
+		}
+		const scheduledOccurrences = await prisma.releaseOccurrence.findMany({
+			where: {
+				mediaId: media.id,
+				status: 'scheduled',
+				expiresAt: { gt: releaseObservedAt },
+				releaseAt: { gte: rangeStart, lt: rangeEnd },
+			},
+			select: { mediaId: true, releaseAt: true },
+		})
+		if (
+			scheduledOccurrences.length !== 1 ||
+			scheduledOccurrences[0]?.mediaId !== media.id ||
+			scheduledOccurrences[0].releaseAt.getTime() !== releaseAt.getTime()
+		) {
+			throw new Error(
+				'Bounded scheduled-occurrence range returned the wrong rows',
+			)
+		}
 
 		const users = (await searchUsersByUsername(
 			prisma,
@@ -393,14 +473,132 @@ async function main() {
 			throw new Error('Library import smoke rollback left tracking residue')
 		}
 
+		const liveActionType = listTypes.find(type => type.name === 'liveaction')
+		if (!liveActionType) {
+			throw new Error('Live-action list type is unavailable')
+		}
+		const privateTracker = await prisma.user.create({
+			data: {
+				email: `postgres-smoke-private-${suffix}@example.com`,
+				username: `PostgresSmokePrivate${suffix}`,
+				name: `PostgreSQL private tracker ${suffix}`,
+			},
+		})
+		userIds.push(privateTracker.id)
+		const nullListTracker = await prisma.user.create({
+			data: {
+				email: `postgres-smoke-null-${suffix}@example.com`,
+				username: `PostgresSmokeNull${suffix}`,
+				name: `PostgreSQL null-list tracker ${suffix}`,
+			},
+		})
+		userIds.push(nullListTracker.id)
+		const [publicWatchlist, privateWatchlist] = await Promise.all([
+			prisma.watchlist.create({
+				data: {
+					ownerId: user.id,
+					typeId: liveActionType.id,
+					name: 'watching',
+					header: 'Watching',
+					isPublic: true,
+				},
+			}),
+			prisma.watchlist.create({
+				data: {
+					ownerId: privateTracker.id,
+					typeId: liveActionType.id,
+					name: 'watching',
+					header: 'Watching',
+					isPublic: false,
+				},
+			}),
+		])
+		await prisma.trackingState.createMany({
+			data: [
+				{
+					ownerId: user.id,
+					mediaId: media.id,
+					status: 'watching',
+					statusWatchlistId: publicWatchlist.id,
+				},
+				{
+					ownerId: privateTracker.id,
+					mediaId: media.id,
+					status: 'watching',
+					statusWatchlistId: privateWatchlist.id,
+				},
+				{
+					ownerId: nullListTracker.id,
+					mediaId: media.id,
+					status: 'watching',
+					statusWatchlistId: null,
+				},
+			],
+		})
+		const publicTrackerCounts = await prisma.trackingState.groupBy({
+			by: ['mediaId'],
+			where: {
+				mediaId: media.id,
+				AND: [publicTrackingStateWhere],
+			},
+			_count: { _all: true },
+		})
+		if (
+			publicTrackerCounts.length !== 1 ||
+			publicTrackerCounts[0]?.mediaId !== media.id ||
+			publicTrackerCounts[0]._count._all !== 2
+		) {
+			throw new Error(
+				'Candidate-bounded tracker count did not include public/null-list tracking while excluding private-list tracking',
+			)
+		}
+
 		console.log(
-			'PostgreSQL smoke test passed: schema, pg_trgm indexes, model writes, provider-aware media/member/collection/genre searches, visibility boundaries, and atomic import rollback are healthy.',
+			'PostgreSQL smoke test passed: schema, required indexes, model writes, provider-aware searches, release ranges, tracker privacy, visibility boundaries, and atomic import rollback are healthy.',
 		)
 	} finally {
 		if (mediaId) await prisma.media.deleteMany({ where: { id: mediaId } })
-		if (userId) await prisma.user.deleteMany({ where: { id: userId } })
+		if (userIds.length) {
+			await prisma.user.deleteMany({ where: { id: { in: userIds } } })
+		}
+		const [
+			mediaResidue,
+			userResidue,
+			occurrenceResidue,
+			trackingResidue,
+			watchlistResidue,
+		] = await Promise.all([
+			mediaId ? prisma.media.count({ where: { id: mediaId } }) : 0,
+			userIds.length
+				? prisma.user.count({ where: { id: { in: userIds } } })
+				: 0,
+			mediaId ? prisma.releaseOccurrence.count({ where: { mediaId } }) : 0,
+			mediaId || userIds.length
+				? prisma.trackingState.count({
+						where: {
+							OR: [
+								...(mediaId ? [{ mediaId }] : []),
+								...(userIds.length ? [{ ownerId: { in: userIds } }] : []),
+							],
+						},
+					})
+				: 0,
+			userIds.length
+				? prisma.watchlist.count({ where: { ownerId: { in: userIds } } })
+				: 0,
+		])
 		await prisma.$disconnect()
+		if (
+			mediaResidue ||
+			userResidue ||
+			occurrenceResidue ||
+			trackingResidue ||
+			watchlistResidue
+		) {
+			cleanupResidueMessage = `PostgreSQL smoke cleanup left exact-ID residue: media=${mediaResidue}, users=${userResidue}, occurrences=${occurrenceResidue}, tracking=${trackingResidue}, watchlists=${watchlistResidue}`
+		}
 	}
+	if (cleanupResidueMessage) throw new Error(cleanupResidueMessage)
 }
 
 main().catch(error => {

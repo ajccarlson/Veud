@@ -2,11 +2,17 @@ import { faker } from '@faker-js/faker'
 import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { loadHomeUpcomingCalendar } from '#app/utils/home-upcoming.server.ts'
+import {
+	type getReleaseCalendar,
+	ReleaseCalendarCapacityError,
+} from '#app/utils/release-calendar.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader } from './index.tsx'
 
 afterEach(() => {
 	vi.unstubAllEnvs()
+	vi.restoreAllMocks()
 })
 
 async function createUser(prefix: string) {
@@ -19,6 +25,41 @@ async function createUser(prefix: string) {
 		},
 	})
 }
+
+test('home omits only Upcoming on capacity breach and propagates other failures', async () => {
+	const structuredLog = vi.spyOn(console, 'error').mockImplementation(() => {})
+	const result = await loadHomeUpcomingCalendar('viewer-id', 'UTC', {
+		now: new Date('2026-07-20T12:00:00.000Z'),
+		loadCalendar: async () => {
+			throw new ReleaseCalendarCapacityError('occurrences', 10_000)
+		},
+	})
+	expect(result).toBeNull()
+	expect(structuredLog).toHaveBeenCalledWith(
+		expect.stringContaining('"event":"release_calendar_capacity_exceeded"'),
+	)
+
+	const unexpected = new Error('Database unavailable')
+	await expect(
+		loadHomeUpcomingCalendar('viewer-id', 'UTC', {
+			loadCalendar: async () => {
+				throw unexpected
+			},
+		}),
+	).rejects.toBe(unexpected)
+})
+
+test('home requests only the three releases it can render per day', async () => {
+	let requestedOptions: Parameters<typeof getReleaseCalendar>[3] | undefined
+	await loadHomeUpcomingCalendar('viewer-id', 'UTC', {
+		loadCalendar: async (_input, _viewerId, _timeZone, options) => {
+			requestedOptions = options
+			return null as never
+		},
+	})
+
+	expect(requestedOptions).toMatchObject({ dayPreviewLimit: 3 })
+})
 
 test('signed-in home feed contains activity only from followed members', async () => {
 	const [viewer, followed, unrelated] = await Promise.all([

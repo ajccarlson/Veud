@@ -7,6 +7,7 @@ import {
 	getReleaseCalendar,
 	parseReleaseCalendarQuery,
 } from '#app/utils/release-calendar.server.ts'
+import { loadReleaseCalendarOrUnavailable } from '../calendar.server.ts'
 
 export async function loader({ request }: LoaderFunctionArgs) {
 	const url = new URL(request.url)
@@ -20,7 +21,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		filters.scope === 'mine'
 			? await requireUserId(request, { url })
 			: await getUserId(request)
-	const calendar = await getReleaseCalendar(filters, viewerId, timeZone)
+	const calendar = await loadReleaseCalendarOrUnavailable(() =>
+		getReleaseCalendar(filters, viewerId, timeZone),
+	)
 	const body = serializeReleaseCalendar(calendar, {
 		origin: getDomainUrl(request),
 	})
