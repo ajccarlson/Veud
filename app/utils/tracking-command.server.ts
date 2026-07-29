@@ -20,10 +20,12 @@ import {
 	prismaSearchFilter,
 } from './prisma-search.server.ts'
 import { setMediaTrackingStatus } from './tracking-status.server.ts'
+import { serializeUserLibraryMutation } from './watchlist-limits.ts'
 
 const MAX_OPERATIONS = 10
 const PREVIEW_EXPIRY_MS = 20 * 60 * 1_000
 const PROMPT_VERSION = 'tracking-command-v1'
+const SERIALIZABLE_TRANSACTION_MAX_ATTEMPTS = 3
 
 const TrackingOperationFieldsSchema = z
 	.object({
@@ -557,12 +559,55 @@ function parsedResolvedPlan(value: string) {
 	return ResolvedPlanSchema.parse(JSON.parse(value) as unknown)
 }
 
+function isRetryableSerializableTransactionError(error: unknown) {
+	return (
+		error !== null &&
+		typeof error === 'object' &&
+		'code' in error &&
+		error.code === 'P2034'
+	)
+}
+
+async function withSerializableLibraryMutation<Result>(
+	prisma: PrismaClient,
+	ownerId: string,
+	mutation: (tx: Prisma.TransactionClient) => Promise<Result>,
+) {
+	for (
+		let attempt = 1;
+		attempt <= SERIALIZABLE_TRANSACTION_MAX_ATTEMPTS;
+		attempt += 1
+	) {
+		try {
+			return await prisma.$transaction(
+				async tx => {
+					// Every retry preserves the global per-owner mutation lock order.
+					await serializeUserLibraryMutation(tx, ownerId)
+					return mutation(tx)
+				},
+				{ isolationLevel: 'Serializable' },
+			)
+		} catch (error) {
+			if (
+				attempt === SERIALIZABLE_TRANSACTION_MAX_ATTEMPTS ||
+				!isRetryableSerializableTransactionError(error)
+			) {
+				throw error
+			}
+		}
+	}
+
+	throw new Error('Serializable library mutation exhausted its retry bound.')
+}
+
 export async function applyTrackingCommandPreview(
 	prisma: PrismaClient,
 	input: { ownerId: string; previewId: string; now?: Date },
 ) {
 	const now = input.now ?? new Date()
-	return await prisma.$transaction(
+	return await withSerializableLibraryMutation(
+		prisma,
+		input.ownerId,
 		async tx => {
 			const preview = await tx.trackingCommandPreview.findFirst({
 				where: {
@@ -767,7 +812,6 @@ export async function applyTrackingCommandPreview(
 				alreadyApplied: false,
 			}
 		},
-		{ isolationLevel: 'Serializable' },
 	)
 }
 
@@ -834,7 +878,9 @@ export async function undoTrackingCommandPreview(
 	input: { ownerId: string; previewId: string; now?: Date },
 ) {
 	const now = input.now ?? new Date()
-	return await prisma.$transaction(
+	return await withSerializableLibraryMutation(
+		prisma,
+		input.ownerId,
 		async tx => {
 			const preview = await tx.trackingCommandPreview.findFirst({
 				where: {
@@ -990,7 +1036,6 @@ export async function undoTrackingCommandPreview(
 			})
 			return { summary: parsedResolvedPlan(preview.operations).summary }
 		},
-		{ isolationLevel: 'Serializable' },
 	)
 }
 

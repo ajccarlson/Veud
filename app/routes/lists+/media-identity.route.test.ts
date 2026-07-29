@@ -155,6 +155,7 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 			statusLabel: 'Watching',
 			statusWatchlistId: owner.watchlistId,
 			isPublic: true,
+			publicEligible: true,
 		}),
 	])
 })
@@ -183,6 +184,7 @@ test('tracking activity created from a private list stays private', async () => 
 		expect.objectContaining({
 			statusWatchlistId: owner.watchlistId,
 			isPublic: false,
+			publicEligible: false,
 		}),
 	)
 })
@@ -246,6 +248,7 @@ test('deleting the current public entry restores a surviving private status', as
 			statusWatchlistId: privateList.id,
 			previousStatusWatchlistId: owner.watchlistId,
 			isPublic: false,
+			publicEligible: false,
 		}),
 	)
 })

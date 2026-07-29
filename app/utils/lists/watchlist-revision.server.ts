@@ -18,7 +18,9 @@ export async function claimWatchlistRevisions(
 		revisions.map(revision => [revision.id, revision.mutationVersion]),
 	)
 	const updatedAt = new Date()
-	for (const [id, mutationVersion] of unique) {
+	for (const [id, mutationVersion] of [...unique].sort(([a], [b]) =>
+		a.localeCompare(b),
+	)) {
 		const claim = await tx.watchlist.updateMany({
 			where: { id, mutationVersion },
 			data: {

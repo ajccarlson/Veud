@@ -128,7 +128,7 @@ test('home shows a unified activity feed from followed members', async ({
 				actorId: followed.id,
 				mediaId: media.id,
 				status: 'completed',
-				statusLabel: 'Completed',
+				publicEligible: true,
 			},
 		}),
 		prisma.review.create({

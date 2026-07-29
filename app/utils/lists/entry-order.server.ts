@@ -2,6 +2,7 @@ import { type Prisma } from '@prisma/client'
 import { mediaIdentityFromThumbnail } from '#app/utils/media-identity.ts'
 import { mediaKindMatchesListType } from '#app/utils/media-kind.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 import { claimWatchlistRevisions } from './watchlist-revision.server.ts'
 
 export class EntryOrderError extends Error {
@@ -60,6 +61,7 @@ export async function setWatchlistEntryOrder(
 		entryIds: string[]
 	},
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const watchlist = await tx.watchlist.findFirst({
 		where: { id: input.watchlistId, ownerId: input.ownerId },
 		select: { id: true, mutationVersion: true },
@@ -98,6 +100,7 @@ export async function moveEntryToWatchlist(
 		position: number | null
 	},
 ) {
+	await serializeUserLibraryMutation(tx, input.ownerId)
 	const entry = await tx.entry.findUnique({
 		where: { id: input.entryId },
 		include: {

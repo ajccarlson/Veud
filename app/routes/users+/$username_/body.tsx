@@ -53,6 +53,11 @@ export function RecentActivityData({
 			: allActivity.filter(item => item.typeId === selectedTypeId)
 
 	const visible = filtered.slice(0, visibleCount)
+	const activityMeta = loaderData.activityLimited
+		? selectedTypeId === 'all'
+			? `${filtered.length} recent ${filtered.length === 1 ? 'update' : 'updates'} shown · Partial`
+			: `${filtered.length} ${filtered.length === 1 ? 'match' : 'matches'} · Partial activity`
+		: `${filtered.length} ${filtered.length === 1 ? 'update' : 'updates'}`
 
 	return (
 		<div className="user-landing-recent-activity-container">
@@ -60,7 +65,7 @@ export function RecentActivityData({
 				eyebrow="Timeline"
 				title="Recent Activity"
 				description="A chronological view of ratings, progress, reviews, and diary entries."
-				meta={`${filtered.length} ${filtered.length === 1 ? 'update' : 'updates'}`}
+				meta={activityMeta}
 				action={
 					allActivity.length > 0 ? (
 						<ProfileSegmentedFilter
@@ -112,8 +117,16 @@ export function RecentActivityData({
 					) : (
 						<ProfileEmptyState
 							icon="activity-log"
-							title="No matching updates"
-							description="Choose another media type to see the rest of this member's activity."
+							title={
+								loaderData.activityLimited
+									? 'No matches in this recent window'
+									: 'No matching updates'
+							}
+							description={
+								loaderData.activityLimited
+									? 'Try another media type.'
+									: "Choose another media type to see the rest of this member's activity."
+							}
 						/>
 					)}
 					{visibleCount < filtered.length ? (
@@ -192,6 +205,11 @@ export function FavoritesData({
 				description="A personal shelf of standout titles, grouped by media type."
 				meta={`${favorites.length} ${favorites.length === 1 ? 'favorite' : 'favorites'}`}
 			/>
+			{loaderData.favoritesLimited ? (
+				<p className="user-landing-control-label" role="status">
+					Showing a limited selection of favorites.
+				</p>
+			) : null}
 			<div className="user-landing-favorites-controls">
 				<TypeSwitcher
 					variant="primary"

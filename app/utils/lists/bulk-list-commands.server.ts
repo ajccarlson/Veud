@@ -3,6 +3,7 @@ import {
 	deleteTrackingStateIfOrphan,
 	reconcileTrackingStateBeforeEntryDeletion,
 } from '#app/utils/tracking-state.server.ts'
+import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 import {
 	moveEntryToWatchlist,
 	normalizeEntryPositions,
@@ -23,6 +24,7 @@ export async function bulkDeleteEntriesCommand(
 ) {
 	const ids = uniqueIds(entryIds)
 	return prisma.$transaction(async tx => {
+		await serializeUserLibraryMutation(tx, ownerId)
 		const entries = await tx.entry.findMany({
 			where: { id: { in: ids }, watchlist: { ownerId } },
 			include: {
@@ -71,6 +73,7 @@ export async function bulkMoveEntriesCommand(
 ) {
 	const ids = uniqueIds(entryIds)
 	return prisma.$transaction(async tx => {
+		await serializeUserLibraryMutation(tx, ownerId)
 		const ownedCount = await tx.entry.count({
 			where: { id: { in: ids }, watchlist: { ownerId } },
 		})

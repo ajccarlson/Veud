@@ -226,9 +226,9 @@ test('watchlist detail loader returns browser-safe canonical scores', async () =
 	expect(entry).toMatchObject({
 		personal: 7.6,
 		tmdbScore: 8.4,
-		trackingState: { score: 7.6 },
 		media: { tmdbScore: 8.4 },
 	})
+	expect(entry).not.toHaveProperty('trackingState')
 	expect(typeof entry.personal).toBe('number')
 	expect(typeof entry.tmdbScore).toBe('number')
 })
@@ -324,4 +324,445 @@ test('public watchlist payload excludes account data and hidden entry fields', a
 		expect(v1Entries.data.data[0]).not.toHaveProperty('notes')
 		expect(v1Entries.data.data[0]).not.toHaveProperty('history')
 	}
+})
+
+test('public list DTO exposes only configured tracking fields', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `dto_${suffix}@example.com`,
+			username: `dto_${suffix}`,
+		},
+	})
+	const listType = await prisma.listType.create({
+		data: {
+			name: `dto-${suffix}`,
+			header: 'DTO fixtures',
+			columns:
+				'{"title":"string","personal":"number","started":"date","finished":"date","length":"string"}',
+			mediaType: '["episode"]',
+			completionType: '{"present":"watching"}',
+		},
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: owner.id,
+			typeId: listType.id,
+			name: 'watching',
+			header: 'Watching',
+			position: 1,
+			displayedColumns: 'title',
+			isPublic: true,
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'anime', title: 'DTO title' },
+	})
+	const startedAt = new Date('2026-06-01T00:00:00.000Z')
+	const state = await prisma.trackingState.create({
+		data: {
+			ownerId: owner.id,
+			mediaId: media.id,
+			statusWatchlistId: watchlist.id,
+			status: 'watching',
+			score: 9.5,
+			startedAt,
+			completedAt: new Date('2026-06-20T00:00:00.000Z'),
+			repeatCount: 4,
+			progress: {
+				create: { unit: 'episode', current: 10, total: 12 },
+			},
+		},
+	})
+	const entry = await prisma.entry.create({
+		data: {
+			watchlistId: watchlist.id,
+			mediaId: media.id,
+			trackingStateId: state.id,
+			position: 1,
+			title: 'DTO title',
+			personal: 8,
+			length: '10 / 12 eps',
+			history: JSON.stringify({
+				started: '2025-01-01T00:00:00.000Z',
+				finished: '2025-01-10T00:00:00.000Z',
+				progress: { private: true },
+				privateNote: 'never serialize this',
+			}),
+		},
+	})
+
+	const loadSurfaces = async () => {
+		const detail = await watchlistLoader({
+			request: new Request(
+				`${BASE_URL}/lists/${owner.username}/${listType.name}/${watchlist.name}`,
+			),
+			params: {
+				username: owner.username,
+				'list-type': listType.name,
+				watchlist: watchlist.name,
+			},
+		} as any)
+		const legacy = await entryLoader({
+			request: new Request(BASE_URL),
+			params: {
+				request: new URLSearchParams({
+					watchlistId: watchlist.id,
+				}).toString(),
+			},
+		} as any)
+		const v1Request = new Request(
+			`${BASE_URL}/resources/lists/v1/entries?watchlistId=${watchlist.id}`,
+		)
+		const v1 = await v1EntryLoader({
+			request: v1Request,
+			url: new URL(v1Request.url),
+			params: {},
+		} as any)
+		expect(v1.data.ok).toBe(true)
+		if (!v1.data.ok) throw new Error('Expected a public list response')
+		return [detail.data.listEntries, legacy, v1.data.data]
+	}
+
+	for (const entries of await loadSurfaces()) {
+		expect(entries[0]).toMatchObject({ title: 'DTO title' })
+		for (const field of ['personal', 'length', 'history', 'trackingState']) {
+			expect(entries[0]).not.toHaveProperty(field)
+		}
+	}
+
+	await prisma.watchlist.update({
+		where: { id: watchlist.id },
+		data: { displayedColumns: 'title, started' },
+	})
+	for (const entries of await loadSurfaces()) {
+		expect(entries[0]).not.toHaveProperty('personal')
+		expect(entries[0]).not.toHaveProperty('trackingState')
+		expect(JSON.parse(String(entries[0]?.history))).toEqual({
+			started: startedAt.toISOString(),
+		})
+		expect(String(entries[0]?.history)).not.toContain('privateNote')
+		expect(String(entries[0]?.history)).not.toContain('progress')
+		expect(String(entries[0]?.history)).not.toContain('finished')
+	}
+
+	await prisma.trackingState.update({
+		where: { id: state.id },
+		data: { startedAt: null },
+	})
+	await prisma.entry.update({
+		where: { id: entry.id },
+		data: {
+			history: JSON.stringify({
+				started: { privateNote: 'never serialize a structured date value' },
+			}),
+		},
+	})
+	for (const entries of await loadSurfaces()) {
+		expect(JSON.parse(String(entries[0]?.history))).toEqual({ started: null })
+		expect(String(entries[0]?.history)).not.toContain('privateNote')
+	}
+
+	await prisma.entry.update({
+		where: { id: entry.id },
+		data: {
+			history: JSON.stringify({
+				started: '2026-01-01T00:00:00.000Z',
+				padding: 'private'.repeat(10_000),
+			}),
+		},
+	})
+	for (const entries of await loadSurfaces()) {
+		expect(JSON.parse(String(entries[0]?.history))).toEqual({ started: null })
+		expect(String(entries[0]?.history)).not.toContain('private')
+	}
+})
+
+test('public duplicate entries cannot expose private or invalid tracking state', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const [owner, other] = await Promise.all([
+		prisma.user.create({
+			data: {
+				email: `state_owner_${suffix}@example.com`,
+				username: `state_owner_${suffix}`,
+			},
+		}),
+		prisma.user.create({
+			data: {
+				email: `state_other_${suffix}@example.com`,
+				username: `state_other_${suffix}`,
+			},
+		}),
+	])
+	const listType = await prisma.listType.create({
+		data: {
+			name: `state-privacy-${suffix}`,
+			header: 'State privacy fixtures',
+			columns: JSON.stringify({
+				title: 'string',
+				personal: 'number',
+				differencePersonal: 'number',
+				differenceObjective: 'number',
+				started: 'date',
+				length: 'number',
+				chapters: 'number',
+				volumes: 'number',
+			}),
+			mediaType: '["episode","chapter","volume"]',
+			completionType: '{"present":"watching"}',
+		},
+	})
+	const [publicList, privateList] = await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				ownerId: owner.id,
+				typeId: listType.id,
+				name: 'public',
+				header: 'Public',
+				position: 1,
+				displayedColumns:
+					'title, personal, differencePersonal, differenceObjective, started, length, chapters, volumes',
+				isPublic: true,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				ownerId: owner.id,
+				typeId: listType.id,
+				name: 'private',
+				header: 'Private',
+				position: 2,
+				isPublic: false,
+			},
+		}),
+	])
+	const [hiddenMedia, publicMedia, crossOwnerMedia, stateMedia, entryMedia] =
+		await Promise.all(
+			[
+				'Hidden canonical title',
+				'Visible canonical title',
+				'Cross-owner title',
+				'Mismatched state title',
+				'Mismatched entry title',
+			].map(title =>
+				prisma.media.create({
+					data: { kind: 'tv', title },
+				}),
+			),
+		)
+	const [hiddenState, publicState, crossOwnerState, mismatchedState] =
+		await Promise.all([
+			prisma.trackingState.create({
+				data: {
+					ownerId: owner.id,
+					mediaId: hiddenMedia.id,
+					statusWatchlistId: privateList.id,
+					status: 'watching',
+					score: 9.75,
+					progress: {
+						create: [
+							{ unit: 'episode', current: 11, total: 24 },
+							{ unit: 'chapter', current: 12, total: 40 },
+							{ unit: 'volume', current: 3, total: 10 },
+							{ unit: 'minute', current: 90, total: 120 },
+						],
+					},
+				},
+			}),
+			prisma.trackingState.create({
+				data: {
+					ownerId: owner.id,
+					mediaId: publicMedia.id,
+					statusWatchlistId: publicList.id,
+					status: 'watching',
+					score: 7.25,
+				},
+			}),
+			prisma.trackingState.create({
+				data: {
+					ownerId: other.id,
+					mediaId: crossOwnerMedia.id,
+					status: 'watching',
+					score: 8.5,
+				},
+			}),
+			prisma.trackingState.create({
+				data: {
+					ownerId: owner.id,
+					mediaId: stateMedia.id,
+					statusWatchlistId: publicList.id,
+					status: 'watching',
+					score: 8.75,
+				},
+			}),
+		])
+	await prisma.entry.create({
+		data: {
+			watchlistId: privateList.id,
+			mediaId: hiddenMedia.id,
+			trackingStateId: hiddenState.id,
+			position: 1,
+			title: 'Private canonical entry',
+			personal: 9.75,
+			history: '{"finished":"private canonical history"}',
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: publicList.id,
+				mediaId: hiddenMedia.id,
+				trackingStateId: hiddenState.id,
+				position: 1,
+				title: 'Public duplicate',
+				personal: 8.25,
+				differencePersonal: 6.5,
+				differenceObjective: 5.5,
+				history: '{"finished":"private mirrored history"}',
+				length: '11',
+				chapters: '12',
+				volumes: '3',
+			},
+			{
+				watchlistId: publicList.id,
+				mediaId: publicMedia.id,
+				trackingStateId: publicState.id,
+				position: 2,
+				title: 'Visible state',
+				personal: 7,
+			},
+			{
+				watchlistId: publicList.id,
+				mediaId: crossOwnerMedia.id,
+				trackingStateId: crossOwnerState.id,
+				position: 3,
+				title: 'Cross-owner state',
+				personal: 8,
+				history: '{"finished":"cross-owner history"}',
+			},
+			{
+				watchlistId: publicList.id,
+				mediaId: entryMedia.id,
+				trackingStateId: mismatchedState.id,
+				position: 4,
+				title: 'Mismatched state',
+				personal: 8,
+				history: '{"finished":"mismatched history"}',
+			},
+		],
+	})
+
+	const [ownerCookie, otherCookie] = await Promise.all([
+		sessionCookie(owner.id),
+		sessionCookie(other.id),
+	])
+	const headers = (cookie?: string) => (cookie ? { cookie } : undefined)
+	const loadSurfaces = async (cookie?: string) => {
+		const detail = await watchlistLoader({
+			request: new Request(
+				`${BASE_URL}/lists/${owner.username}/${listType.name}/${publicList.name}`,
+				{ headers: headers(cookie) },
+			),
+			params: {
+				username: owner.username,
+				'list-type': listType.name,
+				watchlist: publicList.name,
+			},
+		} as any)
+		const legacy = await entryLoader({
+			request: new Request(BASE_URL, { headers: headers(cookie) }),
+			params: {
+				request: new URLSearchParams({
+					watchlistId: publicList.id,
+				}).toString(),
+			},
+		} as any)
+		const v1Request = new Request(
+			`${BASE_URL}/resources/lists/v1/entries?watchlistId=${publicList.id}`,
+			{ headers: headers(cookie) },
+		)
+		const v1 = await v1EntryLoader({
+			request: v1Request,
+			url: new URL(v1Request.url),
+			params: {},
+		} as any)
+		expect(v1.data.ok).toBe(true)
+		if (!v1.data.ok) throw new Error('Expected the public v1 list response')
+		return {
+			detail: detail.data.listEntries,
+			legacy,
+			v1: v1.data.data,
+		}
+	}
+
+	const expectVisitorPrivacy = (entries: Array<Record<string, unknown>>) => {
+		for (const title of [
+			'Public duplicate',
+			'Cross-owner state',
+			'Mismatched state',
+		]) {
+			expect(entries.find(entry => entry.title === title)).toMatchObject({
+				personal: null,
+				differencePersonal: null,
+				differenceObjective: null,
+				length: null,
+				chapters: null,
+				volumes: null,
+			})
+			const hidden = entries.find(entry => entry.title === title)
+			expect(hidden).not.toHaveProperty('trackingState')
+			expect(JSON.parse(String(hidden?.history))).toEqual({ started: null })
+		}
+		const visible = entries.find(entry => entry.title === 'Visible state')
+		expect(visible).toMatchObject({
+			personal: 7.25,
+		})
+		expect(visible).not.toHaveProperty('trackingState')
+		expect(JSON.parse(String(visible?.history))).toEqual({ started: null })
+	}
+
+	for (const cookie of [undefined, otherCookie]) {
+		const surfaces = await loadSurfaces(cookie)
+		for (const entries of Object.values(surfaces)) {
+			expectVisitorPrivacy(entries as Array<Record<string, unknown>>)
+		}
+	}
+
+	const ownerSurfaces = await loadSurfaces(ownerCookie)
+	for (const entries of Object.values(ownerSurfaces)) {
+		expect(
+			entries.find(entry => entry.title === 'Public duplicate'),
+		).toMatchObject({
+			personal: 9.75,
+			differencePersonal: 6.5,
+			differenceObjective: 5.5,
+			history: '{"finished":"private mirrored history"}',
+			length: '11',
+			chapters: '12',
+			volumes: '3',
+			trackingState: { score: 9.75 },
+		})
+		for (const title of ['Cross-owner state', 'Mismatched state']) {
+			expect(entries.find(entry => entry.title === title)).toMatchObject({
+				personal: null,
+				history: null,
+				trackingState: null,
+			})
+		}
+	}
+	const ownerDetailState = ownerSurfaces.detail.find(
+		entry => entry.title === 'Public duplicate',
+	)?.trackingState
+	const ownerDetailProgress = (
+		ownerDetailState as { progress: Array<{ unit: string }> } | null | undefined
+	)?.progress
+	expect(ownerDetailProgress?.map(progress => progress.unit)).toEqual([
+		'chapter',
+		'episode',
+		'volume',
+	])
+	expect(ownerDetailState).not.toHaveProperty('ownerId')
+	expect(ownerDetailState).not.toHaveProperty('mediaId')
+	expect(ownerDetailState).toHaveProperty('statusWatchlistId', privateList.id)
+	expect(ownerDetailState).not.toHaveProperty('statusWatchlist')
 })

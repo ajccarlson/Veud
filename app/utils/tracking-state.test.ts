@@ -132,3 +132,40 @@ test('treats malformed history and zero scores as empty state', () => {
 		sourceUpdatedAt: 0,
 	})
 })
+
+test('does not coerce non-scalar legacy values into epoch dates', () => {
+	const snapshot = trackingStateFromEntry(
+		{
+			history: JSON.stringify({
+				added: {},
+				started: [],
+				finished: false,
+				lastUpdated: '0',
+			}),
+		},
+		{ status: 'watching', mediaKind: 'anime' },
+	)
+
+	expect(snapshot.startedAt).toBeNull()
+	expect(snapshot.completedAt).toBeNull()
+	expect(snapshot.sourceUpdatedAt).toBe(0)
+})
+
+test('accepts an already bounded history object without reparsing JSON', () => {
+	const history = {
+		started: '2026-01-02T00:00:00.000Z',
+		progress: {
+			3: { finishDate: ['2026-01-03T00:00:00.000Z'] },
+		},
+	}
+	const fromObject = trackingStateFromEntry(
+		{ history, length: '3 / 12 eps' },
+		{ status: 'watching', mediaKind: 'anime' },
+	)
+	const fromJson = trackingStateFromEntry(
+		{ history: JSON.stringify(history), length: '3 / 12 eps' },
+		{ status: 'watching', mediaKind: 'anime' },
+	)
+
+	expect(fromObject).toEqual(fromJson)
+})
