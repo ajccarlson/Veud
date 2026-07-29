@@ -12,6 +12,7 @@ const databasePath = path.join(process.cwd(), databaseFile)
 // DATABASE_URL). Without it the test DB uses a multi-connection pool and a read can
 // miss a write just committed on another pooled connection.
 process.env.DATABASE_URL = `file:${databasePath}?connection_limit=1`
+process.env.CACHE_DATABASE_PATH = ':memory:'
 
 beforeAll(async () => {
 	await fsExtra.copyFile(BASE_DATABASE_PATH, databasePath)
@@ -22,7 +23,10 @@ beforeAll(async () => {
 afterEach(async () => {
 	const { prisma } = await import('#app/utils/db.server.ts')
 	const { cleanupDb } = await import('#tests/db-utils.ts')
+	const { resetCacheResourcesForTest } =
+		await import('#app/utils/cache.server.ts')
 	await cleanupDb(prisma)
+	resetCacheResourcesForTest()
 })
 
 afterAll(async () => {
