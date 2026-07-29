@@ -6,6 +6,7 @@ import {
 	buildStatusBreakdown,
 	getFollowedMediaTracking,
 	getMediaCommunityStatistics,
+	getPublicTrackingSummariesByMediaId,
 } from './media-community.server.ts'
 
 test('score distribution rounds decimal ratings into bounded ten-point buckets', () => {
@@ -53,26 +54,33 @@ test('status breakdown stays data-driven and ranks the largest groups first', ()
 
 test('community and following statistics exclude private-list tracking', async () => {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
-	const [viewer, publicMember, privateMember] = await Promise.all([
-		prisma.user.create({
-			data: {
-				email: `viewer_${suffix}@example.com`,
-				username: `viewer_${suffix}`,
-			},
-		}),
-		prisma.user.create({
-			data: {
-				email: `public_${suffix}@example.com`,
-				username: `public_${suffix}`,
-			},
-		}),
-		prisma.user.create({
-			data: {
-				email: `private_${suffix}@example.com`,
-				username: `private_${suffix}`,
-			},
-		}),
-	])
+	const [viewer, publicMember, privateMember, listlessMember] =
+		await Promise.all([
+			prisma.user.create({
+				data: {
+					email: `viewer_${suffix}@example.com`,
+					username: `viewer_${suffix}`,
+				},
+			}),
+			prisma.user.create({
+				data: {
+					email: `public_${suffix}@example.com`,
+					username: `public_${suffix}`,
+				},
+			}),
+			prisma.user.create({
+				data: {
+					email: `private_${suffix}@example.com`,
+					username: `private_${suffix}`,
+				},
+			}),
+			prisma.user.create({
+				data: {
+					email: `listless_${suffix}@example.com`,
+					username: `listless_${suffix}`,
+				},
+			}),
+		])
 	const listType = await prisma.listType.create({
 		data: {
 			name: `community-${suffix}`,
@@ -124,6 +132,14 @@ test('community and following statistics exclude private-list tracking', async (
 				score: 10,
 			},
 		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: listlessMember.id,
+				mediaId: media.id,
+				status: 'watching',
+				score: 6,
+			},
+		}),
 		prisma.follow.create({
 			data: { followerId: viewer.id, followingId: publicMember.id },
 		}),
@@ -133,13 +149,77 @@ test('community and following statistics exclude private-list tracking', async (
 	])
 
 	const community = await getMediaCommunityStatistics(media.id)
-	expect(community.trackers).toBe(1)
-	expect(community.ratings).toBe(1)
-	expect(community.meanScore).toBe(8)
-	expect(community.statusBreakdown).toEqual([
-		expect.objectContaining({ status: 'completed', count: 1 }),
-	])
+	expect(community.trackers).toBe(2)
+	expect(community.ratings).toBe(2)
+	expect(community.meanScore).toBe(7)
+	expect(community.statusBreakdown).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({ status: 'completed', count: 1 }),
+			expect.objectContaining({ status: 'watching', count: 1 }),
+		]),
+	)
 	const followed = await getFollowedMediaTracking(media.id, viewer.id)
 	expect(followed.total).toBe(1)
 	expect(followed.items.map(item => item.member.id)).toEqual([publicMember.id])
+})
+
+test('public tracking summaries deduplicate and merge bounded chunks', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const owner = await prisma.user.create({
+		data: {
+			email: `summary_${suffix}@example.com`,
+			username: `summary_${suffix}`,
+		},
+	})
+	const mediaIds = Array.from(
+		{ length: 401 },
+		(_, index) => `summary_${suffix}_${index}`,
+	)
+	await prisma.media.createMany({
+		data: mediaIds.map((id, index) => ({
+			id,
+			kind: 'movie',
+			title: `Summary chunk ${index}`,
+		})),
+	})
+	await prisma.trackingState.createMany({
+		data: [
+			{
+				ownerId: owner.id,
+				mediaId: mediaIds[0]!,
+				status: 'completed',
+				score: 7.5,
+			},
+			{
+				ownerId: owner.id,
+				mediaId: mediaIds[400]!,
+				status: 'watching',
+			},
+		],
+	})
+
+	await expect(getPublicTrackingSummariesByMediaId([])).resolves.toEqual(
+		new Map(),
+	)
+	const summaries = await getPublicTrackingSummariesByMediaId([
+		...mediaIds,
+		mediaIds[0]!,
+	])
+
+	expect(summaries.size).toBe(401)
+	expect(summaries.get(mediaIds[0]!)).toEqual({
+		trackerCount: 1,
+		ratingCount: 1,
+		communityScore: 7.5,
+	})
+	expect(summaries.get(mediaIds[1]!)).toEqual({
+		trackerCount: 0,
+		ratingCount: 0,
+		communityScore: null,
+	})
+	expect(summaries.get(mediaIds[400]!)).toEqual({
+		trackerCount: 1,
+		ratingCount: 0,
+		communityScore: null,
+	})
 })
