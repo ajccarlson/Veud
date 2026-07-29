@@ -12,6 +12,7 @@ import {
 } from './cache-key.server.ts'
 import {
 	cache,
+	cacheMetricNamespaces,
 	cachifiedSafely,
 	createCacheResourceCloser,
 	createMemoryCache,
@@ -600,6 +601,19 @@ describe('bounded in-memory cache', () => {
 })
 
 describe('privacy-safe cache reporting', () => {
+	test('accepts only registered static metric families', () => {
+		expect(cacheMetricNamespaces).toEqual([
+			'anonymous-home-summary',
+			'discovery-facets',
+			'home-trending-plan',
+			'ranked-discovery',
+			'recommendation-graph',
+		])
+		for (const namespace of cacheMetricNamespaces) {
+			expect(() => createSafeCacheReporter(namespace)).not.toThrow()
+		}
+	})
+
 	test('records aggregate event classes without retaining event payloads', () => {
 		const privateText = 'viewer-123 secret query'
 		const report = createSafeCacheReporter('ranked-discovery')({} as never)

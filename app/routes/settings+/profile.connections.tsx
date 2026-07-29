@@ -91,9 +91,20 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	)
 }
 
-export const headers: HeadersFunction = ({ actionHeaders, loaderHeaders }) => {
+export const headers: HeadersFunction = ({
+	actionHeaders,
+	loaderHeaders,
+	parentHeaders,
+}) => {
+	const serverTiming = [
+		parentHeaders.get('Server-Timing'),
+		loaderHeaders.get('Server-Timing'),
+	]
+		.filter(Boolean)
+		.join(',')
 	return combineHeaders(
-		{ 'Server-Timing': loaderHeaders.get('Server-Timing') ?? '' },
+		{ 'Cache-Control': 'private, no-store' },
+		serverTiming ? { 'Server-Timing': serverTiming } : null,
 		actionHeaders.has('Set-Cookie')
 			? { 'Set-Cookie': actionHeaders.get('Set-Cookie') ?? '' }
 			: null,
@@ -202,7 +213,7 @@ function Connection({
 									status={
 										deleteFetcher.state !== 'idle'
 											? 'pending'
-											: deleteFetcher.data?.status ?? 'idle'
+											: (deleteFetcher.data?.status ?? 'idle')
 									}
 								>
 									<Icon name="cross-1" />

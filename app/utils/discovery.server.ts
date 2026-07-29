@@ -11,6 +11,10 @@ import {
 import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
+	getPublicSurfaceFragment,
+	type PublicSurfaceCacheRuntime,
+} from './public-surface-cache.server.ts'
+import {
 	createRankedDiscoveryViewerFingerprint,
 	getRankedDiscoveryPlan,
 	type RankedDiscoveryPlanRequest,
@@ -22,6 +26,34 @@ const FOR_YOU_CANDIDATE_LIMIT = 500
 const RANKED_DISCOVERY_PLAN_LIMIT = 1_000
 const RANKING_QUERY_CHUNK_SIZE = 400
 const POPULAR_FEED_FRESHNESS_MS = 8 * 24 * 60 * 60 * 1_000
+export const DISCOVERY_FACETS_CACHE_TTL_MS = 5 * 60 * 1_000
+export const DISCOVERY_GENRE_SOURCE_LIMIT = 4_096
+export const DISCOVERY_STATUS_SOURCE_LIMIT = 256
+export const DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS = 512
+export const DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS = 60
+export const DISCOVERY_GENRE_LIMIT = 128
+export const DISCOVERY_STATUS_LIMIT = 64
+export const DISCOVERY_GENRE_MAX_CODE_UNITS = 80
+export const DISCOVERY_STATUS_MAX_CODE_UNITS = 60
+export const DISCOVERY_GENRE_MAX_BYTES = 240
+export const DISCOVERY_STATUS_MAX_BYTES = 180
+export const DISCOVERY_FACETS_CACHE_MAX_BYTES = 48 * 1_024
+
+const DISCOVERY_GENRE_SOURCE_QUERY_LIMIT = DISCOVERY_GENRE_SOURCE_LIMIT + 1
+const DISCOVERY_STATUS_SOURCE_QUERY_LIMIT = DISCOVERY_STATUS_SOURCE_LIMIT + 1
+const DISCOVERY_GENRE_SOURCE_MAX_BYTES =
+	DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS * 4
+const DISCOVERY_STATUS_SOURCE_MAX_BYTES =
+	DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS * 4
+const DISCOVERY_FACETS_CACHE_KEY_VERSION = 1
+const facetBaseCollator = new Intl.Collator('en-US', {
+	usage: 'sort',
+	sensitivity: 'base',
+})
+const facetVariantCollator = new Intl.Collator('en-US', {
+	usage: 'sort',
+	sensitivity: 'variant',
+})
 
 export const discoveryKinds = ['all', 'movie', 'tv', 'anime', 'manga'] as const
 export const discoveryProviders = ['all', 'tmdb', 'mal'] as const
@@ -1434,28 +1466,343 @@ export async function getDiscoveryResults(
 	}
 }
 
-export async function getDiscoveryGenres() {
-	const media = await prisma.media.findMany({
-		where: { genres: { not: null } },
-		select: { genres: true },
-		distinct: ['genres'],
+type DiscoveryFacetSourceRow = {
+	value?: unknown
+}
+
+export type DiscoveryFacets = Readonly<{
+	genres: readonly string[]
+	statuses: readonly string[]
+	truncated: Readonly<{
+		genres: boolean
+		statuses: boolean
+	}>
+}>
+
+type FacetEntry = {
+	key: string
+	value: string
+}
+
+type FacetAccumulator = {
+	entries: FacetEntry[]
+	entriesByKey: Map<string, FacetEntry>
+	limit: number
+	truncated: boolean
+}
+
+const discoveryFacetSourceRowSchema = z.object({ value: z.unknown() }).strict()
+
+function boundedFacetValueSchema(
+	maximumCodeUnits: number,
+	maximumBytes: number,
+) {
+	return z
+		.string()
+		.min(1)
+		.max(maximumCodeUnits)
+		.refine(value => value === value.trim(), {
+			message: 'facet values must not have surrounding whitespace',
+		})
+		.refine(value => !hasFacetControlCharacter(value), {
+			message: 'facet values must not contain control characters',
+		})
+		.refine(value => Buffer.byteLength(value, 'utf8') <= maximumBytes, {
+			message: 'facet value exceeds its UTF-8 byte limit',
+		})
+}
+
+const discoveryFacetsSchema = z
+	.object({
+		genres: z
+			.array(
+				boundedFacetValueSchema(
+					DISCOVERY_GENRE_MAX_CODE_UNITS,
+					DISCOVERY_GENRE_MAX_BYTES,
+				),
+			)
+			.max(DISCOVERY_GENRE_LIMIT),
+		statuses: z
+			.array(
+				boundedFacetValueSchema(
+					DISCOVERY_STATUS_MAX_CODE_UNITS,
+					DISCOVERY_STATUS_MAX_BYTES,
+				),
+			)
+			.max(DISCOVERY_STATUS_LIMIT),
+		truncated: z
+			.object({
+				genres: z.boolean(),
+				statuses: z.boolean(),
+			})
+			.strict(),
 	})
-	const genres = new Map<string, string>()
-	for (const item of media) {
-		for (const genre of splitGenres(item.genres)) {
-			const key = genre.toLocaleLowerCase()
-			if (!genres.has(key)) genres.set(key, genre)
+	.strict()
+	.superRefine((facets, context) => {
+		for (const [field, values] of [
+			['genres', facets.genres],
+			['statuses', facets.statuses],
+		] as const) {
+			const keys = new Set<string>()
+			for (const [index, value] of values.entries()) {
+				const key = facetKey(value)
+				if (keys.has(key)) {
+					context.addIssue({
+						code: 'custom',
+						path: [field, index],
+						message: 'facet values must be case-insensitively unique',
+					})
+				}
+				keys.add(key)
+				if (index > 0 && compareFacetValues(values[index - 1]!, value) >= 0) {
+					context.addIssue({
+						code: 'custom',
+						path: [field, index],
+						message: 'facet values must use deterministic en-US ordering',
+					})
+				}
+			}
+		}
+		if (
+			Buffer.byteLength(JSON.stringify(facets), 'utf8') >
+			DISCOVERY_FACETS_CACHE_MAX_BYTES
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'discovery facet cache payload exceeds its byte limit',
+			})
+		}
+	})
+
+function facetKey(value: string) {
+	return value.normalize('NFKC').toLocaleLowerCase('en-US')
+}
+
+function hasFacetControlCharacter(value: string) {
+	for (let index = 0; index < value.length; index++) {
+		const codeUnit = value.charCodeAt(index)
+		if (codeUnit <= 0x1f || codeUnit === 0x7f) return true
+	}
+	return false
+}
+
+function compareFacetValues(left: string, right: string) {
+	return (
+		facetBaseCollator.compare(left, right) ||
+		facetVariantCollator.compare(left, right) ||
+		(left < right ? -1 : left > right ? 1 : 0)
+	)
+}
+
+function facetCaseRank(value: string) {
+	const lower = value.toLocaleLowerCase('en-US')
+	const upper = value.toLocaleUpperCase('en-US')
+	if (lower === upper) return 0
+	if (value === lower) return 1
+	if (value === upper) return 2
+	return 0
+}
+
+function compareFacetRepresentatives(left: string, right: string) {
+	return (
+		facetCaseRank(left) - facetCaseRank(right) ||
+		compareFacetValues(left, right)
+	)
+}
+
+function insertFacetEntry(entries: FacetEntry[], entry: FacetEntry) {
+	let start = 0
+	let end = entries.length
+	while (start < end) {
+		const middle = Math.floor((start + end) / 2)
+		if (compareFacetValues(entries[middle]!.value, entry.value) < 0) {
+			start = middle + 1
+		} else {
+			end = middle
 		}
 	}
-	return [...genres.values()].sort((left, right) => left.localeCompare(right))
+	entries.splice(start, 0, entry)
+}
+
+function addFacetValue(accumulator: FacetAccumulator, value: string) {
+	const key = facetKey(value)
+	const existing = accumulator.entriesByKey.get(key)
+	if (existing) {
+		if (compareFacetRepresentatives(value, existing.value) >= 0) return
+		const index = accumulator.entries.indexOf(existing)
+		if (index >= 0) accumulator.entries.splice(index, 1)
+		existing.value = value
+		insertFacetEntry(accumulator.entries, existing)
+		return
+	}
+
+	if (accumulator.entries.length >= accumulator.limit) {
+		accumulator.truncated = true
+		const last = accumulator.entries.at(-1)!
+		if (compareFacetValues(value, last.value) >= 0) return
+		accumulator.entries.pop()
+		accumulator.entriesByKey.delete(last.key)
+	}
+
+	const entry = { key, value }
+	accumulator.entriesByKey.set(key, entry)
+	insertFacetEntry(accumulator.entries, entry)
+}
+
+function normalizeFacetValue(
+	rawValue: unknown,
+	{
+		sourceMaxCodeUnits,
+		sourceMaxBytes,
+		valueMaxCodeUnits,
+		valueMaxBytes,
+	}: {
+		sourceMaxCodeUnits: number
+		sourceMaxBytes: number
+		valueMaxCodeUnits: number
+		valueMaxBytes: number
+	},
+) {
+	if (
+		typeof rawValue !== 'string' ||
+		rawValue.length === 0 ||
+		rawValue.length > sourceMaxCodeUnits ||
+		Buffer.byteLength(rawValue, 'utf8') > sourceMaxBytes
+	) {
+		return null
+	}
+	const value = rawValue.trim()
+	if (
+		!value ||
+		value.length > valueMaxCodeUnits ||
+		Buffer.byteLength(value, 'utf8') > valueMaxBytes ||
+		hasFacetControlCharacter(value)
+	) {
+		return null
+	}
+	return value
+}
+
+function parseFacetSourceRows(
+	value: unknown,
+	maximumRows: number,
+): DiscoveryFacetSourceRow[] {
+	return z.array(discoveryFacetSourceRowSchema).max(maximumRows).parse(value)
+}
+
+export function normalizeDiscoveryFacetSources({
+	genreRows: rawGenreRows,
+	statusRows: rawStatusRows,
+}: {
+	genreRows: unknown
+	statusRows: unknown
+}): DiscoveryFacets {
+	const genreRows = parseFacetSourceRows(
+		rawGenreRows,
+		DISCOVERY_GENRE_SOURCE_QUERY_LIMIT,
+	)
+	const statusRows = parseFacetSourceRows(
+		rawStatusRows,
+		DISCOVERY_STATUS_SOURCE_QUERY_LIMIT,
+	)
+	const genreAccumulator: FacetAccumulator = {
+		entries: [],
+		entriesByKey: new Map(),
+		limit: DISCOVERY_GENRE_LIMIT,
+		truncated: genreRows.length > DISCOVERY_GENRE_SOURCE_LIMIT,
+	}
+	const statusAccumulator: FacetAccumulator = {
+		entries: [],
+		entriesByKey: new Map(),
+		limit: DISCOVERY_STATUS_LIMIT,
+		truncated: statusRows.length > DISCOVERY_STATUS_SOURCE_LIMIT,
+	}
+
+	for (const row of genreRows.slice(0, DISCOVERY_GENRE_SOURCE_LIMIT)) {
+		if (
+			typeof row.value !== 'string' ||
+			row.value.length > DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS ||
+			Buffer.byteLength(row.value, 'utf8') > DISCOVERY_GENRE_SOURCE_MAX_BYTES
+		) {
+			continue
+		}
+		for (const rawGenre of row.value.split(',')) {
+			const genre = normalizeFacetValue(rawGenre, {
+				sourceMaxCodeUnits: DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS,
+				sourceMaxBytes: DISCOVERY_GENRE_SOURCE_MAX_BYTES,
+				valueMaxCodeUnits: DISCOVERY_GENRE_MAX_CODE_UNITS,
+				valueMaxBytes: DISCOVERY_GENRE_MAX_BYTES,
+			})
+			if (genre) addFacetValue(genreAccumulator, genre)
+		}
+	}
+
+	for (const row of statusRows.slice(0, DISCOVERY_STATUS_SOURCE_LIMIT)) {
+		const status = normalizeFacetValue(row.value, {
+			sourceMaxCodeUnits: DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS,
+			sourceMaxBytes: DISCOVERY_STATUS_SOURCE_MAX_BYTES,
+			valueMaxCodeUnits: DISCOVERY_STATUS_MAX_CODE_UNITS,
+			valueMaxBytes: DISCOVERY_STATUS_MAX_BYTES,
+		})
+		if (status) addFacetValue(statusAccumulator, status)
+	}
+
+	return parseDiscoveryFacets({
+		genres: genreAccumulator.entries.map(entry => entry.value),
+		statuses: statusAccumulator.entries.map(entry => entry.value),
+		truncated: {
+			genres: genreAccumulator.truncated,
+			statuses: statusAccumulator.truncated,
+		},
+	})
+}
+
+export function parseDiscoveryFacets(value: unknown): DiscoveryFacets {
+	return discoveryFacetsSchema.parse(value)
+}
+
+async function loadDiscoveryFacets() {
+	const [genreRows, statusRows] = await Promise.all([
+		prisma.$queryRaw<DiscoveryFacetSourceRow[]>`
+			SELECT DISTINCT "genres" AS "value"
+			FROM "Media"
+			WHERE "genres" IS NOT NULL
+				AND length("genres") BETWEEN 1 AND ${DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS}
+				AND length(trim("genres")) >= 1
+			ORDER BY "value" ASC
+			LIMIT ${DISCOVERY_GENRE_SOURCE_QUERY_LIMIT}
+		`,
+		prisma.$queryRaw<DiscoveryFacetSourceRow[]>`
+			SELECT DISTINCT "releaseStatus" AS "value"
+			FROM "Media"
+			WHERE "releaseStatus" IS NOT NULL
+				AND length("releaseStatus") BETWEEN 1 AND ${DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS}
+				AND length(trim("releaseStatus")) >= 1
+			ORDER BY "value" ASC
+			LIMIT ${DISCOVERY_STATUS_SOURCE_QUERY_LIMIT}
+		`,
+	])
+	return normalizeDiscoveryFacetSources({ genreRows, statusRows })
+}
+
+export async function getDiscoveryFacets(
+	options: { runtime?: PublicSurfaceCacheRuntime } = {},
+): Promise<DiscoveryFacets> {
+	return getPublicSurfaceFragment({
+		namespace: 'discovery-facets',
+		keyVersion: DISCOVERY_FACETS_CACHE_KEY_VERSION,
+		keyPayload: { projection: 'bounded-facets-v1' },
+		ttl: DISCOVERY_FACETS_CACHE_TTL_MS,
+		parse: parseDiscoveryFacets,
+		getFreshValue: loadDiscoveryFacets,
+		runtime: options.runtime,
+	})
+}
+
+export async function getDiscoveryGenres() {
+	return [...(await getDiscoveryFacets()).genres]
 }
 
 export async function getDiscoveryStatuses() {
-	const media = await prisma.media.findMany({
-		where: { releaseStatus: { not: null } },
-		select: { releaseStatus: true },
-		distinct: ['releaseStatus'],
-		orderBy: { releaseStatus: 'asc' },
-	})
-	return media.flatMap(item => (item.releaseStatus ? [item.releaseStatus] : []))
+	return [...(await getDiscoveryFacets()).statuses]
 }

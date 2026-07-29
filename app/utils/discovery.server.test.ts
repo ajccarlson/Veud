@@ -3,14 +3,30 @@ import { expect, test, vi } from 'vitest'
 import { getCacheOperationsSnapshot } from './cache.server.ts'
 import { prisma } from './db.server.ts'
 import {
+	DISCOVERY_FACETS_CACHE_MAX_BYTES,
+	DISCOVERY_FACETS_CACHE_TTL_MS,
+	DISCOVERY_GENRE_LIMIT,
+	DISCOVERY_GENRE_MAX_BYTES,
+	DISCOVERY_GENRE_MAX_CODE_UNITS,
+	DISCOVERY_GENRE_SOURCE_LIMIT,
+	DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS,
+	DISCOVERY_STATUS_LIMIT,
+	DISCOVERY_STATUS_MAX_BYTES,
+	DISCOVERY_STATUS_MAX_CODE_UNITS,
+	DISCOVERY_STATUS_SOURCE_LIMIT,
+	DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS,
+	getDiscoveryFacets,
 	getDiscoveryGenres,
 	getDiscoveryResults,
 	getDiscoveryResultsForMediaIds,
 	getDiscoveryResultsForPlan,
 	getDiscoveryStatuses,
+	normalizeDiscoveryFacetSources,
+	parseDiscoveryFacets,
 	parseDiscoveryQuery,
 } from './discovery.server.ts'
 import { type NaturalLanguageDiscoveryPlan } from './natural-language-discovery.ts'
+import { createPublicSurfaceCacheRuntimeForTest } from './public-surface-cache.server.ts'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -64,6 +80,241 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 		sort: 'popular',
 		page: 1,
 	})
+})
+
+test('discovery facets normalize, deduplicate, and sort with deterministic en-US semantics', () => {
+	const rows = {
+		genreRows: [
+			{ value: ' drama, Comedy, Action ' },
+			{ value: 'DRAMA, comedy' },
+			{ value: 'Drama' },
+		],
+		statusRows: [
+			{ value: 'released' },
+			{ value: 'RELEASED' },
+			{ value: 'Released' },
+			{ value: 'Ended' },
+		],
+	}
+
+	const first = normalizeDiscoveryFacetSources(rows)
+	const reversed = normalizeDiscoveryFacetSources({
+		genreRows: [...rows.genreRows].reverse(),
+		statusRows: [...rows.statusRows].reverse(),
+	})
+
+	expect(first).toEqual({
+		genres: ['Action', 'Comedy', 'Drama'],
+		statuses: ['Ended', 'Released'],
+		truncated: { genres: false, statuses: false },
+	})
+	expect(reversed).toEqual(first)
+})
+
+test('discovery facets enforce source, value, cardinality, and payload bounds', () => {
+	const genreRows = Array.from(
+		{ length: DISCOVERY_GENRE_SOURCE_LIMIT + 1 },
+		(_, index) => ({
+			value:
+				index === DISCOVERY_GENRE_SOURCE_LIMIT
+					? 'AAA sentinel must not be consumed'
+					: `Genre ${String(index).padStart(4, '0')}`,
+		}),
+	)
+	const statusRows = Array.from(
+		{ length: DISCOVERY_STATUS_SOURCE_LIMIT + 1 },
+		(_, index) => ({
+			value:
+				index === DISCOVERY_STATUS_SOURCE_LIMIT
+					? 'AAA sentinel must not be consumed'
+					: `Status ${String(index).padStart(3, '0')}`,
+		}),
+	)
+
+	const facets = normalizeDiscoveryFacetSources({ genreRows, statusRows })
+
+	expect(facets.genres).toHaveLength(DISCOVERY_GENRE_LIMIT)
+	expect(facets.statuses).toHaveLength(DISCOVERY_STATUS_LIMIT)
+	expect(facets.truncated).toEqual({ genres: true, statuses: true })
+	expect(facets.genres).not.toContain('AAA sentinel must not be consumed')
+	expect(facets.statuses).not.toContain('AAA sentinel must not be consumed')
+	for (const genre of facets.genres) {
+		expect(genre.length).toBeLessThanOrEqual(DISCOVERY_GENRE_MAX_CODE_UNITS)
+		expect(Buffer.byteLength(genre, 'utf8')).toBeLessThanOrEqual(
+			DISCOVERY_GENRE_MAX_BYTES,
+		)
+	}
+	for (const status of facets.statuses) {
+		expect(status.length).toBeLessThanOrEqual(DISCOVERY_STATUS_MAX_CODE_UNITS)
+		expect(Buffer.byteLength(status, 'utf8')).toBeLessThanOrEqual(
+			DISCOVERY_STATUS_MAX_BYTES,
+		)
+	}
+	expect(Buffer.byteLength(JSON.stringify(facets), 'utf8')).toBeLessThan(
+		DISCOVERY_FACETS_CACHE_MAX_BYTES,
+	)
+})
+
+test('maximum-cardinality discovery facets stay materially below the cache ceiling', () => {
+	const facets = normalizeDiscoveryFacetSources({
+		genreRows: Array.from({ length: DISCOVERY_GENRE_LIMIT }, (_, index) => ({
+			value: `${String(index).padStart(3, '0')}-${'界'.repeat(76)}`,
+		})),
+		statusRows: Array.from({ length: DISCOVERY_STATUS_LIMIT }, (_, index) => ({
+			value: `S${String(index).padStart(3, '0')}-${'界'.repeat(55)}`,
+		})),
+	})
+	const payloadBytes = Buffer.byteLength(JSON.stringify(facets), 'utf8')
+
+	expect(facets.genres).toHaveLength(DISCOVERY_GENRE_LIMIT)
+	expect(facets.statuses).toHaveLength(DISCOVERY_STATUS_LIMIT)
+	expect(payloadBytes).toBeGreaterThan(40 * 1_024)
+	expect(payloadBytes).toBeLessThan(DISCOVERY_FACETS_CACHE_MAX_BYTES)
+	expect(() => parseDiscoveryFacets(facets)).not.toThrow()
+})
+
+test('discovery facets discard blank, malformed, oversized, and hostile values', () => {
+	const facets = normalizeDiscoveryFacetSources({
+		genreRows: [
+			{ value: '   ' },
+			{ value: 'Safe Genre' },
+			{ value: `Safe Genre, ${'g'.repeat(81)}` },
+			{ value: 'Bad\u0000Genre' },
+			{ value: 'x'.repeat(1_000_000) },
+			{ value: null },
+			{ value: 42 },
+		],
+		statusRows: [
+			{ value: '' },
+			{ value: 'Released' },
+			{ value: 'Bad\nStatus' },
+			{ value: 's'.repeat(61) },
+			{ value: 'x'.repeat(1_000_000) },
+			{ value: undefined },
+		],
+	})
+
+	expect(facets).toEqual({
+		genres: ['Safe Genre'],
+		statuses: ['Released'],
+		truncated: { genres: false, statuses: false },
+	})
+	expect(() =>
+		parseDiscoveryFacets({
+			...facets,
+			genres: ['Drama', 'drama'],
+		}),
+	).toThrow(/case-insensitively unique/)
+	expect(() =>
+		parseDiscoveryFacets({
+			...facets,
+			statuses: ['Released', 'Ended'],
+		}),
+	).toThrow(/deterministic en-US ordering/)
+})
+
+test('discovery facets use two bounded source queries and one cached combined refresh', async () => {
+	await prisma.media.createMany({
+		data: [
+			{
+				kind: 'movie',
+				title: 'Facet One',
+				genres: 'Drama, Mystery',
+				releaseStatus: 'Released',
+			},
+			{
+				kind: 'anime',
+				title: 'Facet Two',
+				genres: 'drama, Action',
+				releaseStatus: 'Returning Series',
+			},
+			{
+				kind: 'manga',
+				title: 'Blank Facets',
+				genres: '   ',
+				releaseStatus: '   ',
+			},
+			{
+				kind: 'tv',
+				title: 'Oversized Facets',
+				genres: 'g'.repeat(513),
+				releaseStatus: 's'.repeat(61),
+			},
+		],
+	})
+	const runtime = createPublicSurfaceCacheRuntimeForTest()
+	const queryRaw = vi.spyOn(prisma, '$queryRaw')
+
+	const first = await getDiscoveryFacets({ runtime })
+	const cached = await getDiscoveryFacets({ runtime })
+
+	expect(first).toEqual({
+		genres: ['Action', 'Drama', 'Mystery'],
+		statuses: ['Released', 'Returning Series'],
+		truncated: { genres: false, statuses: false },
+	})
+	expect(cached).toEqual(first)
+	expect(Object.isFrozen(first)).toBe(true)
+	expect(Object.isFrozen(first.genres)).toBe(true)
+	expect(queryRaw).toHaveBeenCalledTimes(2)
+	const genreSql = Array.from(
+		queryRaw.mock.calls[0]![0] as unknown as readonly string[],
+	).join('?')
+	const statusSql = Array.from(
+		queryRaw.mock.calls[1]![0] as unknown as readonly string[],
+	).join('?')
+	expect(genreSql).toContain('SELECT DISTINCT "genres" AS "value"')
+	expect(statusSql).toContain('SELECT DISTINCT "releaseStatus" AS "value"')
+	expect(queryRaw.mock.calls[0]!.slice(1)).toEqual([
+		DISCOVERY_GENRE_SOURCE_MAX_CODE_UNITS,
+		DISCOVERY_GENRE_SOURCE_LIMIT + 1,
+	])
+	expect(queryRaw.mock.calls[1]!.slice(1)).toEqual([
+		DISCOVERY_STATUS_SOURCE_MAX_CODE_UNITS,
+		DISCOVERY_STATUS_SOURCE_LIMIT + 1,
+	])
+	expect(runtime.cache.snapshot().entries).toBe(1)
+	expect(getCacheOperationsSnapshot()['discovery-facets']).toMatchObject({
+		hit: 1,
+		miss: 1,
+		refresh: 1,
+	})
+})
+
+test('discovery facet cache expires and supports deterministic test bypass', async () => {
+	await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Facet expiry',
+			genres: 'Drama',
+			releaseStatus: 'Released',
+		},
+	})
+	const queryRaw = vi.spyOn(prisma, '$queryRaw')
+	vi.useFakeTimers()
+	vi.setSystemTime(new Date('2026-07-29T12:00:00.000Z'))
+
+	try {
+		const runtime = createPublicSurfaceCacheRuntimeForTest()
+		await getDiscoveryFacets({ runtime })
+		vi.advanceTimersByTime(DISCOVERY_FACETS_CACHE_TTL_MS - 1)
+		await getDiscoveryFacets({ runtime })
+		expect(queryRaw).toHaveBeenCalledTimes(2)
+
+		vi.advanceTimersByTime(2)
+		await getDiscoveryFacets({ runtime })
+		expect(queryRaw).toHaveBeenCalledTimes(4)
+
+		const bypassRuntime = createPublicSurfaceCacheRuntimeForTest({
+			bypass: true,
+		})
+		await getDiscoveryFacets({ runtime: bypassRuntime })
+		await getDiscoveryFacets({ runtime: bypassRuntime })
+		expect(queryRaw).toHaveBeenCalledTimes(8)
+		expect(bypassRuntime.cache.snapshot().entries).toBe(0)
+	} finally {
+		vi.useRealTimers()
+	}
 })
 
 test('cached plans still hydrate catalog and viewer state freshly', async () => {

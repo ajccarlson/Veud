@@ -31,11 +31,10 @@ import { isAiCapabilityConfigured } from '#app/utils/ai-gateway.server.ts'
 import { getUserId, requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
-	getDiscoveryGenres,
+	getDiscoveryFacets,
 	getDiscoveryResults,
 	getDiscoveryResultsForMediaIds,
 	getDiscoveryResultsForPlan,
-	getDiscoveryStatuses,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
 	type DiscoveryResults,
@@ -350,8 +349,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			? getRecommendationGraph(viewerId)
 			: Promise.resolve(null)
 	const memoryQueryTooShort = filters.mode === 'memory' && filters.q.length < 3
-	const genresPromise = getDiscoveryGenres()
-	const statusesPromise = getDiscoveryStatuses()
+	const facetsPromise = getDiscoveryFacets()
 	const watchlistsPromise = viewerId
 		? prisma.watchlist.findMany({
 				where: { ownerId: viewerId },
@@ -388,8 +386,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				: null
 	const [
 		discovery,
-		genres,
-		statuses,
+		facets,
 		watchlists,
 		recommendationGraph,
 		previousNaturalResults,
@@ -414,8 +411,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 							preferredGenres: [],
 						} satisfies DiscoveryResults)
 					: getDiscoveryResults(filters, viewerId),
-		genresPromise,
-		statusesPromise,
+		facetsPromise,
 		watchlistsPromise,
 		recommendationGraphPromise,
 		previousNaturalPlan
@@ -449,8 +445,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			viewerId && isAiCapabilityConfigured('natural-language-discovery'),
 		),
 		imageSearchAvailable: isAiCapabilityConfigured('image-tip-of-tongue'),
-		genres,
-		statuses,
+		genres: facets.genres,
+		statuses: facets.statuses,
 		watchlists,
 		recommendationGraph,
 		isSignedIn: Boolean(viewerId),
