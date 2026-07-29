@@ -2,11 +2,30 @@ import { faker } from '@faker-js/faker'
 import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import * as discoveryServer from '#app/utils/discovery.server.ts'
 import { type NaturalLanguageDiscoveryPlan } from '#app/utils/natural-language-discovery.ts'
+import * as recommendationGraphServer from '#app/utils/recommendation-graph.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { action, loader } from './discover.tsx'
 
+vi.mock('#app/utils/discovery.server.ts', async importOriginal => {
+	const actual = (await importOriginal()) as typeof discoveryServer
+	return {
+		...actual,
+		getDiscoveryResults: vi.fn(actual.getDiscoveryResults),
+	}
+})
+
+vi.mock('#app/utils/recommendation-graph.server.ts', async importOriginal => {
+	const actual = (await importOriginal()) as typeof recommendationGraphServer
+	return {
+		...actual,
+		getRecommendationGraph: vi.fn(actual.getRecommendationGraph),
+	}
+})
+
 afterEach(() => {
+	vi.clearAllMocks()
 	vi.unstubAllEnvs()
 	vi.unstubAllGlobals()
 })
@@ -58,7 +77,7 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 	expect(result.data.genres).toEqual(['Drama'])
 })
 
-test('signed-in discovery returns unseen personalized results', async () => {
+test('signed-in discovery returns unseen recommendation graph results', async () => {
 	const viewer = await createUser('discover_viewer')
 	const listType = await prisma.listType.upsert({
 		where: { name: 'anime' },
@@ -116,8 +135,12 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	} as any)
 
 	expect(result.data.isSignedIn).toBe(true)
-	expect(result.data.preferredGenres).toEqual(['Fantasy'])
-	expect(result.data.items.map(item => item.id)).toEqual([unseen.id])
+	expect(result.data.items).toEqual([])
+	expect(
+		result.data.recommendationGraph?.lanes
+			.flatMap(lane => lane.items)
+			.map(item => item.id),
+	).toContain(unseen.id)
 
 	await prisma.recommendationFeedback.create({
 		data: {
@@ -137,6 +160,87 @@ test('signed-in discovery returns unseen personalized results', async () => {
 	expect(afterFeedback.data.recommendationGraph?.hiddenItems).toEqual([
 		expect.objectContaining({ id: unseen.id }),
 	])
+})
+
+test('recommendation graph-only state skips discovery while variants retain it', async () => {
+	const viewer = await createUser('discover_graph_only')
+	const cookie = await cookieFor(viewer.id)
+	const getDiscoveryResults = vi.mocked(discoveryServer.getDiscoveryResults)
+	const getRecommendationGraph = vi.mocked(
+		recommendationGraphServer.getRecommendationGraph,
+	)
+
+	const graphOnly = await loader({
+		request: new Request(`${BASE_URL}/discover?sort=for-you`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+
+	expect(getDiscoveryResults).not.toHaveBeenCalled()
+	expect(getRecommendationGraph).toHaveBeenCalledOnce()
+	expect(getRecommendationGraph).toHaveBeenCalledWith(viewer.id)
+	expect(graphOnly.data.recommendationGraph).not.toBeNull()
+	expect(graphOnly.data).toEqual(
+		expect.objectContaining({
+			items: [],
+			total: 0,
+			pageCount: 1,
+			preferredGenres: [],
+			filters: expect.objectContaining({
+				mode: 'standard',
+				kind: 'all',
+				sort: 'for-you',
+				page: 1,
+			}),
+		}),
+	)
+
+	const variants = [
+		['query', 'sort=for-you&q=clue', true],
+		['mode', 'sort=for-you&mode=memory', false],
+		['kind', 'sort=for-you&kind=movie', true],
+		['genre', 'sort=for-you&genre=Drama', true],
+		['year', 'sort=for-you&year=2026', true],
+		['status', 'sort=for-you&status=Released', true],
+		['provider', 'sort=for-you&provider=tmdb', true],
+		['sort', 'sort=popular', true],
+		['page', 'sort=for-you&page=2', true],
+	] as const
+	for (const [label, search, callsDiscovery] of variants) {
+		const discoveryCalls = getDiscoveryResults.mock.calls.length
+		const graphCalls = getRecommendationGraph.mock.calls.length
+		const result = await loader({
+			request: new Request(`${BASE_URL}/discover?${search}`, {
+				headers: { cookie },
+			}),
+			params: {},
+		} as any)
+
+		expect(
+			result.data.recommendationGraph,
+			`${label} must disable the recommendation graph`,
+		).toBeNull()
+		expect(getRecommendationGraph).toHaveBeenCalledTimes(graphCalls)
+		expect(getDiscoveryResults).toHaveBeenCalledTimes(
+			discoveryCalls + Number(callsDiscovery),
+		)
+	}
+
+	const discoveryCalls = getDiscoveryResults.mock.calls.length
+	const graphCalls = getRecommendationGraph.mock.calls.length
+	const anonymous = await loader({
+		request: new Request(`${BASE_URL}/discover?sort=for-you`),
+		params: {},
+	} as any)
+	expect(anonymous.data.isSignedIn).toBe(false)
+	expect(anonymous.data.recommendationGraph).toBeNull()
+	expect(getRecommendationGraph).toHaveBeenCalledTimes(graphCalls)
+	expect(getDiscoveryResults).toHaveBeenCalledTimes(discoveryCalls + 1)
+	expect(getDiscoveryResults).toHaveBeenLastCalledWith(
+		expect.objectContaining({ sort: 'for-you' }),
+		null,
+	)
 })
 
 test('memory-search GET remains local even when AI is configured', async () => {
