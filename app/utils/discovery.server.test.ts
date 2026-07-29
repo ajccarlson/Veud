@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
+import { getCacheOperationsSnapshot } from './cache.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	getDiscoveryGenres,
@@ -63,6 +64,128 @@ test('discovery query parsing bounds input and replaces invalid options', () => 
 		sort: 'popular',
 		page: 1,
 	})
+})
+
+test('cached plans still hydrate catalog and viewer state freshly', async () => {
+	vi.stubEnv('NODE_ENV', 'production')
+	vi.stubEnv('VEUD_E2E', '0')
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const query = `Fresh hydration ${suffix}`
+
+	try {
+		const [staleCatalogItem, trackedItem, ...fillers] = await Promise.all([
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `${query} 000 stale`,
+					genres: 'Drama',
+					catalogPopularity: 20,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `${query} 001 tracked`,
+					genres: 'Drama',
+					catalogPopularity: 10,
+				},
+			}),
+			...Array.from({ length: 23 }, (_, index) =>
+				prisma.media.create({
+					data: {
+						kind: 'movie',
+						title: `${query} ${String(index + 2).padStart(3, '0')} filler`,
+						genres: 'Drama',
+					},
+				}),
+			),
+		])
+		const publicFilters = filters({
+			q: query,
+			kind: 'movie',
+			sort: 'popular',
+		})
+		const initial = await getDiscoveryResults(publicFilters, null)
+		expect(initial.items.map(item => item.id)).toEqual(
+			expect.arrayContaining([staleCatalogItem.id, trackedItem.id]),
+		)
+		expect(initial.items).toHaveLength(24)
+		expect(initial.total).toBe(25)
+
+		const viewer = await createUser('fresh_hydration')
+		await Promise.all([
+			prisma.media.update({
+				where: { id: staleCatalogItem.id },
+				data: { title: `Removed from ${suffix}` },
+			}),
+			prisma.trackingState.create({
+				data: {
+					ownerId: viewer.id,
+					mediaId: trackedItem.id,
+					status: 'watching',
+				},
+			}),
+		])
+
+		const hydrated = await getDiscoveryResults(publicFilters, viewer.id)
+		expect(hydrated.items.map(item => item.id)).toEqual(
+			expect.arrayContaining([trackedItem.id, ...fillers.map(item => item.id)]),
+		)
+		expect(hydrated.items).toHaveLength(24)
+		expect(hydrated.total).toBe(24)
+		expect(hydrated.pageCount).toBe(1)
+		expect(hydrated.items[0]?.viewerTracking).toEqual({
+			status: 'watching',
+			statusWatchlistId: null,
+		})
+		expect(getCacheOperationsSnapshot()['ranked-discovery']).toMatchObject({
+			hit: 1,
+			miss: 1,
+			refresh: 1,
+		})
+
+		const personalizedQuery = `Viewer exclusion ${suffix}`
+		const exclusionTarget = await prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: `${personalizedQuery} target`,
+				genres: 'Drama',
+				catalogPopularity: 5,
+			},
+		})
+		const personalizedFilters = filters({
+			q: personalizedQuery,
+			kind: 'movie',
+			sort: 'for-you',
+		})
+		const beforeExclusion = await getDiscoveryResults(
+			personalizedFilters,
+			viewer.id,
+		)
+		expect(beforeExclusion.items.map(item => item.id)).toContain(
+			exclusionTarget.id,
+		)
+		expect(beforeExclusion.total).toBe(1)
+
+		await prisma.recommendationFeedback.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: exclusionTarget.id,
+				feedbackType: 'not_interested',
+			},
+		})
+		const afterExclusion = await getDiscoveryResults(
+			personalizedFilters,
+			viewer.id,
+		)
+		expect(afterExclusion.items.map(item => item.id)).not.toContain(
+			exclusionTarget.id,
+		)
+		expect(afterExclusion.total).toBe(0)
+		expect(afterExclusion.pageCount).toBe(1)
+	} finally {
+		vi.unstubAllEnvs()
+	}
 })
 
 test('grounded media IDs preserve candidate order and ignore stale search filters', async () => {
@@ -387,6 +510,39 @@ test('anime and manga popularity use MAL rank without score or community reshuff
 				trackerCount: 1,
 			}),
 		)
+
+		const duplicateKindPlan: NaturalLanguageDiscoveryPlan = {
+			kinds: [kind, kind],
+			includeGenres: [],
+			excludeGenres: [],
+			includeTerms: [],
+			excludeTerms: [],
+			yearFrom: null,
+			yearTo: null,
+			releaseStatus: null,
+			language: null,
+			toneTerms: [],
+			pace: null,
+			lengthUnit: null,
+			lengthFrom: null,
+			lengthTo: null,
+			sort: 'popular',
+			explanation: `Popular ${kind} with a duplicated kind constraint.`,
+			unsupportedConstraints: [],
+		}
+		const naturalResult = await getDiscoveryResultsForPlan(
+			duplicateKindPlan,
+			null,
+			{
+				page: 1,
+				filters: filters({ mode: 'describe', kind }),
+			},
+		)
+		expect(naturalResult.items.map(item => item.id)).toEqual([
+			rankOne.id,
+			rankTwo.id,
+			unranked.id,
+		])
 	}
 })
 
@@ -872,4 +1028,174 @@ test('favorites teach for-you preferences and stay out of its results', async ()
 		mismatch.id,
 	])
 	expect(result.items.some(item => item.id === favoriteSeed.id)).toBe(false)
+})
+
+test('natural for-you ranks globally and applies every fresh viewer exclusion', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const viewer = await createUser('natural_for_you_viewer')
+	const listType = await prisma.listType.create({
+		data: {
+			name: `natural-for-you-${suffix}`,
+			header: 'Natural for you',
+			columns: '{}',
+			mediaType: '["movie"]',
+			completionType: '{}',
+		},
+	})
+	await prisma.media.createMany({
+		data: Array.from({ length: 24 }, (_, index) => ({
+			kind: 'movie',
+			title: `Natural filler ${suffix} ${String(index + 1).padStart(2, '0')}`,
+			genres: 'Comedy',
+			catalogPopularity: 10_000 - index,
+		})),
+	})
+	const fillers = await prisma.media.findMany({
+		where: { title: { contains: `Natural filler ${suffix}` } },
+		orderBy: [{ title: 'asc' }],
+		select: { id: true },
+	})
+	const [trackedSeed, favoriteSeed, feedbackSeed, affinityMatch] =
+		await Promise.all([
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Natural tracked seed ${suffix}`,
+					genres: 'Mystery',
+					catalogPopularity: 20_000,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Natural favorite seed ${suffix}`,
+					genres: 'Mystery',
+					catalogPopularity: 19_000,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Natural feedback seed ${suffix}`,
+					genres: 'Mystery',
+					catalogPopularity: 18_000,
+				},
+			}),
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Natural global affinity ${suffix}`,
+					genres: 'Mystery',
+					catalogPopularity: 1,
+				},
+			}),
+		])
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: trackedSeed.id,
+				status: 'completed',
+				score: 10,
+			},
+		}),
+		prisma.userFavorite.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: favoriteSeed.id,
+				typeId: listType.id,
+				position: 1,
+				title: favoriteSeed.title ?? 'Favorite seed',
+			},
+		}),
+		prisma.recommendationFeedback.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: feedbackSeed.id,
+				feedbackType: 'not-interested',
+			},
+		}),
+		prisma.catalogFeedItem.createMany({
+			data: [
+				...fillers.map((item, index) => ({
+					provider: 'tmdb',
+					kind: 'movie',
+					feed: 'popular',
+					rank: index + 1,
+					rankingScore: 1 - index / 100,
+					rankingVersion: 999,
+					observedAt: new Date(),
+					mediaId: item.id,
+				})),
+				...[
+					trackedSeed.id,
+					favoriteSeed.id,
+					feedbackSeed.id,
+					affinityMatch.id,
+				].map((mediaId, index) => ({
+					provider: 'tmdb',
+					kind: 'movie',
+					feed: 'popular',
+					rank: fillers.length + index + 1,
+					rankingScore: 0.5 - index / 100,
+					rankingVersion: 999,
+					observedAt: new Date(),
+					mediaId,
+				})),
+			],
+		}),
+	])
+	const plan: NaturalLanguageDiscoveryPlan = {
+		kinds: ['movie'],
+		includeGenres: [],
+		excludeGenres: [],
+		includeTerms: [],
+		excludeTerms: [],
+		yearFrom: null,
+		yearTo: null,
+		releaseStatus: null,
+		language: null,
+		toneTerms: [],
+		pace: null,
+		lengthUnit: null,
+		lengthFrom: null,
+		lengthTo: null,
+		sort: 'for-you',
+		explanation: 'Find an unseen movie for this viewer.',
+		unsupportedConstraints: [],
+	}
+
+	const result = await getDiscoveryResultsForPlan(plan, viewer.id, {
+		page: 1,
+		filters: filters({ mode: 'describe', sort: 'for-you' }),
+	})
+
+	expect(result.items[0]?.id).toBe(affinityMatch.id)
+	expect(result.preferredGenres).toEqual(['Mystery'])
+	expect(result.items.map(item => item.id)).not.toEqual(
+		expect.arrayContaining([trackedSeed.id, favoriteSeed.id, feedbackSeed.id]),
+	)
+})
+
+test('top-rated pagination reports only the bounded accessible plan', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const query = `Bounded ranking ${suffix}`
+	await prisma.media.createMany({
+		data: Array.from({ length: 1_001 }, (_, index) => ({
+			kind: 'movie',
+			title: `${query} ${String(index + 1).padStart(4, '0')}`,
+			catalogScore: 6 + (index % 5),
+			catalogPopularity: index,
+		})),
+	})
+
+	const result = await getDiscoveryResults(
+		filters({ q: query, sort: 'top-rated', page: 1_000 }),
+		null,
+	)
+
+	expect(result.total).toBe(1_000)
+	expect(result.pageCount).toBe(42)
+	expect(result.filters.page).toBe(42)
+	expect(result.items).toHaveLength(16)
 })
