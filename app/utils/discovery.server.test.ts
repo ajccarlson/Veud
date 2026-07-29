@@ -315,6 +315,7 @@ test('discovery matches mixed-case canonical and alternate titles', async () => 
 
 test('anime and manga popularity use MAL rank without score or community reshuffling', async () => {
 	for (const kind of ['anime', 'manga'] as const) {
+		const communityMember = await createUser(`${kind}_rank_member`)
 		const [rankOne, rankTwo, unranked] = await Promise.all([
 			prisma.media.create({
 				data: {
@@ -360,6 +361,14 @@ test('anime and manga popularity use MAL rank without score or community reshuff
 				},
 			],
 		})
+		await prisma.trackingState.create({
+			data: {
+				ownerId: communityMember.id,
+				mediaId: rankTwo.id,
+				status: 'completed',
+				score: 10,
+			},
+		})
 
 		const result = await getDiscoveryResults(
 			filters({ kind, sort: 'popular' }),
@@ -370,7 +379,119 @@ test('anime and manga popularity use MAL rank without score or community reshuff
 			rankTwo.id,
 			unranked.id,
 		])
+		expect(result.items[1]).toEqual(
+			expect.objectContaining({
+				id: rankTwo.id,
+				communityScore: 10,
+				ratingCount: 1,
+				trackerCount: 1,
+			}),
+		)
 	}
+})
+
+test('TMDB popularity applies only the bounded public community boost', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const [publicMember, privateMember] = await Promise.all([
+		createUser('tmdb_public_boost'),
+		createUser('tmdb_private_boost'),
+	])
+	const listType = await prisma.listType.create({
+		data: {
+			name: `tmdb-boost-${suffix}`,
+			header: 'TMDB boost',
+			columns: '{}',
+			mediaType: '["movie"]',
+			completionType: '{}',
+		},
+	})
+	const privateList = await prisma.watchlist.create({
+		data: {
+			ownerId: privateMember.id,
+			typeId: listType.id,
+			name: 'private',
+			header: 'Private',
+			isPublic: false,
+		},
+	})
+	const [baseline, publicBoost, privateBoost] = await Promise.all(
+		['Baseline', 'Public', 'Private'].map(label =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `TMDB ${label} boost ${suffix}`,
+				},
+			}),
+		),
+	)
+	await Promise.all([
+		prisma.catalogFeedItem.createMany({
+			data: [
+				{
+					provider: 'tmdb',
+					kind: 'movie',
+					feed: 'popular',
+					rank: 1,
+					rankingScore: 1,
+					rankingVersion: 999,
+					observedAt: new Date(),
+					mediaId: baseline.id,
+				},
+				{
+					provider: 'tmdb',
+					kind: 'movie',
+					feed: 'popular',
+					rank: 2,
+					rankingScore: 0.99999,
+					rankingVersion: 999,
+					observedAt: new Date(),
+					mediaId: publicBoost.id,
+				},
+				{
+					provider: 'tmdb',
+					kind: 'movie',
+					feed: 'popular',
+					rank: 3,
+					rankingScore: 0.99999,
+					rankingVersion: 999,
+					observedAt: new Date(),
+					mediaId: privateBoost.id,
+				},
+			],
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: publicMember.id,
+				mediaId: publicBoost.id,
+				status: 'completed',
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: privateMember.id,
+				mediaId: privateBoost.id,
+				status: 'completed',
+				statusWatchlistId: privateList.id,
+			},
+		}),
+	])
+
+	const result = await getDiscoveryResults(
+		filters({ kind: 'movie', sort: 'popular' }),
+		null,
+	)
+
+	expect(result.items.slice(0, 3).map(item => item.id)).toEqual([
+		publicBoost.id,
+		baseline.id,
+		privateBoost.id,
+	])
+	expect(
+		result.items.find(item => item.id === publicBoost.id)?.trackerCount,
+	).toBe(1)
+	expect(
+		result.items.find(item => item.id === privateBoost.id)?.trackerCount,
+	).toBe(0)
 })
 
 test('natural discovery enforces locally stored episode bounds', async () => {
@@ -527,10 +648,13 @@ test('top-rated pages use one stable global ranking without duplicates', async (
 })
 
 test('private-list tracking stays personal and does not affect discovery aggregates', async () => {
-	const [publicMember, privateMember] = await Promise.all([
-		createUser('public_discovery_member'),
-		createUser('private_discovery_member'),
-	])
+	const [publicMember, privateMember, listlessRater, listlessTracker] =
+		await Promise.all([
+			createUser('public_discovery_member'),
+			createUser('private_discovery_member'),
+			createUser('listless_discovery_rater'),
+			createUser('listless_discovery_tracker'),
+		])
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
 	const listType = await prisma.listType.create({
 		data: {
@@ -587,6 +711,21 @@ test('private-list tracking stays personal and does not affect discovery aggrega
 				score: 10,
 			},
 		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: listlessRater.id,
+				mediaId: publicTitle.id,
+				status: 'completed',
+				score: 6,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: listlessTracker.id,
+				mediaId: publicTitle.id,
+				status: 'watching',
+			},
+		}),
 	])
 
 	const topRated = await getDiscoveryResults(
@@ -594,6 +733,13 @@ test('private-list tracking stays personal and does not affect discovery aggrega
 		null,
 	)
 	expect(topRated.items.map(item => item.id)).toEqual([publicTitle.id])
+	expect(topRated.items[0]).toEqual(
+		expect.objectContaining({
+			communityScore: 7,
+			ratingCount: 2,
+			trackerCount: 3,
+		}),
+	)
 
 	const ownerView = await getDiscoveryResults(
 		filters({ q: 'Discovery Privacy', sort: 'title' }),

@@ -1,6 +1,10 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
+import {
+	getPublicTrackingSummariesByMediaId,
+	type PublicTrackingSummary,
+} from './media-community.server.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 
 export const MEDIA_RECOMMENDATION_LIMIT = 6
@@ -16,16 +20,8 @@ const recommendationMediaSelect = {
 	startYear: true,
 	airYear: true,
 	genres: true,
-	trackingStates: {
-		select: {
-			score: true,
-			statusWatchlistId: true,
-			statusWatchlist: { select: { isPublic: true } },
-		},
-	},
 	_count: {
 		select: {
-			trackingStates: true,
 			reviews: true,
 			diaryEntries: true,
 		},
@@ -64,26 +60,10 @@ function yearFor(media: RecommendationMedia) {
 	return media.startYear || media.airYear || null
 }
 
-function scoreFor(media: RecommendationMedia) {
-	const scores = publicTrackingStates(media)
-		.map(state => (state.score === null ? null : Number(state.score)))
-		.filter(
-			(score): score is number => score !== null && Number.isFinite(score),
-		)
-	if (!scores.length) return null
-	return scores.reduce((total, score) => total + score, 0) / scores.length
-}
-
-function publicTrackingStates(media: RecommendationMedia) {
-	return media.trackingStates.filter(
-		state =>
-			state.statusWatchlistId === null || state.statusWatchlist?.isPublic,
-	)
-}
-
 function rankCandidate(
 	media: RecommendationMedia,
 	sourceGenres: string[],
+	trackingSummary: PublicTrackingSummary,
 ): RankedRecommendation {
 	const candidateGenreKeys = new Set(
 		splitGenres(media.genres).map(genre => genre.toLocaleLowerCase()),
@@ -95,8 +75,6 @@ function rankCandidate(
 		...sourceGenres.map(genre => genre.toLocaleLowerCase()),
 		...candidateGenreKeys,
 	]).size
-	const publicStates = publicTrackingStates(media)
-	const scores = publicStates.filter(state => state.score !== null)
 
 	return {
 		media,
@@ -104,11 +82,11 @@ function rankCandidate(
 		similarity: unionSize ? matchedGenres.length / unionSize : 0,
 		popularity: catalogPopularityScore({
 			...media._count,
-			trackingStates: publicStates.length,
+			trackingStates: trackingSummary.trackerCount,
 		}),
-		communityScore: scoreFor(media),
-		ratingCount: scores.length,
-		trackerCount: publicStates.length,
+		communityScore: trackingSummary.communityScore,
+		ratingCount: trackingSummary.ratingCount,
+		trackerCount: trackingSummary.trackerCount,
 	}
 }
 
@@ -162,8 +140,21 @@ export async function getSimilarMediaRecommendations(
 		orderBy: [{ reviews: { _count: 'desc' } }, { title: 'asc' }],
 		take: MEDIA_RECOMMENDATION_CANDIDATE_LIMIT,
 	})
+	const trackingSummaries = await getPublicTrackingSummariesByMediaId(
+		candidates.map(media => media.id),
+	)
 	const ranked = candidates
-		.map(media => rankCandidate(media, sourceGenres))
+		.map(media =>
+			rankCandidate(
+				media,
+				sourceGenres,
+				trackingSummaries.get(media.id) ?? {
+					trackerCount: 0,
+					ratingCount: 0,
+					communityScore: null,
+				},
+			),
+		)
 		.filter(item => !sourceGenres.length || item.matchedGenres.length)
 		.sort(compareRecommendations)
 		.slice(0, boundedLimit)

@@ -72,10 +72,36 @@ test('syncs provider identities and returns inverse relation groups', async () =
 })
 
 test('orders relation groups chronologically and returns tracking context', async () => {
-	const viewer = await prisma.user.create({
+	const [viewer, publicMember] = await Promise.all([
+		prisma.user.create({
+			data: {
+				email: 'relation-viewer@example.com',
+				username: 'relation_viewer',
+			},
+		}),
+		prisma.user.create({
+			data: {
+				email: 'relation-community@example.com',
+				username: 'relation_community',
+			},
+		}),
+	])
+	const listType = await prisma.listType.create({
 		data: {
-			email: 'relation-viewer@example.com',
-			username: 'relation_viewer',
+			name: 'relation-private-status',
+			header: 'Relation status',
+			columns: '{}',
+			mediaType: '[]',
+			completionType: '{}',
+		},
+	})
+	const privateList = await prisma.watchlist.create({
+		data: {
+			ownerId: viewer.id,
+			typeId: listType.id,
+			name: 'private',
+			header: 'Private relation status',
+			isPublic: false,
 		},
 	})
 	const [source, later, earlier, undated] = await Promise.all([
@@ -100,14 +126,25 @@ test('orders relation groups chronologically and returns tracking context', asyn
 			provider: 'tmdb',
 		})),
 	})
-	await prisma.trackingState.create({
-		data: {
-			ownerId: viewer.id,
-			mediaId: earlier.id,
-			status: 'plan-to-watch',
-			score: 8.5,
-		},
-	})
+	await Promise.all([
+		prisma.trackingState.create({
+			data: {
+				ownerId: viewer.id,
+				mediaId: earlier.id,
+				status: 'plan-to-watch',
+				statusWatchlistId: privateList.id,
+				score: 8.5,
+			},
+		}),
+		prisma.trackingState.create({
+			data: {
+				ownerId: publicMember.id,
+				mediaId: earlier.id,
+				status: 'completed',
+				score: 7,
+			},
+		}),
+	])
 
 	const [group] = await getMediaRelations(source.id, viewer.id)
 	expect(group?.items.map(item => item.title)).toEqual([
@@ -119,7 +156,7 @@ test('orders relation groups chronologically and returns tracking context', asyn
 		trackerCount: 1,
 		viewerTracking: {
 			status: 'plan-to-watch',
-			statusLabel: 'Plan To Watch',
+			statusLabel: 'Private relation status',
 			score: 8.5,
 		},
 	})
