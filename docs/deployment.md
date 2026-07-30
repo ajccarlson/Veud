@@ -31,12 +31,41 @@ host, scheme, and client address using standard forwarded headers.
 The current host uses PM2:
 
 ```sh
-npm run start:prod
-pm2 save
+npm run start:prod   # runs the preflight, then PM2 with the launcher
+pm2 save             # persist, so a reboot cannot resurrect a stale definition
 ```
 
 After a restart, verify the local and public health endpoints and confirm the
 `x-veud-release` header matches the deployed commit.
+
+`npm start` is **not** a production entry point and refuses to run against the
+live database. Production must go through `ops/local-production/run-app.sh` so a
+single supervised writer holds the catalog lifetime lock.
+
+### Preflight
+
+`npm run production:preflight` validates the setup before anything restarts: an
+activated release that actually contains the launcher entry point, a production
+datasource in both config files with parity between them, secrets long enough
+for the startup validator, private config file modes, no in-progress cutover,
+the supported Node runtime, and that PM2's saved definition still points at the
+launcher. It reports only structure and secret lengths, never secret values.
+
+### When a restart is not the fix
+
+The launcher runs the RELEASE's own `scripts/pm2-entry.mjs`, so a release cut
+before a launcher change cannot be started by the newer launcher no matter how
+many times PM2 retries. The preflight reports this explicitly. The fix is to
+deploy a current release with `ops/local-production/deploy-catalog-release.sh`,
+not to restart.
+
+`pm2 save` matters: PM2's saved process list is what a reboot resurrects, and a
+definition saved before a launcher change will keep failing after the config is
+corrected. If `pm2 list` shows repeated restarts, compare the saved definition
+against `ecosystem.config.cjs` — `pm2 delete veud` then `npm run start:prod`
+recreates it. The app is bounded to five restarts with a twenty-second minimum
+uptime so a misconfiguration stops in `errored` state instead of flapping
+silently.
 
 Host-specific PostgreSQL provisioning, environment switching, catalog workers,
 and status checks are documented in
