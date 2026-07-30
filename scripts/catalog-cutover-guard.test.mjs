@@ -4091,12 +4091,55 @@ systemd_active_state veud-production-retention-cleanup.service
 	}
 })
 
-test('a never-installed writer unit is recorded as disabled, not enabled', () => {
-	// `is-enabled` prints nothing for a unit that does not exist. Recording it as
-	// disabled is what leaves a newly shipped timer switched off: a deployment
-	// must never start a job that deletes user data on a schedule.
-	assert.match(
-		productionDeploy,
-		/if \[\[ -z "\$\{original_unit_enabled_states\[\$unit\]\}" \]\]; then\n\t{3}original_unit_enabled_states\["\$unit"\]=disabled\n/,
-	)
+test('a never-installed writer unit records its post-install enablement', () => {
+	// `is-enabled` prints the literal `not-found` (exit 4) for a unit that does
+	// not exist — not an empty string. Both the enablement restore and the final
+	// unchanged-comparison read this recorded value, and that comparison runs
+	// AFTER the database is migrated, so recording the wrong value fails the
+	// deployment at its most expensive point.
+	const source = `
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+${/^writer_timers=\([^)]*\)/m.exec(productionDeploy)[0]}
+${extractShellFunction(productionDeploy, 'is_writer_timer')}
+systemctl() { printf '%s' "$IS_ENABLED"; return 4; }
+${extractShellFunction(productionDeploy, 'record_original_unit_enablement')}
+declare -A original_unit_enabled_states=()
+record_original_unit_enablement "$1"
+printf '%s' "\${original_unit_enabled_states[$1]}"
+`
+	// A timer lands installed but switched off.
+	const timer = runBash(source, {
+		args: ['veud-production-retention-cleanup.timer'],
+		env: { IS_ENABLED: 'not-found' },
+	})
+	expectAllowed(timer)
+	assert.equal(timer.stdout, 'disabled')
+
+	// These writer services carry no [Install] section, so systemd calls them
+	// `static` once installed.
+	const service = runBash(source, {
+		args: ['veud-production-retention-cleanup.service'],
+		env: { IS_ENABLED: 'not-found' },
+	})
+	expectAllowed(service)
+	assert.equal(service.stdout, 'static')
+
+	// An empty reading is treated the same way, so a systemd that prints nothing
+	// behaves identically.
+	const empty = runBash(source, {
+		args: ['veud-production-notification-digests.timer'],
+		env: { IS_ENABLED: '' },
+	})
+	expectAllowed(empty)
+	assert.equal(empty.stdout, 'disabled')
+
+	// A real enablement reading is never overwritten.
+	for (const state of ['enabled', 'disabled', 'enabled-runtime']) {
+		const real = runBash(source, {
+			args: ['veud-production-mal-trending.timer'],
+			env: { IS_ENABLED: state },
+		})
+		expectAllowed(real)
+		assert.equal(real.stdout, state)
+	}
 })
