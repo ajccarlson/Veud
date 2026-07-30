@@ -3,7 +3,7 @@ import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import {
 	fetchMangaUpdatesReleases,
-	findMangaUpdatesSeriesId,
+	findMangaUpdatesSeries,
 	MANGAUPDATES_PROVIDER,
 	MANGAUPDATES_SOURCE,
 	releaseOccurrenceInput,
@@ -99,7 +99,7 @@ async function main() {
 			title: true,
 			externalIds: {
 				where: { provider: MANGAUPDATES_PROVIDER, tombstonedAt: null },
-				select: { externalId: true },
+				select: { externalId: true, sourceTitle: true },
 				take: 1,
 			},
 		},
@@ -124,9 +124,13 @@ async function main() {
 
 	for (const media of candidates) {
 		try {
-			let seriesId = Number(media.externalIds[0]?.externalId ?? Number.NaN)
-			if (!Number.isSafeInteger(seriesId)) {
-				const found = await findMangaUpdatesSeriesId(
+			const mapped = media.externalIds[0]
+			let seriesId = Number(mapped?.externalId ?? Number.NaN)
+			// Release records carry the provider's own title and no series id, so
+			// that title is what associates a release with this series.
+			let seriesTitle = mapped?.sourceTitle ?? null
+			if (!Number.isSafeInteger(seriesId) || !seriesTitle) {
+				const found = await findMangaUpdatesSeries(
 					providerFetch,
 					media.title ?? '',
 					{ approvalRef },
@@ -136,7 +140,8 @@ async function main() {
 					unresolved++
 					continue
 				}
-				seriesId = found
+				seriesId = found.seriesId
+				seriesTitle = found.title
 				await prisma.mediaExternalId.upsert({
 					where: {
 						provider_kind_externalId: {
@@ -150,22 +155,23 @@ async function main() {
 						kind: 'manga',
 						externalId: String(seriesId),
 						mediaId: media.id,
-						sourceTitle: media.title,
+						sourceTitle: seriesTitle,
 						lastFetchedAt: new Date(),
 						fetchStatus: 'ok',
 					},
-					update: { lastSeenAt: new Date(), fetchStatus: 'ok' },
+					update: {
+						lastSeenAt: new Date(),
+						fetchStatus: 'ok',
+						sourceTitle: seriesTitle,
+					},
 				})
 				resolved++
 			}
 
 			const releases = await fetchMangaUpdatesReleases(
 				providerFetch,
-				seriesId,
-				{
-					approvalRef,
-					perPage,
-				},
+				seriesTitle,
+				{ approvalRef, perPage },
 			)
 			await sleep(delayMs)
 
