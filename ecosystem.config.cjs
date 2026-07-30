@@ -29,6 +29,14 @@ module.exports = {
 			max_memory_restart: '300M',
 			// Exceeds the application's 12-second graceful-shutdown deadline.
 			kill_timeout: 15_000,
+			// A misconfigured start used to flap indefinitely: PM2 retried ~90
+			// times while the real reason scrolled past in the JSON log and
+			// nothing surfaced the outage. Bound the loop so the process stops in
+			// `errored` state, which is visible in `pm2 list` and leaves the last
+			// failure at the tail of error.log.
+			min_uptime: 20_000,
+			max_restarts: 5,
+			restart_delay: 5_000,
 
 			// Logging
 			out_file: './out.log',

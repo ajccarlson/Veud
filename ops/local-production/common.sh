@@ -30,8 +30,16 @@ load_production_worker_environment() {
 		die "Production application configuration does not exist: $APPLICATION_CONFIG_FILE"
 	unset DATABASE_URL
 	set -a
-	# Load provider/application credentials first, then deliberately override any
-	# copied datasource with the qualified production PostgreSQL configuration.
+	# Load provider/application credentials, then re-apply the qualified
+	# production datasource from the PostgreSQL configuration.
+	#
+	# Both files must already carry the SAME production datasource:
+	# assert_production_application_database_identity requires
+	# application.env's own DATABASE_URL to be the production identity and
+	# requires parity with postgres.env, so this is a normalization step rather
+	# than a licence to leave a foreign datasource in application.env. A copied
+	# staging datasource here is a misconfiguration and fails closed — run
+	# `npm run production:preflight` to see exactly which field is wrong.
 	# shellcheck disable=SC1090
 	source "$APPLICATION_CONFIG_FILE"
 	set +a
