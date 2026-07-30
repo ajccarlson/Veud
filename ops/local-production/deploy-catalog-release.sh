@@ -1380,14 +1380,40 @@ write_maintenance_state migrating
 		migrate deploy \
 		--schema="$destination/prisma/postgresql/schema.prisma"
 	DATABASE_URL="$DATABASE_URL" "$NPM_BIN" run db:verify:postgres
+	# The provenance report always runs, so a deployment still says exactly how
+	# much of the catalog lacks trusted provenance.
 	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
 		--batch-size 100
-	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
-		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
-		--commit \
-		--confirm QUARANTINE_UNTRUSTED_MEDIA_CATALOG \
-		--batch-size 100
+	# Quarantining CLEARS the catalog columns of every media row that is not
+	# attributed to a trusted provider source: title, type, description, genres,
+	# artwork, scores, release dates, and the denormalised copies of those on user
+	# list entries and favourites.
+	#
+	# The provenance epoch migration defaults every pre-existing row to untrusted,
+	# so the first deployment carrying it wipes the entire catalog — 1,569,263 rows
+	# here — and only provider re-hydration can restore it. At provider rate limits
+	# that is weeks, during which the live site shows no posters, titles, or types.
+	#
+	# So this stays OFF until the first re-hydration has attributed the catalog.
+	# Turn it on deliberately, once `npm run catalog:status` shows hydration has
+	# actually covered the catalog:
+	#
+	#     VEUD_PRODUCTION_CATALOG_QUARANTINE=enforce
+	#
+	# `--require-clean` is gated with it: it fails when untrusted media remain,
+	# which is the expected state while the quarantine is off.
+	if [[ "${VEUD_PRODUCTION_CATALOG_QUARANTINE:-skip}" == enforce ]]; then
+		DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
+			"$destination/scripts/quarantine-media-catalog-provenance.ts" \
+			--commit \
+			--confirm QUARANTINE_UNTRUSTED_MEDIA_CATALOG \
+			--batch-size 100
+	else
+		printf '%s\n' \
+			'Catalog quarantine SKIPPED: untrusted media keep their catalog data.' \
+			'Set VEUD_PRODUCTION_CATALOG_QUARANTINE=enforce once re-hydration has attributed the catalog.' >&2
+	fi
 	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/backfill-next-release-at.ts" \
 		--commit
@@ -1395,10 +1421,12 @@ write_maintenance_state migrating
 		"$destination/scripts/sync-watchlist-metadata.ts" \
 		--commit \
 		--batch-size 100
-	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
-		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
-		--batch-size 100 \
-		--require-clean
+	if [[ "${VEUD_PRODUCTION_CATALOG_QUARANTINE:-skip}" == enforce ]]; then
+		DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
+			"$destination/scripts/quarantine-media-catalog-provenance.ts" \
+			--batch-size 100 \
+			--require-clean
+	fi
 )
 write_maintenance_state database-compatible
 }

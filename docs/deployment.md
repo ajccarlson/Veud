@@ -67,6 +67,27 @@ the working directory instead of the activated release, which is the same drift
 the saved definition caused in the first place. The commands above are for
 restarting an already-deployed release.
 
+### Catalog provenance quarantine
+
+A deployment reports how much of the catalog lacks trusted provider provenance,
+but it does **not** wipe it. Quarantining clears title, type, description,
+genres, artwork, scores and release dates on every unattributed media row, and
+the denormalised copies of those on user list entries and favourites.
+
+That matters because the provenance epoch migration defaults every pre-existing
+row to untrusted. The first deployment carrying it quarantined the whole catalog
+— 1,569,263 rows — and only provider re-hydration restores it, which is weeks at
+provider rate limits. The live site showed no posters, titles or types
+throughout.
+
+Enable it deliberately, once `npm run catalog:status` shows re-hydration has
+actually attributed the catalog:
+
+```sh
+VEUD_PRODUCTION_CATALOG_QUARANTINE=enforce \
+  bash ops/local-production/deploy-catalog-release.sh
+```
+
 ### Deploying over an outage
 
 A deployment normally opens a maintenance window on a _running_ system, because
