@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client'
 import sharp from 'sharp'
 import { z } from 'zod'
 import {
@@ -6,8 +5,15 @@ import {
 	type AiCircuit,
 	requestStructuredAi,
 } from './ai-gateway.server.ts'
+import {
+	combinedLexicalTerms,
+	findCatalogCandidateIds,
+	findSuggestionCandidateIds,
+	hydrateCatalogCandidates,
+	lexicalTerms,
+	type CatalogCandidate,
+} from './catalog-candidates.server.ts'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
-import { prisma } from './db.server.ts'
 import { discoveryKinds, type DiscoveryQuery } from './discovery.server.ts'
 
 const MAX_CANDIDATES = 72
@@ -15,59 +21,6 @@ const MAX_MATCHES = 5
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const MAX_IMAGE_PIXELS = 12_000_000
 const mediaKinds = ['movie', 'tv', 'anime', 'manga'] as const
-const STOP_WORDS = new Set([
-	'about',
-	'and',
-	'after',
-	'again',
-	'also',
-	'any',
-	'because',
-	'before',
-	'but',
-	'could',
-	'didn',
-	'does',
-	'for',
-	'from',
-	'had',
-	'has',
-	'have',
-	'her',
-	'him',
-	'his',
-	'into',
-	'just',
-	'like',
-	'movie',
-	'not',
-	'our',
-	'out',
-	'remember',
-	'scene',
-	'show',
-	'some',
-	'something',
-	'than',
-	'that',
-	'the',
-	'there',
-	'they',
-	'this',
-	'was',
-	'were',
-	'what',
-	'where',
-	'which',
-	'who',
-	'why',
-	'with',
-	'woman',
-	'would',
-	'you',
-	'your',
-])
-
 const AiMediaSuggestionSchema = z.object({
 	title: z.string().trim().min(1).max(200),
 	alternateTitle: z.string().trim().min(1).max(200).nullable(),
@@ -121,19 +74,7 @@ const aiSuggestionJsonSchema = {
 
 type AiMediaSuggestion = z.infer<typeof AiMediaSuggestionSchema>
 
-type Candidate = {
-	id: string
-	title: string | null
-	kind: string
-	type: string | null
-	genres: string | null
-	description: string | null
-	releaseStart: Date | null
-	startYear: string | null
-	airYear: string | null
-	catalogPopularity: number | null
-	titles: Array<{ value: string; normalized: string }>
-}
+type Candidate = CatalogCandidate
 
 export type TipOfTongueMatch = {
 	mediaId: string
@@ -164,37 +105,8 @@ export class TipOfTongueImageError extends Error {
 	}
 }
 
-const candidateSelect = {
-	id: true,
-	title: true,
-	kind: true,
-	type: true,
-	genres: true,
-	description: true,
-	releaseStart: true,
-	startYear: true,
-	airYear: true,
-	catalogPopularity: true,
-	titles: {
-		select: {
-			value: true,
-			normalized: true,
-		},
-	},
-} satisfies Prisma.MediaSelect
-
 function memoryTerms(memory: string) {
-	const counts = new Map<string, number>()
-	for (const word of normalizeCatalogTitle(memory).match(/[a-z0-9]+/g) ?? []) {
-		if (word.length < 3 || STOP_WORDS.has(word)) continue
-		counts.set(word, (counts.get(word) ?? 0) + 1)
-	}
-	return [...counts.entries()]
-		.sort(
-			(left, right) => right[1] - left[1] || right[0].length - left[0].length,
-		)
-		.slice(0, 16)
-		.map(([word]) => word)
+	return lexicalTerms(memory)
 }
 
 function excerptFor(candidate: Candidate, matchedClues: string[]) {
@@ -222,77 +134,20 @@ function excerptFor(candidate: Candidate, matchedClues: string[]) {
 	return `${shortened.slice(0, Math.max(lastSpace, 160)).trimEnd()}…`
 }
 
-function candidateWhere(kind: DiscoveryQuery['kind']) {
-	return {
-		title: { not: null },
-		...(kind === 'all' ? {} : { kind }),
-	}
-}
-
 async function candidatesFor(
 	memory: string,
 	kind: DiscoveryQuery['kind'],
 	expandedTerms: string[] = [],
 ) {
-	const terms = [
-		...new Set([
-			...memoryTerms(memory),
-			...expandedTerms.flatMap(term => memoryTerms(term)),
-		]),
-	].slice(0, 28)
-	const base = candidateWhere(kind)
-	const lexicalIds = terms.length
-		? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-				SELECT "Media"."id"
-				FROM "Media"
-				WHERE "Media"."title" IS NOT NULL
-				${kind === 'all' ? Prisma.empty : Prisma.sql`AND "Media"."kind" = ${kind}`}
-				AND (
-					${Prisma.join(
-						terms.map(term => {
-							const pattern = `%${term}%`
-							return Prisma.sql`
-								LOWER(COALESCE("Media"."title", '')) LIKE ${pattern}
-								OR LOWER(COALESCE("Media"."description", '')) LIKE ${pattern}
-								OR LOWER(COALESCE("Media"."genres", '')) LIKE ${pattern}
-								OR EXISTS (
-									SELECT 1
-									FROM "MediaTitle"
-									WHERE "MediaTitle"."mediaId" = "Media"."id"
-									AND "MediaTitle"."normalized" LIKE ${pattern}
-								)
-							`
-						}),
-						' OR ',
-					)}
-				)
-				ORDER BY COALESCE("Media"."catalogPopularity", 0) DESC, "Media"."title" ASC
-				LIMIT ${MAX_CANDIDATES}
-			`)
-		: []
-	const lexicalIdOrder = lexicalIds.map(item => item.id)
-	const [lexicalRows, popular] = await Promise.all([
-		lexicalIdOrder.length
-			? prisma.media.findMany({
-					where: { id: { in: lexicalIdOrder } },
-					select: candidateSelect,
-				})
-			: Promise.resolve([]),
-		prisma.media.findMany({
-			where: base,
-			select: candidateSelect,
-			orderBy: [{ catalogPopularity: 'desc' }, { title: 'asc' }],
-			take: 24,
-		}),
-	])
-	const lexicalById = new Map(lexicalRows.map(item => [item.id, item]))
-	const lexical = lexicalIdOrder.flatMap(id => {
-		const item = lexicalById.get(id)
-		return item ? [item] : []
+	// Exactly two catalog queries: bounded candidate identifiers, then one
+	// hydration read. Terms share a single budget so a long prompt or a verbose
+	// AI response cannot widen the search.
+	const ids = await findCatalogCandidateIds({
+		kind,
+		terms: combinedLexicalTerms(memory, expandedTerms),
+		limit: MAX_CANDIDATES,
 	})
-	return [
-		...new Map([...lexical, ...popular].map(item => [item.id, item])).values(),
-	].slice(0, MAX_CANDIDATES)
+	return hydrateCatalogCandidates(ids)
 }
 
 function localMatches(
@@ -302,9 +157,9 @@ function localMatches(
 	expandedTerms: string[] = [],
 ) {
 	const terms = memoryTerms(memory)
-	const expansionWords = [
-		...new Set(expandedTerms.flatMap(term => memoryTerms(term))),
-	].filter(term => !terms.includes(term))
+	const expansionWords = lexicalTerms(expandedTerms.join(' ')).filter(
+		term => !terms.includes(term),
+	)
 	return candidates
 		.map((candidate, originalIndex) => {
 			const title = normalizeCatalogTitle(candidate.title ?? '')
@@ -372,83 +227,33 @@ function normalizedSuggestionTitles(suggestion: AiMediaSuggestion) {
 	]
 }
 
-async function candidatesForSuggestion(
-	suggestion: AiMediaSuggestion,
+/**
+ * Resolve every AI hypothesis with one bounded candidate query.
+ *
+ * The previous shape ran up to three queries per suggestion, so five
+ * hypotheses cost fifteen round trips. Titles and terms from the whole
+ * response are pooled under fixed budgets, looked up once, hydrated once, and
+ * then ranked locally per hypothesis against that shared set.
+ */
+async function candidatesForSuggestions(
+	suggestions: AiMediaSuggestion[],
 	requestedKind: DiscoveryQuery['kind'],
 ) {
-	const kind = suggestionKind(suggestion, requestedKind)
-	const normalizedTitles = normalizedSuggestionTitles(suggestion)
-	const titleTerms = [
-		...new Set(normalizedTitles.flatMap(title => memoryTerms(title))),
-	].slice(0, 8)
-	const exactTitleRows = normalizedTitles.length
-		? await prisma.mediaTitle.findMany({
-				where: {
-					normalized: { in: normalizedTitles },
-					media: { kind },
-				},
-				select: { media: { select: candidateSelect } },
-				orderBy: [{ isPrimary: 'desc' }, { updatedAt: 'desc' }],
-				take: 16,
-			})
-		: []
-	const titleConditions = [
-		...normalizedTitles.map(
-			title => Prisma.sql`
-				LOWER(COALESCE("Media"."title", '')) = ${title}
-				OR EXISTS (
-					SELECT 1
-					FROM "MediaTitle"
-					WHERE "MediaTitle"."mediaId" = "Media"."id"
-					AND "MediaTitle"."normalized" = ${title}
-				)
-			`,
-		),
-		...titleTerms.map(term => {
-			const pattern = `%${term}%`
-			return Prisma.sql`
-				LOWER(COALESCE("Media"."title", '')) LIKE ${pattern}
-				OR EXISTS (
-					SELECT 1
-					FROM "MediaTitle"
-					WHERE "MediaTitle"."mediaId" = "Media"."id"
-					AND "MediaTitle"."normalized" LIKE ${pattern}
-				)
-			`
+	// One bounded lookup for every hypothesis, each with its own guaranteed
+	// slice of the candidate budget so a crowded hypothesis cannot starve the
+	// rest.
+	const ids = await findSuggestionCandidateIds({
+		suggestions: suggestions.map(suggestion => {
+			const titles = normalizedSuggestionTitles(suggestion)
+			return {
+				kind: suggestionKind(suggestion, requestedKind),
+				exactTitles: titles,
+				titleTerms: titles.flatMap(title => lexicalTerms(title)),
+			}
 		}),
-	]
-	const lexicalIds = titleConditions.length
-		? await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-				SELECT "Media"."id"
-				FROM "Media"
-				WHERE "Media"."title" IS NOT NULL
-				AND "Media"."kind" = ${kind}
-				AND (
-					${Prisma.join(titleConditions, ' OR ')}
-				)
-				ORDER BY COALESCE("Media"."catalogPopularity", 0) DESC, "Media"."title" ASC
-				LIMIT 36
-			`)
-		: []
-	const lexicalIdOrder = lexicalIds.map(item => item.id)
-	const lexicalRows = lexicalIdOrder.length
-		? await prisma.media.findMany({
-				where: { id: { in: lexicalIdOrder } },
-				select: candidateSelect,
-			})
-		: []
-	const lexicalById = new Map(lexicalRows.map(item => [item.id, item]))
-	const orderedLexical = lexicalIdOrder.flatMap(id => {
-		const item = lexicalById.get(id)
-		return item ? [item] : []
+		limit: MAX_CANDIDATES,
 	})
-	return [
-		...new Map(
-			[...exactTitleRows.map(row => row.media), ...orderedLexical].map(
-				candidate => [candidate.id, candidate],
-			),
-		).values(),
-	]
+	return hydrateCatalogCandidates(ids)
 }
 
 function candidateYear(candidate: Candidate) {
@@ -520,18 +325,19 @@ async function matchAiSuggestions(
 	kind: DiscoveryQuery['kind'],
 	suggestions: AiMediaSuggestion[],
 ) {
-	const rankedBySuggestion = await Promise.all(
-		suggestions.map(async suggestion => ({
-			suggestion,
-			ranked: rankSuggestionCandidates(
-				suggestion,
-				await candidatesForSuggestion(suggestion, kind),
-			),
-		})),
-	)
+	const sharedCandidates = await candidatesForSuggestions(suggestions, kind)
 	const usedMediaIds = new Set<string>()
 	const matches: TipOfTongueMatch[] = []
-	for (const { suggestion, ranked } of rankedBySuggestion) {
+	for (const suggestion of suggestions) {
+		const requiredKind = suggestionKind(suggestion, kind)
+		// Rank locally against the shared bounded set; the requested-kind
+		// boundary still decides which candidates a hypothesis may claim.
+		const ranked = rankSuggestionCandidates(
+			suggestion,
+			// The shared candidate set is already capped, so a hypothesis can map to
+			// at most MAX_CANDIDATES entries.
+			sharedCandidates.filter(candidate => candidate.kind === requiredKind),
+		)
 		const resolved = ranked.find(item => !usedMediaIds.has(item.candidate.id))
 		if (!resolved) continue
 		usedMediaIds.add(resolved.candidate.id)
