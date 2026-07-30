@@ -59,6 +59,14 @@ many times PM2 retries. The preflight reports this explicitly. The fix is to
 deploy a current release with `ops/local-production/deploy-catalog-release.sh`,
 not to restart.
 
+A deployment already recreates and saves the PM2 definition itself: it deletes
+`veud`, starts it from the new release's own `ecosystem.config.cjs`,
+health-checks the release headers, and saves the process list. Do **not** run
+`npm run start:prod` afterwards — that would start PM2 with the repository as
+the working directory instead of the activated release, which is the same drift
+the saved definition caused in the first place. The commands above are for
+restarting an already-deployed release.
+
 `pm2 save` matters: PM2's saved process list is what a reboot resurrects, and a
 definition saved before a launcher change will keep failing after the config is
 corrected. If `pm2 list` shows repeated restarts, compare the saved definition
