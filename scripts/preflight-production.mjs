@@ -184,11 +184,13 @@ function checkBlockingCutoverState(productionRoot) {
 	}
 }
 
-/**
- * Report the PM2 definition PM2 would actually run, so a stale saved process
- * list cannot quietly reintroduce a wrapper the config no longer uses.
- */
-function checkPm2Definition() {
+/** Every process PM2 supervises in production, with the launcher each must run. */
+const EXPECTED_PM2_LAUNCHERS = [
+	['veud', 'ops/local-production/run-app.sh'],
+	['veud-backup', 'ops/local-production/run-backup.sh'],
+]
+
+function readPm2ProcessesFromPm2() {
 	let raw
 	try {
 		raw = execFileSync('pm2', ['jlist'], {
@@ -196,39 +198,85 @@ function checkPm2Definition() {
 			stdio: ['ignore', 'pipe', 'ignore'],
 		})
 	} catch {
+		return undefined
+	}
+	try {
+		return JSON.parse(raw)
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Report the definitions PM2 would actually run, so a stale saved process list
+ * cannot quietly reintroduce a wrapper the config no longer uses.
+ *
+ * `ecosystem.config.cjs` chooses both the script and the interpreter from
+ * NODE_ENV at load time and names the script RELATIVELY, so a saved definition
+ * records whatever was resolved when `pm2 start` last ran. Two failures follow
+ * from that and both have happened here: a list saved from the repository keeps
+ * running the working tree instead of the immutable release, and a list saved
+ * across a config change can pair the production interpreter with the
+ * development script — bash executing a `.mjs` file, which is what silently
+ * broke hourly backups.
+ */
+function checkPm2Definition(productionRoot, readPm2Processes) {
+	const processes = readPm2Processes()
+	if (processes === undefined) {
 		notes.push('pm2 is not running, so no saved definition to compare')
 		return
 	}
-	let processes
-	try {
-		processes = JSON.parse(raw)
-	} catch {
+	if (!Array.isArray(processes)) {
 		notes.push('pm2 jlist output could not be parsed')
 		return
 	}
-	const app = processes.find(entry => entry?.name === 'veud')
-	if (!app) {
-		notes.push('pm2 has no saved veud process yet')
-		return
+	let releaseRoot
+	try {
+		releaseRoot = fs.realpathSync(path.join(productionRoot, 'app/current'))
+	} catch {
+		// checkActivatedRelease already reported the missing release.
+		releaseRoot = undefined
 	}
-	const execPath = String(app.pm2_env?.pm_exec_path ?? '')
-	if (!execPath.endsWith('ops/local-production/run-app.sh')) {
-		fail(
-			`pm2's saved veud definition runs ${execPath || '(unknown)'} instead of ops/local-production/run-app.sh. ` +
-				'Run "pm2 delete veud" then "npm run start:prod", and "pm2 save".',
-		)
-	}
-	const restarts = Number(app.pm2_env?.restart_time ?? 0)
-	if (restarts > 10) {
-		notes.push(
-			`pm2 has restarted veud ${restarts} times; investigate before starting`,
-		)
+	for (const [name, launcher] of EXPECTED_PM2_LAUNCHERS) {
+		const app = processes.find(entry => entry?.name === name)
+		if (!app) {
+			notes.push(`pm2 has no saved ${name} process yet`)
+			continue
+		}
+		const execPath = String(app.pm2_env?.pm_exec_path ?? '')
+		const interpreter = String(app.pm2_env?.exec_interpreter ?? '')
+		if (interpreter === 'bash' && execPath.endsWith('.mjs')) {
+			fail(
+				`pm2's saved ${name} definition runs ${execPath} with the bash interpreter, so bash tries to execute JavaScript. ` +
+					'The saved list mixes the production interpreter with the development script; recreate it from the activated release.',
+			)
+		} else if (!execPath.endsWith(launcher)) {
+			fail(
+				`pm2's saved ${name} definition runs ${execPath || '(unknown)'} instead of ${launcher}. ` +
+					`Run "pm2 delete ${name}", recreate it from the activated release, and "pm2 save".`,
+			)
+		} else if (
+			releaseRoot &&
+			!execPath.startsWith(`${releaseRoot}${path.sep}`)
+		) {
+			fail(
+				`pm2's saved ${name} definition runs ${launcher} from ${execPath}, which is outside the activated release ${releaseRoot}. ` +
+					'Production would run the working tree instead of the immutable release; recreate the definition from the release.',
+			)
+		}
+		const restarts = Number(app.pm2_env?.restart_time ?? 0)
+		if (restarts > 10) {
+			notes.push(
+				`pm2 has restarted ${name} ${restarts} times; investigate before starting`,
+			)
+		}
 	}
 }
 
 export function runProductionPreflight({
 	productionRoot = process.env.VEUD_PRODUCTION_ROOT ??
 		`${process.env.VEUD_STAGING_LIVE_MOUNT ?? '/media/sde'}/veud-production`,
+	readPm2Processes = readPm2ProcessesFromPm2,
 } = {}) {
 	failures.length = 0
 	notes.length = 0
@@ -287,7 +335,7 @@ export function runProductionPreflight({
 			)
 		}
 	}
-	checkPm2Definition()
+	checkPm2Definition(productionRoot, readPm2Processes)
 	return { failures: [...failures], notes: [...notes] }
 }
 

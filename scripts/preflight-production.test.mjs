@@ -78,8 +78,28 @@ function productionRoot({
 	return root
 }
 
+// Default to "pm2 absent" so no test depends on the host's real process list.
+function preflight(root, readPm2Processes = () => undefined) {
+	return runProductionPreflight({ productionRoot: root, readPm2Processes })
+}
+
 function run(options) {
-	return runProductionPreflight({ productionRoot: productionRoot(options) })
+	return preflight(productionRoot(options))
+}
+
+function pm2Process(name, execPath, interpreter = 'bash', restarts = 0) {
+	return {
+		name,
+		pm2_env: {
+			pm_exec_path: execPath,
+			exec_interpreter: interpreter,
+			restart_time: restarts,
+		},
+	}
+}
+
+function releasePath(root, ...parts) {
+	return path.join(fs.realpathSync(path.join(root, 'app/current')), ...parts)
 }
 
 test('a correct production setup passes and reports the activated release', () => {
@@ -175,7 +195,7 @@ test('the restore datasource must be the dedicated restore role', () => {
 test('a missing config file is reported rather than crashing', () => {
 	const root = productionRoot()
 	fs.rmSync(path.join(root, 'config/application.env'))
-	const result = runProductionPreflight({ productionRoot: root })
+	const result = preflight(root)
 	expect(result.failures.join('\n')).toContain(
 		'Production application configuration does not exist',
 	)
@@ -193,7 +213,7 @@ test('a symlinked config file is refused instead of read through', () => {
 	const target = path.join(root, 'config/application.env')
 	fs.rmSync(target)
 	fs.symlinkSync(elsewhere, target)
-	const result = runProductionPreflight({ productionRoot: root })
+	const result = preflight(root)
 	expect(result.failures.join('\n')).toContain(
 		'must be a regular non-symlink file',
 	)
@@ -218,7 +238,7 @@ test('a release predating the launcher entry point is rejected', () => {
 	const release = fs.readlinkSync(path.join(root, 'app/current'))
 	fs.rmSync(path.join(release, 'scripts'), { recursive: true, force: true })
 	fs.rmSync(path.join(release, 'ops'), { recursive: true, force: true })
-	const result = runProductionPreflight({ productionRoot: root })
+	const result = preflight(root)
 	const report = result.failures.join('\n')
 	expect(report).toContain('scripts/pm2-entry.mjs')
 	expect(report).toContain('ops/local-production/run-app.sh')
@@ -227,6 +247,64 @@ test('a release predating the launcher entry point is rejected', () => {
 
 test('a release containing the launcher entry point passes', () => {
 	const root = productionRoot()
-	const result = runProductionPreflight({ productionRoot: root })
+	const result = preflight(root)
 	expect(result.failures).toEqual([])
+})
+
+test('a pm2 definition pairing bash with the development script is rejected', () => {
+	// The live failure that silently broke hourly production backups: the saved
+	// list kept the production interpreter (bash) alongside the development
+	// script path, so bash tried to execute a JavaScript file.
+	const root = productionRoot()
+	const result = preflight(root, () => [
+		pm2Process('veud', releasePath(root, 'ops/local-production/run-app.sh')),
+		pm2Process(
+			'veud-backup',
+			'/home/acarl/Programs/Veud/scripts/backup-database.mjs',
+		),
+	])
+	const report = result.failures.join('\n')
+	expect(report).toContain('veud-backup')
+	expect(report).toContain('bash tries to execute JavaScript')
+})
+
+test('a launcher run from outside the activated release is rejected', () => {
+	// Relative script paths in ecosystem.config.cjs resolve against the cwd of
+	// `pm2 start`, so a list saved from the repository runs the working tree.
+	const root = productionRoot()
+	const result = preflight(root, () => [
+		pm2Process(
+			'veud',
+			'/home/acarl/Programs/Veud/ops/local-production/run-app.sh',
+		),
+		pm2Process(
+			'veud-backup',
+			'/home/acarl/Programs/Veud/ops/local-production/run-backup.sh',
+		),
+	])
+	const report = result.failures.join('\n')
+	expect(report).toContain('outside the activated release')
+	// Both processes are reported, not just the first.
+	expect(result.failures).toHaveLength(2)
+	expect(report).toContain('saved veud definition')
+	expect(report).toContain('saved veud-backup definition')
+})
+
+test('pm2 definitions taken from the activated release pass', () => {
+	const root = productionRoot()
+	const result = preflight(root, () => [
+		pm2Process('veud', releasePath(root, 'ops/local-production/run-app.sh')),
+		pm2Process(
+			'veud-backup',
+			releasePath(root, 'ops/local-production/run-backup.sh'),
+		),
+	])
+	expect(result.failures).toEqual([])
+})
+
+test('a missing pm2 process is a note, not a failure', () => {
+	const root = productionRoot()
+	const result = preflight(root, () => [])
+	expect(result.failures).toEqual([])
+	expect(result.notes.join('\n')).toContain('no saved veud-backup process yet')
 })
