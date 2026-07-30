@@ -17,6 +17,11 @@ function pageSegment(file: string) {
 	if (/\.test\.tsx?$/.test(file)) return null
 	const source = fs.readFileSync(file, 'utf8')
 	if (!/export default (function|\()/.test(source)) return null
+	// A redirect-only route renders nothing and exists to forward the visitor
+	// somewhere else, so it is not a destination that needs navigation of its own.
+	if (/export default function \w+\(\) \{\s*return null\s*\}/.test(source)) {
+		return null
+	}
 	const relative = file.replace(/^app\/routes\//, '').replace(/\.tsx$/, '')
 	const segment = relative
 		.replace(/\/(route|index|_index)$/, '')
