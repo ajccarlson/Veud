@@ -4,11 +4,19 @@ import {
 	providerMatchesMediaKind,
 } from './media-kind.ts'
 
+const CanonicalProviderExternalIdSchema = z
+	.string()
+	.regex(/^[1-9]\d*$/)
+	.max(16)
+	.refine(value => Number.isSafeInteger(Number(value)), {
+		message: 'Provider ID must be a positive safe integer',
+	})
+
 export const MediaIdentitySchema = z
 	.object({
 		provider: z.enum(['tmdb', 'mal']),
 		kind: z.enum(['movie', 'tv', 'anime', 'manga']),
-		externalId: z.string().regex(/^\d+$/).max(20),
+		externalId: CanonicalProviderExternalIdSchema,
 	})
 	.strict()
 

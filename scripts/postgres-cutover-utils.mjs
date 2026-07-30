@@ -433,8 +433,11 @@ export function evaluatePostgresCutoverEvidence({
 		errors,
 	)
 
-	if (backupReceipt?.version !== 1)
-		errors.push('backup receipt version must be 1')
+	if (backupReceipt?.version !== 2)
+		errors.push('backup receipt version must be 2')
+	if (backupReceipt?.checks?.sourcePolicy !== 'migrated-veud-v1') {
+		errors.push('backup receipt source policy must be migrated-veud-v1')
+	}
 	if (backupReceipt?.sourceTarget !== policy?.expectedDatabaseTarget) {
 		errors.push('backup receipt source target does not match policy')
 	}

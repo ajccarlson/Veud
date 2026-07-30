@@ -8,6 +8,7 @@ import {
 import {
 	expectedCatalogMergeConfirmation,
 	expectedCatalogMergeReversal,
+	parseCatalogMediaMergePreflight,
 } from './catalog-media-merge.ts'
 import { prisma } from './db.server.ts'
 
@@ -17,6 +18,40 @@ const sourceNextRelease = JSON.stringify({
 	observedAt: now.toISOString(),
 	releaseDate: '2026-07-30T18:00:00.000Z',
 	episode: 3,
+})
+
+test('rejects a quarantined empty catalog merge preflight snapshot', () => {
+	expect(() => parseCatalogMediaMergePreflight('{}')).toThrow(
+		'Invalid catalog merge preflight',
+	)
+})
+
+test('rejects malformed nested catalog merge preflight data', () => {
+	const valid = {
+		issueId: 'issue',
+		source: { id: 'source', title: null, kind: 'movie' },
+		target: { id: 'target', title: 'Target', kind: 'movie' },
+		safe: true,
+		blockers: [],
+		warnings: [],
+		moves: { entries: 0 },
+		prunes: { titles: 0 },
+		targetFills: ['description'],
+		targetConflicts: ['title'],
+		fingerprint: 'fingerprint',
+		generatedAt: now.toISOString(),
+	}
+	expect(parseCatalogMediaMergePreflight(JSON.stringify(valid))).toEqual(valid)
+	for (const malformed of [
+		{ ...valid, warnings: [1] },
+		{ ...valid, moves: { entries: -1 } },
+		{ ...valid, blockers: [{ code: 'unsafe' }] },
+		{ ...valid, targetFills: ['private-member-field'] },
+	]) {
+		expect(() =>
+			parseCatalogMediaMergePreflight(JSON.stringify(malformed)),
+		).toThrow('Invalid catalog merge preflight')
+	}
 })
 
 async function seedBase() {
@@ -85,6 +120,7 @@ async function seedBase() {
 			{
 				id: 'merge-source',
 				kind: 'movie',
+				catalogProvenanceVersion: 1,
 				title: 'Shared title',
 				description: 'Source description',
 				releaseStart: new Date('2024-01-01T00:00:00.000Z'),
@@ -97,6 +133,7 @@ async function seedBase() {
 			{
 				id: 'merge-target',
 				kind: 'movie',
+				catalogProvenanceVersion: 1,
 				title: 'Different target title',
 				description: null,
 				releaseStart: new Date('2024-01-01T00:00:00.000Z'),
@@ -104,6 +141,7 @@ async function seedBase() {
 			{
 				id: 'merge-third',
 				kind: 'movie',
+				catalogProvenanceVersion: 1,
 				title: 'Related work',
 			},
 		],
@@ -116,6 +154,7 @@ async function seedBase() {
 			status: 'confirmed',
 			severity: 'warning',
 			summary: 'Reviewed duplicate candidate',
+			evidence: JSON.stringify({ source: 'merge-test-fixture' }),
 			primaryMediaId: 'merge-source',
 			secondaryMediaId: 'merge-target',
 			reviewedById: admin.id,
@@ -386,18 +425,21 @@ async function seedSafeRelationInventory() {
 					relationType: 'related',
 					sourceMediaId: 'merge-source',
 					targetMediaId: 'merge-target',
+					catalogProvenanceVersion: 1,
 				},
 				{
 					id: 'merge-source-relation-duplicate',
 					relationType: 'sequel',
 					sourceMediaId: 'merge-source',
 					targetMediaId: 'merge-third',
+					catalogProvenanceVersion: 1,
 				},
 				{
 					id: 'merge-target-relation-duplicate',
 					relationType: 'sequel',
 					sourceMediaId: 'merge-target',
 					targetMediaId: 'merge-third',
+					catalogProvenanceVersion: 1,
 				},
 			],
 		}),
@@ -1206,6 +1248,51 @@ test('preparation refuses to overwrite a claimed merge state', async () => {
 		status: 'applying',
 		sourceMediaId: 'merge-source',
 		targetMediaId: 'merge-target',
+	})
+})
+
+test('an invalidated historical plan needs fresh evidence before re-preparation', async () => {
+	const { admin, issue } = await seedBase()
+	await prisma.catalogQualityIssue.update({
+		where: { id: issue.id },
+		data: { evidence: null },
+	})
+	const historical = await prisma.catalogMediaMerge.create({
+		data: {
+			issueId: issue.id,
+			status: 'invalidated',
+			sourceMediaId: 'merge-source',
+			targetMediaId: 'merge-target',
+			preflight: '{}',
+			preflightFingerprint: 'catalog-provenance-reset-required',
+		},
+	})
+	await expect(
+		prepareCatalogMediaMerge(prisma, {
+			issueId: issue.id,
+			targetMediaId: 'merge-target',
+			actorId: admin.id,
+			now,
+		}),
+	).rejects.toThrow('fresh provider-scan evidence')
+
+	await prisma.catalogQualityIssue.update({
+		where: { id: issue.id },
+		data: { evidence: JSON.stringify({ source: 'fresh-provider-scan' }) },
+	})
+	await expect(
+		prepareCatalogMediaMerge(prisma, {
+			issueId: issue.id,
+			targetMediaId: 'merge-target',
+			actorId: admin.id,
+			now,
+		}),
+	).resolves.toMatchObject({
+		merge: {
+			id: historical.id,
+			status: 'planned',
+			catalogProvenanceVersion: 1,
+		},
 	})
 })
 

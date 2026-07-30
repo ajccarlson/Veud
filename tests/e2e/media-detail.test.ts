@@ -29,6 +29,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
+					catalogProvenanceVersion: 1,
 					title: '[VEUD E2E] Canonical Media Browser Test',
 					genres: 'Action, Fantasy',
 					length: '12 eps',
@@ -45,6 +46,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
+					catalogProvenanceVersion: 1,
 					title: '[VEUD E2E] Canonical Browser Sequel',
 					type: 'TV Series',
 					startSeason: 'Fall 2027',
@@ -53,6 +55,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
+					catalogProvenanceVersion: 1,
 					title: '[VEUD E2E] Recommended Browser Match',
 					genres: 'Action, Fantasy, Adventure',
 				},
@@ -60,6 +63,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
+					catalogProvenanceVersion: 1,
 					title: '[VEUD E2E] Hidden Tracked Match',
 					genres: 'Action, Fantasy',
 				},
@@ -67,6 +71,7 @@ test('member can open a canonical media page and change status', async ({
 			prisma.media.create({
 				data: {
 					kind: 'anime',
+					catalogProvenanceVersion: 1,
 					title: '[VEUD E2E] Unrelated Browser Romance',
 					genres: 'Romance',
 				},
@@ -79,6 +84,7 @@ test('member can open a canonical media page and change status', async ({
 				targetMediaId: relatedMedia.id,
 				relationType: 'sequel',
 				provider: 'mal',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.follow.create({

@@ -1,3 +1,7 @@
+import {
+	entryCatalogMetadataFields,
+	type MediaCatalogSnapshot,
+} from '#app/utils/media-catalog.ts'
 import { profileHistoryTimestamp } from '#app/utils/profile-history-bounds.ts'
 
 const PUBLIC_HISTORY_CODE_UNIT_LIMIT = 64 * 1024
@@ -101,6 +105,11 @@ type PreparedWatchlistEntry<TEntry extends WatchlistEntryVisibilityProbe> =
 		trackingState: PublicTrackingState<TEntry> | null
 	}
 
+type LinkedCatalogMedia = MediaCatalogSnapshot & {
+	kind: string
+	externalIds?: unknown
+}
+
 function withoutVisibilityProbe<TEntry extends WatchlistEntryVisibilityProbe>(
 	trackingState: NonNullable<TEntry['trackingState']>,
 	keepStatusWatchlistId: boolean,
@@ -157,6 +166,36 @@ export function prepareWatchlistEntryForViewer<
 		;(prepared as Record<string, unknown>)[field] = null
 	}
 	return prepared
+}
+
+/**
+ * Linked Entry catalog fields are compatibility snapshots, not a trusted
+ * public source. Always overlay them from canonical Media before returning
+ * either an owner or visitor payload. Unlinked legacy rows retain their local
+ * snapshot until they can be matched to a canonical title.
+ */
+export function canonicalizeLinkedWatchlistEntry<
+	TEntry extends Record<string, unknown> & {
+		media: LinkedCatalogMedia | null
+	},
+>(entry: TEntry): TEntry {
+	if (!entry.media) return entry
+
+	const canonical = { ...entry } as Record<string, unknown>
+	for (const field of entryCatalogMetadataFields) {
+		if (field in canonical) canonical[field] = entry.media[field] ?? null
+	}
+	canonical.title = entry.media.title?.trim() || `Untitled ${entry.media.kind}`
+	const externalIds = Array.isArray(entry.media.externalIds)
+		? entry.media.externalIds
+		: undefined
+	canonical.media = {
+		kind: entry.media.kind,
+		tmdbScore: entry.media.tmdbScore ?? null,
+		malScore: entry.media.malScore ?? null,
+		...(externalIds === undefined ? {} : { externalIds }),
+	}
+	return canonical as TEntry
 }
 
 export const publicListOwnerSelect = {

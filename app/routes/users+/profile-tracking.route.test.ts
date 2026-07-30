@@ -431,7 +431,11 @@ test('profile loader hides private lists and their tracking activity from visito
 			data: { kind: 'anime', title: 'Public profile title' },
 		}),
 		prisma.media.create({
-			data: { kind: 'anime', title: 'Private profile title' },
+			data: {
+				kind: 'anime',
+				title: 'Private profile title',
+				genres: 'Trusted Canonical Genre',
+			},
 		}),
 	])
 	const unrelatedOwner = await prisma.user.create({
@@ -670,6 +674,9 @@ test('profile loader hides private lists and their tracking activity from visito
 		count: 1,
 	})
 	expect(ownerStatsResult.data.genreMatrices[listType.id].labels).toContain(
+		'Trusted Canonical Genre',
+	)
+	expect(ownerStatsResult.data.genreMatrices[listType.id].labels).not.toContain(
 		'Private Sentinel Genre',
 	)
 	expect(ownerStatsResult.data.listTypeCounts[listType.id]).toBe(5)

@@ -40,6 +40,7 @@ export async function addFavoriteCommand(ownerId: string, favorite: unknown) {
 			'media',
 			'mediaId',
 			'mediaIdentity',
+			'mediaRelations',
 			'owner',
 			'ownerId',
 			'type',
@@ -48,20 +49,7 @@ export async function addFavoriteCommand(ownerId: string, favorite: unknown) {
 	}
 
 	return await prisma.$transaction(async tx => {
-		const favoriteCatalog = {
-			...data,
-			type: favoriteObj.mediaType,
-			...(mediaIdentity?.kind === 'anime'
-				? { startSeason: favoriteObj.startYear }
-				: mediaIdentity?.kind === 'manga'
-					? { startYear: favoriteObj.startYear }
-					: { airYear: favoriteObj.startYear }),
-		}
-		const mediaId = await ensureMediaForIdentity(
-			tx,
-			mediaIdentity,
-			favoriteCatalog,
-		)
+		const mediaId = await ensureMediaForIdentity(tx, mediaIdentity)
 
 		// `data` is a runtime-validated object; Prisma's create input can't be inferred from
 		// arbitrary client JSON, so the shape is asserted here.

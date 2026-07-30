@@ -2,8 +2,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from 'vitest'
+import { attestPostgresBackupFile } from './postgres-backup-publication.mjs'
 import {
 	defaultPostgresBackupReceiptPath,
+	MAX_POSTGRES_BACKUP_RECEIPT_BYTES,
+	readAndValidatePostgresBackupReceipt,
+	replacePostgresBackupReceipt,
 	sha256File,
 	writePostgresBackupReceipt,
 } from './postgres-backup-receipt.mjs'
@@ -25,7 +29,7 @@ test('writes a credential-free private restore-verification receipt', async () =
 	)
 	try {
 		const backupPath = path.join(tempDir, 'postgres-test.dump')
-		fs.writeFileSync(backupPath, 'verified archive')
+		fs.writeFileSync(backupPath, 'verified archive', { mode: 0o600 })
 		const result = await writePostgresBackupReceipt({
 			backupPath,
 			sourceUrl: 'postgresql://veud:primary-secret@db.example/veud',
@@ -37,21 +41,387 @@ test('writes a credential-free private restore-verification receipt', async () =
 				media: 5,
 				migrations: 6,
 			},
+			archiveAttestation: attestPostgresBackupFile(backupPath),
 			now,
 		})
 
 		expect(result.path).toBe(defaultPostgresBackupReceiptPath(backupPath))
 		expect(result.receipt).toMatchObject({
-			version: 1,
+			version: 2,
 			verifiedAt: now.toISOString(),
 			sourceTarget: 'db.example:5432/veud',
 			restoreTarget: 'db.example:5432/veud_restore',
-			checks: { expectedIdentity: false },
+			checks: {
+				expectedIdentity: false,
+				sourcePolicy: 'migrated-veud-v1',
+			},
 			archive: { name: 'postgres-test.dump', bytes: 16 },
 		})
 		expect(result.receipt.archive.sha256).toBe(await sha256File(backupPath))
 		expect(fs.statSync(result.path).mode & 0o777).toBe(0o600)
 		expect(fs.readFileSync(result.path, 'utf8')).not.toContain('secret')
+		expect(
+			readAndValidatePostgresBackupReceipt({
+				receiptPath: result.path,
+				backupPath,
+				archiveAttestation: attestPostgresBackupFile(backupPath),
+			}).receipt,
+		).toEqual(result.receipt)
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true })
+	}
+})
+
+function replaceWithDistinctInode(target, content, mode = 0o600) {
+	const original = fs.statSync(target).ino
+	const replacement = `${target}.distinct-inode`
+	fs.writeFileSync(replacement, content, { mode })
+	const replacementInode = fs.statSync(replacement).ino
+	if (replacementInode === original) {
+		fs.rmSync(replacement, { force: true })
+		throw new Error('could not stage a distinct inode for the replacement')
+	}
+	fs.renameSync(replacement, target)
+	return replacementInode
+}
+
+test('refuses to publish a receipt after the verified archive inode changes', async () => {
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'veud-backup-receipt-swap-test-'),
+	)
+	try {
+		const backupPath = path.join(tempDir, 'postgres-test.dump')
+		fs.writeFileSync(backupPath, 'verified archive', { mode: 0o600 })
+		const archiveAttestation = attestPostgresBackupFile(backupPath)
+		// Deleting and rewriting in place can reuse the freed inode on some
+		// filesystems, which would leave nothing for the guard to detect.
+		// Creating the replacement alongside the original guarantees a distinct
+		// inode, then one rename swaps it in.
+		replaceWithDistinctInode(backupPath, 'verified archive')
+		await expect(
+			writePostgresBackupReceipt({
+				backupPath,
+				sourceUrl: 'postgresql://veud:source@db.example/veud',
+				verifyUrl: 'postgresql://veud:restore@db.example/veud_restore',
+				summary: {
+					users: 0,
+					watchlists: 0,
+					entries: 0,
+					media: 0,
+					migrations: 0,
+				},
+				archiveAttestation,
+			}),
+		).rejects.toThrow('changed after it was staged')
+		expect(fs.existsSync(defaultPostgresBackupReceiptPath(backupPath))).toBe(
+			false,
+		)
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true })
+	}
+})
+
+test('accepts exact legacy-v1 evidence and rotates it to v2', async () => {
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'veud-legacy-backup-receipt-test-'),
+	)
+	try {
+		const backupPath = path.join(tempDir, 'postgres-legacy.dump')
+		const receiptPath = defaultPostgresBackupReceiptPath(backupPath)
+		fs.writeFileSync(backupPath, 'legacy archive', { mode: 0o600 })
+		const archiveAttestation = attestPostgresBackupFile(backupPath)
+		const summary = {
+			users: 2,
+			watchlists: 3,
+			entries: 4,
+			media: 5,
+			migrations: 6,
+		}
+		const legacyReceipt = {
+			version: 1,
+			verifiedAt: now.toISOString(),
+			sourceTarget: 'db.example:5432/veud',
+			restoreTarget: 'db.example:5432/veud_restore',
+			checks: { expectedIdentity: false },
+			archive: {
+				name: path.basename(backupPath),
+				bytes: archiveAttestation.bytes,
+				sha256: archiveAttestation.sha256,
+			},
+			summary,
+		}
+		fs.writeFileSync(receiptPath, `${JSON.stringify(legacyReceipt)}\n`, {
+			mode: 0o600,
+		})
+		const legacyInode = fs.statSync(receiptPath).ino
+		const validatedLegacy = readAndValidatePostgresBackupReceipt({
+			receiptPath,
+			backupPath,
+			archiveAttestation,
+		})
+		expect(validatedLegacy.receipt).toEqual(legacyReceipt)
+		expect(validatedLegacy.sourcePolicy).toBe('migrated-veud-v1')
+
+		await replacePostgresBackupReceipt({
+			backupPath,
+			sourceUrl: 'postgresql://veud:source@db.example/veud',
+			verifyUrl: 'postgresql://veud:restore@db.example/veud_restore',
+			summary,
+			archiveAttestation,
+			now: new Date('2026-07-21T12:00:00.000Z'),
+		})
+		const rotated = readAndValidatePostgresBackupReceipt({
+			receiptPath,
+			backupPath,
+			archiveAttestation,
+		}).receipt
+		expect(rotated.version).toBe(2)
+		expect(rotated.checks).toEqual({
+			expectedIdentity: false,
+			sourcePolicy: 'migrated-veud-v1',
+		})
+		expect(fs.statSync(receiptPath).ino).not.toBe(legacyInode)
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true })
+	}
+})
+
+test('strictly rejects malformed, unbounded, and symlink restore receipts', async () => {
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'veud-strict-backup-receipt-test-'),
+	)
+	try {
+		const backupPath = path.join(tempDir, 'postgres-strict.dump')
+		const receiptPath = defaultPostgresBackupReceiptPath(backupPath)
+		fs.writeFileSync(backupPath, 'strict archive', { mode: 0o600 })
+		const archiveAttestation = attestPostgresBackupFile(backupPath)
+		const result = await writePostgresBackupReceipt({
+			backupPath,
+			sourceUrl: 'postgresql://veud:source@db.example/veud',
+			verifyUrl: 'postgresql://veud:restore@db.example/veud_restore',
+			summary: {
+				users: 1,
+				watchlists: 2,
+				entries: 3,
+				media: 4,
+				migrations: 5,
+			},
+			archiveAttestation,
+			now,
+		})
+		const malformedReceipts = [
+			{ ...result.receipt, unexpected: true },
+			{
+				...result.receipt,
+				checks: { ...result.receipt.checks, unexpected: true },
+			},
+			{
+				...result.receipt,
+				checks: { ...result.receipt.checks, sourcePolicy: '' },
+			},
+			{
+				...result.receipt,
+				summary: { ...result.receipt.summary, unexpected: 1 },
+			},
+			{ ...result.receipt, version: 1 },
+			{ ...result.receipt, version: '1' },
+			{ ...result.receipt, verifiedAt: 'July 20, 2026' },
+			{
+				...result.receipt,
+				restoreTarget: result.receipt.sourceTarget,
+			},
+			{
+				...result.receipt,
+				archive: {
+					...result.receipt.archive,
+					bytes: result.receipt.archive.bytes + 1,
+				},
+			},
+			{
+				...result.receipt,
+				archive: {
+					...result.receipt.archive,
+					sha256: result.receipt.archive.sha256.toUpperCase(),
+				},
+			},
+		]
+
+		for (const malformed of malformedReceipts) {
+			fs.rmSync(receiptPath)
+			fs.writeFileSync(receiptPath, JSON.stringify(malformed), { mode: 0o600 })
+			expect(() =>
+				readAndValidatePostgresBackupReceipt({
+					receiptPath,
+					backupPath,
+					archiveAttestation,
+				}),
+			).toThrow()
+		}
+
+		fs.chmodSync(receiptPath, 0o644)
+		expect(() =>
+			readAndValidatePostgresBackupReceipt({
+				receiptPath,
+				backupPath,
+				archiveAttestation,
+			}),
+		).toThrow('owned by this process and mode 0600')
+		fs.chmodSync(receiptPath, 0o600)
+
+		fs.rmSync(receiptPath)
+		fs.writeFileSync(
+			receiptPath,
+			Buffer.alloc(MAX_POSTGRES_BACKUP_RECEIPT_BYTES + 1, 0x20),
+			{ mode: 0o600 },
+		)
+		expect(() =>
+			readAndValidatePostgresBackupReceipt({
+				receiptPath,
+				backupPath,
+				archiveAttestation,
+			}),
+		).toThrow(`between 1 and ${MAX_POSTGRES_BACKUP_RECEIPT_BYTES} bytes`)
+
+		const symlinkTarget = path.join(tempDir, 'untrusted-receipt.json')
+		fs.writeFileSync(symlinkTarget, JSON.stringify(result.receipt), {
+			mode: 0o600,
+		})
+		fs.rmSync(receiptPath)
+		fs.symlinkSync(symlinkTarget, receiptPath)
+		expect(() =>
+			readAndValidatePostgresBackupReceipt({
+				receiptPath,
+				backupPath,
+				archiveAttestation,
+			}),
+		).toThrow('regular non-symlink file')
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true })
+	}
+})
+
+test('manual receipt re-verification replaces valid evidence atomically', async () => {
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'veud-replace-backup-receipt-test-'),
+	)
+	try {
+		const backupPath = path.join(tempDir, 'postgres-reverify.dump')
+		fs.writeFileSync(backupPath, 'reverified archive', { mode: 0o600 })
+		const archiveAttestation = attestPostgresBackupFile(backupPath)
+		const options = {
+			backupPath,
+			sourceUrl: 'postgresql://veud:source@db.example/veud',
+			verifyUrl: 'postgresql://veud:restore@db.example/veud_restore',
+			summary: {
+				users: 2,
+				watchlists: 3,
+				entries: 4,
+				media: 5,
+				migrations: 6,
+			},
+			archiveAttestation,
+		}
+		const original = await writePostgresBackupReceipt({ ...options, now })
+		const originalContents = fs.readFileSync(original.path, 'utf8')
+		const originalInode = fs.statSync(original.path).ino
+
+		await expect(
+			writePostgresBackupReceipt({
+				...options,
+				now: new Date('2026-07-21T12:00:00.000Z'),
+			}),
+		).rejects.toThrow('publication target already exists')
+		expect(fs.readFileSync(original.path, 'utf8')).toBe(originalContents)
+
+		const replacementTime = new Date('2026-07-22T12:00:00.000Z')
+		await replacePostgresBackupReceipt({
+			...options,
+			now: replacementTime,
+		})
+		const validated = readAndValidatePostgresBackupReceipt({
+			receiptPath: original.path,
+			backupPath,
+			archiveAttestation,
+		})
+		expect(validated.receipt.verifiedAt).toBe(replacementTime.toISOString())
+		expect(fs.statSync(original.path).ino).not.toBe(originalInode)
+		expect(fs.statSync(original.path).mode & 0o777).toBe(0o600)
+
+		fs.writeFileSync(original.path, '{"version":1}\n', { mode: 0o600 })
+		const malformedContents = fs.readFileSync(original.path, 'utf8')
+		await expect(
+			replacePostgresBackupReceipt({
+				...options,
+				now: new Date('2026-07-23T12:00:00.000Z'),
+			}),
+		).rejects.toThrow('unexpected or missing fields')
+		expect(fs.readFileSync(original.path, 'utf8')).toBe(malformedContents)
+	} finally {
+		fs.rmSync(tempDir, { recursive: true, force: true })
+	}
+})
+
+test('records pristine-empty policy only with an exact zero summary', async () => {
+	const tempDir = fs.mkdtempSync(
+		path.join(os.tmpdir(), 'veud-pristine-backup-receipt-test-'),
+	)
+	try {
+		const backupPath = path.join(tempDir, 'postgres-pristine.dump')
+		const receiptPath = defaultPostgresBackupReceiptPath(backupPath)
+		fs.writeFileSync(backupPath, 'verified pristine archive', { mode: 0o600 })
+		const options = {
+			backupPath,
+			sourceUrl: 'postgresql://veud:source-secret@db.example/veud',
+			verifyUrl: 'postgresql://veud:restore-secret@db.example/veud_restore',
+			sourcePolicy: 'pristine-empty-v1',
+			summary: {
+				users: 0,
+				watchlists: 0,
+				entries: 0,
+				media: 0,
+				migrations: 0,
+			},
+			archiveAttestation: attestPostgresBackupFile(backupPath),
+			now,
+		}
+
+		const result = await writePostgresBackupReceipt(options)
+		expect(result.receipt.checks).toEqual({
+			expectedIdentity: false,
+			sourcePolicy: 'pristine-empty-v1',
+		})
+		expect(result.receipt.summary).toEqual(options.summary)
+
+		fs.rmSync(receiptPath)
+		await expect(
+			writePostgresBackupReceipt({
+				...options,
+				summary: { ...options.summary, migrations: 1 },
+			}),
+		).rejects.toThrow(
+			'pristine-empty-v1 PostgreSQL backup summary must contain exact zero counts',
+		)
+		expect(fs.existsSync(receiptPath)).toBe(false)
+
+		await expect(
+			writePostgresBackupReceipt({
+				...options,
+				identityVerified: true,
+			}),
+		).rejects.toThrow(
+			'pristine-empty-v1 PostgreSQL backups cannot verify an account identity',
+		)
+		expect(fs.existsSync(receiptPath)).toBe(false)
+
+		await expect(
+			writePostgresBackupReceipt({
+				...options,
+				sourcePolicy: 'pristine-empty',
+			}),
+		).rejects.toThrow(
+			'BACKUP_SOURCE_POLICY must be migrated-veud-v1 or pristine-empty-v1',
+		)
+		expect(fs.existsSync(receiptPath)).toBe(false)
 	} finally {
 		fs.rmSync(tempDir, { recursive: true, force: true })
 	}
@@ -219,11 +589,11 @@ function validEvidence() {
 			completedAt: '2026-07-20T11:00:00.000Z',
 		},
 		backupReceipt: {
-			version: 1,
+			version: 2,
 			verifiedAt: '2026-07-20T11:30:00.000Z',
 			sourceTarget: policy.expectedDatabaseTarget,
 			restoreTarget: 'db.example:5432/veud_restore',
-			checks: { expectedIdentity: true },
+			checks: { expectedIdentity: true, sourcePolicy: 'migrated-veud-v1' },
 			archive: {
 				name: 'postgres-test.dump',
 				bytes: 128,

@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { type Prisma } from '@prisma/client'
+import { expect, test, vi } from 'vitest'
 import { action, loader } from '#app/routes/media+/$mediaId.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import {
@@ -44,6 +45,7 @@ async function fixture() {
 				header: 'Watching',
 				ownerId: catalogOwner.id,
 				typeId: listType.id,
+				isPublic: false,
 			},
 		}),
 		prisma.watchlist.create({
@@ -76,6 +78,7 @@ async function fixture() {
 	const media = await prisma.media.create({
 		data: {
 			kind: 'anime',
+			catalogProvenanceVersion: 1,
 			title: 'Fullmetal Alchemist: Brotherhood',
 			type: 'TV',
 			thumbnail:
@@ -175,12 +178,236 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 	expect(result.data.viewer).toBeNull()
 })
 
+test('anonymous sparse media never reads or exposes private entry metadata', async () => {
+	const { media } = await fixture()
+	const privateMetadata = {
+		title: 'PRIVATE ENTRY TITLE MUST NOT ESCAPE',
+		description: 'PRIVATE ENTRY DESCRIPTION MUST NOT ESCAPE',
+		thumbnail: 'https://private.example/entry-cover.jpg',
+	}
+	await Promise.all([
+		prisma.media.update({
+			where: { id: media.id },
+			data: { title: null, description: null, thumbnail: null },
+		}),
+		prisma.entry.updateMany({
+			where: { mediaId: media.id },
+			data: privateMetadata,
+		}),
+	])
+	const queryRaw = vi.spyOn(prisma, '$queryRaw')
+
+	try {
+		const result = await loader({
+			request: new Request(`${BASE_URL}/media/${media.id}`),
+			params: { mediaId: media.id },
+		} as any)
+
+		expect(
+			queryRaw.mock.calls.filter(([query]) =>
+				(query as Prisma.Sql).sql?.includes('FROM "Entry"'),
+			),
+		).toHaveLength(0)
+		expect(result.data.media).toEqual(
+			expect.objectContaining({
+				id: media.id,
+				title: 'Untitled anime',
+				description: undefined,
+				imageUrl: null,
+			}),
+		)
+		const publicPayload = JSON.stringify(result.data)
+		for (const privateValue of Object.values(privateMetadata)) {
+			expect(publicPayload).not.toContain(privateValue)
+		}
+	} finally {
+		queryRaw.mockRestore()
+	}
+})
+
+test('normalized signed-in media loading skips legacy entry reads', async () => {
+	const { media, tracker, watching, cookie } = await fixture()
+	await prisma.trackingState.create({
+		data: {
+			ownerId: tracker.id,
+			mediaId: media.id,
+			status: 'watching',
+			statusWatchlistId: watching.id,
+			score: 8,
+		},
+	})
+	const queryRaw = vi.spyOn(prisma, '$queryRaw')
+
+	try {
+		const result = await loader({
+			request: new Request(`${BASE_URL}/media/${media.id}`, {
+				headers: { cookie },
+			}),
+			params: { mediaId: media.id },
+		} as any)
+
+		expect(
+			queryRaw.mock.calls.filter(([query]) =>
+				(query as Prisma.Sql).sql?.includes('FROM "Entry"'),
+			),
+		).toHaveLength(0)
+		expect(result.data.viewer?.tracking).toEqual(
+			expect.objectContaining({
+				status: 'watching',
+				statusWatchlistId: watching.id,
+				score: 8,
+			}),
+		)
+	} finally {
+		queryRaw.mockRestore()
+	}
+})
+
+test('legacy media loading projects only the current owner entries', async () => {
+	const { media, tracker, watching, cookie } = await fixture()
+	await prisma.entry.create({
+		data: {
+			watchlistId: watching.id,
+			mediaId: media.id,
+			position: 1,
+			title: 'Current owner legacy snapshot',
+			personal: 7.5,
+			length: '3 / 12 eps',
+			history: JSON.stringify({
+				started: new Date('2026-06-01T00:00:00.000Z').getTime(),
+				lastUpdated: new Date('2026-06-02T00:00:00.000Z').getTime(),
+			}),
+		},
+	})
+	const queryRaw = vi.spyOn(prisma, '$queryRaw')
+
+	try {
+		const result = await loader({
+			request: new Request(`${BASE_URL}/media/${media.id}`, {
+				headers: { cookie },
+			}),
+			params: { mediaId: media.id },
+		} as any)
+
+		expect(result.data.viewer?.tracking).toEqual(
+			expect.objectContaining({
+				status: 'watching',
+				statusWatchlistId: watching.id,
+				score: 7.5,
+				progress: [
+					expect.objectContaining({
+						unit: 'episode',
+						current: 3,
+						total: 12,
+					}),
+				],
+			}),
+		)
+		const entryQueries = queryRaw.mock.calls.filter(([query]) =>
+			(query as Prisma.Sql).sql?.includes('FROM "Entry"'),
+		)
+		expect(entryQueries).toHaveLength(1)
+		const projection = entryQueries[0]?.[0] as Prisma.Sql
+		expect(projection.sql).toContain('"Watchlist"."ownerId" = ?')
+		expect(projection.values).toEqual(
+			expect.arrayContaining([media.id, tracker.id]),
+		)
+	} finally {
+		queryRaw.mockRestore()
+	}
+})
+
+test('legacy media loading fails closed on a one-megabyte history value', async () => {
+	const { media, tracker, watching, cookie } = await fixture()
+	const privateMarker = 'PRIVATE LEGACY HISTORY MUST NOT ESCAPE'
+	await prisma.entry.create({
+		data: {
+			watchlistId: watching.id,
+			mediaId: media.id,
+			position: 1,
+			title: 'Oversized legacy snapshot',
+			personal: 9,
+			history: `${privateMarker}${'x'.repeat(1024 * 1024)}`,
+		},
+	})
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+	try {
+		const result = await loader({
+			request: new Request(`${BASE_URL}/media/${media.id}`, {
+				headers: { cookie },
+			}),
+			params: { mediaId: media.id },
+		} as any)
+
+		expect(result.data.viewer?.tracking).toBeNull()
+		expect(JSON.stringify(result.data)).not.toContain(privateMarker)
+		expect(warn).toHaveBeenCalledTimes(1)
+		expect(String(warn.mock.calls[0]?.[0])).not.toContain(privateMarker)
+		expect(String(warn.mock.calls[0]?.[0])).not.toContain(tracker.id)
+		expect(String(warn.mock.calls[0]?.[0])).not.toContain(media.id)
+	} finally {
+		warn.mockRestore()
+	}
+})
+
+test('status updates fail closed when the exact destination snapshot is oversized', async () => {
+	const { media, tracker, watching, cookie } = await fixture()
+	const oversizedHistory = 'x'.repeat(1024 * 1024)
+	const entry = await prisma.entry.create({
+		data: {
+			watchlistId: watching.id,
+			mediaId: media.id,
+			position: 1,
+			title: 'Oversized destination snapshot',
+			history: oversizedHistory,
+		},
+		select: { id: true },
+	})
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+	try {
+		await expect(
+			action({
+				request: actionRequest(media.id, cookie, {
+					intent: 'status',
+					watchlistId: watching.id,
+				}),
+				params: { mediaId: media.id },
+			} as any),
+		).rejects.toMatchObject({ status: 409 })
+		expect(
+			await prisma.trackingState.count({
+				where: { ownerId: tracker.id, mediaId: media.id },
+			}),
+		).toBe(0)
+		expect(
+			await prisma.entry.findUniqueOrThrow({
+				where: { id: entry.id },
+				select: { history: true },
+			}),
+		).toEqual({ history: oversizedHistory })
+	} finally {
+		warn.mockRestore()
+	}
+})
+
 test('public media loader permanently redirects an applied merge source', async () => {
 	const admin = await user('merge_redirect_admin')
 	await prisma.media.createMany({
 		data: [
-			{ id: 'redirect-merge-source', kind: 'movie', title: 'Old record' },
-			{ id: 'redirect-merge-target', kind: 'movie', title: 'Canonical record' },
+			{
+				id: 'redirect-merge-source',
+				kind: 'movie',
+				title: 'Old record',
+				catalogProvenanceVersion: 1,
+			},
+			{
+				id: 'redirect-merge-target',
+				kind: 'movie',
+				title: 'Canonical record',
+				catalogProvenanceVersion: 1,
+			},
 		],
 	})
 	const issue = await prisma.catalogQualityIssue.create({
@@ -190,6 +417,7 @@ test('public media loader permanently redirects an applied merge source', async 
 			status: 'confirmed',
 			severity: 'warning',
 			summary: 'Redirect duplicate',
+			evidence: JSON.stringify({ source: 'redirect-test-fixture' }),
 			primaryMediaId: 'redirect-merge-source',
 			secondaryMediaId: 'redirect-merge-target',
 			reviewedById: admin.id,
@@ -224,25 +452,92 @@ test('public media loader permanently redirects an applied merge source', async 
 	}
 })
 
-test('public media loader exposes grouped canonical title relations', async () => {
-	const { media, tracker, completed, cookie } = await fixture()
-	const sequel = await prisma.media.create({
+test('media loader and actions ignore historical epoch-zero redirects', async () => {
+	const member = await user('legacy_redirect_member')
+	const cookie = await cookieFor(member.id)
+	const target = await prisma.media.create({
 		data: {
-			kind: 'anime',
-			title: 'Fullmetal Alchemist: The Next Chapter',
-			type: 'TV Series',
-			startSeason: 'Spring 2011',
-			thumbnail:
-				'https://example.com/sequel.jpg|https://myanimelist.net/anime/6000',
+			kind: 'movie',
+			title: 'Current target',
+			catalogProvenanceVersion: 1,
 		},
 	})
-	await prisma.mediaRelation.create({
+	const issue = await prisma.catalogQualityIssue.create({
 		data: {
-			sourceMediaId: media.id,
-			targetMediaId: sequel.id,
-			relationType: 'sequel',
-			provider: 'mal',
+			fingerprint: 'legacy-redirect-issue',
+			issueType: 'possible_duplicate',
+			status: 'resolved',
+			summary: 'Historical redirect is not authoritative',
+			primaryMediaId: target.id,
 		},
+	})
+	await prisma.catalogMediaMerge.create({
+		data: {
+			issueId: issue.id,
+			status: 'applied',
+			sourceMediaId: 'legacy-redirect-source',
+			targetMediaId: target.id,
+			preflight: '{}',
+			preflightFingerprint: 'historical',
+			catalogProvenanceVersion: 0,
+		},
+	})
+
+	await expect(
+		loader({
+			request: new Request(`${BASE_URL}/media/legacy-redirect-source`),
+			params: { mediaId: 'legacy-redirect-source' },
+		} as any),
+	).rejects.toMatchObject({ status: 404 })
+	await expect(
+		action({
+			request: actionRequest('legacy-redirect-source', cookie, {
+				intent: 'favorite-toggle',
+			}),
+			params: { mediaId: 'legacy-redirect-source' },
+		} as any),
+	).rejects.toMatchObject({ status: 404 })
+})
+
+test('public media loader exposes grouped canonical title relations', async () => {
+	const { media, tracker, completed, cookie } = await fixture()
+	const [sequel, untrustedSequel] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				catalogProvenanceVersion: 1,
+				title: 'Fullmetal Alchemist: The Next Chapter',
+				type: 'TV Series',
+				startSeason: 'Spring 2011',
+				thumbnail:
+					'https://example.com/sequel.jpg|https://myanimelist.net/anime/6000',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				catalogProvenanceVersion: 1,
+				title: 'Untrusted Private Relation Snapshot',
+			},
+		}),
+	])
+	await prisma.mediaRelation.createMany({
+		data: [
+			{
+				sourceMediaId: media.id,
+				targetMediaId: sequel.id,
+				relationType: 'sequel',
+				provider: 'mal',
+				catalogProvenanceVersion: 1,
+			},
+			{
+				sourceMediaId: media.id,
+				targetMediaId: untrustedSequel.id,
+				relationType: 'adaptation',
+				provider: 'mal',
+				catalogProvenanceVersion: 0,
+			},
+		],
 	})
 	await prisma.trackingState.create({
 		data: {
@@ -275,6 +570,9 @@ test('public media loader exposes grouped canonical title relations', async () =
 			],
 		},
 	])
+	expect(JSON.stringify(result.data.relations)).not.toContain(
+		'Untrusted Private Relation Snapshot',
+	)
 
 	const signedInResult = await loader({
 		request: new Request(`${BASE_URL}/media/${media.id}`, {
@@ -407,6 +705,123 @@ test('media favorite toggle updates the title page and profile snapshot', async 
 	} as any)
 	expect(removed.data.viewer?.isFavorite).toBe(false)
 	expect(removed.data.community.favorites).toBe(0)
+})
+
+test('favorites never copy another owners private entry metadata', async () => {
+	const { media, tracker, cookie } = await fixture()
+	const privateMetadata = {
+		title: 'PRIVATE FAVORITE TITLE MUST NOT ESCAPE',
+		thumbnail: 'https://private.example/favorite-cover.jpg',
+		description: 'PRIVATE FAVORITE DESCRIPTION MUST NOT ESCAPE',
+	}
+	await Promise.all([
+		prisma.media.update({
+			where: { id: media.id },
+			data: {
+				title: null,
+				thumbnail: null,
+				description: null,
+				type: null,
+				startSeason: null,
+			},
+		}),
+		prisma.entry.updateMany({
+			where: { mediaId: media.id },
+			data: privateMetadata,
+		}),
+	])
+
+	await action({
+		request: actionRequest(media.id, cookie, { intent: 'favorite-toggle' }),
+		params: { mediaId: media.id },
+	} as any)
+
+	const favorite = await prisma.userFavorite.findFirstOrThrow({
+		where: { ownerId: tracker.id, mediaId: media.id },
+	})
+	expect(favorite).toEqual(
+		expect.objectContaining({
+			title: 'Untitled anime',
+			thumbnail: null,
+			mediaType: null,
+			startYear: null,
+		}),
+	)
+	const storedFavorite = JSON.stringify(favorite)
+	for (const privateValue of Object.values(privateMetadata)) {
+		expect(storedFavorite).not.toContain(privateValue)
+	}
+})
+
+test('public media author payloads omit optional real names', async () => {
+	const { media, tracker, otherUser, otherList, cookie } = await fixture()
+	const trackerRealName = 'TRACKER REAL NAME MUST STAY PRIVATE'
+	const otherRealName = 'AUTHOR REAL NAME MUST STAY PRIVATE'
+	await Promise.all([
+		prisma.user.update({
+			where: { id: tracker.id },
+			data: { name: trackerRealName },
+		}),
+		prisma.user.update({
+			where: { id: otherUser.id },
+			data: { name: otherRealName },
+		}),
+		prisma.follow.create({
+			data: { followerId: tracker.id, followingId: otherUser.id },
+		}),
+	])
+	const tracking = await prisma.trackingState.create({
+		data: {
+			ownerId: otherUser.id,
+			mediaId: media.id,
+			status: 'watching',
+			statusWatchlistId: otherList.id,
+		},
+	})
+	const review = await prisma.review.create({
+		data: {
+			authorId: otherUser.id,
+			mediaId: media.id,
+			body: 'A public review without profile real-name metadata.',
+		},
+	})
+	await Promise.all([
+		prisma.reviewComment.create({
+			data: {
+				authorId: tracker.id,
+				reviewId: review.id,
+				body: 'A public comment without profile real-name metadata.',
+			},
+		}),
+		prisma.activityEvent.create({
+			data: {
+				type: 'status',
+				actorId: otherUser.id,
+				mediaId: media.id,
+				trackingStateId: tracking.id,
+				status: 'watching',
+				statusLabel: 'Watching',
+				statusWatchlistId: otherList.id,
+				isPublic: true,
+				publicEligible: true,
+			},
+		}),
+	])
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+
+	expect(result.data.socialContext?.items[0]?.member).not.toHaveProperty('name')
+	expect(result.data.activity[0]?.actor).not.toHaveProperty('name')
+	expect(result.data.reviews[0]?.author).not.toHaveProperty('name')
+	expect(result.data.reviews[0]?.comments[0]?.author).not.toHaveProperty('name')
+	const publicPayload = JSON.stringify(result.data)
+	expect(publicPayload).not.toContain(trackerRealName)
+	expect(publicPayload).not.toContain(otherRealName)
 })
 
 test('tracking controls create and dual-write status, score, and progress', async () => {

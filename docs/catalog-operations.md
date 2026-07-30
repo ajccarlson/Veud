@@ -32,6 +32,39 @@ npm run production:catalog:deploy
 npm run production:postgres:status
 ```
 
+The deploy command is also the one-time catalog-provenance cutover boundary. It
+packages the release before downtime, records and stops every web, backup,
+catalog, retention, and notification writer, and takes a fresh restore-tested
+PostgreSQL backup before migrating. The exact local and off-drive archives and
+restore receipts stay pinned for the whole cutover. It then previews and commits
+the provenance repair in bounded batches, reconciles linked list metadata,
+requires a clean epoch, activates and health-checks the exact compatible
+release, and restores services before persistent timers, with backups last.
+
+Do not run the provenance repair directly against a live production application.
+If a failure occurs after migration begins, the deploy leaves the site in
+maintenance with writers stopped and records recovery state at
+`$VEUD_PRODUCTION_ROOT/run/catalog-release-maintenance.state`. Correct the cause
+and rerun `npm run production:catalog:deploy`; do not manually restart the old
+release. The PM2 and systemd launchers enforce this marker, including across a
+reboot; do not bypass those launchers with a raw application or worker command.
+Every live catalog writer must inherit the launcher-issued runtime proof; direct
+writer commands fail closed. Recovery must use the same Git revision recorded by
+the marker. A retry after database mutation reuses and verifies the pinned
+pre-mutation backup instead of creating or pruning a replacement.
+
+Local staging uses the same fail-closed boundary for both `veud_staging` and
+`veud_staging_load`. Its application and operations configurations must name the
+same application database, and its load and restore databases must remain
+distinct. A first deployment may bootstrap an intentionally inactive provisioned
+staging host; it activates the application, both verified-backup timers, and
+only the provider or notification timers whose credentials are configured.
+Immediately before the first migration it rechecks that both databases are
+exactly pristine, then creates migrated restore-tested backups before enabling
+persistent timers.
+
+Notification timer launchers commit at most 100 due digests per invocation.
+
 The production and staging service details live in
 [`ops/local-production`](../ops/local-production/README.md) and
 [`ops/local-staging`](../ops/local-staging/README.md).

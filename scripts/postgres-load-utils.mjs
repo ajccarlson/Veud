@@ -9,11 +9,9 @@ export function assertSafeLoadDatabaseUrl(value) {
 		throw new Error('DATABASE_URL must use postgresql://')
 	}
 	const database = decodeURIComponent(url.pathname.replace(/^\//, ''))
-	if (
-		!/(?:^|[_-])(load|bench|perf|stag(?:e|ing)?|test)(?:[_-]|$)/i.test(database)
-	) {
+	if (!/(?:^|[_-])(load|bench|perf|test)(?:[_-]|$)/i.test(database)) {
 		throw new Error(
-			'Load-test database name must contain a delimited load, bench, perf, stage, staging, stag, or test marker',
+			'Load-test database name must contain a delimited load, bench, perf, or test marker',
 		)
 	}
 	return {
@@ -184,6 +182,283 @@ export const publicSurfaceLoadBudgets = Object.freeze({
 		payloadBytes: 48 * 1024,
 	}),
 })
+
+export const mediaDetailLoadBudgets = Object.freeze({
+	anonymous: Object.freeze({
+		logicalQueries: 16,
+		sqlQueries: 24,
+		payloadBytes: 192 * 1024,
+		wallMs: 8_000,
+		expectedEntryReads: 0,
+		expectedEntrySqlReads: 0,
+		expectedTrackingStateLookups: 0,
+		expectedTrackingStateLookupSqlReads: 0,
+	}),
+	normalizedSigned: Object.freeze({
+		logicalQueries: 24,
+		sqlQueries: 36,
+		payloadBytes: 256 * 1024,
+		wallMs: 8_000,
+		expectedEntryReads: 0,
+		expectedEntrySqlReads: 0,
+		expectedTrackingStateLookups: 1,
+		expectedTrackingStateLookupSqlReads: 1,
+	}),
+	boundedLegacy: Object.freeze({
+		logicalQueries: 25,
+		sqlQueries: 37,
+		payloadBytes: 256 * 1024,
+		wallMs: 8_000,
+		expectedEntryReads: 0,
+		expectedEntrySqlReads: 1,
+		expectedTrackingStateLookups: 1,
+		expectedTrackingStateLookupSqlReads: 1,
+	}),
+})
+
+const mediaDetailMeasurementFields = [
+	'logicalQueries',
+	'sqlQueries',
+	'entryReads',
+	'entrySqlReads',
+	'trackingStateLookups',
+	'trackingStateLookupSqlReads',
+	'payloadBytes',
+	'wallMs',
+]
+const legacyEntryPlanFields = [
+	'name',
+	'wallMs',
+	'planningMs',
+	'executionMs',
+	'actualRows',
+	'nodeTypes',
+	'indexes',
+	'sharedHitBlocks',
+	'sharedReadBlocks',
+]
+const existingLegacyEntryIndexes = new Set([
+	'Entry_mediaId_idx',
+	'Entry_watchlistId_id_idx',
+])
+
+function assertExactObjectFields(value, label, fields) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new Error(`${label} must be an object`)
+	}
+	const expected = [...fields].sort()
+	const observed = Object.keys(value).sort()
+	if (
+		observed.length !== expected.length ||
+		observed.some((field, index) => field !== expected[index])
+	) {
+		throw new Error(
+			`${label} fields must be exactly ${expected.join(', ')}; observed ${observed.join(', ') || 'none'}`,
+		)
+	}
+	return value
+}
+
+function mediaDetailMeasurement(report, name) {
+	const measurement = assertExactObjectFields(
+		report?.[name],
+		`Media-detail smoke ${name}`,
+		mediaDetailMeasurementFields,
+	)
+	for (const field of mediaDetailMeasurementFields) {
+		const value = measurement[field]
+		if (
+			typeof value !== 'number' ||
+			!Number.isFinite(value) ||
+			value < 0 ||
+			(field !== 'wallMs' && !Number.isSafeInteger(value))
+		) {
+			throw new Error(
+				`Media-detail smoke ${name}.${field} must be a non-negative ${field === 'wallMs' ? 'finite number' : 'integer'}`,
+			)
+		}
+	}
+	return measurement
+}
+
+export function assertMediaDetailLoadEvidence(
+	report,
+	budgets = mediaDetailLoadBudgets,
+) {
+	assertExactObjectFields(report, 'Media-detail smoke report', [
+		'version',
+		'fixture',
+		'anonymous',
+		'normalizedSigned',
+		'boundedLegacy',
+		'privacy',
+		'legacyEntryPlan',
+	])
+	if (report.version !== 1) {
+		throw new Error('Media-detail smoke report must use version 1')
+	}
+
+	const fixture = assertExactObjectFields(
+		report.fixture,
+		'Media-detail smoke fixture',
+		[
+			'representativeMembers',
+			'fanoutEntries',
+			'privateEntries',
+			'hostileHistoryCodeUnits',
+			'hostileCounterCodeUnits',
+		],
+	)
+	for (const field of [
+		'representativeMembers',
+		'fanoutEntries',
+		'privateEntries',
+		'hostileHistoryCodeUnits',
+		'hostileCounterCodeUnits',
+	]) {
+		if (!Number.isSafeInteger(fixture[field]) || fixture[field] < 0) {
+			throw new Error(
+				`Media-detail smoke fixture.${field} must be a non-negative integer`,
+			)
+		}
+	}
+	if (
+		fixture.representativeMembers < 6 ||
+		fixture.representativeMembers > 256 ||
+		fixture.fanoutEntries !== fixture.representativeMembers ||
+		fixture.privateEntries !== fixture.fanoutEntries - 1 ||
+		fixture.hostileHistoryCodeUnits !== 1024 * 1024 ||
+		fixture.hostileCounterCodeUnits !== 1024 * 1024
+	) {
+		throw new Error(
+			'Media-detail smoke fixture must contain 6-256 representative members, one entry per member, exactly one public-list entry, and exact 1 MiB hostile history/counter values',
+		)
+	}
+
+	const privacy = assertExactObjectFields(
+		report.privacy,
+		'Media-detail smoke privacy',
+		[
+			'privateCatalogTextVisible',
+			'linkedFavoritePrivateTextVisible',
+			'realNameValueVisible',
+			'realNameFieldVisible',
+		],
+	)
+	for (const [field, value] of Object.entries(privacy)) {
+		if (value !== false) {
+			throw new Error(`Media-detail smoke privacy.${field} must be false`)
+		}
+	}
+
+	const plan = assertExactObjectFields(
+		report.legacyEntryPlan,
+		'Media-detail legacy Entry plan',
+		legacyEntryPlanFields,
+	)
+	if (plan.name !== 'media-legacy-owner-entry') {
+		throw new Error('Media-detail legacy Entry plan has an unexpected name')
+	}
+	for (const field of [
+		'wallMs',
+		'planningMs',
+		'executionMs',
+		'actualRows',
+		'sharedHitBlocks',
+		'sharedReadBlocks',
+	]) {
+		if (
+			typeof plan[field] !== 'number' ||
+			!Number.isFinite(plan[field]) ||
+			plan[field] < 0
+		) {
+			throw new Error(
+				`Media-detail legacy Entry plan.${field} must be a non-negative finite number`,
+			)
+		}
+	}
+	for (const field of ['nodeTypes', 'indexes']) {
+		if (
+			!Array.isArray(plan[field]) ||
+			plan[field].some(value => typeof value !== 'string' || !value)
+		) {
+			throw new Error(
+				`Media-detail legacy Entry plan.${field} must be a string array`,
+			)
+		}
+	}
+	if (plan.actualRows < 1) {
+		throw new Error(
+			'Media-detail legacy Entry plan must return at least one owner row',
+		)
+	}
+	if (!plan.indexes.some(index => existingLegacyEntryIndexes.has(index))) {
+		throw new Error(
+			'Media-detail legacy Entry plan did not use an existing Entry lookup index',
+		)
+	}
+
+	const failures = []
+	for (const [name, budget] of Object.entries(budgets)) {
+		const measurement = mediaDetailMeasurement(report, name)
+		for (const field of [
+			'logicalQueries',
+			'sqlQueries',
+			'payloadBytes',
+			'wallMs',
+		]) {
+			if (measurement[field] <= budget[field]) continue
+			failures.push({
+				surface: name,
+				field,
+				observed: measurement[field],
+				budget: budget[field],
+			})
+		}
+		for (const [field, expectedField] of [
+			['entryReads', 'expectedEntryReads'],
+			['entrySqlReads', 'expectedEntrySqlReads'],
+			['trackingStateLookups', 'expectedTrackingStateLookups'],
+			['trackingStateLookupSqlReads', 'expectedTrackingStateLookupSqlReads'],
+		]) {
+			if (measurement[field] === budget[expectedField]) continue
+			failures.push({
+				surface: name,
+				field,
+				observed: measurement[field],
+				budget: budget[expectedField],
+				reason: 'unexpected-exact-value',
+			})
+		}
+		if (measurement.sqlQueries < measurement.logicalQueries) {
+			failures.push({
+				surface: name,
+				field: 'sqlQueries',
+				observed: measurement.sqlQueries,
+				budget: measurement.logicalQueries,
+				reason: 'below-logical-query-count',
+			})
+		}
+	}
+	if (!failures.length) return
+
+	const error = new Error(
+		`Media-detail load evidence failed: ${failures
+			.map(
+				failure =>
+					`${failure.surface}.${failure.field}=${failure.observed} ${
+						failure.reason === 'below-logical-query-count'
+							? '<'
+							: failure.reason === 'unexpected-exact-value'
+								? '!='
+								: '>'
+					} ${failure.budget}`,
+			)
+			.join('; ')}`,
+	)
+	error.budgetFailures = failures
+	throw error
+}
 
 function publicSurfaceMeasurement(report, name) {
 	const measurement = report?.[name]

@@ -2,6 +2,7 @@ import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
 import { publicTrackingStateWhere } from './lists/visibility.ts'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from './media-catalog.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
 	type RecommendationGraph,
@@ -391,6 +392,7 @@ export async function getRecommendationGraph(
 			seeds.length
 				? prisma.mediaRelation.findMany({
 						where: {
+							catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 							OR: [
 								{ sourceMediaId: { in: seeds.map(seed => seed.id) } },
 								{ targetMediaId: { in: seeds.map(seed => seed.id) } },

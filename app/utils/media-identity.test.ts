@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import {
+	MediaIdentitySchema,
 	mediaIdentityForMal,
 	mediaIdentityForTmdb,
 	mediaIdentityFromThumbnail,
@@ -31,6 +32,51 @@ test('constructs normalized TMDB and MAL identities', () => {
 			externalId: '5114',
 		}),
 	).toBe('mal:anime:5114')
+})
+
+test('requires positive canonical provider IDs within the safe integer range', () => {
+	expect(
+		MediaIdentitySchema.parse({
+			provider: 'tmdb',
+			kind: 'movie',
+			externalId: String(Number.MAX_SAFE_INTEGER),
+		}),
+	).toEqual({
+		provider: 'tmdb',
+		kind: 'movie',
+		externalId: '9007199254740991',
+	})
+
+	for (const externalId of [
+		'',
+		'0',
+		'00',
+		'01',
+		'+1',
+		'-1',
+		' 1',
+		'1 ',
+		'1.0',
+		'1e3',
+		'9007199254740992',
+	]) {
+		expect(
+			MediaIdentitySchema.safeParse({
+				provider: 'tmdb',
+				kind: 'movie',
+				externalId,
+			}).success,
+			externalId,
+		).toBe(false)
+	}
+	expect(() =>
+		mediaIdentityForMal(Number.MAX_SAFE_INTEGER + 1, 'anime'),
+	).toThrow()
+	expect(
+		mediaIdentityFromThumbnail(
+			'https://image.example/poster.jpg|https://themoviedb.org/movie/01',
+		),
+	).toBeNull()
 })
 
 test('extracts identities from legacy thumbnail links', () => {

@@ -5,8 +5,11 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import {
 	assertIndependentBackupMount,
 	assertSafeRestoreTarget,
+	canonicalPostgresConnectionIdentity,
+	canonicalPostgresHost,
 	findLatestPostgresBackup,
 	parsePostgresConnection,
+	postgresConnectionIdentity,
 	postgresConnectionEnv,
 	prunePostgresBackups,
 } from './postgres-backup-utils.mjs'
@@ -53,11 +56,11 @@ test('requires a clearly disposable restore database distinct from primary', () 
 		assertSafeRestoreTarget(
 			source,
 			parsePostgresConnection(
-				'postgresql://veud@db.example/veud',
+				'postgresql://veud@another.example/veud',
 				'POSTGRES_BACKUP_VERIFY_URL',
 			),
 		),
-	).toThrow('must not point to the primary')
+	).toThrow('database name must differ')
 	expect(() =>
 		assertSafeRestoreTarget(
 			source,
@@ -78,12 +81,57 @@ test('requires a clearly disposable restore database distinct from primary', () 
 	).not.toThrow()
 })
 
+test('canonicalizes local PostgreSQL aliases before comparing identities', () => {
+	for (const host of [
+		'localhost',
+		'localhost.',
+		'localhost.localdomain',
+		'127.0.0.1',
+		'127.4.3.2',
+		'ip6-loopback',
+		'::1',
+		'[::1]',
+		'0:0:0:0:0:0:0:1',
+		'::ffff:127.0.0.1',
+		'::ffff:127.4.3.2',
+		'::ffff:7f00:1',
+		'::ffff:7f04:302',
+	]) {
+		expect(canonicalPostgresHost(host)).toBe('loopback')
+	}
+	expect(
+		canonicalPostgresConnectionIdentity(
+			parsePostgresConnection(
+				'postgresql://owner@localhost:5433/catalog',
+				'DATABASE_URL',
+			),
+		),
+	).toBe('loopback:5433/catalog')
+	expect(
+		postgresConnectionIdentity(
+			parsePostgresConnection(
+				'postgresql://owner@127.0.0.1:5433/catalog',
+				'DATABASE_URL',
+			),
+		),
+	).toBe('127.0.0.1:5433/catalog')
+	expect(
+		canonicalPostgresConnectionIdentity(
+			parsePostgresConnection(
+				'postgresql://owner@[::ffff:127.4.3.2]:5433/catalog',
+				'DATABASE_URL',
+			),
+		),
+	).toBe('loopback:5433/catalog')
+})
+
 test('finds and prunes only PostgreSQL custom-format archives', () => {
 	const oldBackup = path.join(tempDir, 'postgres-old.dump')
 	const newBackup = path.join(tempDir, 'postgres-new.dump')
 	fs.writeFileSync(oldBackup, 'old')
 	fs.writeFileSync(newBackup, 'new')
 	fs.writeFileSync(`${oldBackup}.restore-verified.json`, 'old receipt')
+	fs.writeFileSync(`${newBackup}.restore-verified.json`, 'new receipt')
 	fs.writeFileSync(path.join(tempDir, 'data-ignore.db'), 'sqlite')
 	fs.utimesSync(oldBackup, new Date(0), new Date(0))
 
@@ -91,6 +139,17 @@ test('finds and prunes only PostgreSQL custom-format archives', () => {
 	expect(prunePostgresBackups(tempDir, 1)).toEqual(['postgres-old.dump'])
 	expect(fs.existsSync(`${oldBackup}.restore-verified.json`)).toBe(false)
 	expect(fs.existsSync(path.join(tempDir, 'data-ignore.db'))).toBe(true)
+})
+
+test('does not select an archive whose restore receipt was never published', () => {
+	const incomplete = path.join(tempDir, 'postgres-newer.dump')
+	const complete = path.join(tempDir, 'postgres-older.dump')
+	fs.writeFileSync(incomplete, 'incomplete')
+	fs.writeFileSync(complete, 'complete')
+	fs.writeFileSync(`${complete}.restore-verified.json`, 'receipt')
+	fs.utimesSync(complete, new Date(0), new Date(0))
+
+	expect(findLatestPostgresBackup(tempDir)).toBe(complete)
 })
 
 test('requires the offsite directory to be on a distinct mounted filesystem', () => {

@@ -756,7 +756,7 @@ export async function applyTrackingCommandPreview(
 							ownerId: input.ownerId,
 							mediaId: operation.mediaId,
 							kind: operation.mediaKind,
-							catalog: resolveMediaCatalog(media, undefined),
+							catalog: resolveMediaCatalog(media),
 						})
 					}
 				}

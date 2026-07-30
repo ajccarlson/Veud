@@ -13,6 +13,7 @@ import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	canonicalizeLinkedWatchlistEntry,
 	prepareWatchlistEntryForViewer,
 	publicEntryPayload,
 	publicListOwnerSelect,
@@ -21,6 +22,7 @@ import {
 } from '#app/utils/lists/public-watchlist.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
+import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
 import { mediaIdentityKey } from '#app/utils/media-identity.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/watchlist.scss'
@@ -89,8 +91,7 @@ export async function loader(params: LoaderFunctionArgs) {
 				media: {
 					select: {
 						kind: true,
-						tmdbScore: true,
-						malScore: true,
+						...mediaCatalogSelect,
 						externalIds: {
 							orderBy: { provider: 'asc' },
 							select: {
@@ -124,11 +125,17 @@ export async function loader(params: LoaderFunctionArgs) {
 				},
 			},
 		}),
-		prisma.userFavorite.findMany({
-			where: {
-				ownerId: listOwner.id,
-			},
-		}),
+		viewerId === listOwner.id
+			? prisma.userFavorite.findMany({
+					where: { ownerId: listOwner.id },
+					select: {
+						id: true,
+						typeId: true,
+						thumbnail: true,
+						media: { select: { thumbnail: true } },
+					},
+				})
+			: Promise.resolve([]),
 		viewerId === listOwner.id
 			? prisma.trackingState.findMany({
 					where: { ownerId: viewerId },
@@ -155,6 +162,7 @@ export async function loader(params: LoaderFunctionArgs) {
 	const isOwner = viewerId === listOwner.id
 	const normalizedEntries = listEntries
 		.map(entry => prepareWatchlistEntryForViewer(entry, listOwner.id, isOwner))
+		.map(canonicalizeLinkedWatchlistEntry)
 		.map(normalizeWatchlistEntryScores)
 		.sort((a, b) => a.position - b.position)
 	const listEntriesSorted = isOwner
@@ -163,13 +171,17 @@ export async function loader(params: LoaderFunctionArgs) {
 				publicEntryPayload(entry, watchListData.displayedColumns),
 			)
 
-	const typedFavorites = favorites.reduce<Record<string, typeof favorites>>(
-		(x, y) => {
-			;(x[y.typeId] = x[y.typeId] || []).push(y)
-			return x
-		},
-		{},
-	)
+	const browserFavorites = favorites.map(favorite => ({
+		id: favorite.id,
+		typeId: favorite.typeId,
+		thumbnail: favorite.media?.thumbnail ?? favorite.thumbnail,
+	}))
+	const typedFavorites = browserFavorites.reduce<
+		Record<string, typeof browserFavorites>
+	>((x, y) => {
+		;(x[y.typeId] = x[y.typeId] || []).push(y)
+		return x
+	}, {})
 	const trackingByIdentity = Object.fromEntries(
 		trackingStates.flatMap(tracking =>
 			tracking.media.externalIds.map(identity => [
