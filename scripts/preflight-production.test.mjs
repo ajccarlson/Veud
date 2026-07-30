@@ -181,6 +181,24 @@ test('a missing config file is reported rather than crashing', () => {
 	)
 })
 
+test('a symlinked config file is refused instead of read through', () => {
+	// The mode check is a security check, so it has to describe the bytes read.
+	// The race itself is prevented structurally (one O_NOFOLLOW open, then fstat
+	// and read on that descriptor); this test pins the refusal that goes with it.
+	const root = productionRoot()
+	const elsewhere = path.join(root, 'config/elsewhere.env')
+	fs.writeFileSync(elsewhere, `DATABASE_URL="${APPLICATION_URL}"\n`, {
+		mode: 0o600,
+	})
+	const target = path.join(root, 'config/application.env')
+	fs.rmSync(target)
+	fs.symlinkSync(elsewhere, target)
+	const result = runProductionPreflight({ productionRoot: root })
+	expect(result.failures.join('\n')).toContain(
+		'must be a regular non-symlink file',
+	)
+})
+
 test('secret values never appear in the reported failures', () => {
 	const result = run({
 		applicationUrl:

@@ -37,30 +37,49 @@ function fail(message) {
 	failures.push(message)
 }
 
+/**
+ * The file-type and mode checks below are security checks, so they have to
+ * describe the bytes actually read. Opening once with O_NOFOLLOW and then
+ * inspecting that descriptor lets the kernel reject a symlink atomically and
+ * guarantees fstat and read see the same inode — re-checking the path with
+ * lstat would leave a window in which it could be swapped for a symlink.
+ */
 function readEnvFile(file, label) {
-	let stat
+	let fd
 	try {
-		stat = fs.lstatSync(file)
-	} catch {
-		fail(`${label} does not exist: ${file}`)
+		fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+	} catch (error) {
+		const code = error?.code
+		if (code === 'ELOOP') {
+			fail(`${label} must be a regular non-symlink file: ${file}`)
+		} else if (code === 'ENOENT') {
+			fail(`${label} does not exist: ${file}`)
+		} else {
+			fail(`${label} could not be opened (${code ?? 'unknown error'}): ${file}`)
+		}
 		return undefined
 	}
-	if (stat.isSymbolicLink() || !stat.isFile()) {
-		fail(`${label} must be a regular non-symlink file: ${file}`)
-		return undefined
+	try {
+		const stat = fs.fstatSync(fd)
+		if (!stat.isFile()) {
+			fail(`${label} must be a regular non-symlink file: ${file}`)
+			return undefined
+		}
+		if ((stat.mode & 0o077) !== 0) {
+			fail(
+				`${label} is group or world accessible (mode ${(stat.mode & 0o777).toString(8)}): ${file}`,
+			)
+		}
+		const values = new Map()
+		for (const line of fs.readFileSync(fd, 'utf8').split('\n')) {
+			const match = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())
+			if (!match) continue
+			values.set(match[1], match[2].replace(/^"|"$/g, ''))
+		}
+		return values
+	} finally {
+		fs.closeSync(fd)
 	}
-	if ((stat.mode & 0o077) !== 0) {
-		fail(
-			`${label} is group or world accessible (mode ${(stat.mode & 0o777).toString(8)}): ${file}`,
-		)
-	}
-	const values = new Map()
-	for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-		const match = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())
-		if (!match) continue
-		values.set(match[1], match[2].replace(/^"|"$/g, ''))
-	}
-	return values
 }
 
 /** Describe a datasource without ever surfacing its password. */
@@ -139,7 +158,10 @@ function checkActivatedRelease(productionRoot) {
 	// unstartable: the activated release predated the runtime-lifecycle
 	// hardening that introduced these files, and the only fix is a deployment,
 	// not a restart.
-	for (const required of ['scripts/pm2-entry.mjs', 'ops/local-production/run-app.sh']) {
+	for (const required of [
+		'scripts/pm2-entry.mjs',
+		'ops/local-production/run-app.sh',
+	]) {
 		if (!fs.existsSync(path.join(current, required))) {
 			fail(
 				`Activated release ${recorded.slice(0, 12)} is missing ${required}, so the current launcher cannot start it. ` +
