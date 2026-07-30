@@ -4317,3 +4317,49 @@ printf drained`
 	assert.match(result.stdout, /drained/)
 	assert.doesNotMatch(result.stderr, /disabled:missing\.timer/)
 })
+
+test('guard-asserting scripts never run through the bare tsx CLI', () => {
+	// The tsx CLI wraps execution in a child process and replaces inherited file
+	// descriptors with pipes. Every script that asserts the catalog-writer
+	// lifetime-lock proof depends on inheriting the locked descriptor, so running
+	// one under the tsx CLI can never satisfy the proof. Observed in production:
+	// the deployment applied all migrations, then failed on the first such script
+	// with "holder and current process do not share the expected descriptor",
+	// while a plain node child in the same shell saw the descriptor correctly.
+	const guarded = fs
+		.readdirSync(path.join(repositoryRoot, 'scripts'))
+		.filter(name => name.endsWith('.ts'))
+		.filter(name =>
+			fs
+				.readFileSync(path.join(repositoryRoot, 'scripts', name), 'utf8')
+				.includes('assertCatalogWriterRuntimeProof(process.env)'),
+		)
+	assert.ok(guarded.length > 0, 'expected to find guard-asserting scripts')
+
+	// Shell invocations split the binary and the script path across a backslash
+	// continuation, so collapse continuations before scanning or the deployment —
+	// the exact file this bug lived in — is never examined.
+	const collapse = source => source.replace(/\\\n\s*/g, ' ')
+	const sources = [
+		[
+			'package.json',
+			collapse(
+				fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'),
+			),
+		],
+		['deploy-catalog-release.sh', collapse(productionDeploy)],
+	]
+	for (const script of guarded) {
+		for (const [label, source] of sources) {
+			for (const line of source.split('\n')) {
+				if (!line.includes(script)) continue
+				// A bare `tsx <script>` invocation, i.e. not preceded by `--import`.
+				assert.doesNotMatch(
+					line,
+					/(?<!--import )\btsx["']?\s+\S*scripts\/\S+\.ts/,
+					`${label} runs guard-asserting ${script} through the tsx CLI:\n${line.trim()}`,
+				)
+			}
+		}
+	}
+})
