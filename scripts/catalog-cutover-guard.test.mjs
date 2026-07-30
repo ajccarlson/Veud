@@ -3981,3 +3981,55 @@ test('managed units are published atomically and synced', () => {
 		),
 	)
 })
+
+test('a new maintenance window requires an online web process unless recovery is confirmed', () => {
+	const source = `
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+${extractShellFunction(productionDeploy, 'assert_web_state_allows_new_window')}
+assert_web_state_allows_new_window "$1" "$2"
+`
+	// The normal case: a running system needs no confirmation.
+	expectAllowed(runBash(source, { args: ['online', ''] }))
+
+	// A stopped or errored web process is refused without the exact token, so an
+	// ordinary deployment can never silently proceed over an outage.
+	for (const observed of ['stopped', 'errored', 'absent']) {
+		for (const confirmation of [
+			'',
+			'yes',
+			'RECOVER',
+			'recover_veud_production',
+			'RECOVER_VEUD_PRODUCTIONX',
+		]) {
+			const result = runBash(source, { args: [observed, confirmation] })
+			assert.notEqual(
+				result.status,
+				0,
+				`${observed}/${confirmation || '(empty)'} should be refused`,
+			)
+			assert.match(result.stderr, /must be online/)
+			assert.match(result.stderr, /VEUD_PRODUCTION_RECOVERY_DEPLOY/)
+			assert.match(result.stderr, new RegExp(`found ${observed}`))
+		}
+	}
+
+	// The exact token permits a recovery window and says so on stdout.
+	for (const observed of ['stopped', 'errored', 'absent']) {
+		const result = runBash(source, {
+			args: [observed, 'RECOVER_VEUD_PRODUCTION'],
+		})
+		expectAllowed(result)
+		assert.match(result.stdout, /Recovery deployment over an outage/)
+		assert.match(result.stdout, new RegExp(`web process is ${observed}`))
+	}
+})
+
+test('a recovery window records online as the target end state', () => {
+	// The final verification compares the live PM2 state against
+	// original_pm2_veud_state, so a recovery deployment must record `online`.
+	// Otherwise it would "successfully" finish with production still stopped.
+	assert.match(
+		productionDeploy,
+		/assert_web_state_allows_new_window \\\n\t\t"\$original_pm2_veud_state" \\\n\t\t"\$\{VEUD_PRODUCTION_RECOVERY_DEPLOY:-\}"\n(?:\t*#[^\n]*\n)*\toriginal_pm2_veud_state=online\n/,
+	)
+})

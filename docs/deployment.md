@@ -31,12 +31,70 @@ host, scheme, and client address using standard forwarded headers.
 The current host uses PM2:
 
 ```sh
-npm run start:prod
-pm2 save
+npm run start:prod   # runs the preflight, then PM2 with the launcher
+pm2 save             # persist, so a reboot cannot resurrect a stale definition
 ```
 
 After a restart, verify the local and public health endpoints and confirm the
 `x-veud-release` header matches the deployed commit.
+
+`npm start` is **not** a production entry point and refuses to run against the
+live database. Production must go through `ops/local-production/run-app.sh` so a
+single supervised writer holds the catalog lifetime lock.
+
+### Preflight
+
+`npm run production:preflight` validates the setup before anything restarts: an
+activated release that actually contains the launcher entry point, a production
+datasource in both config files with parity between them, secrets long enough
+for the startup validator, private config file modes, no in-progress cutover,
+the supported Node runtime, and that PM2's saved definition still points at the
+launcher. It reports only structure and secret lengths, never secret values.
+
+### When a restart is not the fix
+
+The launcher runs the RELEASE's own `scripts/pm2-entry.mjs`, so a release cut
+before a launcher change cannot be started by the newer launcher no matter how
+many times PM2 retries. The preflight reports this explicitly. The fix is to
+deploy a current release with `ops/local-production/deploy-catalog-release.sh`,
+not to restart.
+
+A deployment already recreates and saves the PM2 definition itself: it deletes
+`veud`, starts it from the new release's own `ecosystem.config.cjs`,
+health-checks the release headers, and saves the process list. Do **not** run
+`npm run start:prod` afterwards — that would start PM2 with the repository as
+the working directory instead of the activated release, which is the same drift
+the saved definition caused in the first place. The commands above are for
+restarting an already-deployed release.
+
+### Deploying over an outage
+
+A deployment normally opens a maintenance window on a _running_ system, because
+the state captured at entry is what a mid-deployment failure restores to. It
+therefore refuses to start when the web process is not online.
+
+That leaves one case needing an explicit escape: the activated release cannot
+satisfy the launcher contract, so nothing can bring the web process online, and
+the only tool able to replace that release is the one refusing to run. Confirm a
+recovery deployment explicitly:
+
+```sh
+VEUD_PRODUCTION_RECOVERY_DEPLOY=RECOVER_VEUD_PRODUCTION \
+  bash ops/local-production/deploy-catalog-release.sh
+```
+
+Every other gate still applies — the verified pre-mutation backup, writer
+quiescence under the lifetime lock, the release health check, and the required
+post-cutover backup. The only difference is that the window targets a running
+web process instead of restoring the outage it started from.
+
+`pm2 save` matters: PM2's saved process list is what a reboot resurrects, and a
+definition saved before a launcher change will keep failing after the config is
+corrected. If `pm2 list` shows repeated restarts, compare the saved definition
+against `ecosystem.config.cjs` — `pm2 delete veud` then `npm run start:prod`
+recreates it. The app is bounded to five restarts with a twenty-second minimum
+uptime so a misconfiguration stops in `errored` state instead of flapping
+silently.
 
 Host-specific PostgreSQL provisioning, environment switching, catalog workers,
 and status checks are documented in
