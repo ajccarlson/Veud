@@ -35,12 +35,22 @@ function productionRoot({
 	activate = true,
 	blockingState = undefined,
 	applicationMode = 0o600,
+	port = '4021',
+	host = '127.0.0.1',
+	runMode = undefined,
+	lockMode = undefined,
 } = {}) {
 	const root = fs.mkdtempSync(path.join(os.tmpdir(), 'veud-preflight-'))
 	roots.push(root)
 	fs.mkdirSync(path.join(root, 'config'), { recursive: true })
 	fs.mkdirSync(path.join(root, 'run'), { recursive: true })
-	const applicationLines = [`DATABASE_URL="${applicationUrl}"`]
+	// A correctly provisioned production root keeps its runtime state private.
+	fs.chmodSync(path.join(root, 'run'), 0o700)
+	const applicationLines = [
+		`DATABASE_URL="${applicationUrl}"`,
+		`PORT="${port}"`,
+		`HOST="${host}"`,
+	]
 	for (const [key, value] of Object.entries(secrets)) {
 		applicationLines.push(`${key}="${value}"`)
 	}
@@ -72,6 +82,12 @@ function productionRoot({
 	} else {
 		fs.mkdirSync(path.join(root, 'app'), { recursive: true })
 	}
+	if (lockMode !== undefined) {
+		const lock = path.join(root, 'run/catalog-writer-lifetime.lock')
+		fs.writeFileSync(lock, '')
+		fs.chmodSync(lock, lockMode)
+	}
+	if (runMode !== undefined) fs.chmodSync(path.join(root, 'run'), runMode)
 	if (blockingState) {
 		fs.writeFileSync(path.join(root, 'run', blockingState), 'blocked\n')
 	}
@@ -307,4 +323,72 @@ test('a missing pm2 process is a note, not a failure', () => {
 	const result = preflight(root, () => [])
 	expect(result.failures).toEqual([])
 	expect(result.notes.join('\n')).toContain('no saved veud-backup process yet')
+})
+
+test('the staging port in application.env is refused with its cause named', () => {
+	// The exact failure that stopped the recovery deployment at its health check:
+	// production carried staging's port, and `${PORT:-4021}` cannot override a
+	// value that is already set, so production tried to bind the port the running
+	// staging app already held.
+	const result = run({ port: '4022' })
+	const report = result.failures.join('\n')
+	expect(report).toContain('application.env PORT must be 4021')
+	expect(report).toContain('found 4022')
+	expect(report).toContain('staging port')
+})
+
+test('any other wrong port is refused without claiming it came from staging', () => {
+	const result = run({ port: '8080' })
+	const report = result.failures.join('\n')
+	expect(report).toContain('found 8080')
+	expect(report).not.toContain('staging port')
+})
+
+test('an unset port is a note, because the launcher default applies', () => {
+	const root = productionRoot()
+	const file = path.join(root, 'config/application.env')
+	fs.writeFileSync(
+		file,
+		fs
+			.readFileSync(file, 'utf8')
+			.split('\n')
+			.filter(line => !line.startsWith('PORT='))
+			.join('\n'),
+		{ mode: 0o600 },
+	)
+	const result = preflight(root)
+	expect(result.failures).toEqual([])
+	expect(result.notes.join(' ')).toContain('PORT is unset')
+})
+
+test('a host that would expose production beyond the proxy is refused', () => {
+	const result = run({ host: '0.0.0.0' })
+	expect(result.failures.join('\n')).toContain('application.env HOST must be')
+	expect(result.failures.join('\n')).toContain('found 0.0.0.0')
+})
+
+test('a group or world accessible runtime state directory is refused', () => {
+	// `run/` was mode 0777 with a default ACL granting other rwx, so every lock
+	// created there inherited 0666 and the writer guard blocked the deployment.
+	const result = run({ runMode: 0o777 })
+	const report = result.failures.join('\n')
+	expect(report).toContain(
+		'runtime state directory is group or world accessible',
+	)
+	expect(report).toContain('777')
+})
+
+test('a group or world writable runtime lock is refused', () => {
+	// The catalog-writer runtime guard requires (mode & 0o022) === 0, so the
+	// preflight has to reject exactly what the guard would reject — otherwise it
+	// passes and the writer fails later, mid-cutover.
+	const result = run({ lockMode: 0o666 })
+	const report = result.failures.join('\n')
+	expect(report).toContain('catalog-writer-lifetime.lock')
+	expect(report).toContain('group or world writable')
+})
+
+test('a private runtime lock passes', () => {
+	const result = run({ lockMode: 0o600 })
+	expect(result.failures).toEqual([])
 })
