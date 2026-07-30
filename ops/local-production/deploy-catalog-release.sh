@@ -52,6 +52,7 @@ writer_services=(
 	veud-production-tmdb-inventory.service
 	veud-production-retention-cleanup.service
 	veud-production-notification-digests.service
+	veud-production-mangaupdates-releases.service
 )
 writer_timers=(
 	veud-production-mal-hydration.timer
@@ -61,6 +62,7 @@ writer_timers=(
 	veud-production-tmdb-inventory.timer
 	veud-production-retention-cleanup.timer
 	veud-production-notification-digests.timer
+	veud-production-mangaupdates-releases.timer
 )
 all_writer_units=("${writer_services[@]}" "${writer_timers[@]}")
 declare -A original_unit_states=()

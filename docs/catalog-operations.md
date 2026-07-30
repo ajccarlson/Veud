@@ -109,6 +109,32 @@ Required limits:
 
 Reassess the agreement before commercial use or a material expansion of scope.
 
+## MangaUpdates policy
+
+Authorization reference: `MANGAUPDATES_CATALOG_POLICY_APPROVAL_REF`.
+
+The deployment owner accepted the MangaUpdates API terms for server-side
+ingestion and redisplay of released-chapter records. Committed MangaUpdates jobs
+require the reference through that variable or `--policy-approval-ref`.
+
+Required limits:
+
+- use only the official MangaUpdates API;
+- ingest release records for tracked series, not user data or forum content;
+- retain visible MangaUpdates attribution and source links;
+- keep requests sequential and spaced by `--delay-ms`; and
+- correct or remove a requested record within 24 hours.
+
+**MangaUpdates records releases after they happen and publishes no forward
+schedule.** This ingestion therefore produces a factual record of chapters that
+have shipped, shown on the day they released. It does not predict a future
+chapter date, and no such date may be inferred from publication cadence: a
+guessed date in a release calendar reads as fact.
+
+Series are matched by exact, case-insensitive title. A near match would attach
+one series' chapters to another title, so anything less than exact is skipped
+and counted as unresolved.
+
 ## Monitoring and recovery
 
 The administrator catalog page and `npm run catalog:status` report coverage,
