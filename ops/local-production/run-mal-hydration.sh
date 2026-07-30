@@ -8,7 +8,7 @@ prepare_worker
 	die 'MAL_CATALOG_POLICY_APPROVAL_REF is not configured'
 acquire_provider_lock mal
 
-exec "$NPM_BIN" run catalog:mal-hydrate -- \
+run_guarded_worker scripts/hydrate-mal-catalog.ts \
 	--kind all \
 	--commit \
 	--limit "${VEUD_PRODUCTION_MAL_HYDRATION_LIMIT:-100000}" \

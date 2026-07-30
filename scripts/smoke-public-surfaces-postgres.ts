@@ -67,9 +67,48 @@ async function main() {
 		])
 
 	let activeMeasurement: { queries: number; sqlQueries: number } | null = null
-	prisma.$on('query', () => {
+	// Logical queries are counted synchronously in the instrumented delegate, but
+	// SQL statements arrive on Prisma's asynchronous `query` event. Reading the
+	// counter the instant an operation resolves therefore races the event stream:
+	// a statement still in flight is missed, and the handler drops it entirely
+	// once the measurement ends. That produced random failures of the
+	// `sqlQueries >= logicalQueries` invariant — and, worse, the ceiling budgets
+	// compare against the same undercount, so a real regression could pass.
+	const DRAIN_MARKER = 'veud-measurement-drain'
+	let drainResolve: (() => void) | null = null
+	prisma.$on('query', event => {
+		if (event.query.includes(DRAIN_MARKER)) {
+			drainResolve?.()
+			return
+		}
 		if (activeMeasurement) activeMeasurement.sqlQueries += 1
 	})
+
+	/**
+	 * Wait until every statement issued so far has been reported. The engine
+	 * delivers query events in order, so the arrival of a sentinel issued last
+	 * proves the earlier ones already landed. `$queryRawUnsafe` is deliberately
+	 * uninstrumented, so the sentinel never inflates the logical count.
+	 */
+	async function drainQueryEvents() {
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const timer = setTimeout(
+					() => reject(new Error('Timed out draining Prisma query events')),
+					10_000,
+				)
+				drainResolve = () => {
+					clearTimeout(timer)
+					resolve()
+				}
+				void prisma
+					.$queryRawUnsafe(`SELECT 1 /* ${DRAIN_MARKER} */`)
+					.catch(reject)
+			})
+		} finally {
+			drainResolve = null
+		}
+	}
 
 	type InstrumentedOperation = (...args: never[]) => unknown
 	function instrumentOperation(target: object, operation: string) {
@@ -116,11 +155,15 @@ async function main() {
 		const started = performance.now()
 		try {
 			const value = await operation()
+			// Measure wall time before draining, so the sentinel round trip is not
+			// charged to the operation.
+			const wallMs = Number((performance.now() - started).toFixed(3))
+			await drainQueryEvents()
 			return {
 				value,
 				queries: measurement.queries,
 				sqlQueries: measurement.sqlQueries,
-				wallMs: Number((performance.now() - started).toFixed(3)),
+				wallMs,
 			}
 		} finally {
 			activeMeasurement = null
