@@ -300,6 +300,17 @@ restore_original_unit_definitions() {
 systemd_active_state() {
 	local unit="$1" load_state active_state
 	load_state="$(systemctl --user show --property=LoadState --value "$unit")"
+	# A writer unit the release ships but this host has never installed is
+	# reported as `not-found`. Refusing here made such a unit impossible to ever
+	# install, because the only thing that installs writer units is this same
+	# deployment, a few steps further on. A unit that does not exist is by
+	# definition not running, so report it inactive and let the install proceed;
+	# capture already records absent unit files separately. Any other non-loaded
+	# state (a malformed or masked unit) is still a hard failure.
+	if [[ "$load_state" == not-found ]]; then
+		printf 'inactive'
+		return 0
+	fi
 	[[ "$load_state" == loaded ]] || die "Required writer unit is not loaded: $unit"
 	active_state="$(systemctl --user show --property=ActiveState --value "$unit")"
 	case "$active_state" in
@@ -1217,6 +1228,14 @@ else
 		original_unit_enabled_states["$unit"]="$(
 			systemctl --user is-enabled "$unit" 2>/dev/null || true
 		)"
+		# `is-enabled` prints nothing for a unit this host has never installed.
+		# Record it as disabled so a newly shipped writer unit is installed by
+		# this deployment and left switched off, which is the only safe default:
+		# enabling a job that deletes data on a timer is a deliberate decision,
+		# not a side effect of a deployment.
+		if [[ -z "${original_unit_enabled_states[$unit]}" ]]; then
+			original_unit_enabled_states["$unit"]=disabled
+		fi
 		[[ "${original_unit_enabled_states[$unit]}" =~ ^[a-z-]+$ ]] ||
 			die "Unable to record the enabled state for $unit"
 		if is_writer_timer "$unit"; then
