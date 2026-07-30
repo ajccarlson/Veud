@@ -155,8 +155,13 @@ function resultRecords(payload: unknown) {
 	return Array.isArray(results) ? results : []
 }
 
-/** Look up a series id by title. Only an exact, case-insensitive match counts. */
-export async function findMangaUpdatesSeriesId(
+/**
+ * Look up a series by title. Only an exact, case-insensitive match counts, and
+ * the provider's own canonical title comes back with the id: release records
+ * carry that title and no series id, so it is the only key that can associate a
+ * release with a series.
+ */
+export async function findMangaUpdatesSeries(
 	fetchImpl: MangaUpdatesFetch,
 	title: string,
 	options: { approvalRef?: string } = {},
@@ -179,7 +184,7 @@ export async function findMangaUpdatesSeriesId(
 			typeof seriesId === 'number' &&
 			Number.isSafeInteger(seriesId)
 		) {
-			return seriesId
+			return { seriesId, title: optionalString(fields.title) ?? title.trim() }
 		}
 	}
 	// A fuzzy match would attach one series' chapters to another title, which is
@@ -187,26 +192,45 @@ export async function findMangaUpdatesSeriesId(
 	return null
 }
 
-/** Fetch recent releases for one series, newest first. */
+/**
+ * Fetch releases for one series.
+ *
+ * The provider ignores `series_id` on this endpoint — passing it returns the
+ * same unfiltered results — and a release record carries only a title, never a
+ * series id. So the search is by title and the results are filtered here to
+ * records whose own title matches exactly. Skipping that filter would file
+ * another series' chapters under this one.
+ */
 export async function fetchMangaUpdatesReleases(
 	fetchImpl: MangaUpdatesFetch,
-	seriesId: number,
+	seriesTitle: string,
 	options: { approvalRef?: string; perPage?: number } = {},
 ) {
 	requireApproval(options.approvalRef)
+	const wanted = seriesTitle.trim().toLowerCase()
+	// An empty search is rejected by the provider, and would be meaningless here.
+	if (!wanted) return []
 	const payload = await postJson(fetchImpl, RELEASES_ENDPOINT, {
-		search: '',
-		series_id: seriesId,
+		search: seriesTitle.trim(),
 		perpage: options.perPage ?? 25,
-		orderby: 'date',
 	})
 	const releases: MangaUpdatesRelease[] = []
 	const seen = new Set<string>()
 	for (const entry of resultRecords(payload)) {
+		const record = (entry as { record?: unknown }).record ?? entry
+		const recordTitle =
+			record && typeof record === 'object'
+				? optionalString((record as Record<string, unknown>).title)
+				: null
+		if (recordTitle?.toLowerCase() !== wanted) continue
 		const release = normalizeMangaUpdatesRelease(entry)
 		if (!release || seen.has(release.sourceKey)) continue
 		seen.add(release.sourceKey)
 		releases.push(release)
 	}
+	// The provider does not return these in date order.
+	releases.sort(
+		(first, second) => second.releaseAt.getTime() - first.releaseAt.getTime(),
+	)
 	return releases
 }

@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	fetchMangaUpdatesReleases,
-	findMangaUpdatesSeriesId,
+	findMangaUpdatesSeries,
 	normalizeMangaUpdatesRelease,
 	parseReleaseNumber,
 	releaseOccurrenceInput,
@@ -98,54 +98,73 @@ test('series lookup accepts only an exact title match', async () => {
 		],
 	}
 	const exact = stubFetch(payload)
+	// The provider's own canonical title comes back with the id, because release
+	// records carry that title and no series id.
 	await expect(
-		findMangaUpdatesSeriesId(exact.impl, 'one piece', {
-			approvalRef: APPROVAL,
-		}),
-	).resolves.toBe(55099564912)
+		findMangaUpdatesSeries(exact.impl, 'one piece', { approvalRef: APPROVAL }),
+	).resolves.toEqual({ seriesId: 55099564912, title: 'One Piece' })
 
 	// A near miss attaches one series' chapters to another title, so it is refused.
 	const fuzzy = stubFetch({
 		results: [{ record: { series_id: 1, title: 'One Piece: Colour Walk' } }],
 	})
 	await expect(
-		findMangaUpdatesSeriesId(fuzzy.impl, 'one piece', {
-			approvalRef: APPROVAL,
-		}),
+		findMangaUpdatesSeries(fuzzy.impl, 'one piece', { approvalRef: APPROVAL }),
 	).resolves.toBeNull()
 })
 
 test('committed lookups require the documented policy approval reference', async () => {
 	const { impl, calls } = stubFetch({ results: [] })
-	await expect(findMangaUpdatesSeriesId(impl, 'one piece', {})).rejects.toThrow(
+	await expect(findMangaUpdatesSeries(impl, 'one piece', {})).rejects.toThrow(
 		/policy-approval-ref/i,
 	)
-	await expect(fetchMangaUpdatesReleases(impl, 1, {})).rejects.toThrow(
-		/policy-approval-ref/i,
-	)
+	await expect(
+		fetchMangaUpdatesReleases(impl, 'One Piece', {}),
+	).rejects.toThrow(/policy-approval-ref/i)
 	// Nothing may reach the provider without the reference.
 	expect(calls).toHaveLength(0)
 })
 
-test('releases are fetched for one series and de-duplicated', async () => {
+test('releases from another series are filtered out, not attributed here', async () => {
+	// The provider ignores series_id on this endpoint and a release record carries
+	// only a title, so a text search returns other series too. Keeping them would
+	// file another series' chapters under this one.
+	const other = {
+		record: { ...liveRelease.record, id: 999, title: 'One Piece: Colour Walk' },
+	}
 	const { impl, calls } = stubFetch({
-		results: [
-			liveRelease,
-			liveRelease,
-			{ record: { id: 9, release_date: 'x' } },
-		],
+		results: [liveRelease, liveRelease, other, { record: { id: 9 } }],
 	})
-	const releases = await fetchMangaUpdatesReleases(impl, 55099564912, {
+	const releases = await fetchMangaUpdatesReleases(impl, 'One Piece', {
 		approvalRef: APPROVAL,
 	})
 	expect(releases).toHaveLength(1)
 	expect(releases[0]!.chapter).toBe(467)
-	expect((calls[0]!.body as { series_id: number }).series_id).toBe(55099564912)
+	// An empty search is rejected by the provider, so the title is always sent.
+	expect((calls[0]!.body as { search: string }).search).toBe('One Piece')
+	expect(calls[0]!.body).not.toHaveProperty('series_id')
+})
+
+test('releases come back newest first', async () => {
+	const older = {
+		record: { ...liveRelease.record, id: 1, release_date: '2007-08-18' },
+	}
+	const newer = {
+		record: { ...liveRelease.record, id: 2, release_date: '2026-07-26' },
+	}
+	const { impl } = stubFetch({ results: [older, newer] })
+	const releases = await fetchMangaUpdatesReleases(impl, 'One Piece', {
+		approvalRef: APPROVAL,
+	})
+	expect(releases.map(release => release.sourceKey)).toEqual([
+		'release:2',
+		'release:1',
+	])
 })
 
 test('a provider error is surfaced rather than treated as no releases', async () => {
 	const { impl } = stubFetch({}, false, 503)
 	await expect(
-		fetchMangaUpdatesReleases(impl, 1, { approvalRef: APPROVAL }),
+		fetchMangaUpdatesReleases(impl, 'One Piece', { approvalRef: APPROVAL }),
 	).rejects.toThrow(/503/)
 })
