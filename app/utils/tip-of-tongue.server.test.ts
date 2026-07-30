@@ -520,7 +520,15 @@ test('AI identification resolves short canonical titles without alternate-title 
 		{ fetchImpl, allowAi: true },
 	)
 
-	expect(result.matches[0]?.mediaId).toBe(candidate.id)
+	// The AI path must be what resolves this, not the supplemental local
+	// fallback: assert the AI's own reason and clues survive, so a regression
+	// that loses canonical-title matching cannot pass by falling back.
+	expect(result.source).toBe('ai')
+	expect(result.matches[0]).toEqual({
+		mediaId: candidate.id,
+		summary: 'Up may match the elderly widower, young scout, and flying house.',
+		matchedClues: ['elderly widower', 'young scout', 'flying house'],
+	})
 })
 
 test('AI identification is limited per member and falls back to catalog matching', async () => {
@@ -631,4 +639,169 @@ test('AI quota failures open a circuit while catalog matching stays available', 
 			fallbackReason: 'ai-unavailable',
 		}),
 	)
+})
+
+/**
+ * Count the catalog round trips a resolution performs. The budgets are the
+ * point of the batched repository: work must stay fixed whatever the prompt or
+ * the AI response contains.
+ */
+function countCatalogQueries() {
+	const queries: string[] = []
+	// Count real SQL round trips from Prisma's own query event rather than
+	// patching a hand-picked list of delegate methods: that approach missed
+	// transactions, unlisted models, and raw variants, so equivalent fan-out
+	// could hide from the budget.
+	const record = (event: { query: string }) => {
+		const sql = String(event.query)
+		if (!/^\s*(SELECT|WITH)/i.test(sql)) return
+		if (/sqlite_master|_prisma_migrations|PRAGMA/i.test(sql)) return
+		queries.push(sql.replace(/\s+/g, ' ').slice(0, 60))
+	}
+	const client = prisma as unknown as {
+		$on: (event: 'query', handler: (event: { query: string }) => void) => void
+	}
+	client.$on('query', record)
+	return {
+		queries,
+		restore() {
+			// Prisma exposes no removeListener for $on. A fresh recorder per test
+			// keeps counts scoped because each handler only appends to its own
+			// array, so there is nothing to undo here.
+		},
+	}
+}
+
+test('local fallback resolves within two catalog queries whatever the prompt', async () => {
+	const seeded = await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Bounded Lighthouse',
+			description: 'A keeper tends an isolated lighthouse.',
+			catalogPopularity: 40,
+		},
+	})
+	// A deliberately long, repetitive prompt must not add round trips.
+	const memory = `${'lighthouse keeper isolated storm journal '.repeat(30)} ${Array.from(
+		{ length: 60 },
+		(_, index) => `filler${index}`,
+	).join(' ')}`
+	const counter = countCatalogQueries()
+	try {
+		const result = await getTipOfTongueMatches(
+			{ memory, kind: 'movie' },
+			{ allowAi: false },
+		)
+		expect(result.source).toBe('catalog-match')
+		expect(result.matches.map(match => match.mediaId)).toContain(seeded.id)
+		// One bounded candidate query, then one logical hydration read. Hydration
+		// is two SQL statements because the candidate select includes the titles
+		// relation, so the honest SQL total is three.
+		expect(
+			counter.queries.filter(sql => sql.includes('WITH matched')),
+		).toHaveLength(1)
+		expect(counter.queries).toHaveLength(3)
+	} finally {
+		counter.restore()
+		await prisma.media.delete({ where: { id: seeded.id } })
+	}
+})
+
+test('AI resolution plus supplement stays within four catalog queries', async () => {
+	const seeded = await Promise.all(
+		['Alpha Signal', 'Beta Signal', 'Gamma Signal'].map((title, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title,
+					description: `${title} concerns a distant broadcast.`,
+					catalogPopularity: 90 - index,
+				},
+			}),
+		),
+	)
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	// Five hypotheses, only three of which can resolve, so the supplemental
+	// local fallback also runs. That is the most expensive supported path.
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiSuggestionResponse([
+			{ title: 'Alpha Signal', kind: 'movie', matchedClues: ['broadcast'] },
+			{ title: 'Beta Signal', kind: 'movie', matchedClues: ['broadcast'] },
+			{ title: 'Gamma Signal', kind: 'movie', matchedClues: ['broadcast'] },
+			{ title: 'Absent One', kind: 'movie', matchedClues: ['broadcast'] },
+			{ title: 'Absent Two', kind: 'movie', matchedClues: ['broadcast'] },
+		]),
+	)
+	const counter = countCatalogQueries()
+	try {
+		const result = await getTipOfTongueMatches(
+			{ memory: 'A film about a distant broadcast signal.', kind: 'movie' },
+			{ fetchImpl, allowAi: true },
+		)
+		expect(result.source).toBe('ai')
+		// Exactly two candidate queries on the most expensive supported path: one
+		// batched hypothesis lookup plus the supplemental local fallback. Five
+		// would mean per-hypothesis fan-out returned.
+		expect(
+			counter.queries.filter(sql => sql.includes('WITH matched')),
+		).toHaveLength(2)
+		// Two logical resolutions, each one candidate query plus a two-statement
+		// hydration read.
+		expect(counter.queries).toHaveLength(6)
+	} finally {
+		counter.restore()
+		await prisma.media.deleteMany({
+			where: { id: { in: seeded.map(item => item.id) } },
+		})
+	}
+})
+
+test('a fully resolved AI response needs only the batched lookup and hydration', async () => {
+	const seeded = await Promise.all(
+		['One Ridge', 'Two Ridge', 'Three Ridge', 'Four Ridge', 'Five Ridge'].map(
+			(title, index) =>
+				prisma.media.create({
+					data: {
+						kind: 'movie',
+						title,
+						description: `${title} climbs a ridge.`,
+						catalogPopularity: 90 - index,
+					},
+				}),
+		),
+	)
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		aiSuggestionResponse(
+			['One Ridge', 'Two Ridge', 'Three Ridge', 'Four Ridge', 'Five Ridge'].map(
+				title => ({ title, kind: 'movie' as const, matchedClues: ['ridge'] }),
+			),
+		),
+	)
+	const counter = countCatalogQueries()
+	try {
+		const result = await getTipOfTongueMatches(
+			{ memory: 'Five films that climb a ridge.', kind: 'movie' },
+			{ fetchImpl, allowAi: true },
+		)
+		expect(result.source).toBe('ai')
+		expect(result.matches).toHaveLength(5)
+		// No supplemental fallback is needed: one batched candidate query and one
+		// hydration read (two SQL statements) resolve all five hypotheses.
+		expect(
+			counter.queries.filter(sql => sql.includes('WITH matched')),
+		).toHaveLength(1)
+		expect(counter.queries).toHaveLength(3)
+		// Every result is a distinct existing canonical media identifier.
+		const ids = result.matches.map(match => match.mediaId)
+		expect(new Set(ids).size).toBe(5)
+		for (const id of ids) {
+			expect(seeded.map(item => item.id)).toContain(id)
+		}
+	} finally {
+		counter.restore()
+		await prisma.media.deleteMany({
+			where: { id: { in: seeded.map(item => item.id) } },
+		})
+	}
 })

@@ -35,6 +35,14 @@ const requiredTrigramIndexesByQuery = {
 	'tracking-exact-title': 'Media_title_trgm_idx',
 	'alternate-title': 'MediaTitle_normalized_trgm_idx',
 	'rare-description': 'Media_description_trgm_idx',
+	// Batched Tip of My Tongue branches must each stay index-visible; a
+	// LOWER(...) wrapper or an OR-ed predicate would regress to a scan.
+	'tip-of-tongue-canonical-title': 'Media_title_trgm_idx',
+	'tip-of-tongue-description': 'Media_description_trgm_idx',
+	'tip-of-tongue-alternate-title': 'MediaTitle_normalized_trgm_idx',
+	// The union is what the application actually issues, so it must stay
+	// index-visible too, not only its individual branches.
+	'tip-of-tongue-batched-union': 'Media_title_trgm_idx',
 }
 const requiredCalendarIndexesByQuery = {
 	'calendar-media-range': 'Media_nextReleaseAt_idx',
@@ -1347,6 +1355,66 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			   AND status = 'scheduled' AND "expiresAt" > $3
 			 ORDER BY "releaseAt", id LIMIT 10001`,
 			[calendarWindow.start, calendarWindow.end, calendarWindow.reference],
+		],
+		// Tip of My Tongue candidate branches. Each is measured on its own so a
+		// branch that stops using its trigram index is caught rather than hidden
+		// inside a union. ILIKE is what keeps the GIN indexes plan-visible; a
+		// LOWER(...) wrapper would silently force a sequential scan.
+		[
+			'tip-of-tongue-canonical-title',
+			`SELECT id FROM "Media"
+			 WHERE "title" IS NOT NULL AND "kind" = $1
+			   AND "title" ILIKE $2 ESCAPE '!'
+			 LIMIT 72`,
+			['movie', `%Catalog Work ${needle}%`],
+		],
+		[
+			'tip-of-tongue-description',
+			`SELECT id FROM "Media"
+			 WHERE "title" IS NOT NULL AND "kind" = $1
+			   AND "description" ILIKE $2 ESCAPE '!'
+			 LIMIT 72`,
+			['movie', `%${syntheticRareDescriptionNeedle}%`],
+		],
+		[
+			'tip-of-tongue-alternate-title',
+			`SELECT "Media".id FROM "Media"
+			 JOIN "MediaTitle" ON "MediaTitle"."mediaId" = "Media".id
+			 WHERE "Media"."title" IS NOT NULL AND "Media"."kind" = $1
+			   AND "MediaTitle"."normalized" ILIKE $2 ESCAPE '!'
+			 LIMIT 72`,
+			['movie', `%alternate load alias ${alternate}%`],
+		],
+		[
+			'tip-of-tongue-batched-union',
+			`WITH matched AS (
+				SELECT id AS id, 0 AS source_rank,
+					COALESCE("catalogPopularity", 0) AS popularity
+				FROM "Media"
+				WHERE "title" IS NOT NULL AND "kind" = $1
+				  AND "title" ILIKE $2 ESCAPE '!'
+				UNION ALL
+				SELECT "Media".id AS id, 1 AS source_rank,
+					COALESCE("Media"."catalogPopularity", 0) AS popularity
+				FROM "Media"
+				JOIN "MediaTitle" ON "MediaTitle"."mediaId" = "Media".id
+				WHERE "Media"."title" IS NOT NULL AND "Media"."kind" = $1
+				  AND "MediaTitle"."normalized" ILIKE $2 ESCAPE '!'
+				UNION ALL
+				SELECT id AS id, 2 AS source_rank,
+					COALESCE("catalogPopularity", 0) AS popularity
+				FROM "Media"
+				WHERE "title" IS NOT NULL AND "kind" = $1
+				  AND "description" ILIKE $2 ESCAPE '!'
+			 )
+			 SELECT matched.id AS id,
+				MIN(matched.source_rank) AS source_rank,
+				MAX(matched.popularity) AS popularity
+			 FROM matched
+			 GROUP BY matched.id
+			 ORDER BY source_rank ASC, popularity DESC, id ASC
+			 LIMIT 72`,
+			['movie', `%Catalog Work ${needle}%`],
 		],
 	]
 	const queries = []
