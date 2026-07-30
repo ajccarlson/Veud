@@ -4143,3 +4143,85 @@ printf '%s' "\${original_unit_enabled_states[$1]}"
 		assert.equal(real.stdout, state)
 	}
 })
+
+test('a unit the host has never installed captures and restores as absent', () => {
+	// The state that made a newly shipped writer unit impossible to install: no
+	// unit file, and systemd knows nothing about it. The absent marker, capture
+	// verification, and restore all already supported this; only the effective
+	// definition assertion refused it, and it runs first.
+	const root = temporaryRoot('cutover-absent-unit')
+	const unitDir = path.join(root, 'units')
+	const state = path.join(root, 'state')
+	fs.mkdirSync(unitDir, { recursive: true })
+	const source = `set -Eeuo pipefail
+source "$1"
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+unit_dir="$2"
+systemctl() {
+	[[ "$*" == "--user daemon-reload" ]] && return 0
+	local property='' argument
+	for argument in "$@"; do
+		[[ "$argument" == --property=* ]] && property="\${argument#--property=}"
+	done
+	case "$property" in
+	FragmentPath) printf '%s' "$FRAGMENT" ;;
+	DropInPaths) printf '%s' "$DROPINS" ;;
+	ExecStart) printf '%s' "$EXEC_START" ;;
+	esac
+}
+cutover_capture_unit_definitions "$3" "$unit_dir" writer.timer
+cutover_verify_captured_unit_definitions "$3" writer.timer ||
+	die 'capture verification rejected an absent unit'
+[[ -f "$3/unit-files-absent/writer.timer" ]] || die 'absent marker missing'
+[[ ! -s "$3/unit-effective/writer.timer/FragmentPath" ]] ||
+	die 'absent unit recorded a fragment'
+cutover_restore_unit_definitions "$3" "$unit_dir" writer.timer ||
+	die 'restore rejected an absent unit'
+[[ ! -e "$unit_dir/writer.timer" ]] || die 'restore left a unit file behind'
+printf captured-and-restored`
+	const result = runBash(source, {
+		args: [catalogCutoverCommon, unitDir, state],
+		env: { FRAGMENT: '', DROPINS: '', EXEC_START: '' },
+	})
+	expectAllowed(result)
+	assert.match(result.stdout, /captured-and-restored/)
+})
+
+test('systemd reporting state for a unit with no file is a conflict, not a bootstrap', () => {
+	// The bootstrap allowance must not become a blanket escape: if a unit has no
+	// managed file yet systemd still reports an ExecStart or a drop-in, something
+	// else is managing it and the cutover has to stop.
+	const root = temporaryRoot('cutover-phantom-unit')
+	const unitDir = path.join(root, 'units')
+	fs.mkdirSync(unitDir, { recursive: true })
+	const source = `set -Eeuo pipefail
+source "$1"
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+systemctl() {
+	local property='' argument
+	for argument in "$@"; do
+		[[ "$argument" == --property=* ]] && property="\${argument#--property=}"
+	done
+	case "$property" in
+	FragmentPath) printf '' ;;
+	DropInPaths) printf '%s' "$DROPINS" ;;
+	ExecStart) printf '%s' "$EXEC_START" ;;
+	esac
+}
+cutover_capture_unit_definitions "$3" "$2" writer.timer`
+	for (const env of [
+		{ DROPINS: '', EXEC_START: '/somewhere/else' },
+		{ DROPINS: '/etc/x.conf', EXEC_START: '' },
+	]) {
+		const result = runBash(source, {
+			args: [
+				catalogCutoverCommon,
+				unitDir,
+				path.join(root, `state-${env.EXEC_START ? 'exec' : 'dropin'}`),
+			],
+			env,
+		})
+		assert.notEqual(result.status, 0, JSON.stringify(env))
+		assert.match(result.stderr, /reports state for an uninstalled unit/)
+	}
+})
