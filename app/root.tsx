@@ -428,10 +428,6 @@ function MobileNavigation() {
 					<Icon name="magnifying-glass" aria-hidden="true" />
 					Discover
 				</Link>
-				<Link to="/assistant" prefetch="intent">
-					<Icon name="magic-wand" aria-hidden="true" />
-					Assistant
-				</Link>
 				<Link to="/calendar" prefetch="intent">
 					<Icon name="calendar" aria-hidden="true" />
 					Calendar
@@ -537,17 +533,6 @@ function CommunityDropdown() {
 						>
 							<Icon className="text-body-md" name="magnifying-glass">
 								Discover
-							</Icon>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link
-							className="root-community-link-item"
-							prefetch="intent"
-							to="/assistant"
-						>
-							<Icon className="text-body-md" name="magic-wand">
-								Assistant
 							</Icon>
 						</Link>
 					</DropdownMenuItem>
