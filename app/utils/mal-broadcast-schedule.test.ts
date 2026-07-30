@@ -10,6 +10,12 @@ const airing = (broadcast: unknown, status = 'currently_airing') => ({
 // 2026-07-30T12:00:00Z is Thursday 21:00 JST.
 const observedAt = new Date('2026-07-30T12:00:00.000Z')
 
+/** The stored payload is JSON, so give the parsed shape a type to assert on. */
+function storedSchedule(value: string | null) {
+	expect(value).toBeTruthy()
+	return JSON.parse(value!) as { releaseDate: string; source: string }
+}
+
 test('a weekly slot later this week resolves to that day in UTC', () => {
 	const stored = malBroadcastNextRelease(
 		airing({ day_of_the_week: 'friday', start_time: '23:00' }),
@@ -17,8 +23,7 @@ test('a weekly slot later this week resolves to that day in UTC', () => {
 		observedAt,
 	)
 	// Friday 23:00 JST is Friday 14:00 UTC.
-	expect(stored).toBeTruthy()
-	expect(JSON.parse(stored!).releaseDate).toBe('2026-07-31T14:00:00.000Z')
+	expect(storedSchedule(stored).releaseDate).toBe('2026-07-31T14:00:00.000Z')
 })
 
 test('a slot already past today rolls to next week, not back in time', () => {
@@ -28,7 +33,7 @@ test('a slot already past today rolls to next week, not back in time', () => {
 		'anime',
 		observedAt,
 	)
-	const releaseDate = new Date(JSON.parse(stored!).releaseDate)
+	const releaseDate = new Date(storedSchedule(stored).releaseDate)
 	expect(releaseDate.getTime()).toBeGreaterThan(observedAt.getTime())
 	expect(releaseDate.toISOString()).toBe('2026-08-06T11:00:00.000Z')
 })
@@ -39,7 +44,7 @@ test('a slot still ahead today stays today', () => {
 		'anime',
 		observedAt,
 	)
-	expect(JSON.parse(stored!).releaseDate).toBe('2026-07-30T14:30:00.000Z')
+	expect(storedSchedule(stored).releaseDate).toBe('2026-07-30T14:30:00.000Z')
 })
 
 test('the result is understood by the shared schedule parser', () => {
