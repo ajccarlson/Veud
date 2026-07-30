@@ -8,7 +8,7 @@ prepare_worker
 	die 'MAL_CATALOG_POLICY_APPROVAL_REF is not configured'
 acquire_provider_lock mal
 
-exec "$NPM_BIN" run catalog:mal-trending -- \
+run_guarded_worker scripts/refresh-mal-trending.ts \
 	--kind all \
 	--page-size 500 \
 	--delay-ms "${VEUD_PRODUCTION_MAL_DELAY_MS:-1000}" \
