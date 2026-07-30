@@ -669,6 +669,18 @@ cutover_create_and_pin_backup() {
 		"$pinned_offsite_receipt"
 }
 
+# `systemctl show -p ExecStart` returns a record that mixes the command with
+# volatile runtime fields: start_time, stop_time, pid, code, and status. Those
+# change every time the unit runs and reset to `[n/a]`/`pid=0` when it is
+# reloaded, so comparing the raw record byte-for-byte could never succeed for a
+# service that had ever run. That made restore verification report failure after
+# correctly restoring the files, which aborted recovery and left every writer
+# blocked. Compare the command, not the last invocation's bookkeeping.
+cutover_stable_exec_start() {
+	printf '%s' "$1" |
+		sed -E 's/[[:space:]]*;[[:space:]]*(start_time|stop_time|pid|code|status)=[^;}]*//g'
+}
+
 cutover_capture_unit_definitions() {
 	local state_dir="$1" unit_dir="$2"
 	shift 2
@@ -732,7 +744,8 @@ cutover_capture_unit_definitions() {
 				die "Systemd fragment does not match the managed unit file: $unit"
 		fi
 		printf '%s' "$fragment" >"$metadata/FragmentPath"
-		printf '%s' "$exec_start" >"$metadata/ExecStart"
+		printf '%s' "$(cutover_stable_exec_start "$exec_start")" \
+			>"$metadata/ExecStart"
 	done
 }
 
@@ -810,6 +823,7 @@ cutover_verify_restored_unit_definitions() {
 		exec_start="$(
 			systemctl --user show "$unit" --property=ExecStart --value
 		)" || return 1
+		exec_start="$(cutover_stable_exec_start "$exec_start")"
 		# A unit captured as uninstalled must be uninstalled again after a restore,
 		# so there is no fragment to stat. Requiring one here would fail every
 		# restore that touched such a unit.

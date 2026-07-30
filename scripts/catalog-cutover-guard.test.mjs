@@ -4225,3 +4225,95 @@ cutover_capture_unit_definitions "$3" "$2" writer.timer`
 		assert.match(result.stderr, /reports state for an uninstalled unit/)
 	}
 })
+
+test('restore verification ignores volatile ExecStart runtime fields', () => {
+	// `systemctl show -p ExecStart` mixes the command with start_time, stop_time,
+	// pid, code and status. Those change whenever the unit runs and reset when it
+	// is reloaded, so a byte-for-byte comparison could never succeed for a service
+	// that had ever run — the rollback verifier reported failure after correctly
+	// restoring the files, which aborted recovery and left writers blocked.
+	const root = temporaryRoot('cutover-volatile-exec')
+	const unitDir = path.join(root, 'units')
+	const state = path.join(root, 'state')
+	fs.mkdirSync(unitDir, { recursive: true })
+	fs.writeFileSync(path.join(unitDir, 'writer.service'), '[Service]\n')
+	const command = '{ path=/opt/run.sh ; argv[]=/opt/run.sh ; ignore_errors=no'
+	const source = `set -Eeuo pipefail
+source "$1"
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+unit_dir="$2"
+phase=capture
+systemctl() {
+	if [[ "$*" == "--user daemon-reload" ]]; then phase=restore; return 0; fi
+	local property='' argument
+	for argument in "$@"; do
+		[[ "$argument" == --property=* ]] && property="\${argument#--property=}"
+	done
+	case "$property" in
+	FragmentPath) printf '%s' "$unit_dir/writer.service" ;;
+	DropInPaths) return 0 ;;
+	ExecStart)
+		if [[ "$phase" == capture ]]; then
+			printf '%s ; start_time=[Wed 2026-07-29 21:57:16 PDT] ; stop_time=[Wed 2026-07-29 21:58:13 PDT] ; pid=3892021 ; code=exited ; status=0 }' "$COMMAND"
+		else
+			printf '%s ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }' "$COMMAND"
+		fi
+		;;
+	esac
+}
+cutover_capture_unit_definitions "$3" "$unit_dir" writer.service
+cutover_restore_unit_definitions "$3" "$unit_dir" writer.service ||
+	die 'restore verification rejected an unchanged command'
+printf restored`
+	const result = runBash(source, {
+		args: [catalogCutoverCommon, unitDir, state],
+		env: { COMMAND: command },
+	})
+	expectAllowed(result)
+	assert.match(result.stdout, /restored/)
+
+	// A genuinely different command must still be caught.
+	const changed = runBash(
+		source.replace(
+			'cutover_restore_unit_definitions "$3" "$unit_dir" writer.service ||',
+			'COMMAND="{ path=/opt/other.sh ; argv[]=/opt/other.sh ; ignore_errors=no"\ncutover_restore_unit_definitions "$3" "$unit_dir" writer.service ||',
+		),
+		{
+			args: [catalogCutoverCommon, unitDir, path.join(root, 'state2')],
+			env: { COMMAND: command },
+		},
+	)
+	assert.notEqual(changed.status, 0, 'a changed command must fail verification')
+})
+
+test('the drain skips a timer the host has never installed', () => {
+	// The drain died here mid-window, with every other timer already disabled.
+	const source = `set -Eeuo pipefail
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+writer_timers=(present.timer missing.timer)
+systemctl() {
+	local property='' unit='' argument
+	for argument in "$@"; do
+		case "$argument" in
+		--property=*) property="\${argument#--property=}" ;;
+		*.timer) unit="$argument" ;;
+		esac
+	done
+	if [[ -n "$property" ]]; then
+		[[ "$unit" == present.timer ]] && printf loaded || printf not-found
+		return 0
+	fi
+	if [[ "$1" == --user && "$2" == disable ]]; then
+		[[ "$unit" == present.timer ]] || { printf 'Unit %s does not exist\\n' "$unit" >&2; return 1; }
+		printf 'disabled:%s\\n' "$unit" >&2
+	fi
+}
+${extractShellFunction(productionDeploy, 'disable_writer_timers')}
+disable_writer_timers
+printf drained`
+	const result = runBash(source)
+	expectAllowed(result)
+	assert.match(result.stderr, /disabled:present\.timer/)
+	assert.match(result.stdout, /drained/)
+	assert.doesNotMatch(result.stderr, /disabled:missing\.timer/)
+})
