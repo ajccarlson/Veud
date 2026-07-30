@@ -10,6 +10,9 @@ import {
 	refreshMalTrending,
 	type RefreshMalTrendingSummary,
 } from '#app/utils/mal-trending.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage: npm run catalog:mal-trending -- [options]
 

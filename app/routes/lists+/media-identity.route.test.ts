@@ -80,7 +80,7 @@ function routeParams(key: 'row' | 'favorite', value: Record<string, unknown>) {
 	}
 }
 
-test('new rows reuse canonical media and ignore client-supplied relation ids', async () => {
+test('new rows reuse sparse canonical media while saving user-owned snapshots', async () => {
 	const owner = await createOwner('liveaction')
 	const unrelatedMedia = await prisma.media.create({
 		data: { kind: 'movie' },
@@ -119,14 +119,26 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 	expect(first.id).not.toBe('client-chosen-id')
 	expect(first.mediaId).not.toBe(unrelatedMedia.id)
 	expect(second.mediaId).toBe(first.mediaId)
+	expect(first).toEqual(
+		expect.objectContaining({
+			title: 'The Shawshank Redemption',
+			thumbnail,
+		}),
+	)
+	expect(second).toEqual(
+		expect.objectContaining({
+			title: 'The same work in another row',
+			thumbnail,
+		}),
+	)
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: first.mediaId as string },
 		}),
 	).toEqual(
 		expect.objectContaining({
-			title: 'The Shawshank Redemption',
-			thumbnail,
+			title: null,
+			thumbnail: null,
 		}),
 	)
 	expect(await prisma.mediaExternalId.findMany()).toEqual([
@@ -135,6 +147,8 @@ test('new rows reuse canonical media and ignore client-supplied relation ids', a
 			kind: 'movie',
 			externalId: '278',
 			mediaId: first.mediaId,
+			hydrationReason: 'user-demand',
+			hydrationRequestedAt: expect.any(Date),
 		}),
 	])
 	expect(await prisma.media.count()).toBe(2)
@@ -320,7 +334,40 @@ test('provider identity must agree with the destination list type', async () => 
 	expect(await prisma.media.count()).toBe(0)
 })
 
-test('new MAL rows ingest validated canonical related titles', async () => {
+test('provider identities reject noncanonical and unsafe external IDs', async () => {
+	const owner = await createOwner('liveaction')
+
+	for (const externalId of [
+		'0',
+		'01',
+		'+1',
+		'-1',
+		' 1',
+		'1 ',
+		'9007199254740992',
+	]) {
+		const result = await addRow({
+			request: owner.request,
+			params: routeParams('row', {
+				watchlistId: owner.watchlistId,
+				position: 1,
+				title: 'Noncanonical catalog identity',
+				mediaIdentity: {
+					provider: 'tmdb',
+					kind: 'movie',
+					externalId,
+				},
+			}),
+		} as any).catch(error => error)
+
+		expect(result).toBeInstanceOf(Response)
+		expect((result as Response).status).toBe(400)
+	}
+	expect(await prisma.entry.count()).toBe(0)
+	expect(await prisma.media.count()).toBe(0)
+})
+
+test('new MAL rows ignore client-supplied canonical relations and target metadata', async () => {
 	const owner = await createOwner('anime')
 	const entry = await addRow({
 		request: owner.request,
@@ -351,27 +398,28 @@ test('new MAL rows ingest validated canonical related titles', async () => {
 		}),
 	} as any)
 
-	const relation = await prisma.mediaRelation.findFirstOrThrow({
-		include: { targetMedia: { include: { externalIds: true } } },
-	})
-	expect(relation).toMatchObject({
-		sourceMediaId: entry.mediaId,
-		relationType: 'sequel',
-		provider: 'mal',
-		targetMedia: {
-			title: 'Second season',
-			externalIds: [
-				expect.objectContaining({
+	expect(entry).toEqual(expect.objectContaining({ title: 'First season' }))
+	expect(await prisma.mediaRelation.count()).toBe(0)
+	expect(
+		await prisma.mediaExternalId.findUnique({
+			where: {
+				provider_kind_externalId: {
 					provider: 'mal',
 					kind: 'anime',
 					externalId: '101',
-				}),
-			],
-		},
-	})
+				},
+			},
+		}),
+	).toBeNull()
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: entry.mediaId as string },
+			select: { title: true, thumbnail: true },
+		}),
+	).toEqual({ title: null, thumbnail: null })
 })
 
-test('new TMDB rows ingest canonical franchise titles', async () => {
+test('new TMDB rows ignore client-supplied canonical franchise data', async () => {
 	const owner = await createOwner('liveaction')
 	const entry = await addRow({
 		request: owner.request,
@@ -398,20 +446,24 @@ test('new TMDB rows ingest canonical franchise titles', async () => {
 		}),
 	} as any)
 
-	const relation = await prisma.mediaRelation.findFirstOrThrow({
-		include: { targetMedia: true },
-	})
-	expect(relation).toMatchObject({
-		sourceMediaId: entry.mediaId,
-		relationType: 'franchise',
-		provider: 'tmdb',
-		targetMedia: { kind: 'movie', title: 'Second franchise movie' },
-	})
+	expect(entry.title).toBe('First franchise movie')
+	expect(await prisma.mediaRelation.count()).toBe(0)
+	expect(
+		await prisma.mediaExternalId.findUnique({
+			where: {
+				provider_kind_externalId: {
+					provider: 'tmdb',
+					kind: 'movie',
+					externalId: '301',
+				},
+			},
+		}),
+	).toBeNull()
 })
 
-test('relation metadata cannot cross providers', async () => {
+test('invalid cross-provider client relation metadata is ignored', async () => {
 	const owner = await createOwner('anime')
-	const result = await addRow({
+	const entry = await addRow({
 		request: owner.request,
 		params: routeParams('row', {
 			watchlistId: owner.watchlistId,
@@ -433,12 +485,12 @@ test('relation metadata cannot cross providers', async () => {
 				},
 			],
 		}),
-	} as any).catch(error => error)
+	} as any)
 
-	expect(result).toBeInstanceOf(Response)
-	expect((result as Response).status).toBe(400)
-	expect(await prisma.entry.count()).toBe(0)
-	expect(await prisma.media.count()).toBe(0)
+	expect(entry.title).toBe('Invalid relation source')
+	expect(await prisma.entry.count()).toBe(1)
+	expect(await prisma.media.count()).toBe(1)
+	expect(await prisma.mediaRelation.count()).toBe(0)
 })
 
 test('favorites use session ownership and validated canonical identity', async () => {
@@ -461,16 +513,28 @@ test('favorites use session ownership and validated canonical identity', async (
 				kind: 'manga',
 				externalId: '2',
 			},
+			mediaRelations: [
+				{
+					relationType: 'adaptation',
+					targetIdentity: {
+						provider: 'mal',
+						kind: 'anime',
+						externalId: '5114',
+					},
+					targetCatalog: { title: 'Forged adaptation' },
+				},
+			],
 		}),
 	} as any)
 
 	expect(favorite.ownerId).toBe(owner.ownerId)
 	expect(favorite.mediaId).not.toBe(unrelatedMedia.id)
+	expect(favorite.title).toBe('Berserk')
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: favorite.mediaId as string },
 		}),
-	).toEqual(expect.objectContaining({ title: 'Berserk' }))
+	).toEqual(expect.objectContaining({ title: null, thumbnail: null }))
 	expect(
 		await prisma.mediaExternalId.findUnique({
 			where: {
@@ -481,7 +545,211 @@ test('favorites use session ownership and validated canonical identity', async (
 				},
 			},
 		}),
-	).toEqual(expect.objectContaining({ mediaId: favorite.mediaId }))
+	).toEqual(
+		expect.objectContaining({
+			mediaId: favorite.mediaId,
+			hydrationReason: 'user-demand',
+			hydrationRequestedAt: expect.any(Date),
+		}),
+	)
+	expect(await prisma.mediaRelation.count()).toBe(0)
+	expect(
+		await prisma.mediaExternalId.findFirst({
+			where: { externalId: '5114' },
+		}),
+	).toBeNull()
+})
+
+test('add, update, and favorite payloads cannot overwrite trusted canonical media', async () => {
+	const owner = await createOwner('anime')
+	const trustedSchedule = JSON.stringify({
+		source: 'mal',
+		releaseDate: '2026-10-01',
+		episode: 12,
+	})
+	const forgedSchedule = JSON.stringify({
+		source: 'client',
+		releaseDate: '2099-01-01',
+		episode: 999,
+	})
+	const target = await prisma.media.create({
+		data: { kind: 'anime', title: 'Trusted sequel' },
+	})
+	const canonical = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Trusted canonical title',
+			thumbnail: 'https://provider.example/trusted.jpg',
+			description: 'Trusted provider description',
+			genres: 'Drama',
+			nextRelease: trustedSchedule,
+			externalIds: {
+				create: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '44001',
+				},
+			},
+			outgoingRelations: {
+				create: {
+					targetMediaId: target.id,
+					relationType: 'sequel',
+					provider: 'mal',
+				},
+			},
+		},
+	})
+	const identity = {
+		provider: 'mal',
+		kind: 'anime',
+		externalId: '44001',
+	}
+
+	const entry = await addRow({
+		request: owner.request,
+		params: routeParams('row', {
+			watchlistId: owner.watchlistId,
+			position: 1,
+			title: 'Private row title',
+			thumbnail: 'https://member.example/private.jpg',
+			description: 'Private row description',
+			genres: 'Forged genre',
+			nextRelease: forgedSchedule,
+			mediaIdentity: identity,
+			mediaRelations: [],
+		}),
+	} as any)
+
+	expect(entry).toEqual(
+		expect.objectContaining({
+			mediaId: canonical.id,
+			title: 'Private row title',
+			thumbnail: 'https://member.example/private.jpg',
+			description: 'Private row description',
+			nextRelease: forgedSchedule,
+		}),
+	)
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: canonical.id },
+			select: {
+				title: true,
+				thumbnail: true,
+				description: true,
+				genres: true,
+				nextRelease: true,
+			},
+		}),
+	).toEqual({
+		title: 'Trusted canonical title',
+		thumbnail: 'https://provider.example/trusted.jpg',
+		description: 'Trusted provider description',
+		genres: 'Drama',
+		nextRelease: trustedSchedule,
+	})
+	expect(await prisma.mediaRelation.count()).toBe(1)
+
+	const updated = await updateRow({
+		request: owner.request,
+		params: {
+			request: new URLSearchParams({
+				rowIndex: entry.id,
+				row: JSON.stringify({
+					title: 'Updated private row title',
+					thumbnail: 'https://member.example/updated.jpg',
+					description: 'Updated private row description',
+					genres: 'Another forged genre',
+					nextRelease: null,
+					mediaIdentity: identity,
+					mediaRelations: [
+						{
+							relationType: 'prequel',
+							targetIdentity: {
+								provider: 'mal',
+								kind: 'anime',
+								externalId: '44002',
+							},
+							targetCatalog: { title: 'Forged prequel' },
+						},
+					],
+				}),
+			}).toString(),
+		},
+	} as any)
+	expect(updated).toEqual(
+		expect.objectContaining({
+			title: 'Updated private row title',
+			thumbnail: 'https://member.example/updated.jpg',
+			description: 'Updated private row description',
+			nextRelease: null,
+		}),
+	)
+
+	const favorite = await addFavorite({
+		request: owner.request,
+		params: routeParams('favorite', {
+			position: 1,
+			title: 'Private favorite title',
+			thumbnail: 'https://member.example/favorite.jpg',
+			typeId: owner.listTypeId,
+			mediaType: 'TV Series',
+			startYear: '2099',
+			mediaIdentity: identity,
+			mediaRelations: [],
+		}),
+	} as any)
+	expect(favorite).toEqual(
+		expect.objectContaining({
+			mediaId: canonical.id,
+			title: 'Private favorite title',
+			thumbnail: 'https://member.example/favorite.jpg',
+			startYear: '2099',
+		}),
+	)
+
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: canonical.id },
+			select: {
+				title: true,
+				thumbnail: true,
+				description: true,
+				genres: true,
+				nextRelease: true,
+			},
+		}),
+	).toEqual({
+		title: 'Trusted canonical title',
+		thumbnail: 'https://provider.example/trusted.jpg',
+		description: 'Trusted provider description',
+		genres: 'Drama',
+		nextRelease: trustedSchedule,
+	})
+	expect(await prisma.mediaRelation.findMany()).toEqual([
+		expect.objectContaining({
+			sourceMediaId: canonical.id,
+			targetMediaId: target.id,
+			relationType: 'sequel',
+			provider: 'mal',
+		}),
+	])
+	expect(
+		await prisma.mediaExternalId.findUniqueOrThrow({
+			where: {
+				provider_kind_externalId: identity,
+			},
+		}),
+	).toEqual(
+		expect.objectContaining({
+			hydrationReason: 'user-demand',
+			hydrationRequestedAt: expect.any(Date),
+		}),
+	)
+	expect(
+		await prisma.mediaExternalId.findFirst({
+			where: { externalId: '44002' },
+		}),
+	).toBeNull()
 })
 
 test('refreshing a legacy row can establish its canonical identity', async () => {
@@ -524,11 +792,16 @@ test('refreshing a legacy row can establish its canonical identity', async () =>
 	).toEqual(expect.objectContaining({ mediaId: updated.mediaId }))
 })
 
-test('provider refresh clears canonical and legacy schedules only when authoritative', async () => {
+test('client schedule edits remain user-owned and never update sibling snapshots', async () => {
 	const owner = await createOwner('anime')
-	const staleSchedule = JSON.stringify({
+	const memberSchedule = JSON.stringify({
 		releaseDate: '2026-09-01T12:00:00.000Z',
 		episode: 9,
+	})
+	const trustedSchedule = JSON.stringify({
+		source: 'mal',
+		releaseDate: '2026-10-01T12:00:00.000Z',
+		episode: 10,
 	})
 	const added = await addRow({
 		request: owner.request,
@@ -537,7 +810,7 @@ test('provider refresh clears canonical and legacy schedules only when authorita
 			position: 1,
 			title: 'Schedule refresh title',
 			type: 'TV Series',
-			nextRelease: staleSchedule,
+			nextRelease: memberSchedule,
 			mediaIdentity: {
 				provider: 'mal',
 				kind: 'anime',
@@ -545,13 +818,17 @@ test('provider refresh clears canonical and legacy schedules only when authorita
 			},
 		}),
 	} as any)
+	await prisma.media.update({
+		where: { id: added.mediaId as string },
+		data: { nextRelease: trustedSchedule },
+	})
 	const sibling = await prisma.entry.create({
 		data: {
 			watchlistId: owner.watchlistId,
 			position: 2,
 			title: 'Legacy sibling snapshot',
 			type: 'TV Series',
-			nextRelease: staleSchedule,
+			nextRelease: memberSchedule,
 			mediaId: added.mediaId,
 		},
 	})
@@ -563,30 +840,6 @@ test('provider refresh clears canonical and legacy schedules only when authorita
 				rowIndex: added.id,
 				row: JSON.stringify({
 					title: 'Failed provider refresh preserves schedule',
-					mediaIdentity: {
-						provider: 'mal',
-						kind: 'anime',
-						externalId: '55114',
-					},
-				}),
-			}).toString(),
-		},
-	} as any)
-	expect(
-		(
-			await prisma.media.findUniqueOrThrow({
-				where: { id: added.mediaId as string },
-			})
-		).nextRelease,
-	).toBe(staleSchedule)
-
-	await updateRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({
-				rowIndex: added.id,
-				row: JSON.stringify({
-					title: 'Provider confirms no upcoming episode',
 					nextRelease: null,
 					mediaIdentity: {
 						provider: 'mal',
@@ -597,20 +850,19 @@ test('provider refresh clears canonical and legacy schedules only when authorita
 			}).toString(),
 		},
 	} as any)
-
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: added.mediaId as string },
 			select: { nextRelease: true },
 		}),
-	).toEqual({ nextRelease: null })
+	).toEqual({ nextRelease: trustedSchedule })
 	expect(
 		await prisma.entry.findMany({
 			where: { id: { in: [added.id, sibling.id] } },
 			orderBy: { position: 'asc' },
 			select: { nextRelease: true },
 		}),
-	).toEqual([{ nextRelease: null }, { nextRelease: null }])
+	).toEqual([{ nextRelease: null }, { nextRelease: memberSchedule }])
 })
 
 test('correcting canonical identity removes the superseded orphan state', async () => {

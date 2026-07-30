@@ -1,6 +1,7 @@
 import { type Prisma } from '@prisma/client'
 import { prisma } from './db.server.ts'
 import { catalogPopularityScore, splitGenres } from './discovery.server.ts'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from './media-catalog.ts'
 import {
 	getPublicTrackingSummariesByMediaId,
 	type PublicTrackingSummary,
@@ -116,8 +117,22 @@ export async function getSimilarMediaRecommendations(
 			AND: [
 				{ id: { not: source.id } },
 				{ kind: source.kind },
-				{ incomingRelations: { none: { sourceMediaId: source.id } } },
-				{ outgoingRelations: { none: { targetMediaId: source.id } } },
+				{
+					incomingRelations: {
+						none: {
+							sourceMediaId: source.id,
+							catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+						},
+					},
+				},
+				{
+					outgoingRelations: {
+						none: {
+							targetMediaId: source.id,
+							catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
+						},
+					},
+				},
 				...(viewerId
 					? [
 							{ trackingStates: { none: { ownerId: viewerId } } },

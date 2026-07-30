@@ -62,6 +62,69 @@ export function expectedCatalogMergeReversal(mergeId: string) {
 	return `REVERT ${mergeId}`
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
+function isCountMap(value: unknown): value is Record<string, number> {
+	return (
+		isRecord(value) &&
+		Object.values(value).every(
+			count => Number.isSafeInteger(count) && Number(count) >= 0,
+		)
+	)
+}
+
+function isMediaSummary(value: unknown) {
+	return (
+		isRecord(value) &&
+		typeof value.id === 'string' &&
+		(value.title === null || typeof value.title === 'string') &&
+		typeof value.kind === 'string'
+	)
+}
+
+function isBlocker(value: unknown) {
+	return (
+		isRecord(value) &&
+		typeof value.code === 'string' &&
+		typeof value.message === 'string' &&
+		Number.isSafeInteger(value.count) &&
+		Number(value.count) >= 0 &&
+		isStringArray(value.examples)
+	)
+}
+
+function isCatalogMediaFieldArray(
+	value: unknown,
+): value is CatalogMediaField[] {
+	const allowed = new Set<string>(catalogMediaFields)
+	return isStringArray(value) && value.every(field => allowed.has(field))
+}
+
 export function parseCatalogMediaMergePreflight(value: string) {
-	return JSON.parse(value) as CatalogMediaMergePreflight
+	const parsed = JSON.parse(value) as unknown
+	if (
+		!isRecord(parsed) ||
+		typeof parsed.issueId !== 'string' ||
+		!isMediaSummary(parsed.source) ||
+		!isMediaSummary(parsed.target) ||
+		typeof parsed.safe !== 'boolean' ||
+		!Array.isArray(parsed.blockers) ||
+		!parsed.blockers.every(isBlocker) ||
+		!isStringArray(parsed.warnings) ||
+		!isCountMap(parsed.moves) ||
+		!isCountMap(parsed.prunes) ||
+		!isCatalogMediaFieldArray(parsed.targetFills) ||
+		!isCatalogMediaFieldArray(parsed.targetConflicts) ||
+		typeof parsed.fingerprint !== 'string' ||
+		typeof parsed.generatedAt !== 'string'
+	) {
+		throw new Error('Invalid catalog merge preflight')
+	}
+	return parsed as CatalogMediaMergePreflight
 }

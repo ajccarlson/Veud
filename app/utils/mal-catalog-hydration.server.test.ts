@@ -267,27 +267,32 @@ test('dry-run reports the queue without credentials, provider calls, or sync wri
 
 test('member-demanded MAL identities receive top hydration priority', async () => {
 	await prisma.$transaction(tx =>
-		ensureMediaForIdentity(
-			tx,
-			{ provider: 'mal', kind: 'manga', externalId: '99' },
-			{ title: 'Quick-added manga' },
-		),
-	)
-	expect(
-		await prisma.mediaExternalId.findUniqueOrThrow({
-			where: {
-				provider_kind_externalId: {
-					provider: 'mal',
-					kind: 'manga',
-					externalId: '99',
-				},
-			},
+		ensureMediaForIdentity(tx, {
+			provider: 'mal',
+			kind: 'manga',
+			externalId: '99',
 		}),
-	).toEqual(
+	)
+	const identity = await prisma.mediaExternalId.findUniqueOrThrow({
+		where: {
+			provider_kind_externalId: {
+				provider: 'mal',
+				kind: 'manga',
+				externalId: '99',
+			},
+		},
+		include: { media: true },
+	})
+	expect(identity).toEqual(
 		expect.objectContaining({
 			hydrationPriority: catalogHydrationPriorities.userDemand,
 			hydrationReason: 'user-demand',
 			hydrationRequestedAt: expect.any(Date),
+			media: expect.objectContaining({
+				kind: 'manga',
+				title: null,
+				thumbnail: null,
+			}),
 		}),
 	)
 })

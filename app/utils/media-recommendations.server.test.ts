@@ -33,6 +33,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'anime',
 				title: 'Recommendation Source',
 				genres: 'Action, Fantasy',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -40,6 +41,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'anime',
 				title: 'Focused Match',
 				genres: 'aCTION, fANTASY',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -47,6 +49,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'anime',
 				title: 'Broad Match',
 				genres: 'Action, Fantasy, Adventure',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -54,6 +57,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'anime',
 				title: 'Popular Weak Match',
 				genres: 'Action',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -61,6 +65,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'movie',
 				title: 'Wrong Kind Match',
 				genres: 'Action, Fantasy',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -68,6 +73,7 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 				kind: 'anime',
 				title: 'Substring-only Match',
 				genres: 'Live Action, Dark Fantasy',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 	])
@@ -119,12 +125,21 @@ test('similar titles prioritize exact genre overlap and exclude tracked works', 
 			title: broadMatch.title ?? 'Broad Match',
 		},
 	})
-	await prisma.mediaRelation.create({
-		data: {
-			sourceMediaId: source.id,
-			targetMediaId: broadMatch.id,
-			relationType: 'sequel',
-		},
+	await prisma.mediaRelation.createMany({
+		data: [
+			{
+				sourceMediaId: source.id,
+				targetMediaId: broadMatch.id,
+				relationType: 'sequel',
+				catalogProvenanceVersion: 1,
+			},
+			{
+				sourceMediaId: source.id,
+				targetMediaId: focusedMatch.id,
+				relationType: 'adaptation',
+				catalogProvenanceVersion: 0,
+			},
+		],
 	})
 
 	const anonymous = await getSimilarMediaRecommendations(source, null)
@@ -151,13 +166,25 @@ test('titles without genres fall back to same-kind community popularity', async 
 	const member = await createUser('fallback_member')
 	const [source, popular, quiet] = await Promise.all([
 		prisma.media.create({
-			data: { kind: 'movie', title: 'Genre-free Source' },
+			data: {
+				kind: 'movie',
+				title: 'Genre-free Source',
+				catalogProvenanceVersion: 1,
+			},
 		}),
 		prisma.media.create({
-			data: { kind: 'movie', title: 'Popular Fallback' },
+			data: {
+				kind: 'movie',
+				title: 'Popular Fallback',
+				catalogProvenanceVersion: 1,
+			},
 		}),
 		prisma.media.create({
-			data: { kind: 'movie', title: 'Quiet Fallback' },
+			data: {
+				kind: 'movie',
+				title: 'Quiet Fallback',
+				catalogProvenanceVersion: 1,
+			},
 		}),
 	])
 	await prisma.trackingState.create({
@@ -219,6 +246,7 @@ test('private-list tracking does not affect recommendation rank or statistics', 
 					kind: 'movie',
 					title: 'Recommendation Privacy Source',
 					genres: 'Mystery',
+					catalogProvenanceVersion: 1,
 				},
 			}),
 			prisma.media.create({
@@ -226,6 +254,7 @@ test('private-list tracking does not affect recommendation rank or statistics', 
 					kind: 'movie',
 					title: 'Recommendation Privacy Public',
 					genres: 'Mystery',
+					catalogProvenanceVersion: 1,
 				},
 			}),
 			prisma.media.create({
@@ -233,6 +262,7 @@ test('private-list tracking does not affect recommendation rank or statistics', 
 					kind: 'movie',
 					title: 'Recommendation Privacy Private',
 					genres: 'Mystery',
+					catalogProvenanceVersion: 1,
 				},
 			}),
 		])

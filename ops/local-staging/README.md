@@ -30,7 +30,9 @@ Secrets live only under `/media/sde/veud-staging-postgres/config` with mode
 remain in `operations.env`, and the PostgreSQL administrator credential remains
 in `postgres-admin.env`. Add staging-only provider keys to `application.env`
 without copying it into the repository. Generated PostgreSQL URLs must not be
-printed or placed in shell history.
+printed or placed in shell history. After the first deployment, provisioning
+refuses to replace the immutable unit definitions installed by the active
+release.
 
 When the staging MAL client ID and policy reference are configured, deployment
 enables serialized daily inventory refresh and resumable detail hydration
@@ -38,6 +40,10 @@ against the qualified catalog database. A separate daily native backup restores
 and verifies that catalog database before copying it to the backup drive. MAL
 workers share `$STAGING_ROOT/run/mal-provider.lock`, so inventory and hydration
 never issue provider requests concurrently.
+
+The first deployment verifies both application and load databases are exactly
+pristine immediately before migration. It creates and restore-tests migrated
+backups before enabling any persistent worker or backup timer.
 
 When `TMDB_API_KEY` is configured, deployment also enables a daily official-ID
 inventory and a resumable detail worker against the qualified catalog database.

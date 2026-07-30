@@ -12,6 +12,9 @@ import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const args = process.argv.slice(2)
 const commit = args.includes('--commit')

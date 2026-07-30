@@ -173,8 +173,9 @@ model Watchlist {
 /// Entry retains a legacy snapshot during the transition, while these fields are
 /// the canonical catalog record used by title-centric pages and future discovery.
 model Media {
-  id   String @id @default(cuid())
-  kind String
+  id                       String @id @default(cuid())
+  kind                     String
+  catalogProvenanceVersion Int    @default(0)
 
   thumbnail         String?
   title             String?
@@ -233,6 +234,7 @@ model Media {
   libraryImportItems     LibraryImportItem[]
 
   @@index([kind])
+  @@index([catalogProvenanceVersion, id])
   @@index([catalogPopularity])
   @@index([catalogScore])
   @@index([releaseStart])
@@ -392,11 +394,12 @@ model MediaTitle {
 /// example, source -> sequel); title pages derive the inverse label when the
 /// current title is the target.
 model MediaRelation {
-  id           String   @id @default(cuid())
-  relationType String
-  provider     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  relationType             String
+  provider                 String?
+  catalogProvenanceVersion Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   sourceMedia   Media  @relation("MediaRelationSource", fields: [sourceMediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sourceMediaId String
@@ -404,8 +407,11 @@ model MediaRelation {
   targetMediaId String
 
   @@unique([sourceMediaId, targetMediaId, relationType])
+  @@index([catalogProvenanceVersion, id], map: "MediaRelation_provenance_id_idx")
   @@index([sourceMediaId, relationType])
   @@index([targetMediaId, relationType])
+  @@index([sourceMediaId, catalogProvenanceVersion, relationType], map: "MediaRelation_source_provenance_type_idx")
+  @@index([targetMediaId, catalogProvenanceVersion, relationType], map: "MediaRelation_target_provenance_type_idx")
   @@index([provider])
 }
 
@@ -520,6 +526,7 @@ model CatalogMediaMerge {
   preflight            String
   preflightFingerprint String
   journal              String?
+  catalogProvenanceVersion Int       @default(0)
   preparedAt           DateTime  @default(now())
   appliedAt            DateTime?
   revertedAt           DateTime?

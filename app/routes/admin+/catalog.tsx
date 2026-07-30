@@ -269,7 +269,10 @@ function MergePlan({
 	const pair = [issue.primaryMedia, issue.secondaryMedia].filter(
 		(value): value is NonNullable<typeof value> => Boolean(value),
 	)
-	const canPrepare = issue.status === 'confirmed' && merge?.status !== 'applied'
+	const canPrepare =
+		issue.status === 'confirmed' &&
+		Boolean(issue.evidence) &&
+		merge?.status !== 'applied'
 	if (!merge && issue.status !== 'confirmed') return null
 
 	return (
@@ -510,7 +513,9 @@ function QualityReviewCard({
 					/>
 				</label>
 				<div className="flex flex-wrap gap-2">
-					{isOpen && issue.issueType === 'possible_duplicate' ? (
+					{isOpen &&
+					issue.issueType === 'possible_duplicate' &&
+					issue.evidence ? (
 						<button
 							type="submit"
 							name="action"

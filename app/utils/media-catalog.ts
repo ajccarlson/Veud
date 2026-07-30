@@ -38,6 +38,14 @@ export const mediaCatalogFields = Object.keys(
 	mediaCatalogSelect,
 ) as MediaCatalogField[]
 
+export const TRUSTED_CATALOG_PROVENANCE_VERSION = 1
+
+export function emptyMediaCatalogData() {
+	return Object.fromEntries(
+		mediaCatalogFields.map(field => [field, null]),
+	) as Record<MediaCatalogField, null>
+}
+
 /**
  * Provider-owned fields that still have a legacy mirror on Entry. Progress
  * fields (`length`, `chapters`, and `volumes`) are deliberately excluded:
@@ -87,17 +95,13 @@ export function catalogDataFromSnapshot(snapshot: Record<string, unknown>) {
 	return catalog
 }
 
-/** Prefer canonical Media values while legacy snapshots remain available. */
+/** Reduce canonical Media to the provider-owned catalog snapshot. */
 export function resolveMediaCatalog(
 	media: MediaCatalogSnapshot,
-	fallback: MediaCatalogSnapshot | undefined,
 ): MediaCatalogSnapshot {
-	return {
-		...(fallback ?? {}),
-		...(catalogDataFromSnapshot(
-			media as Record<string, unknown>,
-		) as MediaCatalogSnapshot),
-	}
+	return catalogDataFromSnapshot(
+		media as Record<string, unknown>,
+	) as MediaCatalogSnapshot
 }
 
 /** Build the legacy Entry snapshot still required by the watchlist UI. */

@@ -474,6 +474,11 @@ export async function transitionCatalogQualityIssue(
 		) {
 			throw new Error('Only duplicate candidates can be confirmed')
 		}
+		if (input.action === 'confirm' && !issue.evidence) {
+			throw new Error(
+				'Duplicate candidate requires fresh provider-scan evidence before confirmation',
+			)
+		}
 		if (
 			input.action === 'queue-repair' &&
 			!['title_conflict', 'missing_image', 'invalid_image'].includes(

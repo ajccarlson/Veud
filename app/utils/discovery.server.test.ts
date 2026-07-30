@@ -1,5 +1,6 @@
 import { faker } from '@faker-js/faker'
 import { expect, test, vi } from 'vitest'
+import { createOpaqueCacheKey } from './cache-key.server.ts'
 import { getCacheOperationsSnapshot } from './cache.server.ts'
 import { prisma } from './db.server.ts'
 import {
@@ -315,6 +316,51 @@ test('discovery facet cache expires and supports deterministic test bypass', asy
 	} finally {
 		vi.useRealTimers()
 	}
+})
+
+test('ignores text-bearing facet cache entries from before the provenance epoch', async () => {
+	await prisma.media.create({
+		data: {
+			kind: 'movie',
+			title: 'Trusted facets',
+			genres: 'Drama',
+			releaseStatus: 'Released',
+			catalogProvenanceVersion: 1,
+		},
+	})
+	const runtime = createPublicSurfaceCacheRuntimeForTest()
+	const oldKey = createOpaqueCacheKey({
+		namespace: 'discovery-facets',
+		version: 1,
+		scope: { kind: 'public' },
+		payload: { projection: 'bounded-facets-v1' },
+		datasourceUrl: runtime.datasourceUrl,
+	})
+	runtime.cache.set(oldKey, {
+		metadata: {
+			createdTime: Date.now(),
+			ttl: DISCOVERY_FACETS_CACHE_TTL_MS,
+			swr: 0,
+		},
+		value: {
+			genres: ['PRIVATE POISON'],
+			statuses: ['PRIVATE STATUS'],
+			truncated: { genres: false, statuses: false },
+		},
+	})
+
+	await expect(getDiscoveryFacets({ runtime })).resolves.toEqual({
+		genres: ['Drama'],
+		statuses: ['Released'],
+		truncated: { genres: false, statuses: false },
+	})
+	expect(runtime.cache.keys()).toContain(oldKey)
+	expect(runtime.cache.keys()).toHaveLength(2)
+	expect(getCacheOperationsSnapshot()['discovery-facets']).toMatchObject({
+		hit: 0,
+		miss: 1,
+		refresh: 1,
+	})
 })
 
 test('cached plans still hydrate catalog and viewer state freshly', async () => {
