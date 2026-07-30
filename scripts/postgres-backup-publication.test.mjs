@@ -374,8 +374,14 @@ describe('durable PostgreSQL backup publication', () => {
 	test('refuses an inode replacement immediately before publication', () => {
 		const staged = artifact('postgres-replaced.dump')
 		const attestation = attestPostgresBackupFile(staged.source)
-		fs.rmSync(staged.source)
-		fs.writeFileSync(staged.source, 'postgres-replaced.dump')
+		// Create the replacement alongside the original so a distinct inode is
+		// guaranteed (an in-place delete/rewrite can reuse the freed inode), and
+		// pin mode 0600 so the ownership guard does not fire first under a
+		// default 022 umask.
+		const replacement = `${staged.source}.distinct-inode`
+		fs.writeFileSync(replacement, 'postgres-replaced.dump', { mode: 0o600 })
+		expect(fs.statSync(replacement).ino).not.toBe(fs.statSync(staged.source).ino)
+		fs.renameSync(replacement, staged.source)
 		expect(() =>
 			publishPostgresBackupFile(staged.source, staged.target, attestation),
 		).toThrow('changed after it was staged')

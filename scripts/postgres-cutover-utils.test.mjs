@@ -72,6 +72,19 @@ test('writes a credential-free private restore-verification receipt', async () =
 	}
 })
 
+function replaceWithDistinctInode(target, content, mode = 0o600) {
+	const original = fs.statSync(target).ino
+	const replacement = `${target}.distinct-inode`
+	fs.writeFileSync(replacement, content, { mode })
+	const replacementInode = fs.statSync(replacement).ino
+	if (replacementInode === original) {
+		fs.rmSync(replacement, { force: true })
+		throw new Error('could not stage a distinct inode for the replacement')
+	}
+	fs.renameSync(replacement, target)
+	return replacementInode
+}
+
 test('refuses to publish a receipt after the verified archive inode changes', async () => {
 	const tempDir = fs.mkdtempSync(
 		path.join(os.tmpdir(), 'veud-backup-receipt-swap-test-'),
@@ -80,8 +93,11 @@ test('refuses to publish a receipt after the verified archive inode changes', as
 		const backupPath = path.join(tempDir, 'postgres-test.dump')
 		fs.writeFileSync(backupPath, 'verified archive', { mode: 0o600 })
 		const archiveAttestation = attestPostgresBackupFile(backupPath)
-		fs.rmSync(backupPath)
-		fs.writeFileSync(backupPath, 'verified archive', { mode: 0o600 })
+		// Deleting and rewriting in place can reuse the freed inode on some
+		// filesystems, which would leave nothing for the guard to detect.
+		// Creating the replacement alongside the original guarantees a distinct
+		// inode, then one rename swaps it in.
+		replaceWithDistinctInode(backupPath, 'verified archive')
 		await expect(
 			writePostgresBackupReceipt({
 				backupPath,

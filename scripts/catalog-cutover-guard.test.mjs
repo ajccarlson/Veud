@@ -1280,6 +1280,7 @@ test('all supervisor database launchers acquire a shared lifetime lock before th
 		}
 	}
 
+	const prepareWorkerMount = temporaryRoot('prepare-worker-mount')
 	const prepareWorker = runBash(
 		`source "$1"
 events=()
@@ -1300,6 +1301,13 @@ printf '%s\\n' "\${events[@]}"`,
 			env: {
 				VEUD_STAGING_NODE_BIN: node22,
 				VEUD_STAGING_NPM_BIN: node22,
+				// prepare_worker mkdirs $PRODUCTION_ROOT/run, which resolves under
+				// the real /media mounts. Those exist on the deployment host but
+				// not in CI, so the roots must be redirected into the sandbox.
+				VEUD_STAGING_LIVE_MOUNT: prepareWorkerMount,
+				VEUD_STAGING_BACKUP_MOUNT: prepareWorkerMount,
+				VEUD_PRODUCTION_ROOT: path.join(prepareWorkerMount, 'veud-production'),
+				VEUD_STAGING_ROOT: path.join(prepareWorkerMount, 'veud-staging'),
 			},
 		},
 	)
