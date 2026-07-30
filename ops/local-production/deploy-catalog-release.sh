@@ -789,6 +789,13 @@ restore_writer_timers() {
 disable_writer_timers() {
 	local unit
 	for unit in "${writer_timers[@]}"; do
+		# A timer this host has never installed cannot be disabled, and must not
+		# abort the drain: it is installed a few steps later, and the enablement
+		# restore then applies its recorded state, which is `disabled` for a unit
+		# that did not exist. Without this the drain died here, mid-window, with
+		# every other timer already disabled.
+		[[ "$(systemctl --user show --property=LoadState --value "$unit")" == loaded ]] ||
+			continue
 		systemctl --user disable "$unit" >/dev/null
 	done
 }
