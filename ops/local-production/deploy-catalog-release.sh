@@ -793,6 +793,33 @@ disable_writer_timers() {
 	done
 }
 
+# Record a writer unit's enablement, resolving the reading systemd gives for a
+# unit this host has never installed.
+#
+# `is-enabled` reports the literal `not-found` (exit 4) for such a unit. The
+# recorded value is read by both the enablement restore and the final
+# unchanged-comparison, and that comparison runs AFTER the database has been
+# migrated — so recording the raw reading would fail the deployment at its most
+# expensive point. Record instead the state the unit will hold once this same
+# deployment installs it: a timer lands installed but switched off, and these
+# writer services carry no [Install] section, so systemd reports them `static`.
+#
+# Switched off is the only safe default. Enabling a job that deletes user data on
+# a schedule is a deliberate decision, not a side effect of a deployment that
+# happened to ship a new unit file.
+record_original_unit_enablement() {
+	local unit="$1" enablement
+	enablement="$(systemctl --user is-enabled "$unit" 2>/dev/null || true)"
+	if [[ -z "$enablement" || "$enablement" == not-found ]]; then
+		if is_writer_timer "$unit"; then
+			enablement=disabled
+		else
+			enablement=static
+		fi
+	fi
+	original_unit_enabled_states["$unit"]="$enablement"
+}
+
 restore_writer_enablement() {
 	local unit result=0
 	for unit in "${writer_timers[@]}"; do
@@ -1225,17 +1252,7 @@ else
 		die 'The production backup process must be installed and healthy before deployment'
 	for unit in "${all_writer_units[@]}"; do
 		original_unit_states["$unit"]="$(systemd_active_state "$unit")"
-		original_unit_enabled_states["$unit"]="$(
-			systemctl --user is-enabled "$unit" 2>/dev/null || true
-		)"
-		# `is-enabled` prints nothing for a unit this host has never installed.
-		# Record it as disabled so a newly shipped writer unit is installed by
-		# this deployment and left switched off, which is the only safe default:
-		# enabling a job that deletes data on a timer is a deliberate decision,
-		# not a side effect of a deployment.
-		if [[ -z "${original_unit_enabled_states[$unit]}" ]]; then
-			original_unit_enabled_states["$unit"]=disabled
-		fi
+		record_original_unit_enablement "$unit"
 		[[ "${original_unit_enabled_states[$unit]}" =~ ^[a-z-]+$ ]] ||
 			die "Unable to record the enabled state for $unit"
 		if is_writer_timer "$unit"; then
