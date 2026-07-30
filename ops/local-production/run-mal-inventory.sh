@@ -8,7 +8,7 @@ prepare_worker
 	die 'MAL_CATALOG_POLICY_APPROVAL_REF is not configured'
 acquire_provider_lock mal
 
-exec "$NPM_BIN" run catalog:mal-inventory -- \
+run_guarded_worker scripts/import-mal-inventory.ts \
 	--kind all \
 	--commit \
 	--page-size 500 \

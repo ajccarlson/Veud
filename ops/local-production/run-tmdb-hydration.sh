@@ -6,7 +6,7 @@ prepare_worker
 [[ -n "${TMDB_API_KEY:-}" ]] || die 'TMDB_API_KEY is not configured'
 acquire_provider_lock tmdb
 
-exec "$NPM_BIN" run catalog:tmdb-hydrate -- \
+run_guarded_worker scripts/hydrate-tmdb-catalog.ts \
 	--kind all \
 	--seed-priorities \
 	--commit \

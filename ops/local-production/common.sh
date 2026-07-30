@@ -215,6 +215,20 @@ acquire_production_writer_lifetime_lock_shared() {
 		"$PRODUCTION_ROOT/run/catalog-writer-lifetime.lock"
 }
 
+# Run a catalog writer through node, never `npm run`.
+#
+# npm replaces inherited file descriptors with pipes, so the catalog-writer
+# lifetime-lock proof cannot survive it: the guard looks for the locked
+# descriptor and finds a pipe. Every worker launcher went through `npm run`, so
+# every catalog worker was refused and hydration sat at 0% indefinitely. These
+# are the same two commands the package script runs, invoked directly.
+run_guarded_worker() {
+	local entry="$1"
+	shift
+	"$NODE_BIN" scripts/assert-catalog-writer-runtime.mjs
+	exec "$NODE_BIN" --import tsx "$entry" "$@"
+}
+
 prepare_worker() {
 	guard_live_storage
 	load_production_worker_environment
