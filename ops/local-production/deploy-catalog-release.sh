@@ -1380,22 +1380,22 @@ write_maintenance_state migrating
 		migrate deploy \
 		--schema="$destination/prisma/postgresql/schema.prisma"
 	DATABASE_URL="$DATABASE_URL" "$NPM_BIN" run db:verify:postgres
-	DATABASE_URL="$DATABASE_URL" "$destination/node_modules/.bin/tsx" \
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
 		--batch-size 100
-	DATABASE_URL="$DATABASE_URL" "$destination/node_modules/.bin/tsx" \
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
 		--commit \
 		--confirm QUARANTINE_UNTRUSTED_MEDIA_CATALOG \
 		--batch-size 100
-	DATABASE_URL="$DATABASE_URL" "$destination/node_modules/.bin/tsx" \
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/backfill-next-release-at.ts" \
 		--commit
-	DATABASE_URL="$DATABASE_URL" "$destination/node_modules/.bin/tsx" \
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/sync-watchlist-metadata.ts" \
 		--commit \
 		--batch-size 100
-	DATABASE_URL="$DATABASE_URL" "$destination/node_modules/.bin/tsx" \
+	DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --import tsx \
 		"$destination/scripts/quarantine-media-catalog-provenance.ts" \
 		--batch-size 100 \
 		--require-clean
