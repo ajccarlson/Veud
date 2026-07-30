@@ -25,11 +25,7 @@ test('every profile tab route is reachable from the profile navigation', () => {
 		.map(name => name.replace('$username.', '').replace('.tsx', ''))
 		.filter(name => name !== 'index')
 
-	// Known unreachable, pending an owner decision rather than an oversight:
-	//   diary — a complete route with its own loader, but `DiaryEntry` has no rows,
-	//           so a tab would always render empty. Adding navigation is a product
-	//           call; remove this entry when that call is made either way.
-	const knownUnreachable = ['diary']
+	const knownUnreachable: string[] = []
 
 	const tabs = declaredTabs()
 	const unreachable = tabRoutes.filter(
@@ -41,6 +37,9 @@ test('every profile tab route is reachable from the profile navigation', () => {
 	).toEqual([])
 })
 
-test('favorites is one of the profile tabs', () => {
+test('favorites and diary are reachable profile tabs', () => {
+	// Both rendered correctly but nothing linked to them, so they existed only for
+	// whoever knew the URL.
 	expect(declaredTabs()).toContain('favorites')
+	expect(declaredTabs()).toContain('diary')
 })
