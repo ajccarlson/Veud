@@ -701,6 +701,24 @@ cutover_capture_unit_definitions() {
 		exec_start="$(
 			systemctl --user show "$unit" --property=ExecStart --value
 		)"
+		# A unit this host has never installed has no effective definition at all:
+		# no fragment, no ExecStart. That state is already supported everywhere
+		# else — the absent marker above is recorded for it, capture verification
+		# accepts that branch, and restore removes the file again — so record
+		# empty metadata rather than refusing. Without this, a unit the release
+		# ships but the host has never had could never be installed, because the
+		# only installer is the deployment that dies here first.
+		#
+		# Systemd must agree the unit is unknown. If it reports any state for a
+		# unit with no file, something else is managing it and that is a genuine
+		# conflict, not a bootstrap.
+		if [[ ! -e "$target" && ! -L "$target" && -z "$fragment" ]]; then
+			[[ -z "$exec_start" && -z "$dropins" ]] ||
+				die "Systemd reports state for an uninstalled unit: $unit"
+			: >"$metadata/FragmentPath"
+			: >"$metadata/ExecStart"
+			continue
+		fi
 		[[ -n "$fragment" &&
 			"$fragment" != *$'\n'* &&
 			"$exec_start" != *$'\n'* ]] ||
@@ -792,6 +810,13 @@ cutover_verify_restored_unit_definitions() {
 		exec_start="$(
 			systemctl --user show "$unit" --property=ExecStart --value
 		)" || return 1
+		# A unit captured as uninstalled must be uninstalled again after a restore,
+		# so there is no fragment to stat. Requiring one here would fail every
+		# restore that touched such a unit.
+		if [[ -z "$expected_fragment" ]]; then
+			[[ -z "$fragment" && -z "$exec_start" && -z "$dropins" ]] || return 1
+			continue
+		fi
 		[[ -z "$dropins" &&
 			"$fragment" == "$expected_fragment" &&
 			"$exec_start" == "$expected_exec" &&
