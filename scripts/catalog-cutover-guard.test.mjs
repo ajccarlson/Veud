@@ -3623,7 +3623,13 @@ test('top-level deployment policies preserve singleton, retry, recovery, and hea
 		),
 		'utf8',
 	)
-	assert.match(digest, /notifications:digests -- --commit --limit 100(?:\s|$)/)
+	// The digest policy — commit, bounded to 100 — is what this pins. The
+	// invocation moved off `npm run` because npm does not forward the locked
+	// descriptor the catalog-writer guard requires.
+	assert.match(
+		digest,
+		/run_guarded_worker scripts\/send-notification-digests\.ts --commit --limit 100(?:\s|$)/,
+	)
 })
 
 const catalogCutoverCommonSource = fs.readFileSync(catalogCutoverCommon, 'utf8')
@@ -4407,4 +4413,41 @@ test('a deployment does not wipe untrusted catalog data unless quarantine is enf
 				!line.includes('--confirm'),
 		)
 	assert.ok(reportOnly, 'the provenance report must still run')
+})
+
+test('catalog writers are never launched through npm', () => {
+	// npm replaces inherited file descriptors with pipes, so the catalog-writer
+	// lifetime-lock proof cannot survive `npm run`: the guard looks for the locked
+	// descriptor and finds a pipe. Every worker launcher went through npm, so every
+	// catalog worker was refused and hydration sat at 0% indefinitely while the
+	// release calendar had nothing to show.
+	const packageJson = JSON.parse(
+		fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'),
+	)
+	const guardedScripts = Object.entries(packageJson.scripts ?? {})
+		.filter(([, command]) =>
+			command.includes('assert-catalog-writer-runtime.mjs'),
+		)
+		.map(([name]) => name)
+	assert.ok(
+		guardedScripts.length > 0,
+		'expected guard-asserting package scripts',
+	)
+
+	const launcherDir = path.join(repositoryRoot, 'ops/local-production')
+	for (const file of fs
+		.readdirSync(launcherDir)
+		.filter(n => n.endsWith('.sh'))) {
+		const source = fs
+			.readFileSync(path.join(launcherDir, file), 'utf8')
+			.replace(/\\\n\s*/g, ' ')
+		for (const script of guardedScripts) {
+			assert.ok(
+				!new RegExp(
+					`NPM_BIN["']?\\s+run\\s+${script.replace(/[:]/g, '[:]')}\\b`,
+				).test(source),
+				`${file} launches guard-asserting "${script}" through npm; npm does not forward the locked descriptor`,
+			)
+		}
+	}
 })
