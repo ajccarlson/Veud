@@ -4363,3 +4363,48 @@ test('guard-asserting scripts never run through the bare tsx CLI', () => {
 		}
 	}
 })
+
+test('a deployment does not wipe untrusted catalog data unless quarantine is enforced', () => {
+	// The provenance epoch migration defaults every pre-existing row to untrusted,
+	// so the first deployment carrying it quarantined the entire catalog: 1,569,263
+	// rows lost title, type, description, genres, artwork, scores and dates, along
+	// with the denormalised copies on user list entries. Only provider re-hydration
+	// restores that, which is weeks at provider rate limits.
+	const mutate = extractShellFunction(productionDeploy, 'production_mutate')
+
+	// The destructive commit and the --require-clean gate are both conditional.
+	const destructive = mutate
+		.split('\n')
+		.filter(line =>
+			line.includes('--confirm QUARANTINE_UNTRUSTED_MEDIA_CATALOG'),
+		)
+	assert.equal(destructive.length, 1, 'expected exactly one quarantine commit')
+	assert.match(
+		mutate,
+		/if \[\[ "\$\{VEUD_PRODUCTION_CATALOG_QUARANTINE:-skip\}" == enforce \]\]; then\n(?:.*\n)*?\t*--confirm QUARANTINE_UNTRUSTED_MEDIA_CATALOG/,
+		'the quarantine commit must be gated behind an explicit enforce',
+	)
+	assert.match(
+		mutate,
+		/if \[\[ "\$\{VEUD_PRODUCTION_CATALOG_QUARANTINE:-skip\}" == enforce \]\]; then\n(?:.*\n)*?\t*--require-clean/,
+		'--require-clean must be gated too; it fails while untrusted media remain',
+	)
+
+	// The default must be skip, never enforce.
+	assert.doesNotMatch(
+		mutate,
+		/VEUD_PRODUCTION_CATALOG_QUARANTINE:-enforce/,
+		'the default must not enforce the destructive quarantine',
+	)
+
+	// The read-only report still runs unconditionally, so a deployment always
+	// states how much of the catalog lacks trusted provenance.
+	const reportOnly = mutate
+		.split('\n')
+		.some(
+			line =>
+				line.includes('quarantine-media-catalog-provenance.ts') &&
+				!line.includes('--confirm'),
+		)
+	assert.ok(reportOnly, 'the provenance report must still run')
+})
