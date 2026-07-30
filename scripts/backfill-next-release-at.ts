@@ -14,6 +14,9 @@ import {
 	releaseScheduleSources,
 	syncNextReleaseOccurrence,
 } from '#app/utils/release-occurrences.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage:
   npx tsx scripts/backfill-next-release-at.ts [--commit] [--limit N] [--batch-size N]

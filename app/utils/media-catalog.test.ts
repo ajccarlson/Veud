@@ -22,19 +22,15 @@ test('catalog snapshots exclude user-specific tracking data', () => {
 	})
 })
 
-test('canonical media fields override a legacy snapshot without erasing fallbacks', () => {
+test('catalog resolution returns only populated canonical media fields', () => {
 	expect(
-		resolveMediaCatalog(
-			{ title: 'Canonical title', description: 'Canonical synopsis' },
-			{
-				title: 'Legacy title',
-				description: 'Legacy synopsis',
-				length: '12 eps',
-			},
-		),
+		resolveMediaCatalog({
+			title: 'Canonical title',
+			description: 'Canonical synopsis',
+			length: null,
+		}),
 	).toEqual({
 		title: 'Canonical title',
 		description: 'Canonical synopsis',
-		length: '12 eps',
 	})
 })

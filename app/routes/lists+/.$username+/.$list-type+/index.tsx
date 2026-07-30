@@ -12,6 +12,7 @@ import { getUserId } from '#app/utils/auth.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
+	canonicalizeLinkedWatchlistEntry,
 	publicListOwnerSelect,
 	publicListTypeSelect,
 	publicWatchlistSelect,
@@ -227,11 +228,24 @@ export async function loader(params: LoaderFunctionArgs) {
 					airYear: true,
 					startSeason: true,
 					startYear: true,
+					media: {
+						select: {
+							kind: true,
+							thumbnail: true,
+							title: true,
+							type: true,
+							airYear: true,
+							startSeason: true,
+							startYear: true,
+						},
+					},
 				},
 			})
 		: []
 	const entriesByWatchlist = new Map<string, any[]>()
-	for (const entry of allEntries) {
+	for (const rawEntry of allEntries) {
+		const { media: _media, ...entry } =
+			canonicalizeLinkedWatchlistEntry(rawEntry)
 		const arr = entriesByWatchlist.get(entry.watchlistId) ?? []
 		arr.push(entry)
 		entriesByWatchlist.set(entry.watchlistId, arr)

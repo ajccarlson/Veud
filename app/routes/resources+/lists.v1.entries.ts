@@ -5,11 +5,13 @@ import {
 	type ListMutationError,
 } from '#app/utils/lists/mutation-contracts.ts'
 import {
+	canonicalizeLinkedWatchlistEntry,
 	prepareWatchlistEntryForViewer,
 	publicEntryPayload,
 } from '#app/utils/lists/public-watchlist.server.ts'
 import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
+import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
 
 const noStore = { 'Cache-Control': 'private, no-store' }
 
@@ -43,7 +45,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			where: { watchlistId: watchlist.id },
 			orderBy: { position: 'asc' },
 			include: {
-				media: { select: { tmdbScore: true, malScore: true } },
+				media: {
+					select: {
+						kind: true,
+						...mediaCatalogSelect,
+						externalIds: {
+							orderBy: [
+								{ provider: 'asc' },
+								{ kind: 'asc' },
+								{ externalId: 'asc' },
+							],
+							select: {
+								provider: true,
+								kind: true,
+								externalId: true,
+							},
+						},
+					},
+				},
 				trackingState: {
 					select: {
 						ownerId: true,
@@ -62,6 +81,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			.map(entry =>
 				prepareWatchlistEntryForViewer(entry, watchlist.ownerId, isOwner),
 			)
+			.map(canonicalizeLinkedWatchlistEntry)
 			.map(normalizeWatchlistEntryScores)
 		const browserEntries = isOwner
 			? normalized

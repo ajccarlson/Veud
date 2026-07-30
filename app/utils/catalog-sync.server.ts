@@ -1,4 +1,5 @@
 import { type Prisma } from '@prisma/client'
+import { TRUSTED_CATALOG_PROVENANCE_VERSION } from './media-catalog.ts'
 
 export const catalogSyncModes = [
 	'inventory',
@@ -38,6 +39,7 @@ export type CatalogSyncProgress = {
 }
 
 export const catalogHydrationPriorities = {
+	provenanceRepair: 50_000,
 	userDemand: 40_000,
 	upcoming: 30_000,
 	trending: 20_000,
@@ -216,6 +218,7 @@ export async function upsertCatalogIdentity(
 					kind,
 					title: sourceTitle,
 					catalogPopularity: input.sourcePopularity,
+					catalogProvenanceVersion: TRUSTED_CATALOG_PROVENANCE_VERSION,
 				},
 			},
 		},

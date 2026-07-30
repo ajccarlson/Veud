@@ -2,6 +2,9 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { scanCatalogQuality } from '#app/utils/catalog-quality.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage: npm run catalog:quality-scan -- [options]
 

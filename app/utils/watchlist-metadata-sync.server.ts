@@ -2,6 +2,7 @@ import { type Prisma, type PrismaClient } from '@prisma/client'
 import {
 	entryCatalogMetadataFields,
 	hasCatalogValue,
+	mediaCatalogSelect,
 } from './media-catalog.ts'
 
 type WatchlistMetadataSyncOptions = {
@@ -9,17 +10,42 @@ type WatchlistMetadataSyncOptions = {
 	commit?: boolean
 }
 
-function comparableCatalogValue(value: unknown) {
-	if (value instanceof Date) return value.getTime()
-	if (
-		value &&
-		typeof value === 'object' &&
-		'toString' in value &&
-		typeof value.toString === 'function'
-	) {
-		return value.toString()
+const metadataRepairMediaSelect = {
+	id: true,
+	kind: true,
+	...mediaCatalogSelect,
+} satisfies Prisma.MediaSelect
+
+type MetadataRepairMedia = Prisma.MediaGetPayload<{
+	select: typeof metadataRepairMediaSelect
+}>
+
+function canonicalEntryField(
+	media: MetadataRepairMedia,
+	field: (typeof entryCatalogMetadataFields)[number],
+) {
+	if (field === 'title') {
+		return media.title?.trim() || `Untitled ${media.kind}`
 	}
-	return value
+	return hasCatalogValue(media[field]) ? media[field] : null
+}
+
+function favoriteStartYear(
+	media: Pick<
+		MetadataRepairMedia,
+		'kind' | 'startSeason' | 'startYear' | 'airYear' | 'releaseStart'
+	>,
+) {
+	const configured =
+		media.kind === 'anime'
+			? media.startSeason
+			: media.kind === 'manga'
+				? media.startYear
+				: media.airYear
+	return (
+		configured?.trim() ||
+		(media.releaseStart ? String(media.releaseStart.getUTCFullYear()) : null)
+	)
 }
 
 /**
@@ -47,41 +73,112 @@ export async function synchronizeWatchlistMetadata(
 			orderBy: { id: 'asc' },
 			take: batchSize,
 			...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-			include: { media: true },
+			select: { id: true, mediaId: true },
 		})
 		if (!entries.length) break
 		cursor = entries.at(-1)?.id
 		scanned += entries.length
 
+		const mediaRows = await prisma.media.findMany({
+			where: {
+				id: {
+					in: entries.flatMap(entry => (entry.mediaId ? [entry.mediaId] : [])),
+				},
+			},
+			select: metadataRepairMediaSelect,
+		})
+		const mediaById = new Map(mediaRows.map(media => [media.id, media]))
 		const changes = entries.flatMap(entry => {
-			if (!entry.media) return []
+			const media = entry.mediaId ? mediaById.get(entry.mediaId) : undefined
+			if (!media) return []
 			const data = Object.fromEntries(
-				entryCatalogMetadataFields
-					.filter(field => hasCatalogValue(entry.media?.[field]))
-					.filter(
-						field =>
-							comparableCatalogValue(entry[field]) !==
-							comparableCatalogValue(entry.media?.[field]),
-					)
-					.map(field => [field, entry.media?.[field]]),
-			) as Prisma.EntryUpdateInput
-			return Object.keys(data).length ? [{ id: entry.id, data }] : []
+				entryCatalogMetadataFields.map(field => [
+					field,
+					canonicalEntryField(media, field),
+				]),
+			) as Prisma.EntryUpdateManyMutationInput
+			return [{ id: entry.id, mediaId: entry.mediaId, data }]
 		})
 		matched += changes.length
 
 		if (commit && changes.length) {
-			await prisma.$transaction(
+			const results = await prisma.$transaction(
 				changes.map(change =>
-					prisma.entry.update({
-						where: { id: change.id },
+					prisma.entry.updateMany({
+						where: { id: change.id, mediaId: change.mediaId },
 						data: change.data,
-						select: { id: true },
 					}),
 				),
 			)
-			updated += changes.length
+			updated += results.reduce((total, result) => total + result.count, 0)
 		}
 	}
 
-	return { dryRun: !commit, scanned, matched, updated }
+	let favoriteCursor: string | undefined
+	let favoriteScanned = 0
+	let favoriteMatched = 0
+	let favoriteUpdated = 0
+	for (;;) {
+		const favorites = await prisma.userFavorite.findMany({
+			where: { mediaId: { not: null } },
+			orderBy: { id: 'asc' },
+			take: batchSize,
+			...(favoriteCursor ? { cursor: { id: favoriteCursor }, skip: 1 } : {}),
+			select: { id: true, mediaId: true },
+		})
+		if (!favorites.length) break
+		favoriteCursor = favorites.at(-1)?.id
+		favoriteScanned += favorites.length
+
+		const mediaRows = await prisma.media.findMany({
+			where: {
+				id: {
+					in: favorites.flatMap(favorite =>
+						favorite.mediaId ? [favorite.mediaId] : [],
+					),
+				},
+			},
+			select: metadataRepairMediaSelect,
+		})
+		const mediaById = new Map(mediaRows.map(media => [media.id, media]))
+		const changes = favorites.flatMap(favorite => {
+			const media = favorite.mediaId
+				? mediaById.get(favorite.mediaId)
+				: undefined
+			if (!media) return []
+			const data = {
+				title: media.title?.trim() || `Untitled ${media.kind}`,
+				thumbnail: hasCatalogValue(media.thumbnail) ? media.thumbnail : null,
+				mediaType: hasCatalogValue(media.type) ? media.type : null,
+				startYear: favoriteStartYear(media),
+			}
+			return [{ id: favorite.id, mediaId: favorite.mediaId, data }]
+		})
+		favoriteMatched += changes.length
+
+		if (commit && changes.length) {
+			const results = await prisma.$transaction(
+				changes.map(change =>
+					prisma.userFavorite.updateMany({
+						where: { id: change.id, mediaId: change.mediaId },
+						data: change.data,
+					}),
+				),
+			)
+			favoriteUpdated += results.reduce(
+				(total, result) => total + result.count,
+				0,
+			)
+		}
+	}
+
+	return {
+		dryRun: !commit,
+		scanned,
+		matched,
+		updated,
+		favoriteScanned,
+		favoriteMatched,
+		favoriteUpdated,
+	}
 }

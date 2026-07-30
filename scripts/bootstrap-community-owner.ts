@@ -1,6 +1,9 @@
 #!/usr/bin/env -S npx tsx
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage:
   npm run moderation:bootstrap-owner -- \\

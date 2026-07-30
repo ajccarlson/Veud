@@ -12,6 +12,9 @@ import {
 	prismaSearchFilter,
 } from '#app/utils/prisma-search.server.ts'
 import { searchUsersByUsername } from '#app/utils/user-search.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const requiredIndexes = new Set([
 	'Media_title_trgm_idx',
@@ -159,6 +162,7 @@ async function main() {
 		const media = await prisma.media.create({
 			data: {
 				kind: 'movie',
+				catalogProvenanceVersion: 1,
 				title: `PostgreSQL Catalog Smoke Test 100%_Literal ${suffix}`,
 				description: 'Temporary provider-scale search verification.',
 				genres: 'Space Opera',

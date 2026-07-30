@@ -6,6 +6,7 @@ import path from 'node:path'
 import { Prisma, PrismaClient } from '@prisma/client'
 import Database from 'better-sqlite3'
 import { listRequiredMigrations } from './backup-utils.mjs'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
 import {
 	assertPostgresDatabaseUrl,
 	buildModelTransferPlan,
@@ -14,6 +15,8 @@ import {
 	postgresTargetIdentity,
 	sortRowsForSelfRelations,
 } from './postgres-transfer-utils.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const implicitJoinTables = ['_PermissionToRole', '_RoleToUser']
 const args = process.argv.slice(2)

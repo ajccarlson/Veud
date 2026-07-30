@@ -1,90 +1,17 @@
 import { type Prisma } from '@prisma/client'
 import {
+	authoritativeLegacyTrackingEntry,
+	loadOwnerLegacyTrackingEntries,
+	type LegacyTrackingEntry,
+} from './legacy-tracking-entry.server.ts'
+import {
 	catalogCreateData,
 	mediaCatalogSelect,
 	resolveMediaCatalog,
 } from './media-catalog.ts'
 import { listTypeNameForMediaKind } from './media-detail.ts'
 import { ensureTrackingStateForEntry } from './tracking-state.server.ts'
-import {
-	trackingStateFromEntry,
-	type TrackingEntryLike,
-} from './tracking-state.ts'
 import { serializeUserLibraryMutation } from './watchlist-limits.ts'
-
-const catalogEntrySelect = {
-	id: true,
-	thumbnail: true,
-	title: true,
-	type: true,
-	releaseStart: true,
-	releaseEnd: true,
-	nextRelease: true,
-	genres: true,
-	description: true,
-	airYear: true,
-	startSeason: true,
-	startYear: true,
-	length: true,
-	chapters: true,
-	volumes: true,
-	rating: true,
-	language: true,
-	studios: true,
-	serialization: true,
-	authors: true,
-	tmdbScore: true,
-	malScore: true,
-} satisfies Prisma.EntrySelect
-
-type CatalogEntry = Prisma.EntryGetPayload<{
-	select: typeof catalogEntrySelect
-}>
-
-function catalogRichness(entry: CatalogEntry) {
-	return (
-		(entry.thumbnail ? 4 : 0) +
-		(entry.description?.length ?? 0) +
-		(entry.genres ? 2 : 0) +
-		(entry.releaseStart ? 2 : 0) +
-		(entry.length || entry.chapters || entry.volumes ? 2 : 0)
-	)
-}
-
-function representativeEntry(entries: CatalogEntry[]) {
-	return entries
-		.slice()
-		.sort(
-			(a, b) =>
-				catalogRichness(b) - catalogRichness(a) || a.id.localeCompare(b.id),
-		)[0]
-}
-
-function authoritativeEntry<
-	T extends TrackingEntryLike & {
-		id: string
-		watchlistId: string
-		watchlist: { id: string; name: string }
-	},
->(entries: T[], mediaKind: string, statusWatchlistId?: string | null) {
-	const statusEntry = statusWatchlistId
-		? entries.find(entry => entry.watchlistId === statusWatchlistId)
-		: null
-	if (statusEntry) return statusEntry
-	return entries.slice().sort((a, b) => {
-		const aUpdated = trackingStateFromEntry(a, {
-			status: a.watchlist.name,
-			statusWatchlistId: a.watchlist.id,
-			mediaKind,
-		}).sourceUpdatedAt
-		const bUpdated = trackingStateFromEntry(b, {
-			status: b.watchlist.name,
-			statusWatchlistId: b.watchlist.id,
-			mediaKind,
-		}).sourceUpdatedAt
-		return bUpdated - aUpdated || a.id.localeCompare(b.id)
-	})[0]
-}
 
 async function renumberWatchlist(
 	tx: Prisma.TransactionClient,
@@ -100,6 +27,7 @@ async function renumberWatchlist(
 		await tx.entry.update({
 			where: { id: entry.id },
 			data: { position: index + 1 },
+			select: { id: true },
 		})
 	}
 }
@@ -124,7 +52,6 @@ export async function setMediaTrackingStatus(
 			id: true,
 			kind: true,
 			...mediaCatalogSelect,
-			entries: { select: catalogEntrySelect },
 		},
 	})
 	if (!media) throw new Response('Media not found', { status: 404 })
@@ -144,58 +71,116 @@ export async function setMediaTrackingStatus(
 		throw new Response('Tracking status not found', { status: 400 })
 	}
 
-	const catalog = resolveMediaCatalog(media, representativeEntry(media.entries))
-	const entries = await tx.entry.findMany({
-		where: { mediaId: media.id, watchlist: { ownerId: input.ownerId } },
-		include: { watchlist: true, media: true },
-	})
-	const state = await tx.trackingState.findUnique({
-		where: {
-			ownerId_mediaId: { ownerId: input.ownerId, mediaId: media.id },
-		},
-		select: { id: true, statusWatchlistId: true },
-	})
+	const catalog = resolveMediaCatalog(media)
+	const [state, destinationEntries] = await Promise.all([
+		tx.trackingState.findUnique({
+			where: {
+				ownerId_mediaId: { ownerId: input.ownerId, mediaId: media.id },
+			},
+			select: { id: true, statusWatchlistId: true },
+		}),
+		loadOwnerLegacyTrackingEntries(tx, {
+			ownerId: input.ownerId,
+			mediaId: media.id,
+			watchlistId: destination.id,
+		}),
+	])
+	if (destinationEntries.overflowed) {
+		throw new Response('Tracking data needs repair before editing', {
+			status: 409,
+		})
+	}
 
-	let target = entries.find(entry => entry.watchlistId === destination.id)
+	let target =
+		authoritativeLegacyTrackingEntry(
+			destinationEntries.entries,
+			media.kind,
+			destination.id,
+		) ?? null
 	if (!target) {
 		const maxPosition = await tx.entry.aggregate({
 			where: { watchlistId: destination.id },
 			_max: { position: true },
 		})
 		const position = (maxPosition._max.position ?? 0) + 1
-		const primary = authoritativeEntry(
-			entries,
-			media.kind,
-			state?.statusWatchlistId,
-		)
+		let primary: LegacyTrackingEntry | undefined
+		if (state?.statusWatchlistId) {
+			const statusEntries = await loadOwnerLegacyTrackingEntries(tx, {
+				ownerId: input.ownerId,
+				mediaId: media.id,
+				watchlistId: state.statusWatchlistId,
+			})
+			if (statusEntries.overflowed) {
+				throw new Response('Tracking data needs repair before editing', {
+					status: 409,
+				})
+			}
+			primary = authoritativeLegacyTrackingEntry(
+				statusEntries.entries,
+				media.kind,
+				state.statusWatchlistId,
+			)
+		}
+		if (!primary) {
+			const legacyEntries = await loadOwnerLegacyTrackingEntries(tx, {
+				ownerId: input.ownerId,
+				mediaId: media.id,
+			})
+			if (legacyEntries.overflowed) {
+				throw new Response('Tracking data needs repair before editing', {
+					status: 409,
+				})
+			}
+			primary = authoritativeLegacyTrackingEntry(
+				legacyEntries.entries,
+				media.kind,
+				state?.statusWatchlistId,
+			)
+		}
 		if (primary) {
 			const sourceWatchlistId = primary.watchlistId
-			target = await tx.entry.update({
+			await tx.entry.update({
 				where: { id: primary.id },
 				data: { watchlistId: destination.id, position },
-				include: { watchlist: true, media: true },
+				select: { id: true },
 			})
+			target = {
+				...primary,
+				watchlistId: destination.id,
+				watchlist: { id: destination.id, name: destination.name },
+			}
 			if (sourceWatchlistId !== destination.id) {
 				await renumberWatchlist(tx, sourceWatchlistId)
 			}
 		} else {
 			const now = Date.now()
-			target = await tx.entry.create({
+			const history = JSON.stringify({
+				added: now,
+				started: null,
+				finished: null,
+				progress: null,
+				lastUpdated: now,
+			})
+			const created = await tx.entry.create({
 				data: {
 					...catalogCreateData(catalog, media.kind),
 					watchlistId: destination.id,
 					mediaId: media.id,
 					position,
-					history: JSON.stringify({
-						added: now,
-						started: null,
-						finished: null,
-						progress: null,
-						lastUpdated: now,
-					}),
+					history,
 				},
-				include: { watchlist: true, media: true },
+				select: { id: true },
 			})
+			target = {
+				id: created.id,
+				watchlistId: destination.id,
+				personal: null,
+				history,
+				length: catalog?.length ?? null,
+				chapters: catalog?.chapters ?? null,
+				volumes: catalog?.volumes ?? null,
+				watchlist: { id: destination.id, name: destination.name },
+			}
 		}
 	}
 

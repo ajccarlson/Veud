@@ -2,6 +2,9 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { synchronizeWatchlistMetadata } from '#app/utils/watchlist-metadata-sync.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const args = process.argv.slice(2)
 const allowed = new Set(['--commit', '--batch-size', '--help'])
@@ -34,9 +37,12 @@ try {
 	console.log(
 		[
 			result.dryRun ? 'Watchlist metadata dry run' : 'Watchlist metadata sync',
-			`scanned=${result.scanned}`,
-			`matched=${result.matched}`,
-			`updated=${result.updated}`,
+			`entries scanned=${result.scanned}`,
+			`entries matched=${result.matched}`,
+			`entries updated=${result.updated}`,
+			`favorites scanned=${result.favoriteScanned}`,
+			`favorites matched=${result.favoriteMatched}`,
+			`favorites updated=${result.favoriteUpdated}`,
 		].join(' · '),
 	)
 } finally {

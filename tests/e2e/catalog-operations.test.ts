@@ -36,6 +36,7 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 		data: {
 			kind: 'anime',
 			title: 'Catalog Operations Fixture',
+			catalogProvenanceVersion: 1,
 			externalIds: {
 				create: {
 					provider: 'mal',
@@ -67,11 +68,13 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 				kind: 'anime',
 				title: 'Catalog Merge Fixture Source',
 				description: 'Metadata preserved by the journal.',
+				catalogProvenanceVersion: 1,
 			},
 			{
 				id: 'browser-merge-target',
 				kind: 'anime',
 				title: 'Catalog Merge Fixture Target',
+				catalogProvenanceVersion: 1,
 			},
 		],
 	})
@@ -84,6 +87,7 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 			severity: 'warning',
 			confidence: 0.9,
 			summary: 'Catalog Merge Fixture records are a reviewed duplicate.',
+			evidence: JSON.stringify({ source: 'browser-merge-fixture' }),
 			primaryMediaId: 'browser-merge-source',
 			secondaryMediaId: 'browser-merge-target',
 			reviewedById: admin.id,
