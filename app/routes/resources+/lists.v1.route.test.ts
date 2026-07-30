@@ -319,3 +319,100 @@ test('the v1 entries resource returns a consistently ordered envelope', async ()
 		'private, no-store',
 	)
 })
+
+test('linked list payloads replace historical snapshots with bounded canonical metadata', async () => {
+	const { source, entry, cookie } = await fixture()
+	const privateSentinel = 'PRIVATE HISTORICAL ENTRY SNAPSHOT MUST NOT ESCAPE'
+	const [canonical, sparse] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Canonical list title',
+				thumbnail: 'https://canonical.example/poster.jpg',
+				type: 'Movie',
+				airYear: '2026',
+				tmdbScore: 8.25,
+			},
+		}),
+		prisma.media.create({ data: { kind: 'movie' } }),
+	])
+	await Promise.all([
+		prisma.watchlist.update({
+			where: { id: source.id },
+			data: {
+				displayedColumns: 'title,thumbnail,description,type,airYear,tmdbScore',
+			},
+		}),
+		prisma.entry.update({
+			where: { id: entry.id },
+			data: {
+				mediaId: canonical.id,
+				title: `${privateSentinel} title`,
+				thumbnail: `${privateSentinel} thumbnail`,
+				description: `${privateSentinel} description`,
+				type: `${privateSentinel} type`,
+				airYear: `${privateSentinel} year`,
+				tmdbScore: 1,
+			},
+		}),
+		prisma.entry.create({
+			data: {
+				watchlistId: source.id,
+				mediaId: sparse.id,
+				position: 2,
+				title: `${privateSentinel} sparse title`,
+				thumbnail: `${privateSentinel} sparse thumbnail`,
+				description: `${privateSentinel} sparse description`,
+			},
+		}),
+		prisma.entry.create({
+			data: {
+				watchlistId: source.id,
+				position: 3,
+				title: 'Unlinked legacy title',
+				description: 'Unlinked legacy description',
+			},
+		}),
+	])
+
+	for (const headers of [undefined, { cookie }]) {
+		const result = await entriesLoader({
+			request: new Request(
+				`${BASE_URL}/resources/lists/v1/entries?watchlistId=${source.id}`,
+				{ headers },
+			),
+		} as any)
+
+		expect(result.data.ok).toBe(true)
+		if (!result.data.ok) throw new Error('Expected list entries to load')
+		expect(result.data.data).toEqual([
+			expect.objectContaining({
+				title: 'Canonical list title',
+				thumbnail: 'https://canonical.example/poster.jpg',
+				description: null,
+				type: 'Movie',
+				airYear: '2026',
+				tmdbScore: 8.25,
+				media: {
+					kind: 'movie',
+					tmdbScore: 8.25,
+					malScore: null,
+					externalIds: [],
+				},
+			}),
+			expect.objectContaining({
+				title: 'Untitled movie',
+				thumbnail: null,
+				description: null,
+				type: null,
+				airYear: null,
+			}),
+			expect.objectContaining({
+				title: 'Unlinked legacy title',
+				description: 'Unlinked legacy description',
+				media: null,
+			}),
+		])
+		expect(JSON.stringify(result.data)).not.toContain(privateSentinel)
+	}
+})

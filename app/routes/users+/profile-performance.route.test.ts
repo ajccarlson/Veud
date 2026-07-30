@@ -337,6 +337,8 @@ test('emoji-heavy profile text stays within UTF-16 projection ceilings', async (
 		data: {
 			kind: 'anime',
 			title: `${'😀'.repeat(200)}${omittedSentinel}`,
+			type: '😀'.repeat(200),
+			genres: '😀'.repeat(5_000),
 		},
 	})
 	const state = await prisma.trackingState.create({
@@ -466,6 +468,99 @@ test('hostile early category values do not starve a later page', async () => {
 	})
 	expect(result.data.genreMatrices[listType.id]?.labels).toContain(
 		'Tail Fairness',
+	)
+})
+
+test('profile stats use canonical media for linked historical categories', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const sentinel = `PRIVATE_PROFILE_CATEGORY_${suffix}`
+	const [user, listType, canonical, sparse] = await Promise.all([
+		prisma.user.create({
+			data: {
+				email: `profile-category-provenance-${suffix}@example.com`,
+				username: `profile_category_provenance_${suffix}`,
+			},
+		}),
+		prisma.listType.create({
+			data: {
+				name: `profile-category-provenance-${suffix}`,
+				header: 'Profile category provenance',
+				columns: '{"title":"string"}',
+				mediaType: '["movie"]',
+				completionType: '{"past":"watched"}',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Canonical profile category',
+				type: 'Canonical Feature',
+				genres: 'Canonical Genre, Trusted Genre',
+				releaseStart: new Date('2024-03-01T00:00:00.000Z'),
+				airYear: '2024',
+			},
+		}),
+		prisma.media.create({ data: { kind: 'movie' } }),
+	])
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: user.id,
+			typeId: listType.id,
+			name: 'watched',
+			header: 'Watched',
+			position: 1,
+			isPublic: true,
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: watchlist.id,
+				mediaId: canonical.id,
+				position: 1,
+				title: `${sentinel} title`,
+				type: `${sentinel} type`,
+				genres: `${sentinel} genre`,
+				releaseStart: new Date('2099-01-01T00:00:00.000Z'),
+				airYear: '2099',
+				tmdbScore: 1,
+				malScore: 1,
+			},
+			{
+				watchlistId: watchlist.id,
+				mediaId: sparse.id,
+				position: 2,
+				title: `${sentinel} sparse title`,
+				type: `${sentinel} sparse type`,
+				genres: `${sentinel} sparse genre`,
+				airYear: '2098',
+			},
+		],
+	})
+
+	const result = await statsLoader({
+		request: new Request(`${BASE_URL}/users/${user.username}/stats`),
+		params: { username: user.username },
+	} as any)
+
+	expect(JSON.stringify(result.data)).not.toContain(sentinel)
+	expect(result.data.mediaTypeCounts[listType.id]).toContainEqual({
+		key: 'canonical feature',
+		label: 'Canonical Feature',
+		count: 1,
+	})
+	expect(result.data.genreMatrices[listType.id]?.labels).toEqual(
+		expect.arrayContaining(['Canonical Genre', 'Trusted Genre']),
+	)
+	expect(result.data.releaseYears[listType.id]).toContainEqual({
+		year: 2024,
+		count: 1,
+	})
+	expect(result.data.releaseYears[listType.id]).not.toEqual(
+		expect.arrayContaining([
+			{ year: 2098, count: expect.any(Number) },
+			{ year: 2099, count: expect.any(Number) },
+		]),
 	)
 })
 
@@ -686,6 +781,104 @@ test('profile favorites enforce a fixed row cap and bound hostile display text',
 	expect(hostileFavorite?.title.length).toBeLessThanOrEqual(241)
 	expect(hostileFavorite?.mediaType.length).toBeLessThanOrEqual(120)
 	expect(hostileFavorite?.startYear.length).toBeLessThanOrEqual(64)
+})
+
+test('profile favorites use canonical media for linked historical snapshots', async () => {
+	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
+	const privateSentinel = `PRIVATE_FAVORITE_SNAPSHOT_${suffix}`
+	const [user, listType, canonical, sparse] = await Promise.all([
+		prisma.user.create({
+			data: {
+				email: `profile-favorite-provenance-${suffix}@example.com`,
+				username: `profile_favorite_provenance_${suffix}`,
+			},
+		}),
+		prisma.listType.create({
+			data: {
+				name: `profile-favorite-provenance-${suffix}`,
+				header: 'Favorite provenance fixtures',
+				columns: '{"title":"string"}',
+				mediaType: '["movie"]',
+				completionType: '{"past":"watched"}',
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Canonical favorite title',
+				thumbnail: 'https://canonical.example/favorite.jpg',
+				type: 'Movie',
+				releaseStart: new Date('2024-03-01T00:00:00.000Z'),
+			},
+		}),
+		prisma.media.create({ data: { kind: 'anime' } }),
+	])
+	await prisma.userFavorite.createMany({
+		data: [
+			{
+				ownerId: user.id,
+				typeId: listType.id,
+				mediaId: canonical.id,
+				position: 1,
+				title: `${privateSentinel} title`,
+				thumbnail: `${privateSentinel} thumbnail`,
+				mediaType: `${privateSentinel} type`,
+				startYear: `${privateSentinel} year`,
+			},
+			{
+				ownerId: user.id,
+				typeId: listType.id,
+				mediaId: sparse.id,
+				position: 2,
+				title: `${privateSentinel} sparse title`,
+				thumbnail: `${privateSentinel} sparse thumbnail`,
+				mediaType: `${privateSentinel} sparse type`,
+				startYear: `${privateSentinel} sparse year`,
+			},
+			{
+				ownerId: user.id,
+				typeId: listType.id,
+				position: 3,
+				title: 'Unlinked legacy favorite',
+				thumbnail: 'https://legacy.example/favorite.jpg',
+				mediaType: 'Legacy type',
+				startYear: '1999',
+			},
+		],
+	})
+
+	const result = await favoritesLoader({
+		request: new Request(`${BASE_URL}/users/${user.username}/favorites`),
+		params: { username: user.username },
+	} as any)
+
+	expect(result.data.favorites).toEqual([
+		expect.objectContaining({
+			position: 1,
+			mediaId: canonical.id,
+			title: 'Canonical favorite title',
+			thumbnail: 'https://canonical.example/favorite.jpg',
+			mediaType: 'Movie',
+			startYear: '2024',
+		}),
+		expect.objectContaining({
+			position: 2,
+			mediaId: sparse.id,
+			title: 'Untitled anime',
+			thumbnail: null,
+			mediaType: '',
+			startYear: '',
+		}),
+		expect.objectContaining({
+			position: 3,
+			mediaId: null,
+			title: 'Unlinked legacy favorite',
+			thumbnail: 'https://legacy.example/favorite.jpg',
+			mediaType: 'Legacy type',
+			startYear: '1999',
+		}),
+	])
+	expect(JSON.stringify(result.data)).not.toContain(privateSentinel)
 })
 
 test('profile history projection enforces an aggregate transfer budget', async () => {

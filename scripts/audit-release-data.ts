@@ -7,6 +7,9 @@ import {
 	removeConfirmedSeedAccounts,
 	removeConfirmedTestMediaFixtures,
 } from '#app/utils/release-data-integrity.server.ts'
+import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage:
   npm run data:release-audit -- [--json]

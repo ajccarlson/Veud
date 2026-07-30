@@ -12,6 +12,7 @@ function currentRelease() {
 }
 
 const release = currentRelease()
+const productionLaunchers = process.env.NODE_ENV === 'production'
 
 module.exports = {
 	apps: [
@@ -19,8 +20,10 @@ module.exports = {
 			name: 'veud',
 			// Keep production signals in the application process. The prior npm
 			// wrapper could forward duplicate signals and bypass graceful cleanup.
-			script: 'scripts/pm2-entry.mjs',
-			interpreter: 'node',
+			script: productionLaunchers
+				? 'ops/local-production/run-app.sh'
+				: 'scripts/pm2-entry.mjs',
+			interpreter: productionLaunchers ? 'bash' : 'node',
 			instances: 1,
 			exec_mode: 'fork',
 			max_memory_restart: '300M',
@@ -67,7 +70,10 @@ module.exports = {
 			// crontab entry. The script no-ops under NODE_ENV=development, so `start:dev` does not
 			// produce backups even though this ecosystem file is shared by both.
 			name: 'veud-backup',
-			script: 'scripts/backup-database.mjs',
+			script: productionLaunchers
+				? 'ops/local-production/run-backup.sh'
+				: 'scripts/backup-database.mjs',
+			interpreter: productionLaunchers ? 'bash' : 'node',
 			autorestart: false,
 			cron_restart: '0 * * * *',
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+source "$(dirname "$0")/common.sh"
+
+prepare_worker
 
 [[ "$#" -eq 2 ]] || {
 	printf 'Usage: %s HYDRATION_UNIT WORKER_SCRIPT\n' "$0" >&2

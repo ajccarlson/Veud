@@ -1,11 +1,13 @@
 import { type LoaderFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	canonicalizeLinkedWatchlistEntry,
 	prepareWatchlistEntryForViewer,
 	publicEntryPayload,
 } from '#app/utils/lists/public-watchlist.server.ts'
 import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
+import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const searchParams = new URLSearchParams(params.request)
@@ -21,7 +23,24 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			watchlistId: watchlist.id,
 		},
 		include: {
-			media: { select: { tmdbScore: true, malScore: true } },
+			media: {
+				select: {
+					kind: true,
+					...mediaCatalogSelect,
+					externalIds: {
+						orderBy: [
+							{ provider: 'asc' },
+							{ kind: 'asc' },
+							{ externalId: 'asc' },
+						],
+						select: {
+							provider: true,
+							kind: true,
+							externalId: true,
+						},
+					},
+				},
+			},
 			trackingState: {
 				select: {
 					ownerId: true,
@@ -40,6 +59,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		.map(entry =>
 			prepareWatchlistEntryForViewer(entry, watchlist.ownerId, isOwner),
 		)
+		.map(canonicalizeLinkedWatchlistEntry)
 		.map(normalizeWatchlistEntryScores)
 	return isOwner
 		? normalized

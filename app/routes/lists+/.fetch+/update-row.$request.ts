@@ -4,7 +4,6 @@ import { prisma } from '#app/utils/db.server.ts'
 import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 import {
 	ensureMediaForIdentity,
-	hydrateMediaCatalog,
 	parseMediaIdentityForListType,
 } from '#app/utils/media.server.ts'
 import {
@@ -31,6 +30,7 @@ export async function updateEntryCommand(
 		'media',
 		'mediaId',
 		'mediaIdentity',
+		'mediaRelations',
 		'trackingState',
 		'trackingStateId',
 		'watchlist',
@@ -76,12 +76,6 @@ export async function updateEntryCommand(
 						})
 					)?.kind
 				: undefined
-		if (mediaId) {
-			await hydrateMediaCatalog(tx, mediaId, data, {
-				authoritativeFields: mediaIdentity ? ['nextRelease'] : undefined,
-				syncLegacyFields: mediaIdentity ? ['nextRelease'] : undefined,
-			})
-		}
 		const trackingStateId =
 			mediaId && mediaKind
 				? await ensureTrackingStateForEntry(tx, {

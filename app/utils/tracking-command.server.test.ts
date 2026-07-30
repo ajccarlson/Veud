@@ -242,6 +242,34 @@ test('builds a local preview and requires explicit application', async () => {
 	const media = await prisma.media.create({
 		data: { kind: 'anime', title: 'Command Clock' },
 	})
+	const foreignOwner = await prisma.user.create({
+		data: {
+			email: 'command-private-source@example.com',
+			username: 'command_private_source',
+		},
+	})
+	const foreignList = await prisma.watchlist.create({
+		data: {
+			ownerId: foreignOwner.id,
+			typeId: listType.id,
+			name: 'private-source',
+			header: 'Private source',
+			isPublic: false,
+		},
+	})
+	const foreignMetadata = {
+		title: 'PRIVATE COMMAND TITLE MUST NOT ESCAPE',
+		description: 'PRIVATE COMMAND DESCRIPTION MUST NOT ESCAPE',
+		thumbnail: 'https://private.example/command-cover.jpg',
+	}
+	await prisma.entry.create({
+		data: {
+			watchlistId: foreignList.id,
+			mediaId: media.id,
+			position: 1,
+			...foreignMetadata,
+		},
+	})
 	const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
 		const body = JSON.parse(String(init?.body)) as { input: string }
 		expect(JSON.parse(body.input)).toEqual({
@@ -288,6 +316,14 @@ test('builds a local preview and requires explicit application', async () => {
 			progress: [expect.objectContaining({ unit: 'episode', current: 3 })],
 		}),
 	)
+	const ownerEntry = await prisma.entry.findFirstOrThrow({
+		where: { mediaId: media.id, watchlist: { ownerId: owner.id } },
+	})
+	expect(ownerEntry.title).toBe(media.title)
+	const ownerSnapshot = JSON.stringify(ownerEntry)
+	for (const privateValue of Object.values(foreignMetadata)) {
+		expect(ownerSnapshot).not.toContain(privateValue)
+	}
 	const activityCount = await prisma.activityEvent.count({
 		where: { actorId: owner.id, mediaId: media.id },
 	})

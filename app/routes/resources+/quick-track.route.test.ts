@@ -98,6 +98,7 @@ async function fixture() {
 				typeId: animeType.id,
 				name: 'watching',
 				header: 'Other watching',
+				isPublic: false,
 			},
 		}),
 	])
@@ -232,4 +233,48 @@ test('quick tracking creates a canonical list row and reuses it for status chang
 			where: { actorId: owner.id, mediaId: media.id, type: 'status' },
 		}),
 	).toBe(2)
+})
+
+test('quick tracking never copies another owners private entry metadata', async () => {
+	const { owner, media, watching, otherList, cookie } = await fixture()
+	const privateMetadata = {
+		title: 'PRIVATE QUICK-TRACK TITLE MUST NOT ESCAPE',
+		description: 'PRIVATE QUICK-TRACK DESCRIPTION MUST NOT ESCAPE',
+		thumbnail: 'https://private.example/quick-track-cover.jpg',
+	}
+	await Promise.all([
+		prisma.media.update({
+			where: { id: media.id },
+			data: { title: null, description: null, thumbnail: null },
+		}),
+		prisma.entry.create({
+			data: {
+				watchlistId: otherList.id,
+				mediaId: media.id,
+				position: 1,
+				...privateMetadata,
+			},
+		}),
+	])
+
+	const result = await action({
+		request: request({ mediaId: media.id, watchlistId: watching.id }, cookie),
+		params: {},
+	} as any)
+	expect(result.data.ok).toBe(true)
+
+	const ownerEntry = await prisma.entry.findFirstOrThrow({
+		where: { mediaId: media.id, watchlist: { ownerId: owner.id } },
+	})
+	expect(ownerEntry).toEqual(
+		expect.objectContaining({
+			title: 'Untitled anime',
+			description: null,
+			thumbnail: null,
+		}),
+	)
+	const storedEntry = JSON.stringify(ownerEntry)
+	for (const privateValue of Object.values(privateMetadata)) {
+		expect(storedEntry).not.toContain(privateValue)
+	}
 })

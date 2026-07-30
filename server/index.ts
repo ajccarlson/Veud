@@ -18,6 +18,7 @@ import {
 import { closeCacheResources } from '../app/utils/cache.server.ts'
 import { canonicalOriginFromEnvironment } from '../app/utils/canonical-origin.ts'
 import { prisma } from '../app/utils/db.server.ts'
+import { assertCatalogProvenanceBoundaryReady } from '../app/utils/media-provenance-repair.server.ts'
 import {
 	beginObservedRequest,
 	createRequestId,
@@ -27,6 +28,7 @@ import {
 	writeStructuredLog,
 } from '../app/utils/operations-observability.server.ts'
 import { rateLimitClientKey } from '../app/utils/proxy-security.server.ts'
+import { assertCatalogWriterRuntimeProof } from '../scripts/catalog-writer-runtime-guard.mjs'
 import { resolveServerBinding } from './binding.js'
 import { createApplicationShutdown } from './shutdown.js'
 import { assertSafeMockProductionRuntime } from './test-runtime-guard.js'
@@ -38,6 +40,8 @@ type ServerContextModule = {
 }
 
 const MODE = process.env.NODE_ENV ?? 'development'
+
+assertCatalogWriterRuntimeProof(process.env)
 
 const isVettedProductionTestRuntime = assertSafeMockProductionRuntime(
 	process.env,
@@ -389,6 +393,10 @@ const portToUse = binding.allowPortFallback
 			port: portNumbers(desiredPort, desiredPort + 100),
 		})
 	: desiredPort
+
+if (MODE === 'production' && !isVettedProductionTestRuntime) {
+	await assertCatalogProvenanceBoundaryReady(prisma)
+}
 
 const server = desiredHost
 	? app.listen(portToUse, desiredHost, handleListening)

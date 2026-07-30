@@ -5,11 +5,12 @@ import {
 	syncMediaRelations,
 } from './media-relations.server.ts'
 
-test('syncs provider identities and returns inverse relation groups', async () => {
+test('trusted provider relation sync hydrates targets and returns inverse groups', async () => {
 	const source = await prisma.media.create({
 		data: {
 			kind: 'anime',
 			title: 'First season',
+			catalogProvenanceVersion: 1,
 			externalIds: {
 				create: { provider: 'mal', kind: 'anime', externalId: '100' },
 			},
@@ -71,6 +72,154 @@ test('syncs provider identities and returns inverse relation groups', async () =
 	])
 })
 
+test('hides pre-boundary relations while returning trusted relations', async () => {
+	const [source, trustedTarget, untrustedTarget] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Relation boundary source',
+				catalogProvenanceVersion: 1,
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Trusted relation target',
+				catalogProvenanceVersion: 1,
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Untrusted relation target',
+				catalogProvenanceVersion: 1,
+			},
+		}),
+	])
+	await prisma.mediaRelation.createMany({
+		data: [
+			{
+				sourceMediaId: source.id,
+				targetMediaId: trustedTarget.id,
+				relationType: 'sequel',
+				provider: 'mal',
+				catalogProvenanceVersion: 1,
+			},
+			{
+				sourceMediaId: source.id,
+				targetMediaId: untrustedTarget.id,
+				relationType: 'adaptation',
+				provider: 'mal',
+				catalogProvenanceVersion: 0,
+			},
+		],
+	})
+
+	const groups = await getMediaRelations(source.id)
+	expect(groups).toEqual([
+		expect.objectContaining({
+			relationType: 'sequel',
+			items: [
+				expect.objectContaining({
+					id: trustedTarget.id,
+					title: 'Trusted relation target',
+				}),
+			],
+		}),
+	])
+	expect(JSON.stringify(groups)).not.toContain('Untrusted relation target')
+})
+
+test('relation sync refuses a pre-boundary source without changing relations', async () => {
+	const source = await prisma.media.create({
+		data: {
+			kind: 'anime',
+			title: 'Untrusted relation source',
+			externalIds: {
+				create: { provider: 'mal', kind: 'anime', externalId: '400' },
+			},
+		},
+	})
+
+	await expect(
+		prisma.$transaction(tx =>
+			syncMediaRelations(tx, {
+				sourceMediaId: source.id,
+				sourceIdentity: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '400',
+				},
+				relations: [],
+			}),
+		),
+	).rejects.toThrow('Relation source has not crossed the provenance boundary')
+	expect(await prisma.mediaRelation.count()).toBe(0)
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: source.id },
+			select: { catalogProvenanceVersion: true },
+		}),
+	).toEqual({ catalogProvenanceVersion: 0 })
+})
+
+test('relation sync refuses and does not promote a pre-boundary target', async () => {
+	const [source, target] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Trusted relation source',
+				catalogProvenanceVersion: 1,
+				externalIds: {
+					create: { provider: 'mal', kind: 'anime', externalId: '500' },
+				},
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'anime',
+				title: 'Untrusted relation target',
+				externalIds: {
+					create: { provider: 'mal', kind: 'anime', externalId: '501' },
+				},
+			},
+		}),
+	])
+
+	await expect(
+		prisma.$transaction(tx =>
+			syncMediaRelations(tx, {
+				sourceMediaId: source.id,
+				sourceIdentity: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '500',
+				},
+				relations: [
+					{
+						relationType: 'sequel',
+						targetIdentity: {
+							provider: 'mal',
+							kind: 'anime',
+							externalId: '501',
+						},
+					},
+				],
+			}),
+		),
+	).rejects.toThrow('Relation target has not crossed the provenance boundary')
+	expect(await prisma.mediaRelation.count()).toBe(0)
+	expect(
+		await prisma.media.findUniqueOrThrow({
+			where: { id: target.id },
+			select: { catalogProvenanceVersion: true, title: true },
+		}),
+	).toEqual({
+		catalogProvenanceVersion: 0,
+		title: 'Untrusted relation target',
+	})
+})
+
 test('orders relation groups chronologically and returns tracking context', async () => {
 	const [viewer, publicMember] = await Promise.all([
 		prisma.user.create({
@@ -105,18 +254,36 @@ test('orders relation groups chronologically and returns tracking context', asyn
 		},
 	})
 	const [source, later, earlier, undated] = await Promise.all([
-		prisma.media.create({ data: { kind: 'movie', title: 'Current film' } }),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Current film',
+				catalogProvenanceVersion: 1,
+			},
+		}),
 		prisma.media.create({
 			data: {
 				kind: 'movie',
 				title: 'Later film',
+				catalogProvenanceVersion: 1,
 				releaseStart: new Date('2021-05-01T00:00:00.000Z'),
 			},
 		}),
 		prisma.media.create({
-			data: { kind: 'movie', title: 'Earlier film', startSeason: 'Fall 2018' },
+			data: {
+				kind: 'movie',
+				title: 'Earlier film',
+				startSeason: 'Fall 2018',
+				catalogProvenanceVersion: 1,
+			},
 		}),
-		prisma.media.create({ data: { kind: 'movie', title: 'Undated film' } }),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Undated film',
+				catalogProvenanceVersion: 1,
+			},
+		}),
 	])
 	await prisma.mediaRelation.createMany({
 		data: [later, earlier, undated].map(media => ({
@@ -124,6 +291,7 @@ test('orders relation groups chronologically and returns tracking context', asyn
 			targetMediaId: media.id,
 			relationType: 'franchise',
 			provider: 'tmdb',
+			catalogProvenanceVersion: 1,
 		})),
 	})
 	await Promise.all([
@@ -167,7 +335,9 @@ test('orders relation groups chronologically and returns tracking context', asyn
 })
 
 test('replaces stale relations from the same provider snapshot', async () => {
-	const source = await prisma.media.create({ data: { kind: 'manga' } })
+	const source = await prisma.media.create({
+		data: { kind: 'manga', catalogProvenanceVersion: 1 },
+	})
 	const sourceIdentity = {
 		provider: 'mal' as const,
 		kind: 'manga' as const,
@@ -210,12 +380,19 @@ test('TMDB franchise refreshes preserve other future relation types', async () =
 			data: {
 				kind: 'movie',
 				title: 'Original film',
+				catalogProvenanceVersion: 1,
 				externalIds: {
 					create: { provider: 'tmdb', kind: 'movie', externalId: '300' },
 				},
 			},
 		}),
-		prisma.media.create({ data: { kind: 'movie', title: 'Future remake' } }),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Future remake',
+				catalogProvenanceVersion: 1,
+			},
+		}),
 	])
 	await prisma.mediaRelation.create({
 		data: {
@@ -223,6 +400,7 @@ test('TMDB franchise refreshes preserve other future relation types', async () =
 			targetMediaId: remake.id,
 			relationType: 'remake',
 			provider: 'tmdb',
+			catalogProvenanceVersion: 1,
 		},
 	})
 	const sourceIdentity = {

@@ -51,6 +51,7 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 		taste,
 		privateMatch,
 		hidden,
+		staleConnected,
 	] = await Promise.all(
 		[
 			['Graph Seed', genre],
@@ -60,6 +61,7 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 			['Graph Taste', genre.toUpperCase()],
 			['Graph Private', null],
 			['Graph Hidden', genre],
+			['Graph Stale Connected', null],
 		].map(([title, genres]) =>
 			prisma.media.create({
 				data: {
@@ -67,6 +69,7 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 					title: `${title} ${suffix}`,
 					genres,
 					catalogPopularity: title === 'Graph Taste' ? 50 : 10,
+					catalogProvenanceVersion: 1,
 				},
 			}),
 		),
@@ -98,13 +101,23 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 				score: 10,
 			},
 		}),
-		prisma.mediaRelation.create({
-			data: {
-				sourceMediaId: seed.id,
-				targetMediaId: connected.id,
-				relationType: 'sequel',
-				provider: 'tmdb',
-			},
+		prisma.mediaRelation.createMany({
+			data: [
+				{
+					sourceMediaId: seed.id,
+					targetMediaId: connected.id,
+					relationType: 'sequel',
+					provider: 'tmdb',
+					catalogProvenanceVersion: 1,
+				},
+				{
+					sourceMediaId: seed.id,
+					targetMediaId: staleConnected.id,
+					relationType: 'adaptation',
+					provider: 'tmdb',
+					catalogProvenanceVersion: 0,
+				},
+			],
 		}),
 		prisma.review.create({
 			data: {
@@ -140,6 +153,9 @@ test('recommendation graph separates canonical, social, collection, and taste ev
 
 	expect(byKey.get('connected')?.items.map(item => item.id)).toContain(
 		connected.id,
+	)
+	expect(byKey.get('connected')?.items.map(item => item.id)).not.toContain(
+		staleConnected.id,
 	)
 	expect(byKey.get('circle')?.items.map(item => item.id)).toContain(circle.id)
 	expect(byKey.get('collections')?.items.map(item => item.id)).toContain(
@@ -181,13 +197,19 @@ test('show-less feedback subtracts genre affinity without affecting public data'
 	const viewer = await createUser('Muted viewer')
 	const [seed, feedbackMedia, candidate] = await Promise.all([
 		prisma.media.create({
-			data: { kind: 'anime', title: `Muted Seed ${suffix}`, genres: genre },
+			data: {
+				kind: 'anime',
+				title: `Muted Seed ${suffix}`,
+				genres: genre,
+				catalogProvenanceVersion: 1,
+			},
 		}),
 		prisma.media.create({
 			data: {
 				kind: 'anime',
 				title: `Muted Feedback ${suffix}`,
 				genres: genre,
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.media.create({
@@ -195,6 +217,7 @@ test('show-less feedback subtracts genre affinity without affecting public data'
 				kind: 'anime',
 				title: `Muted Candidate ${suffix}`,
 				genres: genre,
+				catalogProvenanceVersion: 1,
 			},
 		}),
 	])
@@ -258,13 +281,25 @@ test('graph popularity uses public tracking counts and ignores private lists', a
 	})
 	const [seed, publicCandidate, privateCandidate] = await Promise.all([
 		prisma.media.create({
-			data: { kind: 'movie', title: `Graph ranking seed ${suffix}` },
+			data: {
+				kind: 'movie',
+				title: `Graph ranking seed ${suffix}`,
+				catalogProvenanceVersion: 1,
+			},
 		}),
 		prisma.media.create({
-			data: { kind: 'movie', title: `Graph Z public ${suffix}` },
+			data: {
+				kind: 'movie',
+				title: `Graph Z public ${suffix}`,
+				catalogProvenanceVersion: 1,
+			},
 		}),
 		prisma.media.create({
-			data: { kind: 'movie', title: `Graph A private ${suffix}` },
+			data: {
+				kind: 'movie',
+				title: `Graph A private ${suffix}`,
+				catalogProvenanceVersion: 1,
+			},
 		}),
 	])
 	await Promise.all([
@@ -296,6 +331,7 @@ test('graph popularity uses public tracking counts and ignores private lists', a
 				sourceMediaId: seed.id,
 				targetMediaId: publicCandidate.id,
 				relationType: 'sequel',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 		prisma.mediaRelation.create({
@@ -303,6 +339,7 @@ test('graph popularity uses public tracking counts and ignores private lists', a
 				sourceMediaId: seed.id,
 				targetMediaId: privateCandidate.id,
 				relationType: 'sequel',
+				catalogProvenanceVersion: 1,
 			},
 		}),
 	])

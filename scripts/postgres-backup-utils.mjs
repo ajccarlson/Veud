@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 
 const POSTGRES_BACKUP_PATTERN = /^postgres-.*\.dump$/
@@ -28,12 +29,54 @@ export function parsePostgresConnection(value, label) {
 }
 
 export function postgresConnectionIdentity(connection) {
-	return `${connection.host.toLowerCase()}:${connection.port}/${connection.database}`
+	return `${connection.host.toLowerCase().replace(/\.$/, '')}:${connection.port}/${connection.database}`
+}
+
+export function canonicalPostgresConnectionIdentity(connection) {
+	return `${canonicalPostgresHost(connection.host)}:${connection.port}/${connection.database}`
+}
+
+export function canonicalPostgresHost(host) {
+	const normalized = host
+		.toLowerCase()
+		.replace(/^\[|\]$/g, '')
+		.replace(/\.$/, '')
+	const mappedIpv4Hex =
+		/^(?:::ffff:|0:0:0:0:0:ffff:)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(
+			normalized,
+		)
+	const mappedIpv4Loopback =
+		mappedIpv4Hex && Number.parseInt(mappedIpv4Hex[1], 16) >>> 8 === 127
+	const mappedIpv4DottedLoopback =
+		/^(?:::ffff:|0:0:0:0:0:ffff:)127(?:\.\d{1,3}){3}$/.test(normalized)
+	if (
+		[
+			'localhost',
+			'localhost.localdomain',
+			'ip6-localhost',
+			'ip6-loopback',
+			'::1',
+		].includes(normalized) ||
+		normalized === '0:0:0:0:0:0:0:1' ||
+		normalized === '::ffff:127.0.0.1' ||
+		mappedIpv4Loopback ||
+		mappedIpv4DottedLoopback ||
+		(net.isIP(normalized) === 4 && normalized.startsWith('127.'))
+	) {
+		return 'loopback'
+	}
+	return normalized
 }
 
 export function assertSafeRestoreTarget(source, restore) {
+	if (source.database === restore.database) {
+		throw new Error(
+			'POSTGRES_BACKUP_VERIFY_URL database name must differ from the primary database',
+		)
+	}
 	if (
-		postgresConnectionIdentity(source) === postgresConnectionIdentity(restore)
+		canonicalPostgresConnectionIdentity(source) ===
+		canonicalPostgresConnectionIdentity(restore)
 	) {
 		throw new Error(
 			'POSTGRES_BACKUP_VERIFY_URL must not point to the primary database',
@@ -61,7 +104,14 @@ export function listPostgresBackups(backupDir) {
 	if (!fs.existsSync(backupDir)) return []
 	return fs
 		.readdirSync(backupDir, { withFileTypes: true })
-		.filter(entry => entry.isFile() && POSTGRES_BACKUP_PATTERN.test(entry.name))
+		.filter(
+			entry =>
+				entry.isFile() &&
+				POSTGRES_BACKUP_PATTERN.test(entry.name) &&
+				fs.existsSync(
+					path.join(backupDir, `${entry.name}.restore-verified.json`),
+				),
+		)
 		.map(entry => ({
 			name: entry.name,
 			path: path.join(backupDir, entry.name),

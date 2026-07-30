@@ -158,11 +158,34 @@ async function batch(
 }
 
 test('atomically applies a new import and rolls it back exactly', async () => {
-	await animeListType()
-	const [member, work] = await Promise.all([
+	const type = await animeListType()
+	const [member, foreignOwner, work] = await Promise.all([
+		owner(),
 		owner(),
 		media(`New import ${suffix()}`),
 	])
+	const foreignList = await prisma.watchlist.create({
+		data: {
+			ownerId: foreignOwner.id,
+			typeId: type.id,
+			name: 'private-import-source',
+			header: 'Private import source',
+			isPublic: false,
+		},
+	})
+	const foreignMetadata = {
+		title: 'PRIVATE IMPORT TITLE MUST NOT ESCAPE',
+		description: 'PRIVATE IMPORT DESCRIPTION MUST NOT ESCAPE',
+		thumbnail: 'https://private.example/import-cover.jpg',
+	}
+	await prisma.entry.create({
+		data: {
+			watchlistId: foreignList.id,
+			mediaId: work.id,
+			position: 1,
+			...foreignMetadata,
+		},
+	})
 	const importBatch = await batch(member.id, [
 		{
 			sourceKey: 'mal:anime:new',
@@ -195,6 +218,11 @@ test('atomically applies a new import and rolls it back exactly', async () => {
 	const importedEntry = await prisma.entry.findFirstOrThrow({
 		where: { mediaId: work.id, watchlist: { ownerId: member.id } },
 	})
+	expect(importedEntry.title).toBe(work.title)
+	const importedSnapshot = JSON.stringify(importedEntry)
+	for (const privateValue of Object.values(foreignMetadata)) {
+		expect(importedSnapshot).not.toContain(privateValue)
+	}
 	expect(importedEntry.length).toBe('12 eps')
 	expect(JSON.parse(importedEntry.history ?? '{}')).toEqual(
 		expect.objectContaining({

@@ -175,7 +175,6 @@ export async function getFollowedMediaTracking(
 					select: {
 						id: true,
 						username: true,
-						name: true,
 						image: { select: { id: true } },
 					},
 				},

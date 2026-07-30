@@ -1,11 +1,13 @@
 import { expect, test } from 'vitest'
 import {
+	assertMediaDetailLoadEvidence,
 	assertPublicSurfaceLoadBudgets,
 	assertRequiredQueryIndexes,
 	assertRequiredQueryRows,
 	assertSafeLoadDatabaseUrl,
 	bytesLabel,
 	calendarLoadWindow,
+	mediaDetailLoadBudgets,
 	publicSurfaceLoadBudgets,
 	representativeProfileEntryShape,
 	representativeLoadShape,
@@ -24,6 +26,17 @@ test('permits only clearly non-production PostgreSQL load targets', () => {
 	expect(() =>
 		assertSafeLoadDatabaseUrl('postgresql://veud@db.example/veud-contest'),
 	).toThrow('Load-test database name')
+	expect(() =>
+		assertSafeLoadDatabaseUrl(
+			'postgresql://veud_staging_app@127.0.0.1:5433/veud_staging',
+		),
+	).toThrow('Load-test database name')
+	expect(() =>
+		assertSafeLoadDatabaseUrl('postgresql://veud@db.example/veud_stage'),
+	).toThrow('Load-test database name')
+	expect(
+		assertSafeLoadDatabaseUrl('postgresql://veud@db.example/veud_release_test'),
+	).toMatchObject({ database: 'veud_release_test' })
 	expect(
 		assertSafeLoadDatabaseUrl(
 			'postgresql://veud:secret@DB.EXAMPLE:5433/veud_load_test',
@@ -284,6 +297,135 @@ test('enforces cold, warm, and payload budgets for public surfaces', () => {
 	report.discoveryFacets.warmSqlQueries = 0
 	expect(() => assertPublicSurfaceLoadBudgets(report)).toThrow(
 		/discoveryFacets\.warmSqlQueries=0 < 1/,
+	)
+})
+
+function mediaDetailEvidenceFixture() {
+	return {
+		version: 1,
+		fixture: {
+			representativeMembers: 20,
+			fanoutEntries: 20,
+			privateEntries: 19,
+			hostileHistoryCodeUnits: 1024 * 1024,
+			hostileCounterCodeUnits: 1024 * 1024,
+		},
+		anonymous: {
+			logicalQueries: 9,
+			sqlQueries: 9,
+			entryReads: 0,
+			entrySqlReads: 0,
+			trackingStateLookups: 0,
+			trackingStateLookupSqlReads: 0,
+			payloadBytes: 8_000,
+			wallMs: 125.25,
+		},
+		normalizedSigned: {
+			logicalQueries: 19,
+			sqlQueries: 20,
+			entryReads: 0,
+			entrySqlReads: 0,
+			trackingStateLookups: 1,
+			trackingStateLookupSqlReads: 1,
+			payloadBytes: 12_000,
+			wallMs: 240.5,
+		},
+		boundedLegacy: {
+			logicalQueries: 20,
+			sqlQueries: 21,
+			entryReads: 0,
+			entrySqlReads: 1,
+			trackingStateLookups: 1,
+			trackingStateLookupSqlReads: 1,
+			payloadBytes: 12_000,
+			wallMs: 260.75,
+		},
+		privacy: {
+			privateCatalogTextVisible: false,
+			linkedFavoritePrivateTextVisible: false,
+			realNameValueVisible: false,
+			realNameFieldVisible: false,
+		},
+		legacyEntryPlan: {
+			name: 'media-legacy-owner-entry',
+			wallMs: 1.4,
+			planningMs: 0.2,
+			executionMs: 0.7,
+			actualRows: 1,
+			nodeTypes: ['Limit', 'Index Scan'],
+			indexes: ['Entry_mediaId_idx', 'Watchlist_pkey'],
+			sharedHitBlocks: 12,
+			sharedReadBlocks: 0,
+		},
+	}
+}
+
+test('validates strict media-detail provenance and load evidence', () => {
+	const report = mediaDetailEvidenceFixture()
+	expect(mediaDetailLoadBudgets.anonymous.payloadBytes).toBe(192 * 1024)
+	expect(() => assertMediaDetailLoadEvidence(report)).not.toThrow()
+
+	report.normalizedSigned.entryReads = 1
+	let failure
+	try {
+		assertMediaDetailLoadEvidence(report)
+	} catch (error) {
+		failure = error
+	}
+	expect(failure).toBeInstanceOf(Error)
+	expect(failure.message).toContain('normalizedSigned.entryReads=1 != 0')
+	expect(failure.budgetFailures).toContainEqual({
+		surface: 'normalizedSigned',
+		field: 'entryReads',
+		observed: 1,
+		budget: 0,
+		reason: 'unexpected-exact-value',
+	})
+})
+
+test('requires one bounded legacy Entry SQL read and one signed state lookup', () => {
+	const missingLegacyRead = mediaDetailEvidenceFixture()
+	missingLegacyRead.boundedLegacy.entrySqlReads = 0
+	expect(() => assertMediaDetailLoadEvidence(missingLegacyRead)).toThrow(
+		/boundedLegacy\.entrySqlReads=0 != 1/,
+	)
+
+	const duplicatedStateQuery = mediaDetailEvidenceFixture()
+	duplicatedStateQuery.normalizedSigned.trackingStateLookupSqlReads = 2
+	expect(() => assertMediaDetailLoadEvidence(duplicatedStateQuery)).toThrow(
+		/normalizedSigned\.trackingStateLookupSqlReads=2 != 1/,
+	)
+})
+
+test('rejects weak or structurally ambiguous media-detail evidence', () => {
+	const sparsePlan = mediaDetailEvidenceFixture()
+	sparsePlan.legacyEntryPlan.actualRows = 0
+	expect(() => assertMediaDetailLoadEvidence(sparsePlan)).toThrow(
+		/must return at least one owner row/,
+	)
+
+	const unindexedPlan = mediaDetailEvidenceFixture()
+	unindexedPlan.legacyEntryPlan.indexes = ['Watchlist_ownerId_idx']
+	expect(() => assertMediaDetailLoadEvidence(unindexedPlan)).toThrow(
+		/did not use an existing Entry lookup index/,
+	)
+
+	const leakedPayload = mediaDetailEvidenceFixture()
+	leakedPayload.privacy.privateCatalogTextVisible = true
+	expect(() => assertMediaDetailLoadEvidence(leakedPayload)).toThrow(
+		/privacy\.privateCatalogTextVisible must be false/,
+	)
+
+	const leakedFavorite = mediaDetailEvidenceFixture()
+	leakedFavorite.privacy.linkedFavoritePrivateTextVisible = true
+	expect(() => assertMediaDetailLoadEvidence(leakedFavorite)).toThrow(
+		/privacy\.linkedFavoritePrivateTextVisible must be false/,
+	)
+
+	const ambiguousReport = mediaDetailEvidenceFixture()
+	ambiguousReport.anonymous.unexpected = 1
+	expect(() => assertMediaDetailLoadEvidence(ambiguousReport)).toThrow(
+		/fields must be exactly/,
 	)
 })
 

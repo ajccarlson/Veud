@@ -1,0 +1,16 @@
+name: Veud CodeQL configuration
+
+# `security-extended` is kept for all application and library code. The only
+# exclusions are the Node harnesses under `scripts/` that test shell scripts:
+# they deliberately construct shell commands from local absolute paths (the
+# repository root, the pinned Node binary, per-test temporary directories) and
+# then read files they just created. Those patterns trip
+# `js/shell-command-constructed-from-input` and `js/file-system-race`, but they
+# describe the harness rather than any deployed code path — there is no
+# untrusted input and no privilege boundary inside a test's own temporary
+# directory.
+#
+# Application tests (`app/**/*.test.ts`) and every non-test script remain in
+# scope, so genuine findings in code that ships are still reported.
+paths-ignore:
+  - scripts/**/*.test.mjs
