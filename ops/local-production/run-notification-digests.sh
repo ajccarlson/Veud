@@ -3,4 +3,4 @@ set -Eeuo pipefail
 source "$(dirname "$0")/common.sh"
 
 prepare_worker
-exec "$NPM_BIN" run notifications:digests -- --commit --limit 100
+run_guarded_worker scripts/send-notification-digests.ts --commit --limit 100
