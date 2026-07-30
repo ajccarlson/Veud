@@ -29,6 +29,9 @@ const PRODUCTION_SECRETS = [
 	'HONEYPOT_SECRET',
 	'INTERNAL_COMMAND_TOKEN',
 ]
+const EXPECTED_LISTEN_HOST = '127.0.0.1'
+const EXPECTED_LISTEN_PORT = '4021'
+const STAGING_LISTEN_PORT = '4022'
 
 const failures = []
 const notes = []
@@ -171,6 +174,84 @@ function checkActivatedRelease(productionRoot) {
 	}
 }
 
+/**
+ * The listen address decides whether production can bind at all, and it comes
+ * from the same file that has twice been found holding staging's values. The
+ * launcher defaults to 4021, but `${PORT:-4021}` cannot override a value that is
+ * already set — so a copied staging PORT wins silently and production fails at
+ * the health check with EADDRINUSE against the running staging app.
+ */
+function checkListenAddress(application) {
+	const port = (application.get('PORT') ?? '').trim()
+	if (!port) {
+		notes.push(
+			`PORT is unset, so the launcher default ${EXPECTED_LISTEN_PORT} applies`,
+		)
+	} else if (port !== EXPECTED_LISTEN_PORT) {
+		fail(
+			`application.env PORT must be ${EXPECTED_LISTEN_PORT}; found ${port}` +
+				(port === STAGING_LISTEN_PORT
+					? '. That is the staging port: this file was copied from staging, and production cannot bind it while staging is running.'
+					: '.'),
+		)
+	}
+	const host = (application.get('HOST') ?? '').trim()
+	if (host && host !== EXPECTED_LISTEN_HOST) {
+		fail(
+			`application.env HOST must be ${EXPECTED_LISTEN_HOST} so only the reverse proxy can reach production; found ${host}`,
+		)
+	}
+}
+
+/**
+ * The catalog-writer lifetime lock is only meaningful if no other account can
+ * write it, so the runtime guard refuses any lock with group or world write
+ * bits. That is not hypothetical: `run/` was mode 0777 with a default ACL
+ * granting `other` rwx, every lock created there inherited 0666, and the guard
+ * correctly blocked a production deployment mid-cutover.
+ */
+function checkRuntimeStateDirectory(productionRoot) {
+	const runDir = path.join(productionRoot, 'run')
+	let dirStat
+	try {
+		dirStat = fs.lstatSync(runDir)
+	} catch {
+		notes.push(`no runtime state directory yet: ${runDir}`)
+		return
+	}
+	if (!dirStat.isDirectory() || dirStat.isSymbolicLink()) {
+		fail(`Production runtime state path must be a real directory: ${runDir}`)
+		return
+	}
+	if ((dirStat.mode & 0o077) !== 0) {
+		fail(
+			`Production runtime state directory is group or world accessible (mode ${(dirStat.mode & 0o777).toString(8)}): ${runDir}. ` +
+				'Files created there inherit the exposure, and the catalog-writer guard refuses a writable lock.',
+		)
+	}
+	let entries
+	try {
+		entries = fs.readdirSync(runDir)
+	} catch {
+		return
+	}
+	for (const entry of entries.filter(name => name.endsWith('.lock'))) {
+		const file = path.join(runDir, entry)
+		let lockStat
+		try {
+			lockStat = fs.lstatSync(file)
+		} catch {
+			continue
+		}
+		if ((lockStat.mode & 0o022) !== 0) {
+			fail(
+				`Runtime lock is group or world writable (mode ${(lockStat.mode & 0o777).toString(8)}): ${file}. ` +
+					'The catalog-writer lifetime-lock guard requires no group or world write bits and will refuse to start a writer.',
+			)
+		}
+	}
+}
+
 function checkBlockingCutoverState(productionRoot) {
 	for (const name of [
 		'catalog-release-preparation.state',
@@ -283,6 +364,7 @@ export function runProductionPreflight({
 	checkNodeRuntime()
 	checkActivatedRelease(productionRoot)
 	checkBlockingCutoverState(productionRoot)
+	checkRuntimeStateDirectory(productionRoot)
 
 	const configDir = path.join(productionRoot, 'config')
 	const application = readEnvFile(
@@ -301,6 +383,7 @@ export function runProductionPreflight({
 			EXPECTED_APPLICATION_ROLE,
 			EXPECTED_APPLICATION_DATABASE,
 		)
+		checkListenAddress(application)
 		for (const secret of PRODUCTION_SECRETS) {
 			const value = application.get(secret) ?? ''
 			if (value.trim().length < MINIMUM_PRODUCTION_SECRET_LENGTH) {
