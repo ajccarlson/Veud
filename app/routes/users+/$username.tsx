@@ -69,6 +69,7 @@ const PROFILE_TABS = [
 	{ to: 'activity', end: false, label: 'Journal', icon: 'activity-log' },
 	{ to: 'reviews', end: false, label: 'Reviews', icon: 'reader' },
 	{ to: 'collections', end: false, label: 'Collections', icon: 'archive' },
+	{ to: 'favorites', end: false, label: 'Favorites', icon: 'star' },
 	{ to: 'stats', end: false, label: 'Stats', icon: 'bar-chart' },
 	{ to: 'social', end: false, label: 'Social', icon: 'chat-bubble' },
 ] as const
