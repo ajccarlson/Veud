@@ -4033,3 +4033,70 @@ test('a recovery window records online as the target end state', () => {
 		/assert_web_state_allows_new_window \\\n\t\t"\$original_pm2_veud_state" \\\n\t\t"\$\{VEUD_PRODUCTION_RECOVERY_DEPLOY:-\}"\n(?:\t*#[^\n]*\n)*\toriginal_pm2_veud_state=online\n/,
 	)
 })
+
+test('a writer unit the host has never installed is bootstrappable, not fatal', () => {
+	// The only thing that installs writer units is the deployment itself, a few
+	// steps after it captures their original states. Refusing a `not-found` unit
+	// there made a newly shipped unit impossible to ever install — which is why
+	// retention-cleanup and notification-digests never ran in production.
+	const source = `
+die() { printf 'ERROR: %s\\n' "$*" >&2; exit 1; }
+systemctl() {
+	local property="" unit=""
+	for argument in "$@"; do
+		case "$argument" in
+		--property=*) property="\${argument#--property=}" ;;
+		veud-*) unit="$argument" ;;
+		esac
+	done
+	case "$property" in
+	LoadState) printf '%s' "$LOAD_STATE" ;;
+	ActiveState) printf '%s' "$ACTIVE_STATE" ;;
+	esac
+}
+${extractShellFunction(productionDeploy, 'systemd_active_state')}
+systemd_active_state veud-production-retention-cleanup.service
+`
+	// A unit that does not exist is by definition not running.
+	const absent = runBash(source, {
+		env: { LOAD_STATE: 'not-found', ACTIVE_STATE: '' },
+	})
+	expectAllowed(absent)
+	assert.equal(absent.stdout, 'inactive')
+
+	// An installed unit still reports its real state.
+	for (const state of ['active', 'inactive']) {
+		const result = runBash(source, {
+			env: { LOAD_STATE: 'loaded', ACTIVE_STATE: state },
+		})
+		expectAllowed(result)
+		assert.equal(result.stdout, state)
+	}
+
+	// A malformed, masked, or unstable unit is still a hard failure, so the
+	// bootstrap allowance cannot hide a broken unit file.
+	for (const loadState of ['error', 'masked', 'bad-setting']) {
+		const result = runBash(source, {
+			env: { LOAD_STATE: loadState, ACTIVE_STATE: 'inactive' },
+		})
+		assert.notEqual(result.status, 0, `LoadState ${loadState} must fail`)
+		assert.match(result.stderr, /is not loaded/)
+	}
+	for (const activeState of ['failed', 'activating', 'deactivating']) {
+		const result = runBash(source, {
+			env: { LOAD_STATE: 'loaded', ACTIVE_STATE: activeState },
+		})
+		assert.notEqual(result.status, 0, `ActiveState ${activeState} must fail`)
+		assert.match(result.stderr, /stable active\/inactive state/)
+	}
+})
+
+test('a never-installed writer unit is recorded as disabled, not enabled', () => {
+	// `is-enabled` prints nothing for a unit that does not exist. Recording it as
+	// disabled is what leaves a newly shipped timer switched off: a deployment
+	// must never start a job that deletes user data on a schedule.
+	assert.match(
+		productionDeploy,
+		/if \[\[ -z "\$\{original_unit_enabled_states\[\$unit\]\}" \]\]; then\n\t{3}original_unit_enabled_states\["\$unit"\]=disabled\n/,
+	)
+})
