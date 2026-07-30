@@ -7,7 +7,7 @@ const MAX_SUPPORTED_DATE_MS = 253_402_300_799_999
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const UTC_TIMESTAMP_PATTERN =
 	/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})Z$/
-export const releaseScheduleSources = ['anilist', 'tmdb'] as const
+export const releaseScheduleSources = ['anilist', 'mal', 'tmdb'] as const
 
 export type StoredNextRelease = {
 	releaseAt: Date

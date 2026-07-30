@@ -58,6 +58,7 @@ const kindFields: Record<MalCatalogKind, string[]> = {
 	anime: [
 		'num_episodes',
 		'start_season',
+		'broadcast',
 		'average_episode_duration',
 		'rating',
 		'studios',
@@ -368,9 +369,104 @@ function malRelations(payload: Record<string, unknown>) {
 	return relations
 }
 
+/** Weekday names as MAL reports them, indexed to match `Date#getUTCDay`. */
+const MAL_BROADCAST_DAYS = [
+	'sunday',
+	'monday',
+	'tuesday',
+	'wednesday',
+	'thursday',
+	'friday',
+	'saturday',
+]
+// MAL reports broadcast times in Japan Standard Time. Japan does not observe
+// daylight saving, so a fixed +09:00 offset is exact rather than an approximation.
+const JST_OFFSET_MS = 9 * 60 * 60 * 1_000
+
+/**
+ * Derive the next airing from MAL's weekly broadcast slot.
+ *
+ * MAL publishes a recurring weekday and start time rather than a dated schedule
+ * like TMDB's `next_episode_to_air`, so the next occurrence is computed from the
+ * slot. The episode number is not part of that payload and is deliberately left
+ * unset rather than guessed.
+ */
+/**
+ * MAL only ever cleared `nextRelease` before: nothing derived one, so no anime
+ * ever gained a release date from this provider and the calendar stayed empty
+ * for them. Clear it when the status confirms nothing is coming, set it when the
+ * broadcast slot gives one, and otherwise leave whatever is already stored.
+ */
+function malNextReleaseUpdate(
+	payload: Record<string, unknown>,
+	kind: MalCatalogKind,
+	observedAt: Date,
+) {
+	if (statusConfirmsNoUpcomingRelease(payload.status, kind)) {
+		return { nextRelease: null }
+	}
+	const nextRelease = malBroadcastNextRelease(payload, kind, observedAt)
+	return nextRelease ? { nextRelease } : {}
+}
+
+export function malBroadcastNextRelease(
+	payload: Record<string, unknown>,
+	kind: MalCatalogKind,
+	observedAt: Date,
+) {
+	if (kind !== 'anime') return null
+	if (optionalString(payload.status)?.toLowerCase() !== 'currently_airing') {
+		return null
+	}
+	const broadcast = payload.broadcast
+	if (!broadcast || typeof broadcast !== 'object' || Array.isArray(broadcast)) {
+		return null
+	}
+	const slot = broadcast as Record<string, unknown>
+	const day = optionalString(slot.day_of_the_week)?.toLowerCase()
+	const startTime = optionalString(slot.start_time)
+	if (!day || !startTime) return null
+	const dayIndex = MAL_BROADCAST_DAYS.indexOf(day)
+	if (dayIndex < 0) return null
+	const parts = /^(\d{1,2}):(\d{2})$/.exec(startTime)
+	if (!parts) return null
+	const hours = Number(parts[1])
+	const minutes = Number(parts[2])
+	if (hours > 23 || minutes > 59) return null
+
+	const observedJst = new Date(observedAt.getTime() + JST_OFFSET_MS)
+	const candidate = new Date(
+		Date.UTC(
+			observedJst.getUTCFullYear(),
+			observedJst.getUTCMonth(),
+			observedJst.getUTCDate(),
+			hours,
+			minutes,
+			0,
+			0,
+		),
+	)
+	let daysAhead = (dayIndex - candidate.getUTCDay() + 7) % 7
+	// A slot earlier today has already aired; the next one is a week out.
+	if (daysAhead === 0 && candidate.getTime() <= observedJst.getTime()) {
+		daysAhead = 7
+	}
+	candidate.setUTCDate(candidate.getUTCDate() + daysAhead)
+	const releaseAt = new Date(candidate.getTime() - JST_OFFSET_MS)
+	if (!Number.isFinite(releaseAt.getTime())) return null
+
+	return JSON.stringify({
+		source: 'mal',
+		observedAt: observedAt.toISOString(),
+		releaseDate: releaseAt.toISOString(),
+		name: null,
+	})
+}
+
 export function normalizeMalDetails(
 	value: unknown,
 	kind: MalCatalogKind,
+	observedAt = new Date(),
 ): NormalizedMalDetails {
 	const payload = requireObject(value, `MAL ${kind} detail response`)
 	const id = optionalPositiveInteger(payload.id)
@@ -403,9 +499,7 @@ export function normalizeMalDetails(
 		catalogScore: mean,
 		catalogPopularity: malCatalogPopularity(popularityRank),
 		releaseStatus: titleCase(optionalString(payload.status)),
-		...(statusConfirmsNoUpcomingRelease(payload.status, kind)
-			? { nextRelease: null }
-			: {}),
+		...malNextReleaseUpdate(payload, kind, observedAt),
 	}
 	if (kind === 'anime') {
 		const studios = linkedNamedValues(payload.studios, 'MAL studio', item => {
