@@ -67,6 +67,27 @@ the working directory instead of the activated release, which is the same drift
 the saved definition caused in the first place. The commands above are for
 restarting an already-deployed release.
 
+### Deploying over an outage
+
+A deployment normally opens a maintenance window on a _running_ system, because
+the state captured at entry is what a mid-deployment failure restores to. It
+therefore refuses to start when the web process is not online.
+
+That leaves one case needing an explicit escape: the activated release cannot
+satisfy the launcher contract, so nothing can bring the web process online, and
+the only tool able to replace that release is the one refusing to run. Confirm a
+recovery deployment explicitly:
+
+```sh
+VEUD_PRODUCTION_RECOVERY_DEPLOY=RECOVER_VEUD_PRODUCTION \
+  bash ops/local-production/deploy-catalog-release.sh
+```
+
+Every other gate still applies — the verified pre-mutation backup, writer
+quiescence under the lifetime lock, the release health check, and the required
+post-cutover backup. The only difference is that the window targets a running
+web process instead of restoring the outage it started from.
+
 `pm2 save` matters: PM2's saved process list is what a reboot resurrects, and a
 definition saved before a launcher change will keep failing after the config is
 corrected. If `pm2 list` shows repeated restarts, compare the saved definition

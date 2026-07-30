@@ -887,6 +887,22 @@ verify_pm2_runtime_states() {
 	return "$result"
 }
 
+# A maintenance window normally presumes a running system, because the state
+# captured at entry is what a failure restores to. A recovery deployment is the
+# opposite case, and it was previously impossible: when the activated release
+# cannot satisfy the current launcher contract, nothing can bring the web process
+# online, and the only tool able to replace that release refused to start. That
+# turned a configuration mistake into an outage no command could clear. Allow it
+# behind an explicit typed confirmation so it can never happen by accident.
+assert_web_state_allows_new_window() {
+	local observed="$1" confirmation="${2-}"
+	[[ "$observed" != online ]] || return 0
+	[[ "$confirmation" == RECOVER_VEUD_PRODUCTION ]] ||
+		die "The production web process must be online before a new maintenance window (found ${observed}). If the activated release cannot start, only a recovery deployment can replace it: re-run with VEUD_PRODUCTION_RECOVERY_DEPLOY=RECOVER_VEUD_PRODUCTION"
+	printf 'Recovery deployment over an outage: the web process is %s, so this window targets online rather than restoring it.\n' \
+		"$observed"
+}
+
 quiesce_writers_after_mutation() {
 	local unit name state enabled script_path result=0
 	for unit in "${writer_timers[@]}"; do
@@ -1186,8 +1202,13 @@ else
 		die 'The active production release marker is invalid'
 	original_pm2_veud_state="$(pm2_process_state veud)"
 	original_pm2_backup_state="$(pm2_process_state veud-backup)"
-	[[ "$original_pm2_veud_state" == online ]] ||
-		die 'The production web process must be online before a new maintenance window'
+	assert_web_state_allows_new_window \
+		"$original_pm2_veud_state" \
+		"${VEUD_PRODUCTION_RECOVERY_DEPLOY:-}"
+	# Record the target end state, not the outage: every later restore path and
+	# the final runtime verification compare against this value, so a recovery
+	# window must aim at a running web process.
+	original_pm2_veud_state=online
 	[[ "$original_pm2_backup_state" == online ||
 		"$original_pm2_backup_state" == stopped ]] ||
 		die 'The production backup process must be installed and healthy before deployment'
