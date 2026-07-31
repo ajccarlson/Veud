@@ -71,6 +71,14 @@ export async function getPublicTrackingSummariesByMediaId(
 	return summaries
 }
 
+/**
+ * Last resort for a status with no watchlist behind it.
+ *
+ * Stored status keys are the watchlist's machine name, which is squashed:
+ * `currentlyreading`, `plantowatchtv`. There is no rule that recovers
+ * "Currently Reading" or "Plan to Watch (TV)" from those, so this only tidies
+ * separators and casing. The readable title comes from the watchlist itself.
+ */
 function titleCase(value: string) {
 	return value
 		.replace(/([a-z])([A-Z])/g, '$1 $2')
@@ -94,7 +102,14 @@ export function buildScoreDistribution(groups: ScoreGroup[]) {
 	}))
 }
 
-export function buildStatusBreakdown(groups: StatusGroup[]) {
+/**
+ * `statusLabels` maps a stored status key to the watchlist header the owner
+ * actually named, so the breakdown reads the same as the lists page.
+ */
+export function buildStatusBreakdown(
+	groups: StatusGroup[],
+	statusLabels: ReadonlyMap<string, string> = new Map(),
+) {
 	const counts = new Map<string, number>()
 	for (const group of groups) {
 		const status = group.status.trim() || 'tracked'
@@ -107,7 +122,7 @@ export function buildStatusBreakdown(groups: StatusGroup[]) {
 	return [...counts]
 		.map(([status, count]) => ({
 			status,
-			label: titleCase(status),
+			label: statusLabels.get(status) ?? titleCase(status),
 			count,
 			percentage: total ? (count / total) * 100 : 0,
 		}))
@@ -115,6 +130,29 @@ export function buildStatusBreakdown(groups: StatusGroup[]) {
 			(left, right) =>
 				right.count - left.count || left.label.localeCompare(right.label),
 		)
+}
+
+/**
+ * Resolve stored status keys to the watchlist headers members see elsewhere.
+ * Several watchlists share a name across owners with the same header, so the
+ * first non-empty header for a name is representative.
+ */
+async function watchlistStatusLabels(statuses: string[]) {
+	const names = [
+		...new Set(statuses.map(status => status.trim()).filter(Boolean)),
+	]
+	if (!names.length) return new Map<string, string>()
+	const watchlists = await prisma.watchlist.findMany({
+		where: { name: { in: names } },
+		select: { name: true, header: true },
+	})
+	const labels = new Map<string, string>()
+	for (const watchlist of watchlists) {
+		const header = watchlist.header?.trim()
+		if (header && !labels.has(watchlist.name))
+			labels.set(watchlist.name, header)
+	}
+	return labels
 }
 
 export async function getMediaCommunityStatistics(mediaId: string) {
@@ -136,13 +174,16 @@ export async function getMediaCommunityStatistics(mediaId: string) {
 		}),
 	])
 	const summary = summaries.get(mediaId) ?? emptyPublicTrackingSummary()
+	const statusLabels = await watchlistStatusLabels(
+		statusGroups.map(group => group.status),
+	)
 
 	return {
 		trackers: summary.trackerCount,
 		ratings: summary.ratingCount,
 		meanScore: summary.communityScore,
 		scoreDistribution: buildScoreDistribution(scoreGroups),
-		statusBreakdown: buildStatusBreakdown(statusGroups),
+		statusBreakdown: buildStatusBreakdown(statusGroups, statusLabels),
 	}
 }
 
