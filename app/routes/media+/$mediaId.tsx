@@ -1152,7 +1152,14 @@ export default function MediaDetailRoute() {
 					<header className="space-y-2">
 						<div className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
 							{data.media.kind}
-							{data.media.type ? ` · ${data.media.type}` : ''}
+							{/* MAL reports a media type that is often just the kind again,
+							    so One Piece read "manga · Manga". Only add it when it says
+							    something the kind does not. */}
+							{data.media.type &&
+							data.media.type.trim().toLowerCase() !==
+								data.media.kind.trim().toLowerCase()
+								? ` · ${data.media.type}`
+								: ''}
 						</div>
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<h1 className="text-4xl font-bold">{data.media.title}</h1>
