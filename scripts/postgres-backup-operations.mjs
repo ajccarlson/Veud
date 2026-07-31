@@ -367,6 +367,44 @@ export function assertDistinctPostgresEndpointIdentities(
 	}
 }
 
+/**
+ * Wait, briefly, for the restore target to have no other sessions.
+ *
+ * A deployment takes two backups minutes apart and both verify into the same
+ * disposable database, so a session that has not finished closing yet made the
+ * exclusivity check fail and took the whole deployment down with it — three
+ * times on 2026-07-30, each leaving the maintenance window open and the site
+ * returning 502 until the deployment was re-run. Re-running always worked
+ * because the session had gone by then.
+ *
+ * This only waits. The caller still asserts exclusivity afterwards, so a restore
+ * never runs while anything else holds the database.
+ */
+export async function awaitExclusiveRestoreTarget(
+	psql,
+	connection,
+	label,
+	options,
+) {
+	const waitMs = Math.max(0, options?.waitMs ?? 30_000)
+	const pollMs = Math.max(100, options?.pollMs ?? 1_000)
+	const deadline = (options?.now?.() ?? Date.now()) + waitMs
+	const readIdentity =
+		options?.readIdentity ??
+		(() => readPostgresEndpointIdentity(psql, connection, label))
+	let identity = await readIdentity()
+	while (
+		(identity.otherDatabaseSessions !== 0 ||
+			identity.preparedTransactions !== 0) &&
+		(options?.now?.() ?? Date.now()) < deadline
+	) {
+		options?.signal?.throwIfAborted()
+		await new Promise(resolve => setTimeout(resolve, pollMs))
+		identity = await readIdentity()
+	}
+	return identity
+}
+
 export function pinPostgresConnectionToEndpoint(connection, identity) {
 	if (identity.serverAddress === 'local-socket') return { ...connection }
 	return {
@@ -2747,10 +2785,11 @@ export async function verifyPostgresBackup({
 					pinnedSource,
 					'Locked PostgreSQL backup source',
 				)
-				const lockedRestoreIdentity = await readPostgresEndpointIdentity(
+				const lockedRestoreIdentity = await awaitExclusiveRestoreTarget(
 					psql,
 					pinnedRestore,
 					'Locked PostgreSQL restore target',
+					{ signal },
 				)
 				assertPostgresEndpointIdentityUnchanged(
 					sourceIdentity,
