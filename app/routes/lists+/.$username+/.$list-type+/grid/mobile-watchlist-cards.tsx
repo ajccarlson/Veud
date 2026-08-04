@@ -332,6 +332,7 @@ export function MobileWatchlistCards({
 														type="number"
 														min="1"
 														defaultValue={entry.position}
+														onFocus={event => event.currentTarget.select()}
 														aria-label={`Move ${entry.title} to position`}
 													/>
 												</label>
