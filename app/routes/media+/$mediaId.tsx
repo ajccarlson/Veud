@@ -218,6 +218,15 @@ function recommendationDiscoveryHref(kind: string, genre: string | undefined) {
 	return `/discover?${search.toString()}`
 }
 
+/** How a viewer gets access, in words rather than TMDB's field names. */
+const OFFER_KIND_LABELS: Record<string, string> = {
+	flatrate: 'Subscription',
+	free: 'Free',
+	ads: 'Free with ads',
+	rent: 'Rent',
+	buy: 'Buy',
+}
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
@@ -238,6 +247,16 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			externalIds: {
 				select: { provider: true, kind: true, externalId: true },
 				orderBy: [{ provider: 'asc' }, { externalId: 'asc' }],
+			},
+			watchAvailability: {
+				where: { expiresAt: { gt: new Date() } },
+				orderBy: [{ displayPriority: 'asc' }, { providerName: 'asc' }],
+				select: {
+					region: true,
+					offerKind: true,
+					providerName: true,
+					link: true,
+				},
 			},
 		},
 	})
@@ -507,6 +526,27 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			releaseEnd: catalog?.releaseEnd,
 			imageUrl: thumbnail.imageUrl,
 			upcomingRelease,
+			// Availability is regional. Without a viewer region to work from, show
+			// the one the data is densest for rather than inventing a preference.
+			watchAvailability: (() => {
+				const byRegion = new Map<string, typeof media.watchAvailability>()
+				for (const offer of media.watchAvailability) {
+					byRegion.set(offer.region, [
+						...(byRegion.get(offer.region) ?? []),
+						offer,
+					])
+				}
+				const region =
+					byRegion.get('US') ??
+					[...byRegion.values()].sort(
+						(first, second) => second.length - first.length,
+					)[0]
+				return (region ?? []).map(offer => ({
+					offerKind: offer.offerKind,
+					providerName: offer.providerName,
+					link: offer.link,
+				}))
+			})(),
 			externalLinks: media.externalIds
 				.map(identity => ({
 					...identity,
@@ -1388,6 +1428,35 @@ export default function MediaDetailRoute() {
 									) : null}
 								</div>
 							) : null}
+						</section>
+					) : null}
+
+					{data.media.watchAvailability.length ? (
+						<section className="space-y-3 rounded-xl border bg-card p-5">
+							<h2 className="text-xl font-bold">Where to watch</h2>
+							<ul className="flex flex-wrap gap-2">
+								{data.media.watchAvailability.map(offer => (
+									<li key={`${offer.offerKind}:${offer.providerName}`}>
+										{/* TMDB supplies this from JustWatch and requires their
+										    link be the destination, so it is the only one used. */}
+										<a
+											href={offer.link}
+											target="_blank"
+											rel="noreferrer"
+											className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold hover:bg-muted"
+										>
+											{offer.providerName}
+											<span className="text-xs font-normal text-muted-foreground">
+												{OFFER_KIND_LABELS[offer.offerKind] ?? offer.offerKind}
+											</span>
+										</a>
+									</li>
+								))}
+							</ul>
+							<p className="text-xs text-muted-foreground">
+								Streaming availability from JustWatch via TMDB. Regional and
+								subject to change.
+							</p>
 						</section>
 					) : null}
 

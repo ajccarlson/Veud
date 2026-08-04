@@ -30,6 +30,7 @@
     "catalog:sync-watchlist-metadata": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/sync-watchlist-metadata.ts",
     "catalog:status": "tsx scripts/catalog-status.ts",
     "catalog:quality-scan": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/scan-catalog-quality.ts",
+    "catalog:tmdb-watch-providers": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/import-tmdb-watch-providers.ts",
     "catalog:tmdb-hydrate": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/hydrate-tmdb-catalog.ts",
     "catalog:tmdb-inventory": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/import-tmdb-inventory.ts",
     "db:backup": "node scripts/assert-catalog-writer-runtime.mjs && node scripts/backup-database.mjs",

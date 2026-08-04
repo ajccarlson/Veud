@@ -226,6 +226,7 @@ model Media {
   collectionItems        MediaCollectionItem[]
   releaseReminders       ReleaseReminder[]
   releaseOccurrences     ReleaseOccurrence[]
+  watchAvailability      WatchAvailability[]
   catalogFeedItems       CatalogFeedItem[]
   catalogMetricSnapshots CatalogMetricSnapshot[]
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
@@ -295,6 +296,35 @@ model CatalogMetricSnapshot {
 /// A provider-observed premiere, episode, chapter, or general release. The
 /// legacy Media.nextRelease payload remains a compatibility cache while
 /// calendar and reminder workflows move to queryable occurrences.
+/// Where a title can be watched, per region and per kind of offer.
+///
+/// Sourced from TMDB, which supplies it from JustWatch. `link` is the
+/// attributed destination TMDB returns and is required: an offer that cannot be
+/// linked to compliantly is never stored. Availability changes constantly, so
+/// every row records when it was observed and when it stops being trustworthy.
+model WatchAvailability {
+  id              String   @id @default(cuid())
+  source          String   @default("tmdb")
+  region          String
+  offerKind       String
+  providerId      Int
+  providerName    String
+  logoPath        String?
+  displayPriority Int      @default(0)
+  link            String
+  observedAt      DateTime
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, region, offerKind, providerId])
+  @@index([mediaId, region, displayPriority])
+  @@index([expiresAt])
+}
+
 model ReleaseOccurrence {
   id         String   @id @default(cuid())
   source     String
