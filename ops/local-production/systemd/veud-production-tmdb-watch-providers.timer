@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Veud watch provider availability daily
+
+[Timer]
+OnCalendar=*-*-* 06:10:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=veud-production-tmdb-watch-providers.service
+
+[Install]
+WantedBy=timers.target
