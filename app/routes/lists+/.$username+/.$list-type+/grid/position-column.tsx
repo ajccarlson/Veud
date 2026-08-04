@@ -101,6 +101,11 @@ export function positionColumn() {
 										className="ag-row-index ag-move-row-input"
 										autoComplete="off"
 										defaultValue={params.value}
+										// The current position is a value, not a hint, so it stays
+										// visible. Selecting it on focus means typing replaces it
+										// instead of appending, without making the user clear it
+										// first on every single edit.
+										onFocus={event => event.currentTarget.select()}
 										aria-label={`Move ${params.data.title || 'entry'} to position`}
 									/>
 								</Form>
