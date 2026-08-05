@@ -1,4 +1,4 @@
-// import { useForm, getFormProps } from '@conform-to/react'
+import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { useEffect } from 'react'
@@ -17,7 +17,7 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
-	// useFetcher,
+	useFetcher,
 	useFetchers,
 	useLoaderData,
 	useLocation,
@@ -405,9 +405,9 @@ function App() {
 
 				<SiteFooter />
 
-				{/* <div className="container flex justify-between pb-5">
+				<div className="container flex justify-end pb-5">
 					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-				</div> */}
+				</div>
 			</div>
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
@@ -729,50 +729,54 @@ export function useOptimisticThemeMode() {
 	}
 }
 
-// function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
-// 	const fetcher = useFetcher<typeof action>()
+/**
+ * Cycles system → light → dark. `system` follows the client hint, which is
+ * how someone who has never chosen gets the palette their device asked for.
+ */
+function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
+	const fetcher = useFetcher<typeof action>()
 
-// 	const [form] = useForm({
-// 		id: 'theme-switch',
-// 		lastResult: fetcher.data?.result,
-// 	})
+	const [form] = useForm({
+		id: 'theme-switch',
+		lastResult: fetcher.data?.result,
+	})
 
-// 	const optimisticMode = useOptimisticThemeMode()
-// 	const mode = optimisticMode ?? userPreference ?? 'system'
-// 	const nextMode =
-// 		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
-// 	const modeLabel = {
-// 		light: (
-// 			<Icon name="sun">
-// 				<span className="sr-only">Light</span>
-// 			</Icon>
-// 		),
-// 		dark: (
-// 			<Icon name="moon">
-// 				<span className="sr-only">Dark</span>
-// 			</Icon>
-// 		),
-// 		system: (
-// 			<Icon name="laptop">
-// 				<span className="sr-only">System</span>
-// 			</Icon>
-// 		),
-// 	}
+	const optimisticMode = useOptimisticThemeMode()
+	const mode = optimisticMode ?? userPreference ?? 'system'
+	const nextMode =
+		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
+	const modeLabel = {
+		light: (
+			<Icon name="sun">
+				<span className="sr-only">Light</span>
+			</Icon>
+		),
+		dark: (
+			<Icon name="moon">
+				<span className="sr-only">Dark</span>
+			</Icon>
+		),
+		system: (
+			<Icon name="laptop">
+				<span className="sr-only">System</span>
+			</Icon>
+		),
+	}
 
-// 	return (
-// 		<fetcher.Form method="POST" {...getFormProps(form)}>
-// 			<input type="hidden" name="theme" value={nextMode} />
-// 			<div className="flex gap-2">
-// 				<button
-// 					type="submit"
-// 					className="flex h-8 w-8 cursor-pointer items-center justify-center"
-// 				>
-// 					{modeLabel[mode]}
-// 				</button>
-// 			</div>
-// 		</fetcher.Form>
-// 	)
-// }
+	return (
+		<fetcher.Form method="POST" {...getFormProps(form)}>
+			<input type="hidden" name="theme" value={nextMode} />
+			<div className="flex gap-2">
+				<button
+					type="submit"
+					className="flex h-8 w-8 cursor-pointer items-center justify-center"
+				>
+					{modeLabel[mode]}
+				</button>
+			</div>
+		</fetcher.Form>
+	)
+}
 
 export function ErrorBoundary() {
 	// the nonce doesn't rely on the loader so we can access that
