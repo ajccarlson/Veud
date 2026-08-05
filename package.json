@@ -58,6 +58,7 @@
     "moderation:bootstrap-owner": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/bootstrap-community-owner.ts",
     "notifications:digests": "node scripts/assert-catalog-writer-runtime.mjs && node --import tsx scripts/send-notification-digests.ts",
     "postinstall": "node scripts/patch-brace-expansion-compat.mjs",
+    "deps:peer-report": "node scripts/report-peer-mismatches.mjs",
     "prisma:generate:postgres": "npm run prisma:postgres:check && cross-env DATABASE_URL=postgresql://schema-generation:unused@localhost:5432/veud prisma generate --schema=prisma/postgresql/schema.prisma",
     "prisma:generate:sqlite": "prisma generate --schema=prisma/schema.prisma",
     "prisma:postgres:check": "node scripts/sync-postgres-prisma-schema.mjs --check && cross-env DATABASE_URL=postgresql://schema-validation:unused@localhost:5432/veud prisma validate --schema=prisma/postgresql/schema.prisma",
