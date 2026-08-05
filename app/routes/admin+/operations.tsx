@@ -63,22 +63,41 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			error: error instanceof Error ? error.name : 'DatabaseError',
 		}
 	}
+	// Every section that needs the database degrades on its own. This page is
+	// read precisely when something is broken, and one unavailable table taking
+	// the whole dashboard down means the "database: critical" state it exists to
+	// show can never be seen.
+	async function section<Value>(load: () => Promise<Value>, fallback: Value) {
+		try {
+			return await load()
+		} catch {
+			return fallback
+		}
+	}
 	const [runtime, incidents, aiEvents] = await Promise.all([
 		Promise.resolve(getRuntimeOperationsSnapshot()),
-		prisma.serviceIncident.findMany({
-			orderBy: { startedAt: 'desc' },
-			take: 20,
-			select: {
-				id: true,
-				title: true,
-				status: true,
-				severity: true,
-				startedAt: true,
-				resolvedAt: true,
-			},
-		}),
-		getAiGatewayOperationsTelemetry(
-			new Date(Date.now() - 24 * 60 * 60 * 1_000),
+		section(
+			() =>
+				prisma.serviceIncident.findMany({
+					orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+					take: 20,
+					select: {
+						id: true,
+						title: true,
+						status: true,
+						severity: true,
+						startedAt: true,
+						resolvedAt: true,
+					},
+				}),
+			[],
+		),
+		section(
+			() =>
+				getAiGatewayOperationsTelemetry(
+					new Date(Date.now() - 24 * 60 * 60 * 1_000),
+				),
+			[],
 		),
 	])
 	const health =

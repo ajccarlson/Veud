@@ -2,6 +2,31 @@ import crypto from 'node:crypto'
 
 const MAX_DURATIONS = 500
 const MAX_ERRORS = 25
+/**
+ * The health verdict reads a window, not a lifetime. Kept equal to the latency
+ * window so the error rate and the p95 describe the same requests: mixing a
+ * since-boot rate with a rolling p95 meant one burst of errors at start-up kept
+ * the service "critical" for as long as it stayed up, while a current outage
+ * was diluted by every healthy request since the last restart.
+ */
+const MAX_RECENT_OUTCOMES = 500
+
+/**
+ * Whether a request belongs in the health sample.
+ *
+ * Assets and healthchecks are numerous and uniformly fast, so including them
+ * pulls the p95 toward their latency and hides the pages people wait on. They
+ * still count in the totals; they just do not get a vote on whether the service
+ * is healthy.
+ */
+export function isHealthSampledPath(path: string) {
+	return !(
+		path === '/resources/healthcheck' ||
+		path.startsWith('/assets/') ||
+		path.startsWith('/favicons/') ||
+		path.startsWith('/img/')
+	)
+}
 const MAX_TEXT_LENGTH = 240
 const STATE_SYMBOL = Symbol.for('veud.operations-observability')
 
@@ -25,6 +50,7 @@ type OperationsState = {
 	lastRequestAt: number | null
 	statuses: Record<StatusBucket, number>
 	durations: number[]
+	recentOutcomes: number[]
 	recentErrors: OperationalError[]
 }
 
@@ -41,6 +67,7 @@ function createState(): OperationsState {
 		lastRequestAt: null,
 		statuses: { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 },
 		durations: [],
+		recentOutcomes: [],
 		recentErrors: [],
 	}
 }
@@ -120,11 +147,12 @@ export function expressErrorStatus(error: unknown) {
 	return 500
 }
 
-export function beginObservedRequest() {
+export function beginObservedRequest(path = '') {
 	const state = getState()
 	state.totalRequests += 1
 	state.inFlight += 1
 	state.lastRequestAt = Date.now()
+	const sampled = isHealthSampledPath(path)
 	const startedAt = performance.now()
 	let completed = false
 
@@ -135,9 +163,18 @@ export function beginObservedRequest() {
 		state.completedRequests += 1
 		state.inFlight = Math.max(0, state.inFlight - 1)
 		state.statuses[statusBucket(status)] += 1
-		state.durations.push(durationMs)
-		if (state.durations.length > MAX_DURATIONS) {
-			state.durations.splice(0, state.durations.length - MAX_DURATIONS)
+		if (sampled) {
+			state.durations.push(durationMs)
+			if (state.durations.length > MAX_DURATIONS) {
+				state.durations.splice(0, state.durations.length - MAX_DURATIONS)
+			}
+			state.recentOutcomes.push(status)
+			if (state.recentOutcomes.length > MAX_RECENT_OUTCOMES) {
+				state.recentOutcomes.splice(
+					0,
+					state.recentOutcomes.length - MAX_RECENT_OUTCOMES,
+				)
+			}
 		}
 		return Number(durationMs.toFixed(1))
 	}
@@ -190,6 +227,9 @@ export function getRuntimeOperationsSnapshot() {
 	const state = getState()
 	const completed = state.completedRequests
 	const failures = state.statuses['5xx']
+	// The verdict's rate, over the same window as the latency it is read beside.
+	const windowed = state.recentOutcomes
+	const windowedFailures = windowed.filter(status => status >= 500).length
 	const memory = process.memoryUsage()
 	return {
 		generatedAt: new Date().toISOString(),
@@ -206,7 +246,12 @@ export function getRuntimeOperationsSnapshot() {
 				? new Date(state.lastRequestAt).toISOString()
 				: null,
 			statuses: { ...state.statuses },
-			errorRatePercent: completed
+			errorRatePercent: windowed.length
+				? Number(((windowedFailures / windowed.length) * 100).toFixed(2))
+				: 0,
+			// Kept for context: how the service has fared since it started, which
+			// is a different question from how it is faring now.
+			lifetimeErrorRatePercent: completed
 				? Number(((failures / completed) * 100).toFixed(2))
 				: 0,
 			p50Ms: percentile(state.durations, 0.5),

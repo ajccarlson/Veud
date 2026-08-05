@@ -43,10 +43,9 @@ if (process.env.NODE_ENV === 'production' && dsn && dsn !== 'your-dsn') {
 			return scrubRequest(event)
 		},
 		beforeSendTransaction(event) {
-			if (event.request?.headers?.['x-healthcheck'] === 'true') {
-				return null
-			}
-
+			// Healthcheck traces are already dropped by `tracesSampler`, which
+			// matches on the URL. This previously also filtered an `x-healthcheck`
+			// header that nothing has ever sent.
 			return scrubRequest(event)
 		},
 	})

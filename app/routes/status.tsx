@@ -38,7 +38,14 @@ export async function loader({}: LoaderFunctionArgs) {
 				{ resolvedAt: { gte: historyCutoff } },
 			],
 		},
-		orderBy: [{ resolvedAt: 'asc' }, { startedAt: 'desc' }],
+		// resolvedAt is null while an incident is ongoing, and the two databases
+		// disagree about where NULLs sort ascending: SQLite puts them first,
+		// PostgreSQL last. Unpinned, production buried active incidents beneath
+		// resolved ones — the opposite of what a status page is for.
+		orderBy: [
+			{ resolvedAt: { sort: 'asc', nulls: 'first' } },
+			{ startedAt: 'desc' },
+		],
 		take: 25,
 		select: {
 			id: true,
