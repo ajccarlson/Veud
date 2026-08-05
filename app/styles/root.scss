@@ -362,6 +362,92 @@
 		font-weight: 700;
 	}
 
+	// The live suggestion list. Anchored to the whole bar rather than the input
+	// so it lines up with the control someone is looking at, and taken out of
+	// the grid flow so it does not become a fifth column.
+	.site-search-suggestions {
+		position: absolute;
+		top: calc(100% + 0.35rem);
+		right: 0;
+		left: 0;
+		z-index: 60;
+		overflow: hidden;
+		color: rgb(var(--veud-cream));
+		background: rgb(4 8 7 / 0.97);
+		border: 1px solid rgb(var(--veud-border) / 0.55);
+		border-radius: 0.6rem;
+		box-shadow: 0 1rem 2rem rgb(0 0 0 / 0.45);
+	}
+
+	.site-search-suggestions > ul {
+		max-height: 22rem;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		list-style: none;
+	}
+
+	.site-search-suggestions a {
+		display: flex;
+		gap: 0.6rem;
+		align-items: center;
+		padding: 0.4rem 0.6rem;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.site-search-suggestions li[data-active] a,
+	.site-search-suggestions a:hover,
+	.site-search-suggestions a:focus-visible {
+		background: rgb(var(--veud-mint) / 0.18);
+		outline: none;
+	}
+
+	.site-search-suggestions img,
+	.site-search-suggestion-blank {
+		flex: 0 0 auto;
+		width: 2rem;
+		height: 3rem;
+		object-fit: cover;
+		background: rgb(var(--veud-border) / 0.4);
+		border-radius: 0.2rem;
+	}
+
+	.site-search-suggestion-text {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.site-search-suggestion-text strong {
+		overflow: hidden;
+		font-size: 0.85rem;
+		font-weight: 600;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.site-search-suggestion-text small {
+		font-size: 0.7rem;
+		color: rgb(var(--veud-sage));
+	}
+
+	.site-search-suggestions-all {
+		display: block;
+		padding: 0.45rem 0.6rem;
+		font-size: 0.75rem;
+		font-weight: 700;
+		color: rgb(var(--veud-mint));
+		text-decoration: none;
+		border-top: 1px solid rgb(var(--veud-border) / 0.45);
+	}
+
+	.site-search-suggestions-all:hover,
+	.site-search-suggestions-all:focus-visible {
+		background: rgb(var(--veud-mint) / 0.18);
+		outline: none;
+	}
+
 	.site-search-submit,
 	.site-search-advanced > summary {
 		display: grid;
