@@ -54,12 +54,70 @@
 		--radius: 0.75rem;
 	}
 
+	/*
+	 * The dark palette lives in :root, so it is what renders before any
+	 * preference is known and what everything falls back to. This block is the
+	 * explicit dark selection, and differs from :root only where dark deserves a
+	 * slightly deeper accent than the shared default.
+	 */
 	.dark {
 		--background: 160 12% 8%;
 		--muted: 154 10% 13%;
 		--popover: 280 15% 16%;
 		--card: 280 15% 16%;
 		--accent: 153 24% 34%;
+	}
+
+	/*
+	 * Light mode: aged paper and forest ink, the other half of the same palette
+	 * rather than an inversion of it. The token names describe roles that were
+	 * named for their dark values — `cream` is the primary text colour, not a
+	 * cream colour — so here they carry the light equivalents of those roles.
+	 *
+	 * Every colour token is restated. A partial override is what made the
+	 * previous `.light` block useless: it existed, set nothing, and left anyone
+	 * whose system asked for light staring at the dark palette anyway.
+	 */
+	.light {
+		--veud-canvas: 245 241 232;
+		--veud-ink: 252 249 243;
+		--veud-surface: 236 230 219;
+		--veud-surface-raised: 252 249 243;
+		--veud-border: 176 194 183;
+		/* The primary text role. Forest ink on paper. */
+		--veud-cream: 24 38 32;
+		--veud-copy: 53 74 65;
+		--veud-mint: 22 112 78;
+		--veud-sage: 92 116 105;
+		--veud-amber: 166 88 16;
+		--veud-gold: 146 106 20;
+		--veud-yellow: 112 94 18;
+		--veud-danger: 168 40 32;
+		--veud-shadow-soft: 0 0.85rem 2.25rem rgb(31 41 36 / 0.1);
+		--veud-shadow-dialog: 0 1.5rem 5rem rgb(31 41 36 / 0.28);
+		--veud-focus-ring: 0 0 0 0.2rem rgb(var(--veud-mint) / 0.28);
+
+		--foreground-destructive: 4 66% 38%;
+		--background: 42 32% 95%;
+		--foreground: 158 22% 13%;
+		--muted: 40 22% 89%;
+		--muted-foreground: 155 13% 34%;
+		--popover: 42 34% 97%;
+		--popover-foreground: 158 22% 13%;
+		--card: 40 36% 98%;
+		--card-foreground: 158 22% 13%;
+		--border: 150 14% 74%;
+		--input: 150 14% 74%;
+		--input-invalid: 4 66% 44%;
+		--primary: 25 76% 38%;
+		--primary-foreground: 42 40% 97%;
+		--secondary: 40 24% 90%;
+		--secondary-foreground: 158 22% 13%;
+		--accent: 152 30% 34%;
+		--accent-foreground: 42 40% 97%;
+		--destructive: 4 66% 42%;
+		--destructive-foreground: 40 100% 97%;
+		--ring: 152 42% 34%;
 	}
 
 	body {
