@@ -273,6 +273,19 @@ export function postgresEndpointIdentityQuery() {
 				 FROM pg_catalog.pg_stat_activity AS activity
 				 WHERE activity.datname = pg_catalog.current_database()
 				   AND activity.pid <> pg_catalog.pg_backend_pid()),
+			'otherDatabaseSessionDetail',
+				COALESCE(
+					(SELECT pg_catalog.string_agg(
+						activity.pid::text || ' ' ||
+						COALESCE(activity.state, 'unknown') || ' ' ||
+						COALESCE(NULLIF(activity.application_name, ''), 'unnamed'),
+						'; '
+						ORDER BY activity.pid)
+					 FROM pg_catalog.pg_stat_activity AS activity
+					 WHERE activity.datname = pg_catalog.current_database()
+					   AND activity.pid <> pg_catalog.pg_backend_pid()),
+					''
+				),
 			'preparedTransactions',
 				(SELECT COUNT(*)
 				 FROM pg_catalog.pg_prepared_xacts AS prepared
@@ -296,6 +309,7 @@ export function parsePostgresEndpointIdentity(stdout, expected, label) {
 		'postmasterStartedAt',
 		'serverVersionNum',
 		'otherDatabaseSessions',
+		'otherDatabaseSessionDetail',
 		'preparedTransactions',
 	])
 	if (
@@ -321,6 +335,7 @@ export function parsePostgresEndpointIdentity(stdout, expected, label) {
 		!Number.isSafeInteger(identity.serverVersionNum) ||
 		!Number.isSafeInteger(identity.otherDatabaseSessions) ||
 		identity.otherDatabaseSessions < 0 ||
+		typeof identity.otherDatabaseSessionDetail !== 'string' ||
 		!Number.isSafeInteger(identity.preparedTransactions) ||
 		identity.preparedTransactions < 0
 	) {
@@ -361,8 +376,14 @@ export function assertDistinctPostgresEndpointIdentities(
 		requireExclusiveRestore &&
 		(restore.otherDatabaseSessions !== 0 || restore.preparedTransactions !== 0)
 	) {
+		// Name the holder. Reporting only that "another session" exists is what
+		// made this fail repeatedly without ever being diagnosable.
+		const holders =
+			restore.otherDatabaseSessionDetail || `${restore.otherDatabaseSessions}`
 		throw new Error(
-			'PostgreSQL restore target has another session or prepared transaction',
+			'PostgreSQL restore target has another session or prepared transaction ' +
+				`(sessions: ${restore.otherDatabaseSessions} [${holders}], ` +
+				`prepared transactions: ${restore.preparedTransactions})`,
 		)
 	}
 }
@@ -379,6 +400,12 @@ export function assertDistinctPostgresEndpointIdentities(
  *
  * This only waits. The caller still asserts exclusivity afterwards, so a restore
  * never runs while anything else holds the database.
+ *
+ * Thirty seconds was not enough: on 2026-08-04 a deployment failed here again,
+ * because the hourly cron backup had started minutes earlier and its restore
+ * verification was still finishing. The bound is three minutes so that a backup
+ * already in flight can finish, and the failure now names the sessions holding
+ * the target rather than only counting them.
  */
 export async function awaitExclusiveRestoreTarget(
 	psql,
@@ -386,7 +413,7 @@ export async function awaitExclusiveRestoreTarget(
 	label,
 	options,
 ) {
-	const waitMs = Math.max(0, options?.waitMs ?? 30_000)
+	const waitMs = Math.max(0, options?.waitMs ?? 180_000)
 	const pollMs = Math.max(100, options?.pollMs ?? 1_000)
 	const deadline = (options?.now?.() ?? Date.now()) + waitMs
 	const readIdentity =
