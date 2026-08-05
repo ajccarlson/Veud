@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Form, useLocation } from 'react-router'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { type SuggestionKind } from '#app/utils/search-suggestions.ts'
+import { SiteSearchSuggestions } from './site-search-suggestions.tsx'
 
 export function SiteSearch({
 	aiAvailable,
@@ -31,6 +33,10 @@ export function SiteSearch({
 		'standard' | 'memory' | 'describe'
 	>(locationMode)
 	useEffect(() => setSelectedMode(locationMode), [locationMode])
+	const [selectedKind, setSelectedKind] = useState<SuggestionKind>(
+		kind as SuggestionKind,
+	)
+	useEffect(() => setSelectedKind(kind as SuggestionKind), [kind])
 	const stateKey = `${query}:${kind}:${isMemoryMode ? 'memory' : isDescribeMode ? 'describe' : 'standard'}`
 
 	return (
@@ -61,13 +67,26 @@ export function SiteSearch({
 			<label className="sr-only" htmlFor="site-search-kind">
 				Media type
 			</label>
-			<select id="site-search-kind" name="kind" defaultValue={kind}>
+			<select
+				id="site-search-kind"
+				name="kind"
+				value={selectedKind}
+				onChange={event =>
+					setSelectedKind(event.currentTarget.value as SuggestionKind)
+				}
+			>
 				<option value="all">All</option>
 				<option value="movie">Movies</option>
 				<option value="tv">TV</option>
 				<option value="anime">Anime</option>
 				<option value="manga">Manga</option>
 			</select>
+			{selectedMode === 'standard' ? (
+				<SiteSearchSuggestions
+					inputId="site-search-query"
+					kind={selectedKind}
+				/>
+			) : null}
 			<button type="submit" className="site-search-submit" aria-label="Search">
 				<Icon name="magnifying-glass" aria-hidden="true" />
 			</button>
