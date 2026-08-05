@@ -44,6 +44,10 @@ test('shared visual foundations stay on-brand and overflow-free on mobile', asyn
 	page,
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 })
+	// This colour is the dark palette's, from when dark was the only palette.
+	// Pinned rather than rewritten: the assertion is still worth making, it just
+	// has to say which theme it is making it about.
+	await page.emulateMedia({ colorScheme: 'dark' })
 	await page.goto('/credits')
 
 	await expect(
