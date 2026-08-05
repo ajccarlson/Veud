@@ -7,6 +7,7 @@ import {
 	useRouteError,
 } from 'react-router'
 import { getErrorMessage } from '#app/utils/misc.tsx'
+import { reportClientError } from '#app/utils/monitoring.client.ts'
 
 type StatusHandler = (info: {
 	error: ErrorResponse
@@ -30,7 +31,10 @@ export function GeneralErrorBoundary({
 	const params = useParams()
 	useEffect(() => {
 		if (!isRouteErrorResponse(error)) {
+			// captureException reaches the server SDK when this renders on the
+			// server; in the browser there is no client, so the reporter posts it.
 			captureException(error)
+			reportClientError(error)
 		}
 	}, [error])
 

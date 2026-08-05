@@ -195,6 +195,9 @@ export function getEnv() {
 	return {
 		MODE: process.env.NODE_ENV,
 		SENTRY_DSN: process.env.SENTRY_DSN,
+		// The commit the browser is running. A crash report that cannot say which
+		// release produced it takes a bisect to place.
+		VEUD_RELEASE: process.env.VEUD_RELEASE,
 	}
 }
 
