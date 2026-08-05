@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { createSafeCacheReporter } from '#app/utils/cache.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -197,4 +197,25 @@ test('site operators publish journaled incidents while members cannot', async ()
 			actorId: operator.id,
 		}),
 	)
+})
+
+test('the dashboard still renders when a section it depends on is unavailable', async () => {
+	// This page is read precisely when something is broken. One unavailable
+	// table taking the whole dashboard down means the "database: critical"
+	// state it exists to show can never be seen.
+	const operator = await createUser('site-operator')
+	const incidents = vi
+		.spyOn(prisma.serviceIncident, 'findMany')
+		.mockRejectedValue(new Error('relation "ServiceIncident" does not exist'))
+	try {
+		const response = await loader(await requestFor(operator.id))
+		expect(response.init?.status ?? 200).toBe(200)
+		expect(response.data).toEqual(expect.objectContaining({ incidents: [] }))
+		// The parts that do not need that table still report.
+		expect(response.data).toEqual(
+			expect.objectContaining({ database: expect.anything() }),
+		)
+	} finally {
+		incidents.mockRestore()
+	}
 })
