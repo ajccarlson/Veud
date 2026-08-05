@@ -3,6 +3,8 @@ import {
 	normalizeWatchProviders,
 	offersForRegion,
 	watchAvailabilityExpiry,
+	watchAvailabilityKeepsUp,
+	watchAvailabilityRefreshCapacity,
 } from './tmdb-watch-providers.server.ts'
 
 // Shape taken from a live /watch/providers response.
@@ -160,4 +162,26 @@ test('a payload with no results is not an error', () => {
 	for (const payload of [null, undefined, {}, { results: null }, [], 'x']) {
 		expect(normalizeWatchProviders(payload)).toEqual([])
 	}
+})
+
+test('a run keeps up only while the queue fits inside the freshness window', () => {
+	// 800 a day across a 7-day expiry is 5,600 titles; one more is one that
+	// expires before the worker reaches it.
+	expect(watchAvailabilityRefreshCapacity(800)).toBe(5_600)
+	expect(watchAvailabilityKeepsUp(5_600, 800)).toBe(true)
+	expect(watchAvailabilityKeepsUp(5_601, 800)).toBe(false)
+	expect(watchAvailabilityKeepsUp(3_066, 800)).toBe(true)
+	// The limit this replaced left only 434 titles of headroom.
+	expect(watchAvailabilityRefreshCapacity(500)).toBe(3_500)
+	expect(watchAvailabilityKeepsUp(3_501, 500)).toBe(false)
+})
+
+test('a nonsensical limit keeps nothing fresh rather than appearing to', () => {
+	for (const limit of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+		expect(watchAvailabilityRefreshCapacity(limit)).toBe(0)
+		expect(watchAvailabilityKeepsUp(1, limit)).toBe(false)
+	}
+	// An empty queue is trivially kept fresh, even by a broken limit.
+	expect(watchAvailabilityKeepsUp(0, 800)).toBe(true)
+	expect(watchAvailabilityKeepsUp(-1, 800)).toBe(false)
 })
