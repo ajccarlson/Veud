@@ -57,7 +57,7 @@ export default function CreditsRoute() {
 					href="https://www.themoviedb.org"
 					rel="noreferrer"
 					target="_blank"
-					className="inline-flex rounded-lg bg-white p-4 transition hover:bg-[#e8fbff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a2ffd5]"
+					className="inline-flex rounded-lg bg-white p-4 transition hover:bg-[#e8fbff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[rgb(var(--veud-accent-bright))]"
 				>
 					<img
 						alt="The Movie Database (TMDB)"
@@ -73,6 +73,9 @@ export default function CreditsRoute() {
 					Movie and television identities, artwork, scores, release information,
 					and catalog metadata are supplied by TMDB.
 				</p>
+				{/* TMDB's own brand colours, fixed on purpose: an attribution block
+				    that recoloured itself with the site theme would no longer be
+				    the mark the terms ask us to show. */}
 				<p className="rounded-xl border border-[#01b4e4]/60 bg-[#0d253f] p-4 font-semibold leading-7 text-white">
 					This product uses the TMDB API but is not endorsed or certified by
 					TMDB.

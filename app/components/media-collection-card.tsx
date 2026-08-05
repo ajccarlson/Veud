@@ -25,9 +25,9 @@ export function MediaCollectionCard({
 	showOwner?: boolean
 }) {
 	return (
-		<article className="overflow-hidden rounded-2xl border border-[#54806c] bg-[#383040] transition hover:-translate-y-1 hover:border-[#a2ffd5] hover:shadow-xl">
+		<article className="overflow-hidden rounded-2xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] transition hover:-translate-y-1 hover:border-[rgb(var(--veud-accent-bright))] hover:shadow-xl">
 			<Link to={`/collections/${collection.id}`} className="block">
-				<div className="grid aspect-[2/1] grid-cols-4 overflow-hidden bg-[#2e2f2b]">
+				<div className="grid aspect-[2/1] grid-cols-4 overflow-hidden bg-[rgb(var(--veud-panel))]">
 					{Array.from({ length: 4 }, (_, index) => {
 						const item = collection.items[index]
 						const poster = splitLegacyThumbnail(item?.media.thumbnail).imageUrl
@@ -42,19 +42,19 @@ export function MediaCollectionCard({
 						) : (
 							<div
 								key={item?.media.id ?? index}
-								className="border-r border-[#54806c]/40 last:border-r-0"
+								className="border-r border-[rgb(var(--veud-rule))]/40 last:border-r-0"
 							/>
 						)
 					})}
 				</div>
 				<div className="space-y-3 p-5">
 					{collection.recommendationReason ? (
-						<p className="rounded-lg border border-[#a2ffd5]/50 bg-[#2e2f2b] px-3 py-2 text-xs font-bold text-[#a2ffd5]">
+						<p className="rounded-lg border border-[rgb(var(--veud-accent-bright))]/50 bg-[rgb(var(--veud-panel))] px-3 py-2 text-xs font-bold text-[rgb(var(--veud-accent-bright))]">
 							Why this list: {collection.recommendationReason}
 						</p>
 					) : null}
 					<div>
-						<div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
+						<div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wide text-[rgb(var(--veud-accent-bright))]">
 							<span>
 								{collection._count.items}{' '}
 								{collection._count.items === 1 ? 'title' : 'titles'}
@@ -62,22 +62,22 @@ export function MediaCollectionCard({
 							<span>· {collection._count.likes} likes</span>
 							<span>· {collection._count.comments} comments</span>
 							{!collection.isPublic ? (
-								<span className="rounded-full border border-[#ffcc66] px-2 py-0.5 text-[#ffcc66]">
+								<span className="rounded-full border border-[rgb(var(--veud-gold-bright))] px-2 py-0.5 text-[rgb(var(--veud-gold-bright))]">
 									Private
 								</span>
 							) : null}
 							{collection.featuredAt ? (
-								<span className="rounded-full border border-[#ff9900] px-2 py-0.5 text-[#ffffb1]">
+								<span className="rounded-full border border-[rgb(var(--veud-signal))] px-2 py-0.5 text-[rgb(var(--veud-highlight))]">
 									Staff pick
 								</span>
 							) : null}
 						</div>
-						<h2 className="mt-1 text-xl font-black text-[#ffffb1] hover:underline">
+						<h2 className="mt-1 text-xl font-black text-[rgb(var(--veud-highlight))] hover:underline">
 							{collection.title}
 						</h2>
 					</div>
 					{collection.description ? (
-						<p className="line-clamp-2 text-sm leading-6 text-[#c6ded2]">
+						<p className="line-clamp-2 text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 							{collection.description}
 						</p>
 					) : null}
@@ -86,7 +86,7 @@ export function MediaCollectionCard({
 							{collection.tags.map(({ tag }) => (
 								<span
 									key={tag.slug}
-									className="rounded-full border border-[#54806c] px-2 py-0.5 text-xs font-bold text-[#a2ffd5]"
+									className="rounded-full border border-[rgb(var(--veud-rule))] px-2 py-0.5 text-xs font-bold text-[rgb(var(--veud-accent-bright))]"
 								>
 									#{tag.name}
 								</span>
@@ -94,7 +94,7 @@ export function MediaCollectionCard({
 						</div>
 					) : null}
 					{showOwner ? (
-						<p className="text-sm text-[#a2ffd5]">
+						<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 							by {collection.owner.username}
 						</p>
 					) : null}
