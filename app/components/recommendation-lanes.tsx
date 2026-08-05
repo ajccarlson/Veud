@@ -23,32 +23,32 @@ export function RecommendationLanes({
 	if (!graph.lanes.length) {
 		return (
 			<section
-				className="rounded-2xl border border-[#54806c]/70 bg-[#2e2f2b]/80 p-5"
+				className="rounded-2xl border border-[rgb(var(--veud-rule))]/70 bg-[rgb(var(--veud-panel))]/80 p-5"
 				aria-labelledby="recommendation-lanes-heading"
 			>
-				<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffcc66]">
+				<p className="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--veud-gold-bright))]">
 					Personal discovery
 				</p>
 				<h2
 					id="recommendation-lanes-heading"
-					className="mt-1 text-2xl font-black text-[#ffffb1]"
+					className="mt-1 text-2xl font-black text-[rgb(var(--veud-highlight))]"
 				>
 					Recommendations for you
 				</h2>
-				<p className="mt-2 max-w-3xl text-sm leading-6 text-[#c6ded2]">
+				<p className="mt-2 max-w-3xl text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 					Rate or favorite a few titles to shape recommendations.
 				</p>
 				{graph.hiddenItems.length ? (
-					<details className="mt-4 rounded-xl border border-[#54806c]/60 bg-[#242525] p-3">
-						<summary className="cursor-pointer text-sm font-bold text-[#a2ffd5]">
+					<details className="mt-4 rounded-xl border border-[rgb(var(--veud-rule))]/60 bg-[rgb(var(--veud-panel-deep))] p-3">
+						<summary className="cursor-pointer text-sm font-bold text-[rgb(var(--veud-accent-bright))]">
 							Review recent hidden recommendations ({graph.hiddenItems.length}{' '}
 							of {graph.summary.hiddenCount})
 						</summary>
-						<ul className="mt-3 divide-y divide-[#54806c]/40">
+						<ul className="mt-3 divide-y divide-[rgb(var(--veud-rule))]/40">
 							{graph.hiddenItems.map(item => (
 								<li
 									key={item.id}
-									className="flex items-center justify-between gap-3 py-2 text-sm text-[#ffefcc]"
+									className="flex items-center justify-between gap-3 py-2 text-sm text-[rgb(var(--veud-parchment))]"
 								>
 									<span>{item.title}</span>
 									<RestoreRecommendationControl
@@ -66,30 +66,30 @@ export function RecommendationLanes({
 
 	return (
 		<section
-			className="space-y-7 rounded-3xl border border-[#54806c]/70 bg-[#242525]/70 p-4 shadow-xl shadow-black/10 sm:p-6"
+			className="space-y-7 rounded-3xl border border-[rgb(var(--veud-rule))]/70 bg-[rgb(var(--veud-panel-deep))]/70 p-4 shadow-xl shadow-black/10 sm:p-6"
 			aria-labelledby="recommendation-lanes-heading"
 		>
 			<header className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ffcc66]">
+					<p className="text-xs font-bold uppercase tracking-[0.18em] text-[rgb(var(--veud-gold-bright))]">
 						Personal discovery
 					</p>
 					<h2
 						id="recommendation-lanes-heading"
-						className="mt-1 text-2xl font-black text-[#ffffb1]"
+						className="mt-1 text-2xl font-black text-[rgb(var(--veud-highlight))]"
 					>
 						Recommendations for you
 					</h2>
-					<p className="mt-2 max-w-3xl text-sm leading-6 text-[#c6ded2]">
+					<p className="mt-2 max-w-3xl text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 						Organized by why each title was recommended.
 					</p>
 				</div>
-				<div className="flex flex-wrap gap-2 text-xs text-[#a2ffd5]">
-					<span className="rounded-full bg-[#315746] px-3 py-1.5">
+				<div className="flex flex-wrap gap-2 text-xs text-[rgb(var(--veud-accent-bright))]">
+					<span className="rounded-full bg-[rgb(var(--veud-forest))] px-3 py-1.5">
 						{graph.summary.positiveSeeds} taste signals
 					</span>
 					{graph.summary.followingCount ? (
-						<span className="rounded-full bg-[#383040] px-3 py-1.5">
+						<span className="rounded-full bg-[rgb(var(--veud-panel-violet))] px-3 py-1.5">
 							{graph.summary.followingCount} followed
 						</span>
 					) : null}
@@ -105,14 +105,14 @@ export function RecommendationLanes({
 					<header>
 						<h3
 							id={`recommendation-lane-${lane.key}`}
-							className="text-xl font-black text-[#ffffb1]"
+							className="text-xl font-black text-[rgb(var(--veud-highlight))]"
 						>
 							{lane.title}
 						</h3>
-						<p className="mt-1 text-sm text-[#a2ffd5]">{lane.description}</p>
+						<p className="mt-1 text-sm text-[rgb(var(--veud-accent-bright))]">{lane.description}</p>
 					</header>
 					<div
-						className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-[#a2ffd5] [&::-webkit-scrollbar]:hidden"
+						className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-[rgb(var(--veud-accent-bright))] [&::-webkit-scrollbar]:hidden"
 						role="region"
 						aria-label={`${lane.title} titles`}
 						tabIndex={0}
@@ -122,10 +122,10 @@ export function RecommendationLanes({
 							return (
 								<article
 									key={item.id}
-									className="flex w-[15rem] min-w-[15rem] snap-start flex-col overflow-hidden rounded-2xl border border-[#54806c] bg-[#383040] shadow-lg shadow-black/10"
+									className="flex w-[15rem] min-w-[15rem] snap-start flex-col overflow-hidden rounded-2xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] shadow-lg shadow-black/10"
 								>
 									<Link to={`/media/${item.id}`} className="group block">
-										<div className="aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+										<div className="aspect-[2/3] overflow-hidden bg-[rgb(var(--veud-panel))]">
 											{poster ? (
 												<img
 													src={poster}
@@ -134,29 +134,29 @@ export function RecommendationLanes({
 													className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
 												/>
 											) : (
-												<div className="flex h-full items-center justify-center px-5 text-center text-sm font-semibold text-[#8ca99d]">
+												<div className="flex h-full items-center justify-center px-5 text-center text-sm font-semibold text-[rgb(var(--veud-muted-text))]">
 													No poster available
 												</div>
 											)}
 										</div>
 										<div className="p-3">
-											<p className="text-[0.68rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+											<p className="text-[0.68rem] font-bold uppercase tracking-wide text-[rgb(var(--veud-accent-bright))]">
 												{item.type || item.kind}
 												{item.year ? ` · ${item.year}` : ''}
 											</p>
-											<h4 className="mt-1 line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
+											<h4 className="mt-1 line-clamp-2 font-black leading-5 text-[rgb(var(--veud-highlight))] group-hover:underline">
 												{item.title}
 											</h4>
 										</div>
 									</Link>
-									<div className="flex flex-1 flex-col gap-3 border-t border-[#54806c]/60 p-3">
+									<div className="flex flex-1 flex-col gap-3 border-t border-[rgb(var(--veud-rule))]/60 p-3">
 										<div
-											className="space-y-1.5 text-xs leading-5 text-[#d7e9df]"
+											className="space-y-1.5 text-xs leading-5 text-[rgb(var(--veud-body-soft))]"
 											aria-label={`Why ${item.title} was recommended`}
 										>
 											{item.reasons.map(reason => (
 												<p key={reason} className="flex gap-2">
-													<span aria-hidden="true" className="text-[#ffcc66]">
+													<span aria-hidden="true" className="text-[rgb(var(--veud-gold-bright))]">
 														●
 													</span>
 													<span>{reason}</span>
@@ -186,16 +186,16 @@ export function RecommendationLanes({
 			))}
 
 			{graph.hiddenItems.length ? (
-				<details className="rounded-xl border border-[#54806c]/60 bg-[#2e2f2b] p-3">
-					<summary className="cursor-pointer text-sm font-bold text-[#a2ffd5]">
+				<details className="rounded-xl border border-[rgb(var(--veud-rule))]/60 bg-[rgb(var(--veud-panel))] p-3">
+					<summary className="cursor-pointer text-sm font-bold text-[rgb(var(--veud-accent-bright))]">
 						Review recent hidden recommendations ({graph.hiddenItems.length} of{' '}
 						{graph.summary.hiddenCount})
 					</summary>
-					<ul className="mt-3 divide-y divide-[#54806c]/40">
+					<ul className="mt-3 divide-y divide-[rgb(var(--veud-rule))]/40">
 						{graph.hiddenItems.map(item => (
 							<li
 								key={item.id}
-								className="flex items-center justify-between gap-3 py-2 text-sm text-[#ffefcc]"
+								className="flex items-center justify-between gap-3 py-2 text-sm text-[rgb(var(--veud-parchment))]"
 							>
 								<span>{item.title}</span>
 								<RestoreRecommendationControl

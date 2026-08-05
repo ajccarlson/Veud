@@ -19,17 +19,17 @@ export function HomeLibrary({
 
 	return (
 		<section
-			className="home-library space-y-4 rounded-2xl border border-[#54806c] bg-[#383040] p-4 text-[#ffefcc] shadow-lg shadow-black/20"
+			className="home-library space-y-4 rounded-2xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] p-4 text-[rgb(var(--veud-parchment))] shadow-lg shadow-black/20"
 			aria-labelledby="home-library-heading"
 		>
 			<header className="flex items-start justify-between gap-3">
 				<div>
-					<p className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-[#a2ffd5]">
+					<p className="text-[0.65rem] font-black uppercase tracking-[0.18em] text-[rgb(var(--veud-accent-bright))]">
 						At a glance
 					</p>
 					<h2
 						id="home-library-heading"
-						className="text-xl font-black text-[#ff9900]"
+						className="text-xl font-black text-[rgb(var(--veud-signal))]"
 					>
 						Your library
 					</h2>
@@ -62,14 +62,14 @@ export function HomeLibrary({
 						className="home-library-group group"
 					>
 						<span className="flex items-baseline justify-between gap-3 text-xs font-bold">
-							<span className="text-[#c6ded2] group-hover:text-[#ffffb1]">
+							<span className="text-[rgb(var(--veud-body-text))] group-hover:text-[rgb(var(--veud-highlight))]">
 								{group.label}
 							</span>
-							<span className="text-[#ffffb1]">
+							<span className="text-[rgb(var(--veud-highlight))]">
 								{group.count.toLocaleString()}
 							</span>
 						</span>
-						<span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-[#222]">
+						<span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-[rgb(var(--veud-panel-darkest))]">
 							<span
 								className={`home-library-bar home-library-bar--${group.key}`}
 								style={{ width: `${(group.count / largestGroup) * 100}%` }}
@@ -79,7 +79,7 @@ export function HomeLibrary({
 				))}
 			</div>
 
-			<footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#54806c]/60 pt-3 text-xs text-[#a2ffd5]">
+			<footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[rgb(var(--veud-rule))]/60 pt-3 text-xs text-[rgb(var(--veud-accent-bright))]">
 				<span>
 					{destinationCount} {destinationCount === 1 ? 'list' : 'lists'} ready
 				</span>

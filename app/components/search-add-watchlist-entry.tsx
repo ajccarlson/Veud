@@ -227,7 +227,7 @@ export function MediaTypeDropdown(params: any) {
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="cursor-pointer rounded bg-[#6F6F6F] px-[0.5rem] py-[0.1rem] text-base font-bold hover:bg-[#8CA99D]"
+					className="cursor-pointer rounded bg-[rgb(var(--veud-control))] px-[0.5rem] py-[0.1rem] text-base font-bold hover:bg-[rgb(var(--veud-muted-text))]"
 				>
 					{params.columnParams.selectedSearchType}
 				</button>

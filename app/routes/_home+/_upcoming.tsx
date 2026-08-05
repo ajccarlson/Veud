@@ -63,18 +63,18 @@ export function UpcomingData({
 
 	return (
 		<section
-			className="home-upcoming min-w-0 space-y-4 text-[#ffefcc]"
+			className="home-upcoming min-w-0 space-y-4 text-[rgb(var(--veud-parchment))]"
 			aria-labelledby="home-upcoming-heading"
 		>
 			<header className="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<h2
 						id="home-upcoming-heading"
-						className="text-2xl font-black text-[#ff9900]"
+						className="text-2xl font-black text-[rgb(var(--veud-signal))]"
 					>
 						Upcoming releases
 					</h2>
-					<p className="text-sm text-[#a2ffd5]">
+					<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 						Your tracked premieres and episodes for the next seven days
 					</p>
 				</div>
@@ -91,22 +91,22 @@ export function UpcomingData({
 							<section
 								key={day.date}
 								aria-labelledby={`home-upcoming-${day.date}`}
-								className="overflow-hidden rounded-xl border border-[#54806c] bg-[#383040]"
+								className="overflow-hidden rounded-xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))]"
 							>
 								<h3
 									id={`home-upcoming-${day.date}`}
-									className="border-b border-[#54806c] px-4 py-2 font-black text-[#ffffb1]"
+									className="border-b border-[rgb(var(--veud-rule))] px-4 py-2 font-black text-[rgb(var(--veud-highlight))]"
 								>
 									{displayDay(day.date)}
 								</h3>
-								<div className="divide-y divide-[#54806c]/60">
+								<div className="divide-y divide-[rgb(var(--veud-rule))]/60">
 									{visibleItems.map(item => (
 										<article key={item.id} className="flex gap-3 p-3">
 											<Link
 												to={`/media/${item.mediaId}`}
 												aria-hidden="true"
 												tabIndex={-1}
-												className="h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[#2e2f2b]"
+												className="h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[rgb(var(--veud-panel))]"
 											>
 												{item.imageUrl ? (
 													<img
@@ -116,13 +116,13 @@ export function UpcomingData({
 														className="h-full w-full object-cover"
 													/>
 												) : (
-													<span className="flex h-full items-center justify-center px-1 text-center text-[0.6rem] text-[#8ca99d]">
+													<span className="flex h-full items-center justify-center px-1 text-center text-[0.6rem] text-[rgb(var(--veud-muted-text))]">
 														No poster
 													</span>
 												)}
 											</Link>
 											<div className="min-w-0 flex-1">
-												<div className="text-[0.7rem] font-bold uppercase tracking-wide text-[#a2ffd5]">
+												<div className="text-[0.7rem] font-bold uppercase tracking-wide text-[rgb(var(--veud-accent-bright))]">
 													{displayTime(
 														item.releaseAt,
 														item.allDay,
@@ -132,19 +132,19 @@ export function UpcomingData({
 												</div>
 												<Link
 													to={`/media/${item.mediaId}`}
-													className="mt-0.5 block truncate font-black text-[#ffffb1] hover:underline"
+													className="mt-0.5 block truncate font-black text-[rgb(var(--veud-highlight))] hover:underline"
 												>
 													{item.title}
 												</Link>
-												<div className="text-sm font-semibold text-[#ffcc66]">
+												<div className="text-sm font-semibold text-[rgb(var(--veud-gold-bright))]">
 													{item.eventLabel}
 												</div>
 												{item.eventName ? (
-													<div className="truncate text-xs text-[#c6ded2]">
+													<div className="truncate text-xs text-[rgb(var(--veud-body-text))]">
 														{item.eventName}
 													</div>
 												) : null}
-												<div className="mt-1 text-[0.7rem] text-[#a2ffd5]">
+												<div className="mt-1 text-[0.7rem] text-[rgb(var(--veud-accent-bright))]">
 													{item.viewerTracking?.statusLabel ?? 'Tracked'}
 													{item.viewerTracking?.score !== null &&
 													item.viewerTracking?.score !== undefined
@@ -157,7 +157,7 @@ export function UpcomingData({
 									))}
 								</div>
 								{day.totalCount > visibleItems.length ? (
-									<div className="border-t border-[#54806c]/60 px-4 py-2 text-xs text-[#a2ffd5]">
+									<div className="border-t border-[rgb(var(--veud-rule))]/60 px-4 py-2 text-xs text-[rgb(var(--veud-accent-bright))]">
 										+{day.totalCount - visibleItems.length} more on the full
 										calendar
 									</div>
@@ -167,9 +167,9 @@ export function UpcomingData({
 					})}
 				</div>
 			) : (
-				<div className="rounded-xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-10 text-center">
-					<h3 className="font-black text-[#ffffb1]">You’re all caught up</h3>
-					<p className="mt-1 text-sm text-[#a2ffd5]">
+				<div className="rounded-xl border border-dashed border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] px-6 py-10 text-center">
+					<h3 className="font-black text-[rgb(var(--veud-highlight))]">You’re all caught up</h3>
+					<p className="mt-1 text-sm text-[rgb(var(--veud-accent-bright))]">
 						Nothing is scheduled for your tracked titles in the next seven days.
 					</p>
 				</div>

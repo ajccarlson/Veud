@@ -200,6 +200,9 @@ test('trending rails lead the homepage, scroll horizontally, and quick-track can
 	login,
 }) => {
 	await page.setViewportSize({ width: 1440, height: 900 })
+	// The colour asserted below is the dark palette's, from when dark was the
+	// only palette. Pinned so the assertion says which theme it is about.
+	await page.emulateMedia({ colorScheme: 'dark' })
 	const viewer = await login()
 	const liveActionType = await prisma.listType.upsert({
 		where: { name: 'liveaction' },

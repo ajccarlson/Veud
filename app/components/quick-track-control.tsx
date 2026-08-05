@@ -66,7 +66,7 @@ export function QuickTrackControl({
 	}
 	if (!compatible.length) {
 		return (
-			<p className="text-center text-xs text-[#8ca99d]">
+			<p className="text-center text-xs text-[rgb(var(--veud-muted-text))]">
 				Create a compatible watchlist to track this title.
 			</p>
 		)
@@ -99,10 +99,10 @@ export function QuickTrackControl({
 					aria-label={`Tracking status for ${item.title}`}
 					data-tracking-state={isTracked ? 'tracked' : 'available'}
 					className={cn(
-						'quick-track-watchlist-select h-9 min-w-0 flex-1 rounded-md border px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a2ffd5]',
+						'quick-track-watchlist-select h-9 min-w-0 flex-1 rounded-md border px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--veud-accent-bright))]',
 						isTracked
-							? 'border-[#a2ffd5] bg-[#315746] text-[#f1fff8] shadow-[inset_0_0_0_1px_rgba(162,255,213,0.15)]'
-							: 'border-[#54806c] bg-[#2e2f2b] text-[#ffefcc]',
+							? 'border-[rgb(var(--veud-accent-bright))] bg-[rgb(var(--veud-forest))] text-[rgb(var(--veud-bright-text))] shadow-[inset_0_0_0_1px_rgba(162,255,213,0.15)]'
+							: 'border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel))] text-[rgb(var(--veud-parchment))]',
 					)}
 				>
 					{compatible.map(watchlist => (
