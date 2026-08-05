@@ -254,7 +254,7 @@ const maxMultiple =
 	MODE !== 'production' || isVettedProductionTestRuntime ? 10_000 : 1
 const rateLimitDefault = {
 	windowMs: 60 * 1000,
-	max: 1000 * maxMultiple,
+	limit: 1000 * maxMultiple,
 	standardHeaders: true,
 	legacyHeaders: false,
 	// Accept Cloudflare's client address only when the direct socket is the local
@@ -266,19 +266,25 @@ const rateLimitDefault = {
 			requestAddress: req.ip,
 		}),
 	// trust proxy is narrowed to loopback (above), so the prior Fly note no longer applies.
-	validate: { trustProxy: false },
+	// express-rate-limit v8 reads the key generator's source, sees `req.ip`, and
+	// warns that IPv6 clients might each get their own budget. This generator
+	// already groups them: normalizeClientAddress reduces every IPv6 address to
+	// its /64, which is what the helper it asks for would do — and it also
+	// decides when Cloudflare's header may be trusted, which the helper does not.
+	// Switched off knowingly, with tests covering the property it checks for.
+	validate: { trustProxy: false, keyGeneratorIpFallback: false },
 }
 
 const strongestRateLimit = rateLimit({
 	...rateLimitDefault,
 	windowMs: 60 * 1000,
-	max: 10 * maxMultiple,
+	limit: 10 * maxMultiple,
 })
 
 const strongRateLimit = rateLimit({
 	...rateLimitDefault,
 	windowMs: 60 * 1000,
-	max: 100 * maxMultiple,
+	limit: 100 * maxMultiple,
 })
 
 const generalRateLimit = rateLimit(rateLimitDefault)
