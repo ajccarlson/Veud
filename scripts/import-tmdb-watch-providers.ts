@@ -5,6 +5,8 @@ import { TMDB_WATCH_PROVIDER_KEY } from '#app/utils/tmdb-anime-match.server.ts'
 import {
 	normalizeWatchProviders,
 	watchAvailabilityExpiry,
+	watchAvailabilityKeepsUp,
+	watchAvailabilityRefreshCapacity,
 } from '#app/utils/tmdb-watch-providers.server.ts'
 import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
 
@@ -130,8 +132,33 @@ async function main() {
 		take: limit,
 	})
 
+	// Everything this worker is responsible for keeping fresh, not just what is
+	// due right now: a queue larger than one week of runs quietly loses its
+	// tail, and those titles show no streaming rather than stale streaming.
+	const eligible = await prisma.media.count({
+		where: {
+			trackingStates: { some: {} },
+			externalIds: {
+				some: {
+					provider: { in: PROVIDERS },
+					kind: { in: TMDB_PATHS },
+					tombstonedAt: null,
+				},
+			},
+		},
+	})
+
 	console.log(`Mode: ${commit ? 'COMMIT' : 'DRY RUN (no provider requests)'}`)
 	console.log(`Tracked titles needing availability: ${candidates.length}`)
+	console.log(`Tracked titles this worker must keep fresh: ${eligible}`)
+	if (!watchAvailabilityKeepsUp(eligible, limit)) {
+		console.warn(
+			`WARNING: at ${limit} titles per daily run this worker can keep ` +
+				`${watchAvailabilityRefreshCapacity(limit)} titles fresh, but ${eligible} ` +
+				'need it. The excess will expire and show no streaming information. ' +
+				'Raise VEUD_PRODUCTION_WATCH_PROVIDER_LIMIT or run the timer more often.',
+		)
+	}
 	if (!commit) return
 
 	let refreshed = 0
