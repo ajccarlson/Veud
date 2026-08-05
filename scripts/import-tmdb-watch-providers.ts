@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node --import tsx
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import { TMDB_WATCH_PROVIDER_KEY } from '#app/utils/tmdb-anime-match.server.ts'
 import {
 	normalizeWatchProviders,
 	watchAvailabilityExpiry,
@@ -16,8 +17,8 @@ Record where tracked titles can be watched, from TMDB's watch-provider endpoint.
 The data is supplied by JustWatch. Only the link TMDB returns is stored as the
 destination, and an offer without one is never recorded.
 
-Only media carrying a TMDB id can be resolved. Anime ingested from MAL alone has
-no TMDB id and is skipped rather than guessed at.
+Only media carrying a TMDB id can be resolved. Anime have none of their own and
+are resolved through the mapping written by catalog:anime-tmdb-ids.
 
 Options:
   --commit          Fetch and write (default: dry-run, no requests)
@@ -37,7 +38,8 @@ function valueFor(flag: string) {
 	const index = args.indexOf(flag)
 	if (index < 0) return undefined
 	const value = args[index + 1]
-	if (!value || value.startsWith('--')) throw new Error(`${flag} requires a value`)
+	if (!value || value.startsWith('--'))
+		throw new Error(`${flag} requires a value`)
 	return value
 }
 
@@ -62,11 +64,16 @@ const prisma = new PrismaClient()
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 /** TMDB paths differ by kind; only these two carry watch providers. */
-const TMDB_PATH_FOR_KIND: Record<string, string> = { movie: 'movie', tv: 'tv' }
+const TMDB_PATHS = ['movie', 'tv']
 
-async function fetchProviders(kind: string, externalId: string) {
-	const path = TMDB_PATH_FOR_KIND[kind]
-	if (!path) return null
+/**
+ * Film and television carry their own TMDB id. Anime carry a mapping written by
+ * catalog:anime-tmdb-ids under a separate provider, so that TMDB catalog
+ * hydration does not claim those rows and overwrite their MAL-sourced data.
+ */
+const PROVIDERS = ['tmdb', TMDB_WATCH_PROVIDER_KEY]
+
+async function fetchProviders(path: string, externalId: string) {
 	const response = await fetch(
 		`https://api.themoviedb.org/3/${path}/${encodeURIComponent(externalId)}/watch/providers`,
 		{
@@ -78,7 +85,9 @@ async function fetchProviders(kind: string, externalId: string) {
 	)
 	if (response.status === 404) return null
 	if (!response.ok) {
-		throw new Error(`TMDB watch providers failed with status ${response.status}`)
+		throw new Error(
+			`TMDB watch providers failed with status ${response.status}`,
+		)
 	}
 	return response.json()
 }
@@ -89,9 +98,16 @@ async function main() {
 	const now = new Date()
 	const candidates = await prisma.media.findMany({
 		where: {
-			kind: { in: Object.keys(TMDB_PATH_FOR_KIND) },
 			trackingStates: { some: {} },
-			externalIds: { some: { provider: 'tmdb', tombstonedAt: null } },
+			// The kind that decides the TMDB path is the external id's, not the
+			// media's: an anime is a `tv` entry on TMDB.
+			externalIds: {
+				some: {
+					provider: { in: PROVIDERS },
+					kind: { in: TMDB_PATHS },
+					tombstonedAt: null,
+				},
+			},
 			OR: [
 				{ watchAvailability: { none: {} } },
 				{ watchAvailability: { some: { expiresAt: { lte: now } } } },
@@ -99,11 +115,14 @@ async function main() {
 		},
 		select: {
 			id: true,
-			kind: true,
 			title: true,
 			externalIds: {
-				where: { provider: 'tmdb', tombstonedAt: null },
-				select: { externalId: true },
+				where: {
+					provider: { in: PROVIDERS },
+					kind: { in: TMDB_PATHS },
+					tombstonedAt: null,
+				},
+				select: { externalId: true, kind: true },
 				take: 1,
 			},
 		},
@@ -121,10 +140,10 @@ async function main() {
 	let failed = 0
 
 	for (const media of candidates) {
-		const externalId = media.externalIds[0]?.externalId
-		if (!externalId) continue
+		const mapping = media.externalIds[0]
+		if (!mapping) continue
 		try {
-			const payload = await fetchProviders(media.kind, externalId)
+			const payload = await fetchProviders(mapping.kind, mapping.externalId)
 			await sleep(delayMs)
 			const offers = normalizeWatchProviders(payload)
 			const observedAt = new Date()

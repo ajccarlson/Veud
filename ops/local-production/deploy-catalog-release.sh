@@ -52,6 +52,7 @@ writer_services=(
 	veud-production-tmdb-inventory.service
 	veud-production-retention-cleanup.service
 	veud-production-notification-digests.service
+	veud-production-anime-tmdb-ids.service
 	veud-production-mangaupdates-releases.service
 	veud-production-tmdb-watch-providers.service
 )
@@ -63,6 +64,7 @@ writer_timers=(
 	veud-production-tmdb-inventory.timer
 	veud-production-retention-cleanup.timer
 	veud-production-notification-digests.timer
+	veud-production-anime-tmdb-ids.timer
 	veud-production-mangaupdates-releases.timer
 	veud-production-tmdb-watch-providers.timer
 )
