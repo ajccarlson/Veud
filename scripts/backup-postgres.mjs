@@ -2,7 +2,10 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
-import { parsePositiveInteger } from './backup-utils.mjs'
+import {
+	assertBackupDirectoryFreeSpace,
+	parsePositiveInteger,
+} from './backup-utils.mjs'
 import {
 	DEFAULT_POSTGRES_BACKUP_SOURCE_POLICY,
 	createPostgresBackup,
@@ -60,6 +63,10 @@ for (const artifact of cleanupInterruptedPostgresBackupArtifacts(
 )) {
 	console.log(`🗑  Removed interrupted PostgreSQL backup artifact: ${artifact}`)
 }
+assertBackupDirectoryFreeSpace(
+	backupDir,
+	Number(process.env.BACKUP_MIN_FREE_BYTES || 0),
+)
 if (offsiteDir) {
 	assertIndependentBackupMount(
 		offsiteDir,

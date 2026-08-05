@@ -181,3 +181,19 @@ test('requires adequate free space on a verified offsite mount', () => {
 		assertIndependentBackupMount(offsiteDir, mountPoint, 90, operations),
 	).not.toThrow()
 })
+
+test('an offsite directory without a mountpoint is refused, not waved through', () => {
+	// Returning quietly here was the failure: an unmounted directory then
+	// absorbs "offsite" copies onto the primary disk while the pipeline reports
+	// success and every copy shares one drive.
+	const offsiteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'veud-offsite-'))
+	try {
+		for (const missing of [undefined, '', '   ']) {
+			expect(() => assertIndependentBackupMount(offsiteDir, missing)).toThrow(
+				'BACKUP_OFFSITE_MOUNTPOINT must be set',
+			)
+		}
+	} finally {
+		fs.rmSync(offsiteDir, { recursive: true, force: true })
+	}
+})

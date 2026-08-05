@@ -4,7 +4,14 @@ import 'dotenv/config'
 try {
 	if (process.env.NODE_ENV === 'development') {
 		console.log('Skipping backup: NODE_ENV=development.')
-	} else if (/^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL ?? '')) {
+	} else if (!process.env.DATABASE_URL?.trim()) {
+		// Absence is the ambiguous case, not the value. Falling through to the
+		// SQLite path here backs up a leftover file — or nothing at all — while
+		// reporting success and leaving the real primary unprotected.
+		throw new Error(
+			'DATABASE_URL must be set so the backup can tell which database it is protecting',
+		)
+	} else if (/^postgres(?:ql)?:\/\//i.test(process.env.DATABASE_URL)) {
 		await import('./backup-postgres.mjs')
 	} else {
 		await import('./backup-db.mjs')
