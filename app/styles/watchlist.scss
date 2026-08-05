@@ -1046,6 +1046,109 @@
 
 	.ag-position-cell {
 		padding: 0 0.25rem;
+		// The insertion controls sit on the cell's edges, so they need a box to
+		// be positioned against.
+		position: relative;
+		overflow: visible;
+	}
+
+	// A control on a row boundary is easy to make unhittable, so it gets a real
+	// target height straddling the border rather than the border itself, and it
+	// spans the column so the pointer does not have to find a small icon.
+	.ag-insert-boundary {
+		position: absolute;
+		left: 0;
+		right: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		// The row is 42px around a 32px input, so this is the clear gutter and
+		// nothing more: a taller strip would swallow clicks aimed at the input's
+		// top edge, which is a worse failure than a thin target.
+		height: 5px;
+		padding: 0;
+		background: none;
+		border: 0;
+		color: #ff9900;
+		cursor: pointer;
+		z-index: 2;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.1s ease-out;
+	}
+
+	// Kept inside its own row rather than straddling the border. A control that
+	// overhangs is hovered while the pointer is over the *neighbouring* row, so
+	// the row-hover that reveals it never fires and the strip is dead.
+	.ag-insert-boundary-above {
+		top: 0;
+	}
+
+	.ag-insert-boundary-below {
+		bottom: 0;
+	}
+
+	.ag-insert-boundary-line {
+		position: absolute;
+		left: 0.25rem;
+		right: 0.25rem;
+		height: 2px;
+		background: rgba(255, 153, 0, 0.85);
+		border-radius: 1px;
+	}
+
+	.ag-insert-boundary-above .ag-insert-boundary-line {
+		top: 0;
+	}
+
+	.ag-insert-boundary-below .ag-insert-boundary-line {
+		bottom: 0;
+	}
+
+	// The affordance is the line itself rather than an icon: an icon large
+	// enough to read would overflow the strip and take the input's clicks with
+	// it, and an icon small enough to fit would not read as anything.
+	.ag-insert-boundary::after {
+		content: '+';
+		position: absolute;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 0.875rem;
+		height: 0.875rem;
+		font-size: 0.7rem;
+		line-height: 1;
+		color: #1a1a1a;
+		background: #ff9900;
+		border-radius: 999px;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.1s ease-out;
+	}
+
+	.ag-insert-boundary:hover::after,
+	.ag-insert-boundary:focus-visible::after {
+		opacity: 1;
+	}
+
+	// Revealed by hovering the row, and by keyboard focus — a hover-only
+	// affordance cannot be reached without a pointer at all.
+	.ag-row:hover .ag-insert-boundary,
+	.ag-row.ag-row-hover .ag-insert-boundary,
+	.ag-row:focus-within .ag-insert-boundary,
+	.ag-insert-boundary:focus-visible {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	.ag-insert-boundary:hover .ag-insert-boundary-line,
+	.ag-insert-boundary:focus-visible .ag-insert-boundary-line {
+		background: #fff4dd;
+	}
+
+	.ag-insert-boundary:focus-visible {
+		outline: 2px solid #ff9900;
+		outline-offset: 1px;
 	}
 
 	.ag-position-controls {
