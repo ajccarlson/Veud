@@ -143,3 +143,30 @@ test('the response can be shared, since it holds no viewer data', async () => {
 		'public, max-age=30',
 	)
 })
+
+test('a title that starts with the query beats popular interior matches', async () => {
+	// Nine matches for an eight-row list. The eight popular ones match only
+	// inside a longer word; the ninth starts with the query and is the least
+	// popular of them all. It has to be fetched *and* ranked to be seen: taking
+	// only eight rows from the database would leave it behind, and ranking
+	// nothing would leave it last.
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	await Promise.all([
+		...Array.from({ length: 8 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'anime',
+					title: `pre${tag} Filler ${index}`,
+					catalogPopularity: 900 + index,
+				},
+			}),
+		),
+		prisma.media.create({
+			data: { kind: 'anime', title: `${tag} Prefix Hit`, catalogPopularity: 1 },
+		}),
+	])
+
+	const results = await suggest({ q: tag })
+	expect(results).toHaveLength(8)
+	expect(results[0]!.title).toBe(`${tag} Prefix Hit`)
+})
