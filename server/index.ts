@@ -73,8 +73,9 @@ app.set('trust proxy', 'loopback')
 
 app.use((req, res, next) => {
 	const requestId = createRequestId()
-	const finish = beginObservedRequest()
 	const path = safeRequestPath(req.originalUrl)
+	// The path decides whether this request gets a vote on service health.
+	const finish = beginObservedRequest(path)
 	res.locals.requestId = requestId
 	res.set('X-Request-ID', requestId)
 	let finalized = false
