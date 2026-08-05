@@ -11,5 +11,5 @@ acquire_provider_lock tmdb
 
 run_guarded_worker scripts/import-tmdb-watch-providers.ts \
 	--commit \
-	--limit "${VEUD_PRODUCTION_WATCH_PROVIDER_LIMIT:-500}" \
+	--limit "${VEUD_PRODUCTION_WATCH_PROVIDER_LIMIT:-800}" \
 	--delay-ms "${VEUD_PRODUCTION_TMDB_DELAY_MS:-300}"

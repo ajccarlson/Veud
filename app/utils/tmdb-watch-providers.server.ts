@@ -129,6 +129,29 @@ export function watchAvailabilityExpiry(observedAt: Date) {
 	return new Date(observedAt.getTime() + AVAILABILITY_TTL_DAYS * DAY_MS)
 }
 
+/**
+ * How many titles one run per day can keep inside the freshness window.
+ *
+ * Availability expires on its own, so a queue larger than this does not slow
+ * down — it silently stops covering the tail, and those titles show no
+ * streaming at all rather than stale streaming. That failure is invisible from
+ * the outside, which is why the worker checks it out loud.
+ */
+export function watchAvailabilityRefreshCapacity(dailyLimit: number) {
+	if (!Number.isFinite(dailyLimit) || dailyLimit < 1) return 0
+	return Math.trunc(dailyLimit) * AVAILABILITY_TTL_DAYS
+}
+
+/** Whether a run of this size can keep the whole queue fresh. */
+export function watchAvailabilityKeepsUp(
+	eligibleTitles: number,
+	dailyLimit: number,
+) {
+	const capacity = watchAvailabilityRefreshCapacity(dailyLimit)
+	if (!Number.isFinite(eligibleTitles) || eligibleTitles < 0) return false
+	return eligibleTitles <= capacity
+}
+
 /** Offers for one region, in the order they should be shown. */
 export function offersForRegion(offers: WatchProviderOffer[], region: string) {
 	const wanted = region.trim().toUpperCase()
