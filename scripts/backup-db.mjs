@@ -36,13 +36,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import {
+	assertBackupDirectoryFreeSpace,
 	assertSqlitePrimaryDatabase,
+	cleanupInterruptedBackupArtifacts,
 	copyVerifiedBackup,
 	listRequiredMigrations,
 	parsePositiveInteger,
+	partialBackupPath,
 	pruneBackups,
 	verifyBackupRestore,
 } from './backup-utils.mjs'
+import { assertIndependentBackupMount } from './postgres-backup-utils.mjs'
 
 // Backups are a production concern; skip cleanly when PM2 runs this under start:dev.
 if (process.env.NODE_ENV === 'development') {
@@ -69,6 +73,10 @@ const offsiteKeep = parsePositiveInteger(
 	keep,
 	'BACKUP_OFFSITE_KEEP',
 )
+const minimumFreeBytes = Number(process.env.BACKUP_MIN_FREE_BYTES || 0)
+const offsiteMinimumFreeBytes = Number(
+	process.env.BACKUP_OFFSITE_MIN_FREE_BYTES || 0,
+)
 const expectedUsername = process.env.BACKUP_VERIFY_USERNAME?.trim() || undefined
 const requiredMigrations = listRequiredMigrations(
 	path.join(process.cwd(), 'prisma', 'migrations'),
@@ -77,16 +85,35 @@ const verificationOptions = { expectedUsername, requiredMigrations }
 
 fs.mkdirSync(backupDir, { recursive: true })
 
+for (const artifact of cleanupInterruptedBackupArtifacts(backupDir)) {
+	console.log(`🗑  Removed interrupted backup artifact: ${artifact}`)
+}
+assertBackupDirectoryFreeSpace(backupDir, minimumFreeBytes)
+if (offsiteDir) {
+	// The offsite copy is only offsite if it is a separate filesystem. Without
+	// this the copy lands on the primary disk and looks like protection.
+	assertIndependentBackupMount(
+		offsiteDir,
+		process.env.BACKUP_OFFSITE_MOUNTPOINT?.trim(),
+		offsiteMinimumFreeBytes,
+	)
+}
+
 const stamp = new Date().toISOString().replace(/[:.]/g, '-')
 const outFile = path.join(backupDir, `data-${stamp}.db`)
+// Written under a name a restore will never select, and moved into place only
+// once it has been verified. A crash or a scheduler kill mid-write therefore
+// leaves debris rather than a truncated file that looks like the newest good
+// snapshot.
+const partialFile = partialBackupPath(outFile)
 
 // Read-only source connection: the backup API only reads, and this guarantees the
 // script can never modify the live database.
 const db = new Database(dbPath, { readonly: true, fileMustExist: true })
 try {
-	await db.backup(outFile)
+	await db.backup(partialFile)
 } catch (error) {
-	fs.rmSync(outFile, { force: true })
+	fs.rmSync(partialFile, { force: true })
 	throw error
 } finally {
 	db.close()
@@ -94,11 +121,12 @@ try {
 
 let summary
 try {
-	summary = verifyBackupRestore(outFile, verificationOptions)
+	summary = verifyBackupRestore(partialFile, verificationOptions)
 } catch (error) {
-	fs.rmSync(outFile, { force: true })
+	fs.rmSync(partialFile, { force: true })
 	throw error
 }
+fs.renameSync(partialFile, outFile)
 
 const mb = (fs.statSync(outFile).size / 1024 / 1024).toFixed(2)
 console.log(`✅ Backup written and restore-tested: ${outFile} (${mb} MB)`)

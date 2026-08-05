@@ -4,6 +4,10 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 
 const BACKUP_FILE_PATTERN = /^data-.*\.db$/
+// A snapshot in progress carries this suffix so it can never satisfy
+// BACKUP_FILE_PATTERN: an unverified file must not be listed, pruned against,
+// or selected as "latest" by a restore.
+const PARTIAL_FILE_PATTERN = /^data-.*\.db\.partial-\d+$/
 const REQUIRED_TABLES = ['_prisma_migrations', 'User', 'Watchlist', 'Entry']
 
 export function assertSqlitePrimaryDatabase(databaseUrl) {
@@ -21,6 +25,74 @@ export function parsePositiveInteger(value, fallback, name) {
 		throw new Error(`${name} must be a positive integer; received ${value}`)
 	}
 	return parsed
+}
+
+/** The name a snapshot is written under before it has been verified. */
+export function partialBackupPath(finalPath, pid = process.pid) {
+	return `${finalPath}.partial-${pid}`
+}
+
+/**
+ * Remove snapshots that were interrupted before they could be verified.
+ *
+ * The hourly schedule kills a backup that overruns, and a crash leaves the same
+ * debris. Files still being written by a live process are left alone; the grace
+ * period covers the gap between a process dying and its file going stale.
+ */
+export function cleanupInterruptedBackupArtifacts(backupDir, options = {}) {
+	const orphanGraceMs = options.orphanGraceMs ?? 60 * 60 * 1_000
+	const now = options.now?.() ?? Date.now()
+	const isRunning =
+		options.isRunning ??
+		(pid => {
+			try {
+				process.kill(pid, 0)
+				return true
+			} catch {
+				return false
+			}
+		})
+	if (!fs.existsSync(backupDir)) return []
+	const removed = []
+	for (const entry of fs.readdirSync(backupDir, { withFileTypes: true })) {
+		if (!entry.isFile() || !PARTIAL_FILE_PATTERN.test(entry.name)) continue
+		const pid = Number(entry.name.slice(entry.name.lastIndexOf('-') + 1))
+		const artifactPath = path.join(backupDir, entry.name)
+		if (Number.isSafeInteger(pid) && pid > 0 && isRunning(pid)) continue
+		if (now - fs.statSync(artifactPath).mtimeMs < orphanGraceMs) continue
+		fs.rmSync(artifactPath, { force: true })
+		removed.push(entry.name)
+	}
+	return removed
+}
+
+/**
+ * Refuse to start a snapshot that the filesystem cannot hold.
+ *
+ * Running out of space mid-write produces exactly the truncated file this
+ * module works to avoid, and it does so on the destination that is supposed to
+ * be the recovery path.
+ */
+export function assertBackupDirectoryFreeSpace(
+	backupDir,
+	minimumFreeBytes,
+	operations = {},
+) {
+	const statfs = operations.statfs ?? fs.statfsSync
+	if (!Number.isSafeInteger(minimumFreeBytes) || minimumFreeBytes < 0) {
+		throw new Error(
+			`Backup free-space floor must be a non-negative integer; received ${minimumFreeBytes}`,
+		)
+	}
+	if (minimumFreeBytes === 0) return
+	const filesystem = statfs(backupDir)
+	const availableBytes = Number(filesystem.bavail) * Number(filesystem.bsize)
+	if (availableBytes < minimumFreeBytes) {
+		throw new Error(
+			`${backupDir} has ${availableBytes} bytes available; ${minimumFreeBytes} required`,
+		)
+	}
+	return availableBytes
 }
 
 export function listBackupFiles(backupDir) {
@@ -46,7 +118,9 @@ export function findLatestBackup(backupDir) {
 
 export function pruneBackups(backupDir, keep) {
 	if (!Number.isSafeInteger(keep) || keep < 1) {
-		throw new Error(`Backup retention must be a positive integer; received ${keep}`)
+		throw new Error(
+			`Backup retention must be a positive integer; received ${keep}`,
+		)
 	}
 	const pruned = []
 	for (const backup of listBackupFiles(backupDir).slice(keep)) {
@@ -96,7 +170,9 @@ export function verifyBackupDatabase(
 		)
 		const missingTables = REQUIRED_TABLES.filter(table => !tables.has(table))
 		if (missingTables.length > 0) {
-			throw new Error(`Backup is missing required tables: ${missingTables.join(', ')}`)
+			throw new Error(
+				`Backup is missing required tables: ${missingTables.join(', ')}`,
+			)
 		}
 
 		const appliedMigrations = new Set(
@@ -128,9 +204,8 @@ export function verifyBackupDatabase(
 
 		return {
 			users: db.prepare('SELECT COUNT(*) AS count FROM "User"').get().count,
-			watchlists: db
-				.prepare('SELECT COUNT(*) AS count FROM "Watchlist"')
-				.get().count,
+			watchlists: db.prepare('SELECT COUNT(*) AS count FROM "Watchlist"').get()
+				.count,
 			entries: db.prepare('SELECT COUNT(*) AS count FROM "Entry"').get().count,
 			migrations: appliedMigrations.size,
 		}
@@ -152,8 +227,13 @@ export function verifyBackupRestore(backupPath, options) {
 }
 
 export function copyVerifiedBackup(backupPath, destinationDir, options) {
-	if (!fs.existsSync(destinationDir) || !fs.statSync(destinationDir).isDirectory()) {
-		throw new Error('BACKUP_OFFSITE_DIR must already exist and be mounted/synced')
+	if (
+		!fs.existsSync(destinationDir) ||
+		!fs.statSync(destinationDir).isDirectory()
+	) {
+		throw new Error(
+			'BACKUP_OFFSITE_DIR must already exist and be mounted/synced',
+		)
 	}
 	const sourceDir = fs.realpathSync(path.dirname(backupPath))
 	const resolvedDestination = fs.realpathSync(destinationDir)
