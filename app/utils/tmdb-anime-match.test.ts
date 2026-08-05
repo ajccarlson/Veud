@@ -3,6 +3,10 @@ import {
 	chooseUniqueTmdbMatch,
 	normalizeTitle,
 	searchTitles,
+	TMDB_WATCH_PROVIDER_KEY,
+	TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+	unresolvedRetryAfter,
+	UNRESOLVED_RETRY_DAYS,
 	type TmdbCandidate,
 } from './tmdb-anime-match.server.ts'
 
@@ -156,4 +160,22 @@ test('matches on a native-language alternate title', () => {
 			}),
 		]),
 	).toEqual({ tmdbId: 1429, name: 'Attack on Titan' })
+})
+
+test('a refusal is reconsidered after the retry window, not sooner', () => {
+	const now = new Date('2026-08-04T00:00:00.000Z')
+	const retryAt = unresolvedRetryAfter(now)
+	expect(retryAt.getTime()).toBeGreaterThan(now.getTime())
+	expect(retryAt.toISOString()).toBe('2026-09-03T00:00:00.000Z')
+	expect(
+		Math.round((retryAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1_000)),
+	).toBe(UNRESOLVED_RETRY_DAYS)
+})
+
+test('resolved and unresolved records never share a provider slug', () => {
+	// They live in the same table, and the watch-provider worker reads one of
+	// them; a shared slug would feed it rows that carry no TMDB id at all.
+	expect(TMDB_WATCH_UNRESOLVED_PROVIDER_KEY).not.toBe(TMDB_WATCH_PROVIDER_KEY)
+	expect(TMDB_WATCH_PROVIDER_KEY).not.toBe('tmdb')
+	expect(TMDB_WATCH_UNRESOLVED_PROVIDER_KEY).not.toBe('tmdb')
 })

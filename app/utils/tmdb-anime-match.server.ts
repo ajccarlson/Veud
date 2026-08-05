@@ -19,6 +19,32 @@
 /** The provider slug for these mappings. */
 export const TMDB_WATCH_PROVIDER_KEY = 'tmdb-watch'
 
+/**
+ * The provider slug for anime that were searched and could not be resolved.
+ *
+ * Without this the worker stalls. Candidates are "tracked anime with no
+ * mapping", so a refusal leaves the anime in that set permanently and every run
+ * searches it again. Refusals are the common case — roughly two in three, since
+ * TMDB has no entry for a season or a recap — so the refused pile grows until it
+ * fills the per-run limit and the worker never reaches an anime it could have
+ * resolved. Recording the refusal keeps the queue moving.
+ */
+export const TMDB_WATCH_UNRESOLVED_PROVIDER_KEY = 'tmdb-watch-unresolved'
+
+/**
+ * How long a refusal stands before the anime is searched again.
+ *
+ * TMDB is edited continuously, so a refusal is a statement about today, not
+ * forever — but re-searching sooner spends requests on titles that mostly still
+ * will not resolve.
+ */
+export const UNRESOLVED_RETRY_DAYS = 30
+
+/** When a refusal recorded now should be reconsidered. */
+export function unresolvedRetryAfter(now: Date) {
+	return new Date(now.getTime() + UNRESOLVED_RETRY_DAYS * 24 * 60 * 60 * 1_000)
+}
+
 export type TmdbCandidate = {
 	id: number
 	name: string | null
