@@ -154,17 +154,32 @@ export function assertIndependentBackupMount(
 	const realpath = operations.realpath ?? fs.realpathSync
 	const stat = operations.stat ?? fs.statSync
 	const statfs = operations.statfs ?? fs.statfsSync
-	if (!mountPoint) return
+	// Reached only when an offsite directory is configured. Returning quietly
+	// because the mountpoint is unset was the whole failure: an unmounted
+	// directory then absorbs "offsite" copies onto the primary disk, and the
+	// pipeline reports success while every copy shares one drive.
+	// Blank counts as unset. Callers trim, but a guard this important should not
+	// depend on every caller remembering to.
+	const resolvedMountPoint =
+		typeof mountPoint === 'string' ? mountPoint.trim() : mountPoint
+	if (!resolvedMountPoint) {
+		throw new Error(
+			'BACKUP_OFFSITE_MOUNTPOINT must be set whenever BACKUP_OFFSITE_DIR is, so an unmounted directory cannot silently absorb offsite copies',
+		)
+	}
 	if (!fs.existsSync(offsiteDir) || !fs.statSync(offsiteDir).isDirectory()) {
 		throw new Error(
 			'BACKUP_OFFSITE_DIR must already exist and be mounted/synced',
 		)
 	}
-	if (!fs.existsSync(mountPoint) || !fs.statSync(mountPoint).isDirectory()) {
+	if (
+		!fs.existsSync(resolvedMountPoint) ||
+		!fs.statSync(resolvedMountPoint).isDirectory()
+	) {
 		throw new Error('BACKUP_OFFSITE_MOUNTPOINT must be an existing directory')
 	}
 	const resolvedDirectory = realpath(offsiteDir)
-	const resolvedMount = realpath(mountPoint)
+	const resolvedMount = realpath(resolvedMountPoint)
 	const relative = path.relative(resolvedMount, resolvedDirectory)
 	if (relative.startsWith('..') || path.isAbsolute(relative)) {
 		throw new Error(
