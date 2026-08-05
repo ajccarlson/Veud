@@ -82,3 +82,33 @@ test('text stays readable against the light palette', async ({ page }) => {
 	// WCAG AA for body text.
 	expect(contrast).toBeGreaterThan(4.5)
 })
+
+test('formerly hardcoded colours follow the theme', async ({ page }) => {
+	// 199 colours were written as raw hex, so they rendered dark-palette values
+	// whatever the theme. A bright mint on paper is unreadable, which is how a
+	// light mode ships with invisible text.
+	await page.emulateMedia({ colorScheme: 'dark' })
+	await page.goto('/discover')
+	const darkAccent = await page.evaluate(() =>
+		getComputedStyle(document.documentElement)
+			.getPropertyValue('--veud-accent-bright')
+			.trim(),
+	)
+	expect(darkAccent).toBe('162 255 213')
+
+	await page
+		.getByRole('button', { name: /light|dark|system/i })
+		.last()
+		.click()
+	await expect(page.locator('html')).toHaveClass(/light/)
+	const lightAccent = await page.evaluate(() =>
+		getComputedStyle(document.documentElement)
+			.getPropertyValue('--veud-accent-bright')
+			.trim(),
+	)
+	expect(lightAccent).not.toBe(darkAccent)
+
+	// Dark enough to read against paper.
+	const [r, g, b] = lightAccent.split(/\s+/).map(Number)
+	expect((r! + g! + b!) / 3).toBeLessThan(120)
+})

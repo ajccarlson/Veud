@@ -515,7 +515,7 @@ function HighlightedMemorySummary({
 				normalizedClues.has(part.toLocaleLowerCase()) ? (
 					<mark
 						key={`${part}-${index}`}
-						className="rounded-sm bg-[#ffffb1] px-0.5 font-semibold text-[#211f24]"
+						className="rounded-sm bg-[rgb(var(--veud-highlight))] px-0.5 font-semibold text-[rgb(var(--veud-on-highlight))]"
 					>
 						{part}
 					</mark>

@@ -46,24 +46,24 @@ function Suggestions({ members }: { members: SuggestedMember[] }) {
 	if (!members.length) return null
 	return (
 		<div className="space-y-3">
-			<h2 className="text-lg font-bold text-[#ffffb1]">Members to discover</h2>
+			<h2 className="text-lg font-bold text-[rgb(var(--veud-highlight))]">Members to discover</h2>
 			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				{members.map(member => (
 					<Link
 						key={member.id}
 						to={`/users/${member.username}`}
-						className="flex items-center gap-3 rounded-xl border border-[#54806c] bg-[#383040] p-3 transition-colors hover:bg-[#44394c]"
+						className="flex items-center gap-3 rounded-xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] p-3 transition-colors hover:bg-[rgb(var(--veud-panel-plum))]"
 					>
 						<img
 							src={getUserImgSrc(member.image?.id)}
 							alt=""
-							className="h-11 w-11 rounded-full border-2 border-[#54806c] object-cover"
+							className="h-11 w-11 rounded-full border-2 border-[rgb(var(--veud-rule))] object-cover"
 						/>
 						<div className="min-w-0">
-							<div className="truncate font-semibold text-[#ffefcc]">
+							<div className="truncate font-semibold text-[rgb(var(--veud-parchment))]">
 								{member.username}
 							</div>
-							<div className="truncate text-xs text-[#a2ffd5]">
+							<div className="truncate text-xs text-[rgb(var(--veud-accent-bright))]">
 								@{member.username}
 							</div>
 						</div>
@@ -100,15 +100,15 @@ export function FollowingFeed({
 	useEffect(() => setVisibleCount(PAGE_SIZE), [filterIndex])
 
 	return (
-		<section className="home-following min-w-0 space-y-4 text-[#ffefcc]">
+		<section className="home-following min-w-0 space-y-4 text-[rgb(var(--veud-parchment))]">
 			<header className="flex flex-wrap items-end justify-between gap-3">
 				<div>
-					<h1 className="text-2xl font-black text-[#ff9900]">Following</h1>
-					<p className="text-sm text-[#a2ffd5]">
+					<h1 className="text-2xl font-black text-[rgb(var(--veud-signal))]">Following</h1>
+					<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 						Recent updates from the members you follow.
 					</p>
 				</div>
-				<span className="text-sm text-[#a2ffd5]">
+				<span className="text-sm text-[rgb(var(--veud-accent-bright))]">
 					{followingCount} following
 				</span>
 			</header>
@@ -142,44 +142,44 @@ export function FollowingFeed({
 								return (
 									<article
 										key={item.id}
-										className="rounded-xl border border-[#54806c] bg-[#383040] p-4"
+										className="rounded-xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] p-4"
 									>
 										<header className="flex items-start gap-3">
 											<Link to={`/users/${item.actor.username}`}>
 												<img
 													src={getUserImgSrc(item.actor.image?.id)}
 													alt=""
-													className="h-11 w-11 rounded-full border-2 border-[#54806c] object-cover"
+													className="h-11 w-11 rounded-full border-2 border-[rgb(var(--veud-rule))] object-cover"
 												/>
 											</Link>
 											<div className="min-w-0 flex-1">
 												<div className="leading-6">
 													<Link
 														to={`/users/${item.actor.username}`}
-														className="font-bold text-[#ffffb1] hover:underline"
+														className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 													>
 														{item.actor.username}
 													</Link>{' '}
-													<span className="text-[#a2ffd5]">
+													<span className="text-[rgb(var(--veud-accent-bright))]">
 														{item.action.toLowerCase()}
 													</span>{' '}
 													{item.collection ? (
 														<Link
 															to={`/collections/${item.collection.id}`}
-															className="font-semibold text-[#ffefcc] hover:underline"
+															className="font-semibold text-[rgb(var(--veud-parchment))] hover:underline"
 														>
 															{item.collection.title}
 														</Link>
 													) : item.media ? (
 														<Link
 															to={`/media/${item.media.id}`}
-															className="font-semibold text-[#ffefcc] hover:underline"
+															className="font-semibold text-[rgb(var(--veud-parchment))] hover:underline"
 														>
 															{item.media.title}
 														</Link>
 													) : null}
 												</div>
-												<time className="text-xs text-[#8ca99d]">
+												<time className="text-xs text-[rgb(var(--veud-muted-text))]">
 													{relativeTime(item.time)}
 												</time>
 											</div>
@@ -201,8 +201,8 @@ export function FollowingFeed({
 												) : null}
 												<div className="min-w-0 flex-1 text-sm">
 													{item.review?.containsSpoilers ? (
-														<details className="rounded-lg bg-[#2e2f2b] p-3">
-															<summary className="cursor-pointer font-semibold text-[#ffffb1]">
+														<details className="rounded-lg bg-[rgb(var(--veud-panel))] p-3">
+															<summary className="cursor-pointer font-semibold text-[rgb(var(--veud-highlight))]">
 																Spoiler review — reveal
 															</summary>
 															<p className="mt-2 whitespace-pre-wrap leading-6">
@@ -215,12 +215,12 @@ export function FollowingFeed({
 														</p>
 													) : null}
 													{item.review && item.review.rating !== null ? (
-														<div className="mt-2 font-semibold text-[#a2ffd5]">
+														<div className="mt-2 font-semibold text-[rgb(var(--veud-accent-bright))]">
 															{item.review.rating}/10
 														</div>
 													) : null}
 													{item.diary ? (
-														<div className="rounded-lg bg-[#2e2f2b] p-3 text-[#a2ffd5]">
+														<div className="rounded-lg bg-[rgb(var(--veud-panel))] p-3 text-[rgb(var(--veud-accent-bright))]">
 															{displayDiaryDate(item.diary.loggedOn)}
 															{item.diary.rating !== null
 																? ` · ${item.diary.rating}/10`
@@ -234,12 +234,12 @@ export function FollowingFeed({
 										{item.collection ? (
 											<div className="mt-3 space-y-3 pl-14">
 												{item.collection.description ? (
-													<p className="line-clamp-3 text-sm leading-6 text-[#c6ded2]">
+													<p className="line-clamp-3 text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 														{item.collection.description}
 													</p>
 												) : null}
 												<div className="flex items-center gap-3">
-													<div className="flex overflow-hidden rounded-md bg-[#2e2f2b]">
+													<div className="flex overflow-hidden rounded-md bg-[rgb(var(--veud-panel))]">
 														{item.collection.items.map(collectionItem => {
 															const image = splitLegacyThumbnail(
 																collectionItem.media.thumbnail,
@@ -254,7 +254,7 @@ export function FollowingFeed({
 															) : null
 														})}
 													</div>
-													<span className="text-sm font-semibold text-[#a2ffd5]">
+													<span className="text-sm font-semibold text-[rgb(var(--veud-accent-bright))]">
 														{item.collection.itemCount}{' '}
 														{item.collection.itemCount === 1
 															? 'title'
@@ -279,14 +279,14 @@ export function FollowingFeed({
 							) : null}
 						</div>
 					) : (
-						<div className="rounded-xl bg-[#383040] p-6 text-center text-[#a2ffd5]">
+						<div className="rounded-xl bg-[rgb(var(--veud-panel-violet))] p-6 text-center text-[rgb(var(--veud-accent-bright))]">
 							No updates in this category yet.
 						</div>
 					)}
 				</>
 			) : (
-				<div className="space-y-5 rounded-xl bg-[#383040] p-6 text-center">
-					<p className="text-[#a2ffd5]">
+				<div className="space-y-5 rounded-xl bg-[rgb(var(--veud-panel-violet))] p-6 text-center">
+					<p className="text-[rgb(var(--veud-accent-bright))]">
 						{followingCount
 							? 'The members you follow have not posted any activity yet.'
 							: 'Follow members to build a personalized activity feed.'}

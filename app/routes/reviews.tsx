@@ -187,7 +187,7 @@ export default function ReviewsRoute() {
 					</select>
 				</div>
 				<div className="flex flex-wrap items-center gap-3 lg:col-span-3">
-					<label className="flex items-center gap-2 text-sm font-semibold text-[#c6ded2]">
+					<label className="flex items-center gap-2 text-sm font-semibold text-[rgb(var(--veud-body-text))]">
 						<input
 							type="checkbox"
 							name="spoilers"
@@ -211,17 +211,17 @@ export default function ReviewsRoute() {
 					<div>
 						<h2
 							id="review-results-heading"
-							className="text-2xl font-black text-[#ffffb1]"
+							className="text-2xl font-black text-[rgb(var(--veud-highlight))]"
 						>
 							{sortLabels[data.filters.sort]} reviews
 						</h2>
 						{data.filters.sort === 'following' ? (
-							<p className="mt-1 text-sm text-[#a2ffd5]">
+							<p className="mt-1 text-sm text-[rgb(var(--veud-accent-bright))]">
 								The latest criticism from members you follow.
 							</p>
 						) : null}
 					</div>
-					<p className="text-sm font-semibold text-[#a2ffd5]">
+					<p className="text-sm font-semibold text-[rgb(var(--veud-accent-bright))]">
 						{data.total} {data.total === 1 ? 'review' : 'reviews'}
 					</p>
 				</header>
@@ -235,11 +235,11 @@ export default function ReviewsRoute() {
 							return (
 								<article
 									key={review.id}
-									className="flex min-w-0 gap-4 rounded-2xl border border-[#54806c] bg-[#383040] p-5 transition hover:border-[#a2ffd5]"
+									className="flex min-w-0 gap-4 rounded-2xl border border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] p-5 transition hover:border-[rgb(var(--veud-accent-bright))]"
 								>
 									<Link
 										to={`/media/${review.media.id}#review-${review.id}`}
-										className="hidden h-40 w-28 shrink-0 overflow-hidden rounded-lg bg-[#2e2f2b] sm:block"
+										className="hidden h-40 w-28 shrink-0 overflow-hidden rounded-lg bg-[rgb(var(--veud-panel))] sm:block"
 									>
 										{poster ? (
 											<img
@@ -252,7 +252,7 @@ export default function ReviewsRoute() {
 									</Link>
 									<div className="min-w-0 flex-1 space-y-3">
 										<header>
-											<div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-[#a2ffd5]">
+											<div className="flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-[rgb(var(--veud-accent-bright))]">
 												<span>
 													{review.media.type ||
 														kindLabels[
@@ -264,12 +264,12 @@ export default function ReviewsRoute() {
 													<span>· {review.media.year}</span>
 												) : null}
 												{review.rating !== null ? (
-													<span className="text-[#ffcc66]">
+													<span className="text-[rgb(var(--veud-gold-bright))]">
 														★ {review.rating}/10
 													</span>
 												) : null}
 											</div>
-											<h3 className="mt-1 text-xl font-black text-[#ffffb1]">
+											<h3 className="mt-1 text-xl font-black text-[rgb(var(--veud-highlight))]">
 												<Link
 													to={`/media/${review.media.id}#review-${review.id}`}
 													className="hover:underline"
@@ -279,17 +279,17 @@ export default function ReviewsRoute() {
 											</h3>
 										</header>
 
-										<div className="flex items-center gap-2 text-sm text-[#c6ded2]">
+										<div className="flex items-center gap-2 text-sm text-[rgb(var(--veud-body-text))]">
 											<img
 												src={getUserImgSrc(review.author.image?.id)}
 												alt=""
-												className="h-8 w-8 rounded-full border border-[#54806c] object-cover"
+												className="h-8 w-8 rounded-full border border-[rgb(var(--veud-rule))] object-cover"
 											/>
 											<span>
 												by{' '}
 												<Link
 													to={`/users/${review.author.username}`}
-													className="font-bold text-[#ffffb1] hover:underline"
+													className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 												>
 													{review.author.username}
 												</Link>
@@ -299,17 +299,17 @@ export default function ReviewsRoute() {
 										</div>
 
 										{review.containsSpoilers ? (
-											<div className="rounded-lg border border-[#ffcc66]/60 bg-[#2e2f2b] p-3 text-sm text-[#ffcc66]">
+											<div className="rounded-lg border border-[rgb(var(--veud-gold-bright))]/60 bg-[rgb(var(--veud-panel))] p-3 text-sm text-[rgb(var(--veud-gold-bright))]">
 												Contains spoilers. Open the title page to reveal this
 												review.
 											</div>
 										) : (
-											<p className="line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-[#c6ded2]">
+											<p className="line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 												{review.body}
 											</p>
 										)}
 
-										<footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#54806c]/60 pt-3 text-sm text-[#a2ffd5]">
+										<footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(var(--veud-rule))]/60 pt-3 text-sm text-[rgb(var(--veud-accent-bright))]">
 											<div className="flex items-center gap-3">
 												{data.isSignedIn ? (
 													<Form method="post">
@@ -352,7 +352,7 @@ export default function ReviewsRoute() {
 											</div>
 											<Link
 												to={`/media/${review.media.id}#review-${review.id}`}
-												className="font-bold text-[#ffffb1] hover:underline"
+												className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 											>
 												Read and discuss
 											</Link>
@@ -365,8 +365,8 @@ export default function ReviewsRoute() {
 											) : null}
 										</footer>
 										{review.containsSpoilers ? null : (
-											<details className="rounded-lg border border-[#54806c]/60 bg-[#2e2f2b] p-3">
-												<summary className="cursor-pointer text-sm font-bold text-[#ffffb1]">
+											<details className="rounded-lg border border-[rgb(var(--veud-rule))]/60 bg-[rgb(var(--veud-panel))] p-3">
+												<summary className="cursor-pointer text-sm font-bold text-[rgb(var(--veud-highlight))]">
 													Quick discussion · {review.commentCount}
 												</summary>
 												<div className="mt-4 space-y-4">
@@ -375,12 +375,12 @@ export default function ReviewsRoute() {
 															{review.recentComments.map(comment => (
 																<div
 																	key={comment.id}
-																	className="rounded-lg border border-[#54806c]/50 bg-[#383040] p-3"
+																	className="rounded-lg border border-[rgb(var(--veud-rule))]/50 bg-[rgb(var(--veud-panel-violet))] p-3"
 																>
-																	<div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#a2ffd5]">
+																	<div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[rgb(var(--veud-accent-bright))]">
 																		<Link
 																			to={`/users/${comment.author.username}`}
-																			className="font-bold text-[#ffffb1] hover:underline"
+																			className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 																		>
 																			{comment.author.username}
 																		</Link>
@@ -388,14 +388,14 @@ export default function ReviewsRoute() {
 																			{displayDate(comment.createdAt)}
 																		</time>
 																	</div>
-																	<p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[#c6ded2]">
+																	<p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[rgb(var(--veud-body-text))]">
 																		{comment.body}
 																	</p>
 																</div>
 															))}
 														</div>
 													) : (
-														<p className="text-sm text-[#a2ffd5]">
+														<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 															No comments yet. Start the conversation.
 														</p>
 													)}
@@ -432,10 +432,10 @@ export default function ReviewsRoute() {
 															</Button>
 														</Form>
 													) : (
-														<p className="text-sm text-[#a2ffd5]">
+														<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 															<Link
 																to={loginHref}
-																className="font-bold text-[#ffffb1] hover:underline"
+																className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 															>
 																Log in
 															</Link>{' '}
@@ -446,7 +446,7 @@ export default function ReviewsRoute() {
 													review.recentComments.length ? (
 														<Link
 															to={`/media/${review.media.id}#review-${review.id}`}
-															className="inline-block text-sm font-bold text-[#ffffb1] hover:underline"
+															className="inline-block text-sm font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 														>
 															Continue the full thread
 														</Link>
@@ -492,7 +492,7 @@ export default function ReviewsRoute() {
 								Previous
 							</Button>
 						)}
-						<span className="text-sm font-semibold text-[#a2ffd5]">
+						<span className="text-sm font-semibold text-[rgb(var(--veud-accent-bright))]">
 							Page {data.filters.page} of {data.pageCount}
 						</span>
 						{data.filters.page < data.pageCount ? (
