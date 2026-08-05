@@ -137,6 +137,9 @@ export default [
 	appRoute('routes/resources+/profile-comment.ts', {
 		path: 'resources/profile-comment',
 	}),
+	appRoute('routes/resources+/client-errors.ts', {
+		path: 'resources/client-errors',
+	}),
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
 	}),
