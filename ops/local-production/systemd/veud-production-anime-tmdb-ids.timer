@@ -1,0 +1,11 @@
+[Unit]
+Description=Resolve TMDB ids for tracked anime daily
+
+[Timer]
+OnCalendar=*-*-* 05:40:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=veud-production-anime-tmdb-ids.service
+
+[Install]
+WantedBy=timers.target
