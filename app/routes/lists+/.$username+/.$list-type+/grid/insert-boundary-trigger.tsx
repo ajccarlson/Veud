@@ -83,9 +83,7 @@ export function InsertBoundaryTrigger({
 				aria-label={boundaryLabel(position, listName)}
 				title={`Insert at position ${position}`}
 				onClick={() => setRequestCount(current => current + 1)}
-			>
-				<span className="ag-insert-boundary-line" aria-hidden="true" />
-			</button>
+			/>
 			{requestCount > 0 ? (
 				<Suspense
 					fallback={

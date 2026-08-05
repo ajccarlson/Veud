@@ -1068,7 +1068,7 @@
 		height: 5px;
 		padding: 0;
 		background: none;
-		border: 0;
+		border: 0 solid transparent;
 		color: #ff9900;
 		cursor: pointer;
 		z-index: 2;
@@ -1080,29 +1080,15 @@
 	// Kept inside its own row rather than straddling the border. A control that
 	// overhangs is hovered while the pointer is over the *neighbouring* row, so
 	// the row-hover that reveals it never fires and the strip is dead.
+	// The insertion line is the strip's own edge, so it needs no element.
 	.ag-insert-boundary-above {
 		top: 0;
+		border-top: 2px solid rgba(255, 153, 0, 0.85);
 	}
 
 	.ag-insert-boundary-below {
 		bottom: 0;
-	}
-
-	.ag-insert-boundary-line {
-		position: absolute;
-		left: 0.25rem;
-		right: 0.25rem;
-		height: 2px;
-		background: rgba(255, 153, 0, 0.85);
-		border-radius: 1px;
-	}
-
-	.ag-insert-boundary-above .ag-insert-boundary-line {
-		top: 0;
-	}
-
-	.ag-insert-boundary-below .ag-insert-boundary-line {
-		bottom: 0;
+		border-bottom: 2px solid rgba(255, 153, 0, 0.85);
 	}
 
 	// The affordance is the line itself rather than an icon: an icon large
@@ -1110,20 +1096,14 @@
 	// it, and an icon small enough to fit would not read as anything.
 	.ag-insert-boundary::after {
 		content: '+';
-		position: absolute;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		width: 0.875rem;
-		height: 0.875rem;
 		font-size: 0.7rem;
-		line-height: 1;
+		line-height: 0.875rem;
 		color: #1a1a1a;
 		background: #ff9900;
 		border-radius: 999px;
 		opacity: 0;
 		pointer-events: none;
-		transition: opacity 0.1s ease-out;
 	}
 
 	.ag-insert-boundary:hover::after,
@@ -1141,9 +1121,9 @@
 		pointer-events: auto;
 	}
 
-	.ag-insert-boundary:hover .ag-insert-boundary-line,
-	.ag-insert-boundary:focus-visible .ag-insert-boundary-line {
-		background: #fff4dd;
+	.ag-insert-boundary:hover,
+	.ag-insert-boundary:focus-visible {
+		border-color: #fff4dd;
 	}
 
 	.ag-insert-boundary:focus-visible {
