@@ -21,16 +21,16 @@ export function HomeRecommendations({
 		<div className="home-recommendations space-y-4">
 			<header className="flex flex-wrap items-end justify-between gap-3">
 				<div>
-					<p className="text-xs font-black uppercase tracking-[0.18em] text-[#a2ffd5]">
+					<p className="text-xs font-black uppercase tracking-[0.18em] text-[rgb(var(--veud-accent-bright))]">
 						Based on your activity
 					</p>
-					<h2 className="text-2xl font-black text-[#ff9900]">
+					<h2 className="text-2xl font-black text-[rgb(var(--veud-signal))]">
 						Recommendations
 					</h2>
 				</div>
 				<Link
 					to="/discover?sort=for-you"
-					className="text-sm font-bold text-[#a2ffd5] hover:underline"
+					className="text-sm font-bold text-[rgb(var(--veud-accent-bright))] hover:underline"
 				>
 					See every lane
 				</Link>
@@ -42,7 +42,7 @@ export function HomeRecommendations({
 						return (
 							<article key={item.id} className="home-recommendation-card">
 								<Link to={`/media/${item.id}`} className="flex min-w-0 gap-3">
-									<div className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-[#2e2f2b]">
+									<div className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-[rgb(var(--veud-panel))]">
 										{poster ? (
 											<img
 												src={poster}
@@ -53,18 +53,18 @@ export function HomeRecommendations({
 										) : null}
 									</div>
 									<div className="min-w-0">
-										<p className="text-[0.65rem] font-black uppercase tracking-wide text-[#ffcc66]">
+										<p className="text-[0.65rem] font-black uppercase tracking-wide text-[rgb(var(--veud-gold-bright))]">
 											{item.lane}
 										</p>
-										<h3 className="line-clamp-2 font-black text-[#ffffb1]">
+										<h3 className="line-clamp-2 font-black text-[rgb(var(--veud-highlight))]">
 											{item.title}
 										</h3>
-										<p className="mt-1 line-clamp-2 text-xs leading-5 text-[#c6ded2]">
+										<p className="mt-1 line-clamp-2 text-xs leading-5 text-[rgb(var(--veud-body-text))]">
 											{item.reasons[0]}
 										</p>
 									</div>
 								</Link>
-								<div className="mt-3 border-t border-[#54806c]/50 pt-2">
+								<div className="mt-3 border-t border-[rgb(var(--veud-rule))]/50 pt-2">
 									<QuickTrackControl
 										item={item}
 										watchlists={watchlists}

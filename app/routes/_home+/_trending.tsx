@@ -26,9 +26,9 @@ function TrendingCard({
 		<article className="home-trending-card w-44 shrink-0 snap-start overflow-hidden rounded-xl shadow-lg shadow-black/20">
 			<Link
 				to={`/media/${item.id}`}
-				className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#a2ffd5]"
+				className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[rgb(var(--veud-accent-bright))]"
 			>
-				<div className="relative aspect-[2/3] overflow-hidden bg-[#2e2f2b]">
+				<div className="relative aspect-[2/3] overflow-hidden bg-[rgb(var(--veud-panel))]">
 					{imageUrl ? (
 						<img
 							src={imageUrl}
@@ -37,19 +37,19 @@ function TrendingCard({
 							className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
 						/>
 					) : (
-						<span className="flex h-full items-center justify-center px-4 text-center text-xs font-bold text-[#8ca99d]">
+						<span className="flex h-full items-center justify-center px-4 text-center text-xs font-bold text-[rgb(var(--veud-muted-text))]">
 							No poster available
 						</span>
 					)}
-					<span className="absolute left-2 top-2 rounded-full bg-[#222]/90 px-2 py-1 text-xs font-black text-[#ffcc66]">
+					<span className="absolute left-2 top-2 rounded-full bg-[rgb(var(--veud-panel-darkest))]/90 px-2 py-1 text-xs font-black text-[rgb(var(--veud-gold-bright))]">
 						#{item.rank}
 					</span>
 				</div>
 				<div className="min-h-24 p-3">
-					<h4 className="line-clamp-2 font-black leading-5 text-[#ffffb1] group-hover:underline">
+					<h4 className="line-clamp-2 font-black leading-5 text-[rgb(var(--veud-highlight))] group-hover:underline">
 						{item.title}
 					</h4>
-					<p className="mt-1 text-xs text-[#a2ffd5]">
+					<p className="mt-1 text-xs text-[rgb(var(--veud-accent-bright))]">
 						{item.type || item.kind}
 						{item.year ? ` · ${item.year}` : ''}
 						{item.score !== null ? ` · ★ ${item.score.toFixed(1)}` : ''}
@@ -136,10 +136,10 @@ function TrendingRail({
 		<section aria-labelledby={headingId} className="min-w-0 space-y-3">
 			<header className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-baseline gap-3">
-					<h3 id={headingId} className="text-xl font-black text-[#ffffb1]">
+					<h3 id={headingId} className="text-xl font-black text-[rgb(var(--veud-highlight))]">
 						{rail.title}
 					</h3>
-					<span className="text-xs text-[#c6ded2]">
+					<span className="text-xs text-[rgb(var(--veud-body-text))]">
 						{rail.signal === 'trending'
 							? `Current provider chart${rail.observedAt ? ` · refreshed ${new Date(rail.observedAt).toLocaleDateString()}` : ''}`
 							: rail.signal === 'popular'
@@ -148,7 +148,7 @@ function TrendingRail({
 					</span>
 					<Link
 						to={`/discover?kind=${rail.kind}&sort=popular`}
-						className="text-xs font-bold text-[#a2ffd5] hover:underline"
+						className="text-xs font-bold text-[rgb(var(--veud-accent-bright))] hover:underline"
 					>
 						View all
 					</Link>
@@ -235,16 +235,16 @@ export function TrendingData({
 	return (
 		<section
 			aria-labelledby="home-trending-heading"
-			className="home-trending-section w-full max-w-7xl space-y-6 self-center text-[#ffefcc]"
+			className="home-trending-section w-full max-w-7xl space-y-6 self-center text-[rgb(var(--veud-parchment))]"
 		>
 			<header className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<p className="text-xs font-black uppercase tracking-[0.2em] text-[#a2ffd5]">
+					<p className="text-xs font-black uppercase tracking-[0.2em] text-[rgb(var(--veud-accent-bright))]">
 						Discover what’s moving
 					</p>
 					<h2
 						id="home-trending-heading"
-						className="mt-1 text-3xl font-black text-[#ff9900] sm:text-4xl"
+						className="mt-1 text-3xl font-black text-[rgb(var(--veud-signal))] sm:text-4xl"
 					>
 						Trending now
 					</h2>
@@ -282,23 +282,23 @@ export function TrendingData({
 					/>
 				</div>
 			) : (
-				<div className="rounded-xl border border-dashed border-[#54806c] bg-[#383040] px-6 py-12 text-center">
-					<h3 className="font-black text-[#ffffb1]">
+				<div className="rounded-xl border border-dashed border-[rgb(var(--veud-rule))] bg-[rgb(var(--veud-panel-violet))] px-6 py-12 text-center">
+					<h3 className="font-black text-[rgb(var(--veud-highlight))]">
 						Catalog charts are warming up
 					</h3>
-					<p className="mt-1 text-sm text-[#a2ffd5]">
+					<p className="mt-1 text-sm text-[rgb(var(--veud-accent-bright))]">
 						Charts will appear after the next catalog refresh.
 					</p>
 				</div>
 			)}
 
 			{!isSignedIn ? (
-				<div className="overflow-hidden rounded-2xl border border-[#54806c] bg-gradient-to-r from-[#383040] to-[#403530] p-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-8">
+				<div className="overflow-hidden rounded-2xl border border-[rgb(var(--veud-rule))] bg-gradient-to-r from-[rgb(var(--veud-panel-violet))] to-[rgb(var(--veud-panel-warm))] p-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-8">
 					<div>
-						<h3 className="text-2xl font-black text-[#ffffb1]">
+						<h3 className="text-2xl font-black text-[rgb(var(--veud-highlight))]">
 							Make it yours
 						</h3>
-						<p className="mt-2 max-w-2xl text-[#c6ded2]">
+						<p className="mt-2 max-w-2xl text-[rgb(var(--veud-body-text))]">
 							Build personal lists, keep a viewing diary, and turn these charts
 							into your next watch.
 						</p>
