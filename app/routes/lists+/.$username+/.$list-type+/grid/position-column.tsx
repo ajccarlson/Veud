@@ -21,6 +21,7 @@ import {
 	AdvancedEntryEditorTrigger,
 	openAdvancedEntryEditor,
 } from './advanced-entry-editor-trigger.tsx'
+import { InsertBoundaryTrigger } from './insert-boundary-trigger.tsx'
 import { gridAPI, columnParams } from './grid-state.ts'
 import { refreshGrid, moveEntry } from './grid-actions.ts'
 import {
@@ -63,6 +64,21 @@ export function positionColumn() {
 					<div>
 						{columnParams.currentUserId == columnParams.listOwner.id ? (
 							<div className="ag-position-controls">
+								{/* One control per gap: the boundary above every row, plus
+								    the one below the last, so no gap gets two. */}
+								<InsertBoundaryTrigger
+									params={params}
+									columnParams={columnParams}
+									side="above"
+								/>
+								{params.node?.rowIndex ===
+								(params.api?.getDisplayedRowCount?.() ?? 0) - 1 ? (
+									<InsertBoundaryTrigger
+										params={params}
+										columnParams={columnParams}
+										side="below"
+									/>
+								) : null}
 								<Form
 									method="GET"
 									className="ag-position-form"

@@ -23,7 +23,7 @@ async function cookieFor(userId: string) {
 }
 
 function request(
-	values: { mediaId: string; watchlistId: string },
+	values: { mediaId: string; watchlistId: string; insertPosition?: string },
 	cookie?: string,
 ) {
 	return new Request(`${BASE_URL}/resources/quick-track`, {
@@ -277,4 +277,95 @@ test('quick tracking never copies another owners private entry metadata', async 
 	for (const privateValue of Object.values(privateMetadata)) {
 		expect(storedEntry).not.toContain(privateValue)
 	}
+})
+
+test('tracking into a row boundary inserts there and shifts the rows below', async () => {
+	const { owner, media, watching, cookie } = await fixture()
+	const existing = await Promise.all(
+		[1, 2, 3].map(position =>
+			prisma.entry.create({
+				data: { watchlistId: watching.id, position, title: `Row ${position}` },
+				select: { id: true },
+			}),
+		),
+	)
+
+	const response = await action({
+		request: request(
+			{
+				mediaId: media.id,
+				watchlistId: watching.id,
+				insertPosition: '2',
+			},
+			cookie,
+		),
+		params: {},
+	} as any)
+	expect(response.init?.status ?? 200).toBe(200)
+
+	const positions = await prisma.entry.findMany({
+		where: { watchlistId: watching.id },
+		orderBy: { position: 'asc' },
+		select: { id: true, position: true, title: true },
+	})
+	// The new row takes position 2; the rows that were 2 and 3 move down one.
+	// Nothing may share a position, or the list order becomes arbitrary.
+	expect(positions.map(entry => entry.position)).toEqual([1, 2, 3, 4])
+	expect(positions[0]!.id).toBe(existing[0]!.id)
+	expect(positions[2]!.id).toBe(existing[1]!.id)
+	expect(positions[3]!.id).toBe(existing[2]!.id)
+	expect(positions[1]!.title).not.toBe('Row 2')
+	expect(owner.id).toBeTruthy()
+})
+
+test('tracking without a boundary still appends, and an impossible one is clamped', async () => {
+	const first = await fixture()
+	await Promise.all(
+		[1, 2].map(position =>
+			prisma.entry.create({
+				data: {
+					watchlistId: first.watching.id,
+					position,
+					title: `Row ${position}`,
+				},
+			}),
+		),
+	)
+	await action({
+		request: request(
+			{ mediaId: first.media.id, watchlistId: first.watching.id },
+			first.cookie,
+		),
+		params: {},
+	} as any)
+	const appended = await prisma.entry.findMany({
+		where: { watchlistId: first.watching.id },
+		orderBy: { position: 'asc' },
+		select: { position: true, title: true },
+	})
+	expect(appended.map(entry => entry.position)).toEqual([1, 2, 3])
+	expect(appended[2]!.title).not.toBe('Row 1')
+
+	// Far past the end is the end, not a gap of empty positions.
+	const second = await fixture()
+	await prisma.entry.create({
+		data: { watchlistId: second.watching.id, position: 1, title: 'Only row' },
+	})
+	await action({
+		request: request(
+			{
+				mediaId: second.media.id,
+				watchlistId: second.watching.id,
+				insertPosition: '99',
+			},
+			second.cookie,
+		),
+		params: {},
+	} as any)
+	const clamped = await prisma.entry.findMany({
+		where: { watchlistId: second.watching.id },
+		orderBy: { position: 'asc' },
+		select: { position: true },
+	})
+	expect(clamped.map(entry => entry.position)).toEqual([1, 2])
 })

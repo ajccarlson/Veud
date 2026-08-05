@@ -15,6 +15,7 @@ import {
 	searchMAL,
 } from '#app/routes/media+/mal.ts'
 import { getTMDBInfo, searchTMDB } from '#app/routes/media+/tmdb.ts'
+import { insertPositionForDestination } from '#app/utils/lists/insert-boundary.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
@@ -111,9 +112,12 @@ async function buildEntryFromResult(
 	result: any,
 	columnParams: any,
 	destinationWatchlistId: string,
+	insertPosition: number | null = null,
 ) {
 	const listTypeName = columnParams.listTypeData.name
-	const position = Number.MAX_SAFE_INTEGER
+	// The server clamps to the end of the list, so the sentinel means "append".
+	// An insertion sends a real position and the rows below it shift by one.
+	const position = insertPosition ?? Number.MAX_SAFE_INTEGER
 	const scoreDefaults = {
 		story: 0,
 		character: 0,
@@ -338,6 +342,14 @@ export function MediaSearchBar(params: any) {
 		if (!selectedDestination) return
 		const identityKey = mediaIdentityKey(preview.identity)
 		const tracked = trackingByIdentity[identityKey]
+		// Resolved here rather than when the dialog opened: the viewer can change
+		// the destination list in between, and a gap in one list says nothing
+		// about where a title belongs in another.
+		const targetPosition = insertPositionForDestination(
+			typeof params.insertPosition === 'number' ? params.insertPosition : null,
+			params.insertWatchlistId ?? null,
+			selectedDestination.id,
+		)
 		setAddingIdentity(identityKey)
 		setErrorMessage(null)
 		try {
@@ -346,6 +358,9 @@ export function MediaSearchBar(params: any) {
 				const body = new FormData()
 				body.set('mediaId', mediaId)
 				body.set('watchlistId', selectedDestination.id)
+				if (targetPosition !== null) {
+					body.set('insertPosition', String(targetPosition))
+				}
 				const response = await fetch('/resources/quick-track', {
 					method: 'POST',
 					body,
@@ -356,6 +371,7 @@ export function MediaSearchBar(params: any) {
 					result,
 					params.columnParams,
 					selectedDestination.id,
+					targetPosition,
 				)
 				const entry = await mutateList<'add-entry', { mediaId?: string }>(
 					'add-entry',
@@ -393,7 +409,7 @@ export function MediaSearchBar(params: any) {
 
 	return (
 		<div className="watchlist-search">
-			{params.compactTrigger ? (
+			{params.hideTrigger ? null : params.compactTrigger ? (
 				<Button
 					type="button"
 					variant="outline"

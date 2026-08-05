@@ -43,6 +43,13 @@ export async function setMediaTrackingStatus(
 		mediaId: string
 		watchlistId: string
 		recordActivity?: boolean
+		/**
+		 * Where in the destination list the entry should land. Omitted, it goes to
+		 * the end, which is what tracking a title from anywhere else should do.
+		 * Supplied, the rows from there down shift by one inside this transaction,
+		 * so the list is never briefly wrong.
+		 */
+		insertPosition?: number | null
 	},
 ) {
 	await serializeUserLibraryMutation(tx, input.ownerId)
@@ -98,11 +105,26 @@ export async function setMediaTrackingStatus(
 			destination.id,
 		) ?? null
 	if (!target) {
-		const maxPosition = await tx.entry.aggregate({
+		const entryCount = await tx.entry.count({
 			where: { watchlistId: destination.id },
-			_max: { position: true },
 		})
-		const position = (maxPosition._max.position ?? 0) + 1
+		const requestedPosition =
+			typeof input.insertPosition === 'number' &&
+			Number.isFinite(input.insertPosition)
+				? Math.min(Math.max(Math.trunc(input.insertPosition), 1), entryCount + 1)
+				: null
+		const position = requestedPosition ?? entryCount + 1
+		if (requestedPosition !== null) {
+			// Make room before anything claims the position. Everything here shares
+			// one transaction, so a failure leaves the list exactly as it was.
+			await tx.entry.updateMany({
+				where: {
+					watchlistId: destination.id,
+					position: { gte: requestedPosition },
+				},
+				data: { position: { increment: 1 } },
+			})
+		}
 		let primary: LegacyTrackingEntry | undefined
 		if (state?.statusWatchlistId) {
 			const statusEntries = await loadOwnerLegacyTrackingEntries(tx, {
