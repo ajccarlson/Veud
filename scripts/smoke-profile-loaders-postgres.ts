@@ -1333,10 +1333,23 @@ type ActiveMediaMeasurement = {
 
 function installMediaLoaderInstrumentation(prisma: PrismaClient) {
 	let activeMeasurement: ActiveMediaMeasurement | null = null
+	// Logical queries are counted synchronously in the instrumented delegate, but
+	// SQL statements arrive on Prisma's asynchronous `query` event. Reading the
+	// counters the instant an operation resolves races that stream: a statement
+	// still in flight is either dropped, or — because these measurements run one
+	// after another — counted against whichever measurement is active when it
+	// finally lands. The media-detail SQL ceiling failed and then passed on
+	// identical code because of the second case.
+	const DRAIN_MARKER = 'veud-media-measurement-drain'
+	let drainResolve: (() => void) | null = null
 	const queryEvents = prisma as unknown as {
 		$on(eventType: 'query', callback: (event: { query: string }) => void): void
 	}
 	queryEvents.$on('query', event => {
+		if (event.query.includes(DRAIN_MARKER)) {
+			drainResolve?.()
+			return
+		}
 		if (!activeMeasurement) return
 		activeMeasurement.sqlQueries += 1
 		if (
@@ -1424,6 +1437,37 @@ function installMediaLoaderInstrumentation(prisma: PrismaClient) {
 		}
 	}
 
+	/**
+	 * Wait until every statement issued so far has been reported. The engine
+	 * delivers query events in order, so the arrival of a sentinel issued last
+	 * proves the earlier ones already landed. The sentinel goes through
+	 * `$queryRawUnsafe`, which is deliberately uninstrumented, and is recognised
+	 * by its marker so it never counts as a statement itself.
+	 */
+	async function drainQueryEvents() {
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const timer = setTimeout(
+					() => reject(new Error('Timed out draining Prisma query events')),
+					10_000,
+				)
+				drainResolve = () => {
+					clearTimeout(timer)
+					resolve()
+				}
+				void (
+					prisma as unknown as {
+						$queryRawUnsafe(query: string): Promise<unknown>
+					}
+				)
+					.$queryRawUnsafe(`SELECT 1 /* ${DRAIN_MARKER} */`)
+					.catch(reject)
+			})
+		} finally {
+			drainResolve = null
+		}
+	}
+
 	return async function measure<Value>(operation: () => Promise<Value>) {
 		if (activeMeasurement) {
 			throw new Error('Media loader measurements may not overlap')
@@ -1440,11 +1484,11 @@ function installMediaLoaderInstrumentation(prisma: PrismaClient) {
 		const started = performance.now()
 		try {
 			const value = await operation()
-			return {
-				value,
-				...measurement,
-				wallMs: Number((performance.now() - started).toFixed(3)),
-			}
+			// Wall time is taken before the drain, so the sentinel round trip is
+			// not charged to the operation being measured.
+			const wallMs = Number((performance.now() - started).toFixed(3))
+			await drainQueryEvents()
+			return { value, ...measurement, wallMs }
 		} finally {
 			activeMeasurement = null
 		}
