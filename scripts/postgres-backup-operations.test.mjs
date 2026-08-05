@@ -256,6 +256,7 @@ describe('PostgreSQL client and destructive-target identity', () => {
 		postmasterStartedAt: '1750000000000000',
 		serverVersionNum: POSTGRES_BACKUP_SERVER_VERSION_NUM,
 		otherDatabaseSessions: 2,
+		otherDatabaseSessionDetail: '4001 idle backup; 4002 active backup',
 		preparedTransactions: 0,
 	}
 	const restoreIdentity = {
@@ -263,6 +264,7 @@ describe('PostgreSQL client and destructive-target identity', () => {
 		database: 'veud_restore',
 		databaseOid: '16385',
 		otherDatabaseSessions: 0,
+		otherDatabaseSessionDetail: '',
 	}
 
 	test('requires the exact PostgreSQL 16.14 client contract', () => {
@@ -392,6 +394,15 @@ describe('PostgreSQL client and destructive-target identity', () => {
 				otherDatabaseSessions: 1,
 			}),
 		).toThrow('another session or prepared transaction')
+		// Naming the holder is the point: a bare count is what made this failure
+		// recur for a week without ever being diagnosable.
+		expect(() =>
+			assertDistinctPostgresEndpointIdentities(sourceIdentity, {
+				...restoreIdentity,
+				otherDatabaseSessions: 1,
+				otherDatabaseSessionDetail: '9182 idle veud-backup',
+			}),
+		).toThrow('9182 idle veud-backup')
 		expect(() =>
 			assertDistinctPostgresEndpointIdentities(sourceIdentity, {
 				...restoreIdentity,
@@ -1214,4 +1225,59 @@ describe('rescue guardian process behavior', () => {
 			fs.rmSync(directory, { recursive: true, force: true })
 		}
 	})
+})
+
+test('an endpoint identity whose session detail is not text is rejected', () => {
+	const identity = {
+		database: 'veud_restore',
+		databaseOid: '16385',
+		serverAddress: '127.0.0.1',
+		serverPort: 5433,
+		postmasterStartedAt: '1750000000000000',
+		serverVersionNum: POSTGRES_BACKUP_SERVER_VERSION_NUM,
+		otherDatabaseSessions: 0,
+		otherDatabaseSessionDetail: '',
+		preparedTransactions: 0,
+	}
+	expect(
+		parsePostgresEndpointIdentity(
+			JSON.stringify(identity),
+			{ database: 'veud_restore' },
+			'Restore target',
+		),
+	).toEqual(identity)
+	for (const detail of [42, null, undefined, ['4001 idle backup']]) {
+		expect(() =>
+			parsePostgresEndpointIdentity(
+				JSON.stringify({ ...identity, otherDatabaseSessionDetail: detail }),
+				{ database: 'veud_restore' },
+				'Restore target',
+			),
+		).toThrow('Could not verify Restore target PostgreSQL identity')
+	}
+})
+
+test('the identity query returns exactly the fields the parser demands', () => {
+	// Without this the two can drift apart silently: the parser rejects any
+	// identity missing a field, so a field dropped from the SQL breaks every
+	// backup, and one added to the SQL alone breaks it just as thoroughly.
+	const query = postgresEndpointIdentityQuery()
+	// Keys sit at exactly three tabs; nested subqueries are indented deeper, so
+	// string literals inside them cannot be mistaken for keys.
+	const selected = [...query.matchAll(/^\t{3}'([A-Za-z]+)',/gm)].map(
+		match => match[1],
+	)
+	expect(new Set(selected)).toEqual(
+		new Set([
+			'database',
+			'databaseOid',
+			'serverAddress',
+			'serverPort',
+			'postmasterStartedAt',
+			'serverVersionNum',
+			'otherDatabaseSessions',
+			'otherDatabaseSessionDetail',
+			'preparedTransactions',
+		]),
+	)
 })
