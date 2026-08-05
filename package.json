@@ -182,7 +182,7 @@
     "remix-auth-oauth2": "^3.4.1",
     "remix-utils": "^10.0.0",
     "sass": "^1.102.0",
-    "set-cookie-parser": "^2.6.0",
+    "set-cookie-parser": "^3.1.2",
     "sharp": "^0.35.3",
     "sonner": "^1.4.3",
     "source-map-support": "^0.5.21",
