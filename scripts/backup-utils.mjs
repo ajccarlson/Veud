@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
+import { selectBackupRetention } from './backup-retention.mjs'
 
 const BACKUP_FILE_PATTERN = /^data-.*\.db$/
 // A snapshot in progress carries this suffix so it can never satisfy
@@ -124,6 +125,25 @@ export function pruneBackups(backupDir, keep) {
 	}
 	const pruned = []
 	for (const backup of listBackupFiles(backupDir).slice(keep)) {
+		fs.unlinkSync(backup.path)
+		pruned.push(backup.name)
+	}
+	return pruned
+}
+
+/**
+ * Prune to the tiered policy: every snapshot in the recent window, then one a
+ * day, then one a week. Keeping only the N newest is about two days of cover at
+ * an hourly cadence, so a mistake noticed after a weekend has nothing to
+ * restore from.
+ */
+export function pruneBackupsByRetention(backupDir, retention) {
+	const { remove } = selectBackupRetention(
+		listBackupFiles(backupDir),
+		retention,
+	)
+	const pruned = []
+	for (const backup of remove) {
 		fs.unlinkSync(backup.path)
 		pruned.push(backup.name)
 	}

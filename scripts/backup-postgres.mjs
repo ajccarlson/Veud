@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
+import { retentionFromEnvironment } from './backup-retention.mjs'
 import {
 	assertBackupDirectoryFreeSpace,
 	parsePositiveInteger,
@@ -27,7 +28,7 @@ import {
 } from './postgres-backup-receipt.mjs'
 import {
 	assertIndependentBackupMount,
-	prunePostgresBackups,
+	prunePostgresBackupsByRetention,
 } from './postgres-backup-utils.mjs'
 
 const sourceUrl = process.env.DATABASE_URL
@@ -39,15 +40,20 @@ const sourcePolicy = parsePostgresBackupSourcePolicy(
 )
 
 const backupDir = path.resolve(process.env.BACKUP_DIR || 'backups')
-const keep = parsePositiveInteger(process.env.BACKUP_KEEP, 48, 'BACKUP_KEEP')
+const retention = retentionFromEnvironment(process.env)
 const offsiteDir = process.env.BACKUP_OFFSITE_DIR
 	? path.resolve(process.env.BACKUP_OFFSITE_DIR)
 	: undefined
-const offsiteKeep = parsePositiveInteger(
-	process.env.BACKUP_OFFSITE_KEEP,
-	keep,
-	'BACKUP_OFFSITE_KEEP',
-)
+// The offsite copy keeps its own recent window; day and week tiers match,
+// since depth is the point of holding a second copy at all.
+const offsiteRetention = {
+	...retention,
+	recent: parsePositiveInteger(
+		process.env.BACKUP_OFFSITE_KEEP,
+		retention.recent,
+		'BACKUP_OFFSITE_KEEP',
+	),
+}
 const expectedUsername =
 	sourcePolicy === DEFAULT_POSTGRES_BACKUP_SOURCE_POLICY
 		? process.env.BACKUP_VERIFY_USERNAME?.trim() || undefined
@@ -252,13 +258,16 @@ console.log(
 	`   users=${summary.users}, watchlists=${summary.watchlists}, entries=${summary.entries}, media=${summary.media}, migrations=${summary.migrations}`,
 )
 console.log(`   restore receipt=${receipt.path}`)
-for (const backup of prunePostgresBackups(backupDir, keep)) {
+for (const backup of prunePostgresBackupsByRetention(backupDir, retention)) {
 	console.log(`🗑  Pruned old PostgreSQL backup: ${backup}`)
 }
 
 if (destination) {
 	console.log(`✅ Verified PostgreSQL offsite copy: ${destination}`)
-	for (const backup of prunePostgresBackups(offsiteDir, offsiteKeep)) {
+	for (const backup of prunePostgresBackupsByRetention(
+		offsiteDir,
+		offsiteRetention,
+	)) {
 		console.log(`🗑  Pruned old PostgreSQL offsite backup: ${backup}`)
 	}
 }
