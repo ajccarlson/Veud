@@ -7,6 +7,9 @@ import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 const QuickTrackSchema = z.object({
 	mediaId: z.string().min(1).max(100),
 	watchlistId: z.string().min(1).max(100),
+	// Sent only when tracking from a row boundary in the list itself. Anywhere
+	// else the title belongs at the end, so the field is absent rather than 0.
+	insertPosition: z.coerce.number().int().min(1).max(1_000_000).optional(),
 })
 
 export async function action({ request }: ActionFunctionArgs) {

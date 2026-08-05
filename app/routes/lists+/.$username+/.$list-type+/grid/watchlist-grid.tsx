@@ -8,8 +8,10 @@ import {
 	ClientSideRowModelApiModule,
 	ClientSideRowModelModule,
 	colorSchemeDark,
+	ColumnApiModule,
 	DateEditorModule,
 	DateFilterModule,
+	EventApiModule,
 	type ColDef,
 	type GridApi,
 	type GridOptions,
@@ -49,6 +51,11 @@ ModuleRegistry.registerModules([
 	RowDragModule,
 	RowSelectionModule,
 	CellStyleModule,
+	// The position column's insertion control has to know whether the rows are
+	// in stored order, and follow the sort when it changes. Reading the sort and
+	// subscribing to it are each their own module in this build.
+	ColumnApiModule,
+	EventApiModule,
 	DateEditorModule,
 	DateFilterModule,
 	NumberEditorModule,
