@@ -99,6 +99,42 @@ export function moveSuggestionIndex(
 	return next
 }
 
+/**
+ * Put the titles that actually begin with what was typed at the top.
+ *
+ * Popularity alone is not enough. Matching is substring-based, so a well-known
+ * title that merely *contains* the query inside a longer word outranks the one
+ * someone is typing: searching "frieren" offers the 1998 film *Savior*, because
+ * it carries the alternate title "Befrieren".
+ *
+ * Three tiers, each ordered by whatever order the caller supplied — popularity:
+ * titles that start with the query, then titles where it starts a word, then
+ * everything else, which is interior matches and titles found only through an
+ * alternate. Nothing is dropped; it is only moved down.
+ */
+export function rankSuggestions<Item extends { title: string }>(
+	items: Item[],
+	query: string,
+) {
+	const needle = query.trim().toLowerCase()
+	if (!needle) return [...items]
+	const tierOf = (item: Item) => {
+		const title = item.title.toLowerCase()
+		if (title.startsWith(needle)) return 0
+		const at = title.indexOf(needle)
+		if (at < 0) return 2
+		// A word boundary is what makes "piece" find "One Piece" without putting
+		// it level with a match buried inside a longer word.
+		return /[^\p{L}\p{N}]/u.test(title[at - 1] ?? '') ? 1 : 2
+	}
+	return items
+		.map((item, index) => ({ item, index, tier: tierOf(item) }))
+		.sort(
+			(first, second) => first.tier - second.tier || first.index - second.index,
+		)
+		.map(entry => entry.item)
+}
+
 /** The page a suggestion opens. */
 export function suggestionHref(suggestion: { id: string }) {
 	return `/media/${encodeURIComponent(suggestion.id)}`

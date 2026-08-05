@@ -6,6 +6,7 @@ import {
 	clampSuggestionLimit,
 	normalizeSuggestionKind,
 	normalizeSuggestionQuery,
+	rankSuggestions,
 	type SearchSuggestion,
 } from './search-suggestions.ts'
 
@@ -70,10 +71,12 @@ export async function getSearchSuggestions(input: {
 			{ title: 'asc' },
 			{ id: 'asc' },
 		],
-		take,
+		// More than will be shown, so ranking has something to choose between: the
+		// best prefix match is worth nothing if popularity kept it off the page.
+		take: Math.min(take * 4, 40),
 	})
 
-	return media.map(entry => ({
+	const suggestions = media.map(entry => ({
 		id: entry.id,
 		title: entry.title ?? '',
 		kind: entry.kind,
@@ -85,4 +88,5 @@ export async function getSearchSuggestions(input: {
 		// image half is separated here rather than in the markup.
 		thumbnail: splitLegacyThumbnail(entry.thumbnail).imageUrl,
 	}))
+	return rankSuggestions(suggestions, query).slice(0, take)
 }
