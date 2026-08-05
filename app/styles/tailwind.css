@@ -18,6 +18,35 @@
 		--veud-gold: 242 201 111;
 		--veud-yellow: 247 236 161;
 		--veud-danger: 255 179 164;
+
+		/*
+		 * Colours that were written as raw hex in 202 places across 13 files.
+		 * The values here are those hex codes exactly, so dark renders
+		 * pixel-for-pixel as it did — the visual regression suite pins dark and
+		 * proves it. Their light counterparts are below; without them a
+		 * hardcoded bright mint stays bright mint on paper, which is how a light
+		 * mode ships with invisible text.
+		 */
+		--veud-accent-bright: 162 255 213;
+		--veud-rule: 84 128 108;
+		--veud-highlight: 255 255 177;
+		--veud-panel: 46 47 43;
+		--veud-body-text: 198 222 210;
+		--veud-panel-violet: 56 48 64;
+		--veud-gold-bright: 255 204 102;
+		--veud-parchment: 255 239 204;
+		--veud-signal: 255 153 0;
+		--veud-muted-text: 140 169 157;
+		--veud-forest: 49 87 70;
+		--veud-panel-deep: 36 37 37;
+		--veud-panel-darkest: 34 34 34;
+		--veud-bright-text: 241 255 248;
+		/* Text that sits on --veud-highlight, so it has to flip when that does. */
+		--veud-on-highlight: 33 31 36;
+		--veud-panel-warm: 64 53 48;
+		--veud-panel-plum: 68 57 76;
+		--veud-control: 111 111 111;
+		--veud-body-soft: 215 233 223;
 		--veud-font-sans:
 			Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 			'Segoe UI', sans-serif;
@@ -93,6 +122,27 @@
 		--veud-gold: 146 106 20;
 		--veud-yellow: 112 94 18;
 		--veud-danger: 168 40 32;
+
+		/* The light counterparts of the formerly hardcoded colours. */
+		--veud-accent-bright: 20 105 72;
+		--veud-rule: 176 194 183;
+		--veud-highlight: 118 90 14;
+		--veud-panel: 236 230 219;
+		--veud-body-text: 53 74 65;
+		--veud-panel-violet: 233 227 238;
+		--veud-gold-bright: 140 100 16;
+		--veud-parchment: 46 40 28;
+		--veud-signal: 166 88 16;
+		--veud-muted-text: 92 114 104;
+		--veud-forest: 168 190 178;
+		--veud-panel-deep: 240 236 228;
+		--veud-panel-darkest: 244 240 232;
+		--veud-bright-text: 24 38 32;
+		--veud-on-highlight: 250 246 236;
+		--veud-panel-warm: 238 231 222;
+		--veud-panel-plum: 236 230 240;
+		--veud-control: 108 116 111;
+		--veud-body-soft: 62 84 74;
 		--veud-shadow-soft: 0 0.85rem 2.25rem rgb(31 41 36 / 0.1);
 		--veud-shadow-dialog: 0 1.5rem 5rem rgb(31 41 36 / 0.28);
 		--veud-focus-ring: 0 0 0 0.2rem rgb(var(--veud-mint) / 0.28);
