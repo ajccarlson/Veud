@@ -4,6 +4,7 @@ import {
 	createRequestId,
 	expressErrorStatus,
 	getRuntimeOperationsSnapshot,
+	isHealthSampledPath,
 	recordOperationalError,
 	releaseMetadata,
 	resetOperationsStateForTest,
@@ -108,4 +109,92 @@ test('emits one-line JSON operational logs', () => {
 		}),
 	)
 	expect(line).not.toContain('\n')
+})
+
+test('assets and healthchecks do not get a vote on service health', () => {
+	// They are numerous and uniformly fast, so including them pulls the p95
+	// toward their latency and hides the pages people actually wait on.
+	resetOperationsStateForTest()
+	for (const path of [
+		'/resources/healthcheck',
+		'/assets/app-abc123.js',
+		'/favicons/icon.png',
+		'/img/poster.webp',
+	]) {
+		expect(isHealthSampledPath(path)).toBe(false)
+		beginObservedRequest(path)(200)
+	}
+	const quiet = getRuntimeOperationsSnapshot()
+	// They still count as traffic...
+	expect(quiet.requests.completed).toBe(4)
+	// ...but contribute nothing to the health sample.
+	expect(quiet.requests.sampleSize).toBe(0)
+
+	expect(isHealthSampledPath('/lists/me/anime')).toBe(true)
+	beginObservedRequest('/lists/me/anime')(200)
+	expect(getRuntimeOperationsSnapshot().requests.sampleSize).toBe(1)
+})
+
+test('the error rate describes now, not since boot', () => {
+	// A burst of failures at start-up used to keep the service "critical" for
+	// as long as it stayed up, because the rate was cumulative while the p95 it
+	// sat beside was a rolling window.
+	resetOperationsStateForTest()
+	for (let index = 0; index < 10; index++) {
+		beginObservedRequest('/discover')(500)
+	}
+	expect(getRuntimeOperationsSnapshot().requests.errorRatePercent).toBe(100)
+
+	for (let index = 0; index < 990; index++) {
+		beginObservedRequest('/discover')(200)
+	}
+	const snapshot = getRuntimeOperationsSnapshot()
+	// The failures have aged out of the window entirely.
+	expect(snapshot.requests.errorRatePercent).toBe(0)
+	// The lifetime figure still remembers them, which is a different question.
+	expect(snapshot.requests.lifetimeErrorRatePercent).toBeGreaterThan(0)
+})
+
+test('a current outage is not diluted by a long healthy history', () => {
+	resetOperationsStateForTest()
+	for (let index = 0; index < 400; index++) {
+		beginObservedRequest('/discover')(200)
+	}
+	for (let index = 0; index < 100; index++) {
+		beginObservedRequest('/discover')(500)
+	}
+	const snapshot = getRuntimeOperationsSnapshot()
+	expect(snapshot.requests.errorRatePercent).toBe(20)
+	expect(snapshot.requests.lifetimeErrorRatePercent).toBe(20)
+
+	// Another 500 healthy requests and the window has moved on, while the
+	// lifetime figure has barely shifted.
+	for (let index = 0; index < 500; index++) {
+		beginObservedRequest('/discover')(200)
+	}
+	const later = getRuntimeOperationsSnapshot()
+	expect(later.requests.errorRatePercent).toBe(0)
+	expect(later.requests.lifetimeErrorRatePercent).toBeGreaterThan(0)
+})
+
+test('client errors are not service failures', () => {
+	// A 404 is someone asking for a page that does not exist. Counting those
+	// would make the service look unhealthy for as long as anyone mistypes a
+	// URL, which is permanently.
+	resetOperationsStateForTest()
+	for (let index = 0; index < 50; index++) {
+		beginObservedRequest('/lists/missing')(404)
+	}
+	beginObservedRequest('/discover')(403)
+	beginObservedRequest('/discover')(422)
+	const snapshot = getRuntimeOperationsSnapshot()
+	expect(snapshot.requests.errorRatePercent).toBe(0)
+	expect(snapshot.requests.lifetimeErrorRatePercent).toBe(0)
+	expect(snapshot.requests.statuses['4xx']).toBe(52)
+
+	// A single 500 among them does register.
+	beginObservedRequest('/discover')(500)
+	expect(
+		getRuntimeOperationsSnapshot().requests.errorRatePercent,
+	).toBeGreaterThan(0)
 })
