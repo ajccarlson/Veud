@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
+import { selectBackupRetention } from './backup-retention.mjs'
 
 const POSTGRES_BACKUP_PATTERN = /^postgres-.*\.dump$/
 
@@ -128,6 +129,21 @@ export function findLatestPostgresBackup(backupDir) {
 	if (!latest)
 		throw new Error(`No postgres-*.dump backups found in ${backupDir}`)
 	return latest.path
+}
+
+/** The tiered policy, applied to PostgreSQL dumps and their receipts. */
+export function prunePostgresBackupsByRetention(backupDir, retention) {
+	const { remove } = selectBackupRetention(
+		listPostgresBackups(backupDir),
+		retention,
+	)
+	const removed = []
+	for (const backup of remove) {
+		fs.unlinkSync(backup.path)
+		fs.rmSync(`${backup.path}.restore-verified.json`, { force: true })
+		removed.push(backup.name)
+	}
+	return removed
 }
 
 export function prunePostgresBackups(backupDir, keep) {

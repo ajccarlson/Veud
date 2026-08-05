@@ -5,8 +5,9 @@
  * Creates a consistent, timestamped copy of the database using SQLite's online backup
  * API (via better-sqlite3). This is safe to run while the app is live — it handles WAL
  * correctly, so you do NOT need to stop PM2. Every snapshot is restored to a temporary
- * database and checked before retention/offsite copying. Keeps the most recent BACKUP_KEEP
- * backups and prunes older ones.
+ * database and checked before retention/offsite copying. Retention is tiered:
+ * every snapshot from the most recent BACKUP_KEEP, then one a day for
+ * BACKUP_KEEP_DAILY days, then one a week for BACKUP_KEEP_WEEKLY weeks.
  *
  * How it runs:
  *   Automatically, as a second PM2 process defined in ecosystem.config.cjs. It runs once
@@ -20,7 +21,9 @@
  * Config (all optional env vars):
  *   BACKUP_DB_PATH  source database file        (default: <cwd>/prisma/data.db)
  *   BACKUP_DIR      directory for backups        (default: <cwd>/backups)
- *   BACKUP_KEEP     how many backups to retain   (default: 48)
+ *   BACKUP_KEEP     recent snapshots to keep all of (default: 48)
+ *   BACKUP_KEEP_DAILY   days to keep one snapshot each (default: 14)
+ *   BACKUP_KEEP_WEEKLY  weeks to keep one snapshot each (default: 8)
  *   BACKUP_VERIFY_USERNAME  account that must exist in the restored backup (optional)
  *   BACKUP_OFFSITE_DIR      mounted/synced off-machine directory (optional)
  *   BACKUP_OFFSITE_KEEP     offsite copies to retain (default: BACKUP_KEEP)
@@ -35,6 +38,7 @@ import 'dotenv/config'
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
+import { retentionFromEnvironment } from './backup-retention.mjs'
 import {
 	assertBackupDirectoryFreeSpace,
 	assertSqlitePrimaryDatabase,
@@ -43,7 +47,7 @@ import {
 	listRequiredMigrations,
 	parsePositiveInteger,
 	partialBackupPath,
-	pruneBackups,
+	pruneBackupsByRetention,
 	verifyBackupRestore,
 } from './backup-utils.mjs'
 import { assertIndependentBackupMount } from './postgres-backup-utils.mjs'
@@ -64,15 +68,20 @@ const dbPath = process.env.BACKUP_DB_PATH
 const backupDir = process.env.BACKUP_DIR
 	? path.resolve(process.env.BACKUP_DIR)
 	: path.join(process.cwd(), 'backups')
-const keep = parsePositiveInteger(process.env.BACKUP_KEEP, 48, 'BACKUP_KEEP')
+const retention = retentionFromEnvironment(process.env)
 const offsiteDir = process.env.BACKUP_OFFSITE_DIR
 	? path.resolve(process.env.BACKUP_OFFSITE_DIR)
 	: undefined
-const offsiteKeep = parsePositiveInteger(
-	process.env.BACKUP_OFFSITE_KEEP,
-	keep,
-	'BACKUP_OFFSITE_KEEP',
-)
+// The offsite copy keeps its own recent window; the day and week tiers match,
+// since depth is the point of holding a second copy at all.
+const offsiteRetention = {
+	...retention,
+	recent: parsePositiveInteger(
+		process.env.BACKUP_OFFSITE_KEEP,
+		retention.recent,
+		'BACKUP_OFFSITE_KEEP',
+	),
+}
 const minimumFreeBytes = Number(process.env.BACKUP_MIN_FREE_BYTES || 0)
 const offsiteMinimumFreeBytes = Number(
 	process.env.BACKUP_OFFSITE_MIN_FREE_BYTES || 0,
@@ -134,7 +143,7 @@ console.log(
 	`   users=${summary.users}, watchlists=${summary.watchlists}, entries=${summary.entries}, migrations=${summary.migrations}`,
 )
 
-for (const backup of pruneBackups(backupDir, keep)) {
+for (const backup of pruneBackupsByRetention(backupDir, retention)) {
 	console.log(`🗑  Pruned old backup: ${backup}`)
 }
 
@@ -145,7 +154,7 @@ if (offsiteDir) {
 		verificationOptions,
 	)
 	console.log(`✅ Verified offsite copy: ${destination}`)
-	for (const backup of pruneBackups(offsiteDir, offsiteKeep)) {
+	for (const backup of pruneBackupsByRetention(offsiteDir, offsiteRetention)) {
 		console.log(`🗑  Pruned old offsite backup: ${backup}`)
 	}
 }
