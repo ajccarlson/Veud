@@ -15,7 +15,11 @@ const budgets = [
 	{
 		label: 'watchlist route CSS',
 		pattern: /^_watchlist-[\w-]+\.css$/,
-		rawBytes: 30 * 1024,
+		// Raised from 30 KiB on 2026-08-04 for the row-boundary insertion
+		// control, which needs roughly a kilobyte of its own. The gzip ceiling is
+		// deliberately unchanged: that is what is actually sent, and it still has
+		// room, so the raw figure moving is not cover for the payload growing.
+		rawBytes: 32 * 1024,
 		gzipBytes: 8 * 1024,
 	},
 	{

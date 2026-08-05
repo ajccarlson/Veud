@@ -1580,3 +1580,120 @@ test('member can make a list private and visitors cannot open or discover it', a
 	const visitorDirectResponse = await page.goto(directList)
 	expect(visitorDirectResponse?.status()).toBe(404)
 })
+
+test('member can insert a title into the gap between two rows', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watching = await prisma.watchlist.create({
+		data: {
+			name: 'watching',
+			header: 'Watching',
+			position: 1,
+			displayedColumns: 'position, title, type',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+	await Promise.all(
+		['Boundary first', 'Boundary second', 'Boundary third'].map(
+			(title, index) =>
+				prisma.entry.create({
+					data: {
+						watchlistId: watching.id,
+						position: index + 1,
+						title,
+						type: 'TV Series',
+					},
+				}),
+		),
+	)
+
+	await page.goto(`/lists/${user.username}/anime/${watching.name}`)
+	const grid = page.locator('.ag-theme-custom-react')
+	await expect(grid.locator('.ag-row')).toHaveCount(3)
+
+	// Every gap gets exactly one control, including the two at the ends: above
+	// the first row and below the last. Those are where off-by-one errors live.
+	for (const position of [1, 2, 3, 4]) {
+		await expect(
+			grid.getByLabel(`Insert a title at position ${position} in Watching`),
+		).toHaveCount(1)
+	}
+	// Four gaps for three rows, and no more: a doubled control would mean one
+	// gap is reachable twice and another not at all.
+	await expect(grid.locator('.ag-insert-boundary')).toHaveCount(4)
+
+	// Reachable without a pointer: hover is not an interaction everyone has.
+	const secondGap = grid.getByLabel('Insert a title at position 2 in Watching')
+	await secondGap.focus()
+	await expect(secondGap).toBeFocused()
+
+	await secondGap.click()
+	const dialog = page.getByRole('dialog')
+	await expect(dialog).toBeVisible()
+	await page.keyboard.press('Escape')
+
+	// The catalog providers are not reachable from a test, so the search the
+	// dialog runs is answered here. Everything past this point — the position
+	// travelling with the chosen title, and the rows below it moving down — is
+	// the real code path.
+	const malNode = {
+		id: 55001,
+		title: 'Boundary inserted title',
+		main_picture: { medium: 'https://example.com/boundary.jpg' },
+		media_type: 'tv',
+		status: 'finished_airing',
+		start_date: '2024-01-07',
+		end_date: '2024-03-24',
+		start_season: { year: 2024, season: 'winter' },
+		num_episodes: 12,
+		average_episode_duration: 1440,
+		mean: 8.1,
+		rating: 'pg_13',
+		genres: [{ name: 'Adventure' }],
+		studios: [{ name: 'Studio Boundary' }],
+		synopsis: 'Inserted between two rows.',
+	}
+	await page.route('**/media/fetch-data/**', async route => {
+		// The proxy encodes the provider URL twice: once into the query string,
+		// once into the path segment.
+		const target = decodeURIComponent(decodeURIComponent(route.request().url()))
+		const body = target.includes('/v2/anime?q=')
+			? [{ data: [{ node: malNode }] }]
+			: [malNode]
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify(body),
+		})
+	})
+
+	await secondGap.click()
+	const insertDialog = page.getByRole('dialog')
+	await expect(insertDialog).toBeVisible()
+	await insertDialog.getByLabel('Search the catalog').fill('Boundary inserted')
+	await insertDialog.getByRole('button', { name: 'Search' }).click()
+	await insertDialog
+		.getByRole('button', { name: 'Add to Watching Boundary inserted title' })
+		.click()
+
+	// The gap the viewer clicked, not the end of the list.
+	await expect
+		.poll(() => titlesInOrder(watching.id))
+		.toEqual([
+			'1:Boundary first',
+			'2:Boundary inserted title',
+			'3:Boundary second',
+			'4:Boundary third',
+		])
+
+	// Under any sort the rows on screen are not in stored order, so "between
+	// these two" no longer names a position and the control is withdrawn.
+	await grid.getByRole('columnheader', { name: 'Title' }).click()
+	await expect(grid.locator('.ag-insert-boundary')).toHaveCount(0)
+})
