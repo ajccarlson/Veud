@@ -698,7 +698,82 @@ function updateFingerprint(
 	}
 }
 
+/**
+ * The viewer's taste, remembered between requests.
+ *
+ * Computing it reads every tracking state, favorite and feedback row the viewer
+ * has, joined to media for its genres — 5,376 rows for the busiest account
+ * here — and the answer is five genre labels plus a fingerprint. That work was
+ * repeated on every for-you discovery and every Tip of My Tongue call.
+ *
+ * The entry is kept against a signature of the viewer's library rather than a
+ * clock, so a tracking change is reflected on the next request rather than
+ * whenever a timer happens to expire. The signature costs three indexed
+ * aggregates, which is the point: cheap enough to ask every time, so the
+ * expensive scan only runs when the answer can actually have changed.
+ */
+const tasteCache = new Map<
+	string,
+	{ signature: string; taste: ViewerDiscoveryTaste }
+>()
+
+/** Bounded so a busy server cannot accumulate an entry per account seen. */
+const MAX_TASTE_CACHE_ENTRIES = 500
+
+export function resetViewerDiscoveryTasteCacheForTest() {
+	tasteCache.clear()
+}
+
+async function viewerTasteSignature(viewerId: string) {
+	const [states, favorites, feedback] = await Promise.all([
+		prisma.trackingState.aggregate({
+			where: { ownerId: viewerId },
+			_count: { _all: true },
+			_max: { updatedAt: true },
+		}),
+		prisma.userFavorite.aggregate({
+			where: { ownerId: viewerId },
+			_count: { _all: true },
+			_max: { id: true },
+		}),
+		prisma.recommendationFeedback.aggregate({
+			where: { ownerId: viewerId },
+			_count: { _all: true },
+			_max: { id: true },
+		}),
+	])
+	return [
+		// The viewer is part of their own signature. The Map is keyed by viewer
+		// too, so this is belt and braces — but without it, two accounts with
+		// empty libraries share a signature, and a keying mistake would serve one
+		// viewer's taste to another with nothing to catch it.
+		viewerId,
+		states._count._all,
+		states._max.updatedAt?.getTime() ?? 0,
+		favorites._count._all,
+		favorites._max.id ?? '',
+		feedback._count._all,
+		feedback._max.id ?? '',
+	].join(':')
+}
+
 async function getViewerDiscoveryTaste(
+	viewerId: string,
+): Promise<ViewerDiscoveryTaste> {
+	const signature = await viewerTasteSignature(viewerId)
+	const remembered = tasteCache.get(viewerId)
+	if (remembered?.signature === signature) return remembered.taste
+	const taste = await computeViewerDiscoveryTaste(viewerId)
+	if (tasteCache.size >= MAX_TASTE_CACHE_ENTRIES) {
+		// Oldest first; insertion order is good enough for a bound this loose.
+		const oldest = tasteCache.keys().next().value
+		if (oldest !== undefined) tasteCache.delete(oldest)
+	}
+	tasteCache.set(viewerId, { signature, taste })
+	return taste
+}
+
+async function computeViewerDiscoveryTaste(
 	viewerId: string,
 ): Promise<ViewerDiscoveryTaste> {
 	const [states, favorites, feedback] = await Promise.all([
