@@ -6,6 +6,7 @@ import {
 	moveSuggestionIndex,
 	normalizeSuggestionKind,
 	normalizeSuggestionQuery,
+	rankSuggestions,
 	suggestionHref,
 	suggestionMeta,
 	SUGGESTION_LIMIT,
@@ -117,4 +118,65 @@ test('the meta line falls back to the kind when there is no type', () => {
 			thumbnail: null,
 		}),
 	).toBe('anime')
+})
+
+test('titles that begin with the query come first', () => {
+	// The real case: searching "frieren" offered the 1998 film Savior, because
+	// it carries the alternate title "Befrieren".
+	const ranked = rankSuggestions(
+		[
+			{ title: 'Savior' },
+			{ title: 'Frieren: Beyond Journeys End' },
+			{ title: 'Sousou no Frieren' },
+		],
+		'frieren',
+	)
+	expect(ranked.map(item => item.title)).toEqual([
+		'Frieren: Beyond Journeys End',
+		'Sousou no Frieren',
+		'Savior',
+	])
+})
+
+test('a query starting a later word outranks one buried in a word', () => {
+	const ranked = rankSuggestions(
+		[{ title: 'Masterpiece Theatre' }, { title: 'One Piece' }],
+		'piece',
+	)
+	expect(ranked.map(item => item.title)).toEqual([
+		'One Piece',
+		'Masterpiece Theatre',
+	])
+})
+
+test('ranking reorders but never drops', () => {
+	const items = [{ title: 'Alpha' }, { title: 'Beta' }, { title: 'Gamma' }]
+	expect(rankSuggestions(items, 'zzz')).toHaveLength(3)
+	expect(rankSuggestions(items, '')).toEqual(items)
+	expect(rankSuggestions([], 'anything')).toEqual([])
+})
+
+test('within a tier the order it was given survives', () => {
+	// Popularity decides among equals, and that order arrives from the database.
+	const ranked = rankSuggestions(
+		[
+			{ title: 'Frieren Popular' },
+			{ title: 'Frieren Obscure' },
+			{ title: 'Frieren Rare' },
+		],
+		'frieren',
+	)
+	expect(ranked.map(item => item.title)).toEqual([
+		'Frieren Popular',
+		'Frieren Obscure',
+		'Frieren Rare',
+	])
+})
+
+test('case and punctuation do not decide the tier', () => {
+	const ranked = rankSuggestions(
+		[{ title: 'The One Piece' }, { title: 'ONE PIECE FILM' }],
+		'one piece',
+	)
+	expect(ranked[0]!.title).toBe('ONE PIECE FILM')
 })
