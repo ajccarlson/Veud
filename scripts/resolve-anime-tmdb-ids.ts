@@ -5,6 +5,9 @@ import {
 	chooseUniqueTmdbMatch,
 	searchTitles,
 	TMDB_WATCH_PROVIDER_KEY,
+	TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+	unresolvedRetryAfter,
+	UNRESOLVED_RETRY_DAYS,
 	type TmdbCandidate,
 } from '#app/utils/tmdb-anime-match.server.ts'
 import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
@@ -23,6 +26,9 @@ their MAL-sourced data.
 
 A match must agree on a whole title and on the year, and every known title must
 converge on one TMDB entry. Ambiguous anime are skipped, not guessed at.
+
+An anime that cannot be resolved is recorded as such and reconsidered after
+${UNRESOLVED_RETRY_DAYS} days, so refusals do not fill the queue and stall it.
 
 Options:
   --commit          Search and write (default: dry-run, no requests)
@@ -112,14 +118,25 @@ async function searchTmdb(path: 'tv' | 'movie', query: string) {
 }
 
 async function main() {
-	// Only anime someone tracks, and only those with no mapping yet. A mapping
-	// does not go stale: it identifies a work, not a fact about it.
+	// Only anime someone tracks, and only those neither mapped nor refused
+	// recently. A mapping does not go stale — it identifies a work, not a fact
+	// about it — but a refusal does, so it is reconsidered once it expires.
+	const now = new Date()
 	const candidates = await prisma.media.findMany({
 		where: {
 			kind: 'anime',
 			trackingStates: { some: {} },
 			externalIds: {
-				none: { provider: TMDB_WATCH_PROVIDER_KEY, tombstonedAt: null },
+				none: {
+					OR: [
+						{ provider: TMDB_WATCH_PROVIDER_KEY, tombstonedAt: null },
+						{
+							provider: TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+							tombstonedAt: null,
+							refreshAfter: { gt: now },
+						},
+					],
+				},
 			},
 		},
 		select: {
@@ -142,6 +159,40 @@ async function main() {
 	let collided = 0
 	let failed = 0
 
+	/**
+	 * Record that this anime was searched and not resolved. `externalId` holds
+	 * the media id, because the row identifies the attempt rather than a TMDB
+	 * entry and `(provider, kind, externalId)` still has to be unique.
+	 */
+	async function recordUnresolved(mediaId: string, kind: string) {
+		const attemptedAt = new Date()
+		const refreshAfter = unresolvedRetryAfter(attemptedAt)
+		await prisma.mediaExternalId.upsert({
+			where: {
+				provider_kind_externalId: {
+					provider: TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+					kind,
+					externalId: mediaId,
+				},
+			},
+			create: {
+				mediaId,
+				provider: TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+				kind,
+				externalId: mediaId,
+				fetchStatus: 'failed',
+				lastFetchedAt: attemptedAt,
+				refreshAfter,
+			},
+			update: {
+				fetchStatus: 'failed',
+				lastFetchedAt: attemptedAt,
+				refreshAfter,
+				tombstonedAt: null,
+			},
+		})
+	}
+
 	for (const media of candidates) {
 		// A film is a film on TMDB too; everything else is indexed as a show.
 		const path = media.type?.trim().toLowerCase() === 'movie' ? 'movie' : 'tv'
@@ -151,6 +202,7 @@ async function main() {
 		)
 		if (!titles.length) {
 			unmatched++
+			await recordUnresolved(media.id, path)
 			continue
 		}
 		const year = media.startYear ? String(media.startYear) : null
@@ -163,6 +215,7 @@ async function main() {
 			const match = chooseUniqueTmdbMatch(titles, year, candidateEntries)
 			if (!match) {
 				unmatched++
+				await recordUnresolved(media.id, path)
 				continue
 			}
 			// (provider, kind, externalId) is unique, so a collision means another
@@ -181,6 +234,9 @@ async function main() {
 			})
 			if (claimed) {
 				collided++
+				// Recorded like any other refusal: searching again tomorrow would
+				// reach the same already-claimed entry.
+				await recordUnresolved(media.id, path)
 				console.warn(
 					`${media.title ?? media.id}: TMDB ${match.tmdbId} already mapped to ${claimed.mediaId}`,
 				)
