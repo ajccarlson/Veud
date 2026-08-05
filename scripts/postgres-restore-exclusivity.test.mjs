@@ -74,3 +74,20 @@ test('an aborted run stops waiting', async () => {
 		}),
 	).rejects.toThrow()
 })
+
+test('the default bound outlasts a backup that is still finishing', async () => {
+	// A cron backup that started minutes earlier can still be verifying when a
+	// deployment reaches its own backup, so the default has to span that, not
+	// just a socket closing. The clock is driven here rather than slept through.
+	const { read } = reader([busy, busy, busy, busy, free])
+	let clock = 0
+	const identity = await awaitExclusiveRestoreTarget(null, null, 'test', {
+		readIdentity: read,
+		pollMs: 1,
+		now: () => {
+			clock += 30_000
+			return clock
+		},
+	})
+	expect(identity).toEqual(free)
+})
