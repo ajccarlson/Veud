@@ -140,6 +140,9 @@ export default [
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
 	}),
+	appRoute('routes/resources+/search-suggestions.ts', {
+		path: 'resources/search-suggestions',
+	}),
 	appRoute('routes/resources+/image-tip-of-tongue.ts', {
 		path: 'resources/image-tip-of-tongue',
 	}),
