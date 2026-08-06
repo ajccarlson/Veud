@@ -140,6 +140,9 @@ export default [
 	appRoute('routes/resources+/client-errors.ts', {
 		path: 'resources/client-errors',
 	}),
+	appRoute('routes/resources+/review-detail.ts', {
+		path: 'resources/review-detail',
+	}),
 	appRoute('routes/resources+/quick-track.ts', {
 		path: 'resources/quick-track',
 	}),
