@@ -31,6 +31,30 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			},
 			roles: true,
 			consents: true,
+			// The library and the writing. Their absence was the gap: an export
+			// that omits someone's lists, entries and reviews is not the export
+			// the page promises, and that is a trust problem before it is a
+			// feature one.
+			watchlists: {
+				include: {
+					entries: true,
+				},
+			},
+			userFavorites: true,
+			reviews: true,
+			diaryEntries: true,
+			reviewComments: true,
+			reviewLikes: true,
+			mediaCollections: {
+				include: { items: true },
+			},
+			collectionComments: true,
+			collectionLikes: true,
+			releaseReminders: true,
+			activityEvents: true,
+			// Comments this member wrote on profiles — theirs, not the profile
+			// owner's, so only the authored side is included.
+			profileComments: true,
 			trackingStates: {
 				include: { progress: true },
 			},

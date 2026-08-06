@@ -190,3 +190,93 @@ test('account export includes private recommendation feedback but omits password
 	])
 	expect(response.headers.get('cache-control')).toBe('private, no-store')
 })
+
+test('the export contains the library and the writing, not just the account', async () => {
+	// It claimed to export everything while omitting watchlists, entries,
+	// reviews, diary entries, comments, collections and favorites — which is a
+	// trust problem before it is a feature gap.
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const user = await prisma.user.create({
+		data: {
+			email: `full_${suffix}@example.com`,
+			username: `full_${suffix}`,
+		},
+	})
+	const listType = await prisma.listType.upsert({
+		where: { name: 'anime' },
+		update: {},
+		create: {
+			name: 'anime',
+			header: 'Anime',
+			columns: '{}',
+			mediaType: '["episode"]',
+			completionType: '{}',
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'anime', title: `Full export ${suffix}` },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			ownerId: user.id,
+			typeId: listType.id,
+			name: 'watching',
+			header: 'Watching',
+			position: 1,
+			entries: {
+				create: { position: 1, title: `Entry ${suffix}`, mediaId: media.id },
+			},
+		},
+	})
+	const review = await prisma.review.create({
+		data: {
+			mediaId: media.id,
+			authorId: user.id,
+			body: `Review body ${suffix}`,
+			moderationStatus: 'visible',
+		},
+	})
+	const diaryEntry = await prisma.diaryEntry.create({
+		data: {
+			ownerId: user.id,
+			mediaId: media.id,
+			loggedOn: new Date('2026-08-01T00:00:00.000Z'),
+		},
+	})
+	await prisma.userFavorite.create({
+		data: {
+			ownerId: user.id,
+			mediaId: media.id,
+			typeId: listType.id,
+			position: 1,
+			title: `Favorite ${suffix}`,
+		},
+	})
+
+	const request = new Request(`${BASE_URL}/resources/download-user-data`, {
+		headers: {
+			cookie: await getSessionCookieHeader(
+				await prisma.session.create({
+					data: {
+						userId: user.id,
+						expirationDate: new Date(Date.now() + 86_400_000),
+					},
+				}),
+			),
+		},
+	})
+	const response = await loader({ request, url: new URL(request.url) } as any)
+	const exported = (await response.json()) as { user: Record<string, any> }
+
+	expect(exported.user.watchlists?.[0]?.id).toBe(watchlist.id)
+	// The entries inside them, not merely the list names.
+	expect(exported.user.watchlists?.[0]?.entries?.[0]?.title).toBe(
+		`Entry ${suffix}`,
+	)
+	expect(exported.user.reviews?.[0]?.id).toBe(review.id)
+	expect(exported.user.reviews?.[0]?.body).toBe(`Review body ${suffix}`)
+	expect(exported.user.diaryEntries?.[0]?.id).toBe(diaryEntry.id)
+	expect(exported.user.userFavorites).toHaveLength(1)
+	// Still no credentials.
+	expect(exported.user.password).toBeUndefined()
+})
