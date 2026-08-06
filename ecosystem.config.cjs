@@ -26,7 +26,18 @@ module.exports = {
 			interpreter: productionLaunchers ? 'bash' : 'node',
 			instances: 1,
 			exec_mode: 'fork',
-			max_memory_restart: '300M',
+			// Measured, not guessed: the process reaches ~277 MB within six minutes
+			// of starting and settles just under 300 MB. That is its working set —
+			// an SSR server holding a Prisma client against a 1.5M-row catalog —
+			// not a leak, and the old 300 MB cap sat below it. PM2 was therefore
+			// killing and restarting production every two to three minutes
+			// forever, with a brief outage each time; 43 restarts had accumulated
+			// when this was found.
+			//
+			// 600 MB leaves real headroom on a host with 18 GB free while still
+			// catching a genuine runaway. If it climbs steadily past this, that is
+			// a leak and worth chasing rather than raising again.
+			max_memory_restart: '600M',
 			// Exceeds the application's 12-second graceful-shutdown deadline.
 			kill_timeout: 15_000,
 			// A misconfigured start used to flap indefinitely: PM2 retried ~90
