@@ -166,3 +166,27 @@ issue reports, or policy reference fields.
 
 Production logs must be rotated and retained according to available storage.
 Health and status output must remain credential-free.
+
+## Log rotation
+
+PM2 writes application logs into the activated release directory. Rotation is
+handled by the `pm2-logrotate` module, configured on the host:
+
+```bash
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 20M
+pm2 set pm2-logrotate:retain 14
+pm2 set pm2-logrotate:compress true
+pm2 set pm2-logrotate:rotateInterval '0 0 * * *'
+pm2 set pm2-logrotate:workerInterval 300
+```
+
+Without it the logs grow without limit on a disk that also holds the database
+and every backup. The live log had reached 48 MB when this was installed.
+
+**Known gap:** because logs live inside the release directory, each deployment
+starts a fresh pair and leaves the previous release's behind — 64 MB across
+three releases at the time of writing. `pm2-logrotate` only manages the files of
+the running process, so superseded release logs accumulate until a release
+directory is pruned. Moving logs to a stable path outside the release, or
+pruning them during cutover, would close it.
