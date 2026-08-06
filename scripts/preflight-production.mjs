@@ -281,8 +281,28 @@ function readPm2ProcessesFromPm2() {
 	} catch {
 		return undefined
 	}
+	return parsePm2JsonList(raw)
+}
+
+/**
+ * Parse `pm2 jlist`, which does not always emit only JSON.
+ *
+ * When the running daemon is older than the installed CLI, pm2 prints a
+ * multi-line "In-memory PM2 is out-of-date" banner on stdout before the array.
+ * That made the parse fail, and a failed parse downgraded this check from
+ * verifying which launcher PM2 runs to printing a note — which is the check
+ * that exists because production once ran from the working tree instead of the
+ * release. Silently not checking is the failure mode worth avoiding here, so
+ * anything before the array is discarded rather than trusted to be absent.
+ */
+export function parsePm2JsonList(raw) {
+	if (typeof raw !== 'string') return null
+	const start = raw.indexOf('[')
+	if (start < 0) return null
 	try {
-		return JSON.parse(raw)
+		// The slice always begins at '[', so a successful parse is an array; there
+		// is no separate shape check to make here.
+		return JSON.parse(raw.slice(start))
 	} catch {
 		return null
 	}
