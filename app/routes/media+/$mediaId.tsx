@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
+import { ReviewExpander } from '#app/components/review-expander.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -71,6 +72,11 @@ import {
 	createReviewComment,
 	toggleReviewLike,
 } from '#app/utils/review-engagement.server.ts'
+import {
+	reviewExcerpt,
+	hiddenCommentCount,
+	REVIEW_COMMENT_PREVIEW,
+} from '#app/utils/review-excerpt.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
@@ -362,6 +368,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 			},
 		}),
+		// Bodies are excerpted and comments previewed below, so this list stays a
+		// list. The rest of any one review comes from /resources/review-detail.
 		prisma.review.findMany({
 			where: { mediaId: media.id, moderationStatus: 'visible' },
 			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -387,7 +395,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 				comments: {
 					orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-					take: 50,
+					take: REVIEW_COMMENT_PREVIEW,
 					select: {
 						id: true,
 						body: true,
@@ -565,6 +573,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		relations,
 		reviews: reviewRows.map(({ likes, comments, ...review }) => ({
 			...review,
+			// An excerpt, not the body. Twenty reviews at up to 5,000 characters
+			// each is 100 KB of text on a page most visitors read the top of; the
+			// rest of any one review comes from /resources/review-detail.
+			body: reviewExcerpt(review.body).text,
+			bodyTruncated: reviewExcerpt(review.body).truncated,
+			hiddenComments: hiddenCommentCount(review._count.comments),
 			rating: review.rating === null ? null : Number(review.rating),
 			viewerLiked: likes.length > 0,
 			comments: comments.map(({ moderationStatus, ...comment }) => ({
@@ -2022,6 +2036,11 @@ export default function MediaDetailRoute() {
 												{review.body}
 											</p>
 										)}
+										<ReviewExpander
+											reviewId={review.id}
+											truncated={review.bodyTruncated}
+											hiddenComments={review.hiddenComments}
+										/>
 										<div className="flex flex-wrap items-center gap-3 border-t pt-3 text-sm">
 											{data.viewer ? (
 												<Form method="post">
