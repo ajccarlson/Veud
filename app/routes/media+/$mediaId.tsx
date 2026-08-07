@@ -394,6 +394,11 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 					select: { id: true },
 				},
 				comments: {
+					// NOT filtered by moderation: the page renders removed comments as
+					// "[Removed by moderation]" tombstones, which tell a reader that
+					// something was there. See the note on hiddenComments below — this
+					// disagrees with the endpoint's visible-only skip, and reconciling
+					// the two is unfinished work rather than something to paper over.
 					orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 					take: REVIEW_COMMENT_PREVIEW,
 					select: {
@@ -578,6 +583,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			// rest of any one review comes from /resources/review-detail.
 			body: reviewExcerpt(review.body).text,
 			bodyTruncated: reviewExcerpt(review.body).truncated,
+			// An upper bound: _count.comments is the public total and includes
+			// moderated-away ones, which the endpoint will not serve. Filtering it
+			// here would change what "N comments" means everywhere else on the page,
+			// so the label can overstate by however many were removed.
 			hiddenComments: hiddenCommentCount(review._count.comments),
 			rating: review.rating === null ? null : Number(review.rating),
 			viewerLiked: likes.length > 0,
@@ -2030,17 +2039,26 @@ export default function MediaDetailRoute() {
 												<p className="mt-3 whitespace-pre-wrap leading-7 text-muted-foreground">
 													{review.body}
 												</p>
+												{/* Inside the gate: expanding a spoiler-flagged review must
+												    not print the rest of it in the clear. */}
+												<ReviewExpander
+													reviewId={review.id}
+													truncated={review.bodyTruncated}
+													hiddenComments={review.hiddenComments}
+												/>
 											</details>
 										) : (
-											<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
-												{review.body}
-											</p>
+											<>
+												<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
+													{review.body}
+												</p>
+												<ReviewExpander
+													reviewId={review.id}
+													truncated={review.bodyTruncated}
+													hiddenComments={review.hiddenComments}
+												/>
+											</>
 										)}
-										<ReviewExpander
-											reviewId={review.id}
-											truncated={review.bodyTruncated}
-											hiddenComments={review.hiddenComments}
-										/>
 										<div className="flex flex-wrap items-center gap-3 border-t pt-3 text-sm">
 											{data.viewer ? (
 												<Form method="post">

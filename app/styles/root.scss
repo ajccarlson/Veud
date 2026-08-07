@@ -345,7 +345,7 @@
 	.site-search > select {
 		min-width: 0;
 		color: rgb(var(--veud-cream));
-		background: rgb(4 8 7 / 0.55);
+		background: rgb(var(--veud-ink) / 0.55);
 		border: 1px solid rgb(var(--veud-border) / 0.38);
 	}
 
@@ -373,7 +373,7 @@
 		z-index: 60;
 		overflow: hidden;
 		color: rgb(var(--veud-cream));
-		background: rgb(4 8 7 / 0.97);
+		background: rgb(var(--veud-ink) / 0.97);
 		border: 1px solid rgb(var(--veud-border) / 0.55);
 		border-radius: 0.6rem;
 		box-shadow: 0 1rem 2rem rgb(0 0 0 / 0.45);
