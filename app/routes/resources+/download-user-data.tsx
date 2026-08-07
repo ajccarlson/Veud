@@ -52,9 +52,12 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			collectionLikes: true,
 			releaseReminders: true,
 			activityEvents: true,
-			// Comments this member wrote on profiles — theirs, not the profile
-			// owner's, so only the authored side is included.
-			profileComments: true,
+			// Comments this member WROTE. `commentsAuthored` is the
+			// ProfileCommentAuthor side; `profileComments` is ProfileCommentProfile
+			// — comments other members wrote *on* this profile, which are their
+			// words and must not appear in someone else's export. The first version
+			// of this used the wrong side and said in a comment that it did not.
+			commentsAuthored: true,
 			trackingStates: {
 				include: { progress: true },
 			},
