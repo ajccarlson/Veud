@@ -280,3 +280,49 @@ test('the export contains the library and the writing, not just the account', as
 	// Still no credentials.
 	expect(exported.user.password).toBeUndefined()
 })
+
+test('the export carries what this member wrote, never what others wrote about them', async () => {
+	// profileComments is the inbound relation — comments others left ON this
+	// profile. Exporting it hands one member other people's words.
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const [subject, other] = await Promise.all([
+		prisma.user.create({
+			data: { email: `subj_${suffix}@example.com`, username: `subj_${suffix}` },
+		}),
+		prisma.user.create({
+			data: { email: `othr_${suffix}@example.com`, username: `othr_${suffix}` },
+		}),
+	])
+	await prisma.profileComment.create({
+		data: {
+			authorId: other.id,
+			profileId: subject.id,
+			body: `SOMEONE ELSES WORDS ${suffix}`,
+		},
+	})
+	await prisma.profileComment.create({
+		data: {
+			authorId: subject.id,
+			profileId: other.id,
+			body: `MY OWN WORDS ${suffix}`,
+		},
+	})
+
+	const request = new Request(`${BASE_URL}/resources/download-user-data`, {
+		headers: {
+			cookie: await getSessionCookieHeader(
+				await prisma.session.create({
+					data: {
+						userId: subject.id,
+						expirationDate: new Date(Date.now() + 86_400_000),
+					},
+				}),
+			),
+		},
+	})
+	const response = await loader({ request, url: new URL(request.url) } as any)
+	const body = await response.text()
+
+	expect(body).toContain(`MY OWN WORDS ${suffix}`)
+	expect(body).not.toContain(`SOMEONE ELSES WORDS ${suffix}`)
+})

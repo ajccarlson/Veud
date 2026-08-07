@@ -267,7 +267,9 @@ export async function action({ request }: ActionFunctionArgs) {
 function Document({
 	children,
 	nonce,
-	theme = 'light',
+	// Dark is what :root defines, so it is the safe default when no preference
+	// is known — an error page has no loader data to read one from.
+	theme = 'dark',
 	env = {},
 }: {
 	children: React.ReactNode
