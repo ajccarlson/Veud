@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest'
 import {
-	hiddenCommentCount,
+	displayComment,
+	REMOVED_COMMENT_BODY,
 	reviewExcerpt,
-	REVIEW_COMMENT_PREVIEW,
 	REVIEW_EXCERPT_LENGTH,
 } from './review-excerpt.ts'
 
@@ -46,12 +46,55 @@ test('an absent body is not an error', () => {
 	expect(reviewExcerpt('')).toEqual({ text: '', truncated: false })
 })
 
-test('the hidden comment count is what the page did not send', () => {
-	expect(hiddenCommentCount(50)).toBe(50 - REVIEW_COMMENT_PREVIEW)
-	expect(hiddenCommentCount(REVIEW_COMMENT_PREVIEW)).toBe(0)
-	expect(hiddenCommentCount(1)).toBe(0)
-	expect(hiddenCommentCount(0)).toBe(0)
-	// Never negative, whatever it is handed.
-	expect(hiddenCommentCount(-5)).toBe(0)
-	expect(hiddenCommentCount(Number.NaN)).toBe(0)
+test('the cut does not sever a surrogate pair', () => {
+	// An emoji is two UTF-16 code units, so a cut at an odd offset inside one
+	// leaves an orphaned half that renders as a black diamond.
+	const body = `${'a'.repeat(REVIEW_EXCERPT_LENGTH - 1)}😀${'b'.repeat(100)}`
+	const excerpt = reviewExcerpt(body)
+	expect(excerpt.truncated).toBe(true)
+	for (const unit of excerpt.text) {
+		const code = unit.charCodeAt(0)
+		// Nothing left over: every high surrogate still has its low half attached,
+		// which iteration by code point would have already paired up.
+		expect(code >= 0xd800 && code <= 0xdbff && unit.length === 1).toBe(false)
+	}
+})
+
+test('a whole emoji at the boundary survives', () => {
+	// One code unit earlier the pair fits, and cutting it would be a loss the
+	// orphan guard must not cause.
+	const body = `${'a'.repeat(REVIEW_EXCERPT_LENGTH - 2)}😀${'b'.repeat(100)}`
+	expect(reviewExcerpt(body).text).toContain('😀')
+})
+
+test('a removed comment keeps its place and loses its body', () => {
+	// The tombstone is the point: it says something was here, which is not the
+	// same as nothing having been here.
+	expect(
+		displayComment({
+			id: 'c1',
+			body: 'what a moderator took down',
+			moderationStatus: 'removed',
+		}),
+	).toEqual({ id: 'c1', body: REMOVED_COMMENT_BODY, isRemoved: true })
+})
+
+test('a visible comment passes through with its body', () => {
+	expect(
+		displayComment({ id: 'c2', body: 'ordinary', moderationStatus: 'visible' }),
+	).toEqual({ id: 'c2', body: 'ordinary', isRemoved: false })
+})
+
+test('any status that is not visible is treated as removed', () => {
+	// Nothing should have to enumerate the statuses a moderator can set for a
+	// body to stay unpublished.
+	for (const status of ['pending', 'hidden', 'flagged', '']) {
+		const shown = displayComment({
+			id: 'c',
+			body: 'secret',
+			moderationStatus: status,
+		})
+		expect(shown.isRemoved).toBe(true)
+		expect(shown.body).toBe(REMOVED_COMMENT_BODY)
+	}
 })

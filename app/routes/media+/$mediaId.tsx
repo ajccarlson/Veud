@@ -1,5 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type Prisma } from '@prisma/client'
+import { useState } from 'react'
 import {
 	data as json,
 	Form,
@@ -15,7 +16,11 @@ import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
-import { ReviewExpander } from '#app/components/review-expander.tsx'
+import {
+	MoreCommentsButton,
+	ReviewBody,
+	type ReviewDetailComment,
+} from '#app/components/review-expander.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -73,9 +78,10 @@ import {
 	toggleReviewLike,
 } from '#app/utils/review-engagement.server.ts'
 import {
+	displayComment,
 	reviewExcerpt,
-	hiddenCommentCount,
 	REVIEW_COMMENT_PREVIEW,
+	REVIEW_COMMENT_REMAINDER_LIMIT,
 } from '#app/utils/review-excerpt.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
@@ -395,10 +401,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 				comments: {
 					// NOT filtered by moderation: the page renders removed comments as
-					// "[Removed by moderation]" tombstones, which tell a reader that
-					// something was there. See the note on hiddenComments below — this
-					// disagrees with the endpoint's visible-only skip, and reconciling
-					// the two is unfinished work rather than something to paper over.
+					// tombstones, which tell a reader that something was there. They
+					// therefore occupy a slot, and /resources/review-detail skips the
+					// same unfiltered set when it resumes — see the note there.
 					orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 					take: REVIEW_COMMENT_PREVIEW,
 					select: {
@@ -583,21 +588,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			// rest of any one review comes from /resources/review-detail.
 			body: reviewExcerpt(review.body).text,
 			bodyTruncated: reviewExcerpt(review.body).truncated,
-			// An upper bound: _count.comments is the public total and includes
-			// moderated-away ones, which the endpoint will not serve. Filtering it
-			// here would change what "N comments" means everywhere else on the page,
-			// so the label can overstate by however many were removed.
-			hiddenComments: hiddenCommentCount(review._count.comments),
 			rating: review.rating === null ? null : Number(review.rating),
 			viewerLiked: likes.length > 0,
-			comments: comments.map(({ moderationStatus, ...comment }) => ({
-				...comment,
-				body:
-					moderationStatus === 'visible'
-						? comment.body
-						: '[Removed by moderation]',
-				isRemoved: moderationStatus !== 'visible',
-			})),
+			comments: comments.map(displayComment),
 		})),
 		activity: activityRows.map(event => ({
 			id: event.id,
@@ -635,14 +628,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	})
 }
 
-type ReviewCommentItem = {
-	id: string
-	body: string
-	parentId: string | null
-	createdAt: Date | string
-	isRemoved: boolean
-	author: { id: string; username: string }
-}
+// The same shape whether it came with the page or from the detail endpoint —
+// they land in one thread, so one type keeps them from drifting apart.
+type ReviewCommentItem = ReviewDetailComment
 
 function ReviewCommentForm({
 	reviewId,
@@ -790,6 +778,20 @@ function ReviewDiscussion({
 	viewerId: string | null
 	busy: boolean
 }) {
+	// The remainder arrives on request and joins the same thread, so a late reply
+	// nests under the comment it answers. Null until asked for — an empty array
+	// is a real answer and must not read as "not loaded yet".
+	const [extra, setExtra] = useState<ReviewCommentItem[] | null>(null)
+	const shown = extra ? [...comments, ...extra] : comments
+	// Exact, because both ends count a removed comment: the page spends a slot on
+	// its tombstone and the endpoint skips it.
+	const hidden = Math.max(0, commentCount - shown.length)
+	// A full page is the endpoint's ceiling, not the end of the conversation.
+	// Anything short of it is everything there was, so the count is only worth
+	// reporting here.
+	const capped =
+		extra !== null && extra.length >= REVIEW_COMMENT_REMAINDER_LIMIT
+
 	return (
 		<div className="space-y-3 rounded-lg bg-muted/30 p-3">
 			<div className="text-sm font-semibold">Discussion · {commentCount}</div>
@@ -807,18 +809,24 @@ function ReviewDiscussion({
 				</p>
 			)}
 			<ReviewCommentThread
-				comments={comments}
+				comments={shown}
 				parentId={null}
 				reviewId={reviewId}
 				reviewAuthorId={reviewAuthorId}
 				viewerId={viewerId}
 				busy={busy}
 			/>
-			{commentCount > comments.length ? (
+			{capped ? (
 				<p className="text-xs text-muted-foreground">
-					Showing the first {comments.length} comments.
+					Showing the first {shown.length} of {commentCount} comments.
 				</p>
-			) : null}
+			) : (
+				<MoreCommentsButton
+					reviewId={reviewId}
+					hidden={hidden}
+					onLoaded={setExtra}
+				/>
+			)}
 		</div>
 	)
 }
@@ -2036,28 +2044,22 @@ export default function MediaDetailRoute() {
 												<summary className="cursor-pointer font-semibold">
 													Contains spoilers — reveal review
 												</summary>
-												<p className="mt-3 whitespace-pre-wrap leading-7 text-muted-foreground">
-													{review.body}
-												</p>
 												{/* Inside the gate: expanding a spoiler-flagged review must
 												    not print the rest of it in the clear. */}
-												<ReviewExpander
-													reviewId={review.id}
-													truncated={review.bodyTruncated}
-													hiddenComments={review.hiddenComments}
-												/>
+												<div className="mt-3">
+													<ReviewBody
+														reviewId={review.id}
+														excerpt={review.body}
+														truncated={review.bodyTruncated}
+													/>
+												</div>
 											</details>
 										) : (
-											<>
-												<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
-													{review.body}
-												</p>
-												<ReviewExpander
-													reviewId={review.id}
-													truncated={review.bodyTruncated}
-													hiddenComments={review.hiddenComments}
-												/>
-											</>
+											<ReviewBody
+												reviewId={review.id}
+												excerpt={review.body}
+												truncated={review.bodyTruncated}
+											/>
 										)}
 										<div className="flex flex-wrap items-center gap-3 border-t pt-3 text-sm">
 											{data.viewer ? (
@@ -2101,6 +2103,9 @@ export default function MediaDetailRoute() {
 												</summary>
 												<div className="mt-3">
 													<ReviewDiscussion
+														// See the note on the other branch: a fetched
+														// remainder goes stale the moment a comment is added.
+														key={review._count.comments}
 														reviewId={review.id}
 														reviewAuthorId={review.author.id}
 														comments={review.comments}
@@ -2112,6 +2117,11 @@ export default function MediaDetailRoute() {
 											</details>
 										) : (
 											<ReviewDiscussion
+												// Posting or deleting a comment makes any remainder already
+												// fetched stale — most visibly the member's own new comment,
+												// which is the newest and so lands outside what was loaded.
+												// Remounting drops it and re-offers the control.
+												key={review._count.comments}
 												reviewId={review.id}
 												reviewAuthorId={review.author.id}
 												comments={review.comments}

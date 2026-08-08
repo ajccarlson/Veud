@@ -1,67 +1,133 @@
 import { useState } from 'react'
 import { Button } from '#app/components/ui/button.tsx'
 
-type ReviewComment = {
+export type ReviewDetailComment = {
 	id: string
 	body: string
 	parentId: string | null
 	createdAt: string | Date
-	author: { id: string; username: string } | null
+	isRemoved: boolean
+	author: { id: string; username: string }
+}
+
+type ReviewDetail = {
+	body: string
+	comments: ReviewDetailComment[]
 }
 
 /**
- * The control that fetches the rest of a review.
+ * The rest of one review.
  *
  * The media page sends an excerpt and a few comments so that listing twenty
  * reviews does not mean sending a hundred kilobytes of text and a thousand
  * comments. Anyone who wants the whole of one review asks for that one review.
+ *
+ * Both controls below call this. Clicking both costs two requests, which the
+ * endpoint's short cache usually absorbs, and that is cheaper than the state
+ * lifting needed to share one — the body and the discussion sit at opposite
+ * ends of a review.
  */
-export function ReviewExpander({
+async function fetchReviewDetail(reviewId: string): Promise<ReviewDetail> {
+	const response = await fetch(
+		`/resources/review-detail?reviewId=${encodeURIComponent(reviewId)}`,
+		{
+			headers: { accept: 'application/json' },
+			// The response is cacheable for half a minute, which is right for a
+			// shared cache and wrong here: this is only ever fetched because someone
+			// clicked, and after posting a comment the browser would otherwise
+			// replay a copy taken before it existed.
+			cache: 'no-cache',
+		},
+	)
+	if (!response.ok) throw new Error(String(response.status))
+	const payload = (await response.json()) as { review?: Partial<ReviewDetail> }
+	return {
+		body: payload.review?.body ?? '',
+		comments: payload.review?.comments ?? [],
+	}
+}
+
+function FailureNote() {
+	return (
+		<p role="alert" className="mt-1 text-sm text-destructive">
+			Could not load the rest of this review.
+		</p>
+	)
+}
+
+/**
+ * A review's text, with the control that fetches the rest of it.
+ *
+ * The paragraph lives here rather than beside this component so that the full
+ * body can *replace* the excerpt. Rendering it below instead would repeat the
+ * first six hundred characters the reader had just finished.
+ */
+export function ReviewBody({
 	reviewId,
+	excerpt,
 	truncated,
-	hiddenComments,
 }: {
 	reviewId: string
+	excerpt: string
 	truncated: boolean
-	hiddenComments: number
 }) {
-	const [body, setBody] = useState<string | null>(null)
-	const [comments, setComments] = useState<ReviewComment[] | null>(null)
+	const [full, setFull] = useState<string | null>(null)
 	const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle')
 
-	if (!truncated && hiddenComments < 1) return null
-	if (body || comments) {
-		return (
-			<div className="mt-3 space-y-3">
-				{body ? (
-					<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
-						{body}
-					</p>
-				) : null}
-				{comments?.length ? (
-					<ul className="space-y-2 border-t pt-3">
-						{comments.map(comment => (
-							<li key={comment.id} className="text-sm">
-								<span className="font-semibold">
-									{comment.author?.username ?? 'Removed member'}
-								</span>{' '}
-								<span className="text-muted-foreground">{comment.body}</span>
-							</li>
-						))}
-					</ul>
-				) : null}
-			</div>
-		)
-	}
+	return (
+		<>
+			<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
+				{full ?? excerpt}
+			</p>
+			{truncated && full === null ? (
+				<div className="mt-2">
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						disabled={state === 'loading'}
+						onClick={async () => {
+							setState('loading')
+							try {
+								const detail = await fetchReviewDetail(reviewId)
+								setFull(detail.body)
+								setState('idle')
+							} catch {
+								// Say so rather than leaving a button that appears to do nothing.
+								setState('failed')
+							}
+						}}
+					>
+						{state === 'loading' ? 'Loading…' : 'Read full review'}
+					</Button>
+					{state === 'failed' ? <FailureNote /> : null}
+				</div>
+			) : null}
+		</>
+	)
+}
 
-	const label = truncated
-		? hiddenComments > 0
-			? `Read full review and ${hiddenComments} more comments`
-			: 'Read full review'
-		: `Show ${hiddenComments} more comments`
+/**
+ * The control that fetches the comments the page held back.
+ *
+ * It hands them to the discussion rather than listing them itself, so a reply
+ * arriving late still nests under the comment it answers instead of appearing
+ * as a flat list somewhere else on the page.
+ */
+export function MoreCommentsButton({
+	reviewId,
+	hidden,
+	onLoaded,
+}: {
+	reviewId: string
+	hidden: number
+	onLoaded: (comments: ReviewDetailComment[]) => void
+}) {
+	const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle')
+	if (hidden < 1) return null
 
 	return (
-		<div className="mt-2">
+		<div>
 			<Button
 				type="button"
 				variant="ghost"
@@ -70,30 +136,18 @@ export function ReviewExpander({
 				onClick={async () => {
 					setState('loading')
 					try {
-						const response = await fetch(
-							`/resources/review-detail?reviewId=${encodeURIComponent(reviewId)}`,
-							{ headers: { accept: 'application/json' } },
-						)
-						if (!response.ok) throw new Error(String(response.status))
-						const payload = (await response.json()) as {
-							review?: { body?: string; comments?: ReviewComment[] }
-						}
-						setBody(truncated ? (payload.review?.body ?? '') : null)
-						setComments(payload.review?.comments ?? [])
-						setState('idle')
+						const detail = await fetchReviewDetail(reviewId)
+						onLoaded(detail.comments)
 					} catch {
-						// Say so rather than leaving a button that appears to do nothing.
 						setState('failed')
 					}
 				}}
 			>
-				{state === 'loading' ? 'Loading…' : label}
+				{state === 'loading'
+					? 'Loading…'
+					: `Show ${hidden} more ${hidden === 1 ? 'comment' : 'comments'}`}
 			</Button>
-			{state === 'failed' ? (
-				<p role="alert" className="mt-1 text-sm text-destructive">
-					Could not load the rest of this review.
-				</p>
-			) : null}
+			{state === 'failed' ? <FailureNote /> : null}
 		</div>
 	)
 }
