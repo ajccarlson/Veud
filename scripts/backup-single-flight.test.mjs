@@ -49,14 +49,42 @@ test('a lock left by a dead process is reclaimed, not honoured forever', () => {
 	expect(fs.readFileSync(lockPath, 'utf8')).toBe('99')
 })
 
-test('an unreadable lock is reclaimed rather than blocking everything', () => {
+test('a fresh unreadable lock is honoured, an old one is reclaimed', () => {
+	// This version cannot write an unattributable lock — the pid is published
+	// atomically — so one can only come from an older build or a torn write.
+	// Reclaiming immediately could steal from a live writer; honouring forever
+	// would stop every future backup silently. Age decides.
 	fs.mkdirSync(path.dirname(lockPath), { recursive: true })
 	fs.writeFileSync(lockPath, 'not-a-pid')
-	const lock = acquireBackupLock(lockPath, {
+
+	const fresh = acquireBackupLock(lockPath, {
 		pid: 7,
 		isRunning: () => true,
+		lockAge: () => Date.now(),
 	})
+	expect(fresh.acquired).toBe(false)
+
+	const stale = acquireBackupLock(lockPath, {
+		pid: 7,
+		isRunning: () => true,
+		lockAge: () => Date.now() - 3 * 60 * 60 * 1_000,
+	})
+	expect(stale.acquired).toBe(true)
+	expect(fs.readFileSync(lockPath, 'utf8')).toBe('7')
+})
+
+test('the lock is never visible without its owner inside it', () => {
+	// openSync('wx') then writeSync left a window where the file existed and was
+	// empty, and a reader parsing '' gets 0 — which failed the `> 0` check and
+	// reclaimed a live owner's lock as debris.
+	const lock = acquireBackupLock(lockPath, { pid: 4321 })
 	expect(lock.acquired).toBe(true)
+	expect(fs.readFileSync(lockPath, 'utf8')).toBe('4321')
+	// No staging file is left behind.
+	const strays = fs
+		.readdirSync(path.dirname(lockPath))
+		.filter(name => name.includes('staged'))
+	expect(strays).toEqual([])
 })
 
 test('releasing never removes another process lock', () => {
