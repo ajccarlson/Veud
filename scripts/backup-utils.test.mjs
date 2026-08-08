@@ -244,3 +244,38 @@ describe('free space', () => {
 		)
 	})
 })
+
+test('an offsite partial is recognised and swept like any other', () => {
+	// copyVerifiedBackup appends a timestamp after the pid, so these matched
+	// nothing and were swept by nothing — accumulating on the offsite disk,
+	// which is the one with the least room.
+	const offsite = path.join(tempDir, 'data-2026-08-07T00-00-00-000Z.db')
+	const artifact = `${offsite}.partial-9101-1786000000000`
+	fs.writeFileSync(artifact, 'interrupted offsite copy')
+
+	// Still never mistaken for a restorable snapshot.
+	expect(listBackupFiles(tempDir)).toEqual([])
+
+	expect(
+		cleanupInterruptedBackupArtifacts(tempDir, {
+			isRunning: () => false,
+			now: () => Date.now() + 7 * 60 * 60 * 1_000,
+		}),
+	).toEqual(['data-2026-08-07T00-00-00-000Z.db.partial-9101-1786000000000'])
+	expect(fs.existsSync(artifact)).toBe(false)
+})
+
+test('an offsite partial its writer still holds is left alone', () => {
+	// The pid is the first group in the name, not the text after the last dash —
+	// reading the timestamp as a pid would make every offsite partial look dead.
+	const offsite = path.join(tempDir, 'data-2026-08-07T01-00-00-000Z.db')
+	const artifact = `${offsite}.partial-9102-1786000000000`
+	fs.writeFileSync(artifact, 'in progress')
+	expect(
+		cleanupInterruptedBackupArtifacts(tempDir, {
+			isRunning: pid => pid === 9102,
+			now: () => Date.now() + 7 * 60 * 60 * 1_000,
+		}),
+	).toEqual([])
+	expect(fs.existsSync(artifact)).toBe(true)
+})
