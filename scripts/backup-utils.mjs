@@ -8,7 +8,10 @@ const BACKUP_FILE_PATTERN = /^data-.*\.db$/
 // A snapshot in progress carries this suffix so it can never satisfy
 // BACKUP_FILE_PATTERN: an unverified file must not be listed, pruned against,
 // or selected as "latest" by a restore.
-const PARTIAL_FILE_PATTERN = /^data-.*\.db\.partial-\d+$/
+// The offsite copy appends a timestamp after the pid, so the trailing group is
+// optional — without it those partials matched nothing and were swept by
+// nothing, accumulating on the offsite disk forever.
+const PARTIAL_FILE_PATTERN = /^data-.*\.db\.partial-(\d+)(?:-\d+)?$/
 const REQUIRED_TABLES = ['_prisma_migrations', 'User', 'Watchlist', 'Entry']
 
 export function assertSqlitePrimaryDatabase(databaseUrl) {
@@ -57,7 +60,7 @@ export function cleanupInterruptedBackupArtifacts(backupDir, options = {}) {
 	const removed = []
 	for (const entry of fs.readdirSync(backupDir, { withFileTypes: true })) {
 		if (!entry.isFile() || !PARTIAL_FILE_PATTERN.test(entry.name)) continue
-		const pid = Number(entry.name.slice(entry.name.lastIndexOf('-') + 1))
+		const pid = Number(PARTIAL_FILE_PATTERN.exec(entry.name)?.[1])
 		const artifactPath = path.join(backupDir, entry.name)
 		if (Number.isSafeInteger(pid) && pid > 0 && isRunning(pid)) continue
 		if (now - fs.statSync(artifactPath).mtimeMs < orphanGraceMs) continue

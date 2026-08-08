@@ -148,6 +148,9 @@ for (const backup of pruneBackupsByRetention(backupDir, retention)) {
 }
 
 if (offsiteDir) {
+	for (const artifact of cleanupInterruptedBackupArtifacts(offsiteDir)) {
+		console.log(`🗑  Removed interrupted offsite artifact: ${artifact}`)
+	}
 	const { destination } = copyVerifiedBackup(
 		outFile,
 		offsiteDir,
