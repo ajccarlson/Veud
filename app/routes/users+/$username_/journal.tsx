@@ -121,24 +121,24 @@ export function ProfileReviewsData({ data }: { data: ProfileReviewsData }) {
 										<div>
 											<Link
 												to={`/media/${review.media.id}`}
-												className="font-bold text-[var(--veud-highlight)] hover:underline"
+												className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 											>
 												{review.media.title}
 											</Link>
 											{review.rating !== null ? (
-												<span className="ml-2 text-sm font-semibold text-[var(--veud-mint)]">
+												<span className="ml-2 text-sm font-semibold text-[rgb(var(--veud-mint))]">
 													{review.rating}/10
 												</span>
 											) : null}
 										</div>
-										<span className="text-xs text-[var(--veud-mint-text)]">
+										<span className="text-xs text-[rgb(var(--veud-sage))]">
 											{displayDate(review.createdAt)}
 											{edited ? ' · Edited' : ''}
 										</span>
 									</header>
 									{review.containsSpoilers ? (
 										<details className="user-landing-spoiler">
-											<summary className="cursor-pointer font-semibold text-[var(--veud-highlight)]">
+											<summary className="cursor-pointer font-semibold text-[rgb(var(--veud-highlight))]">
 												Contains spoilers — reveal review
 											</summary>
 											<p className="mt-3 whitespace-pre-wrap leading-7">
@@ -216,15 +216,15 @@ export function ProfileDiaryData({ data }: { data: ProfileDiaryData }) {
 									<div className="min-w-0 flex-1">
 										<Link
 											to={`/media/${entry.media.id}`}
-											className="font-bold text-[var(--veud-highlight)] hover:underline"
+											className="font-bold text-[rgb(var(--veud-highlight))] hover:underline"
 										>
 											{entry.media.title}
 										</Link>
-										<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[var(--veud-mint-text)]">
+										<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[rgb(var(--veud-sage))]">
 											<time>{displayDate(entry.loggedOn, true)}</time>
 											<span>{entry.isRepeat ? terms.repeat : terms.past}</span>
 											{entry.rating !== null ? (
-												<span className="font-semibold text-[var(--veud-mint)]">
+												<span className="font-semibold text-[rgb(var(--veud-mint))]">
 													{entry.rating}/10
 												</span>
 											) : null}

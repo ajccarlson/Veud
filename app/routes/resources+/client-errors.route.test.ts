@@ -82,3 +82,55 @@ test('the endpoint only accepts posts', async () => {
 	}
 	expect(response.init?.status).toBe(405)
 })
+
+test('an oversized body is refused before it is parsed', async () => {
+	// Nothing upstream limits the body — the Express adapter passes the raw
+	// stream through and no body-parser is installed — so without this the
+	// endpoint buffers whatever an unauthenticated caller sends.
+	const huge = JSON.stringify({ message: 'x', stack: 's'.repeat(200_000) })
+	const response = (await action({
+		request: new Request(`${BASE_URL}/resources/client-errors`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: huge,
+		}),
+		params: {},
+	} as any)) as { init?: { status?: number } }
+	expect(response.init?.status).toBe(413)
+})
+
+test('a lying Content-Length does not get the body past the cap', async () => {
+	// The header is the sender's claim, and a chunked request carries none.
+	const huge = JSON.stringify({ message: 'x', stack: 's'.repeat(200_000) })
+	const request = new Request(`${BASE_URL}/resources/client-errors`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: huge,
+	})
+	request.headers.delete('content-length')
+	const response = (await action({ request, params: {} } as any)) as {
+		init?: { status?: number }
+	}
+	expect(response.init?.status).toBe(413)
+})
+
+test('a normal report is still accepted', async () => {
+	expect(
+		await statusOf({ message: 'ordinary', stack: 'at Grid', url: '/discover' }),
+	).toBe(204)
+})
+
+test('a declared oversized length is refused without reading the body', async () => {
+	// Distinguishes the header check from the post-read cap: the body here is
+	// tiny, so only a check that trusts the declaration can reject it.
+	const request = new Request(`${BASE_URL}/resources/client-errors`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ message: 'small' }),
+	})
+	request.headers.set('content-length', String(50 * 1024 * 1024))
+	const response = (await action({ request, params: {} } as any)) as {
+		init?: { status?: number }
+	}
+	expect(response.init?.status).toBe(413)
+})
