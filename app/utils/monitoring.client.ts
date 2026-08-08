@@ -90,7 +90,14 @@ export function createClientErrorReporter(
 	env: { MODE?: string; VEUD_RELEASE?: string } | undefined,
 	options: {
 		send?: (report: ClientErrorReport) => void
-		href?: string
+		/**
+		 * Read at report time, not at install time. This is a client-routed app,
+		 * so the document survives navigation — a captured string would pin every
+		 * report to the URL the visitor first landed on, and since this reporter
+		 * deliberately carries no breadcrumbs, that path is the only location
+		 * signal a report has.
+		 */
+		href?: () => string | undefined
 	} = {},
 ): ClientErrorReporter {
 	const enabled = env?.MODE === 'production'
@@ -117,7 +124,7 @@ export function createClientErrorReporter(
 		report(error: unknown) {
 			if (!enabled || sent >= MAX_REPORTS_PER_PAGE) return
 			const report = buildClientErrorReport(error, {
-				url: reportablePath(options.href),
+				url: reportablePath(options.href?.()),
 				release,
 			})
 			if (!report) return
@@ -143,7 +150,7 @@ export function reportClientError(error: unknown) {
 export function initializeClientMonitoring(
 	env: { MODE?: string; VEUD_RELEASE?: string } | undefined,
 	target: Pick<Window, 'addEventListener'> | undefined = globalThis.window,
-	href: string | undefined = globalThis.location?.href,
+	href: () => string | undefined = () => globalThis.location?.href,
 ) {
 	if (env?.MODE !== 'production' || !target?.addEventListener) return null
 	const reporter = createClientErrorReporter(env, { href })
