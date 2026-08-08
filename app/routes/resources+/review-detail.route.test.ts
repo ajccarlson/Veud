@@ -1,7 +1,11 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
-import { REVIEW_COMMENT_PREVIEW } from '#app/utils/review-excerpt.ts'
+import {
+	REMOVED_COMMENT_BODY,
+	REVIEW_COMMENT_PREVIEW,
+	REVIEW_COMMENT_REMAINDER_LIMIT,
+} from '#app/utils/review-excerpt.ts'
 import { BASE_URL } from '#tests/utils.ts'
 import { loader } from './review-detail.ts'
 
@@ -69,7 +73,8 @@ test('the response can be cached briefly but not for long', async () => {
 	expect(response.init.headers['Cache-Control']).toBe('public, max-age=30')
 })
 
-test('a moderated comment is not served with the rest', async () => {
+/** A review whose comments carry the given statuses, oldest first. */
+async function reviewWithStatuses(statuses: string[]) {
 	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
 	const author = await prisma.user.create({
 		data: { email: `mod_${tag}@example.com`, username: `mod_${tag}` },
@@ -77,43 +82,68 @@ test('a moderated comment is not served with the rest', async () => {
 	const media = await prisma.media.create({
 		data: { kind: 'anime', title: `Moderated fixture ${tag}` },
 	})
-	const review = await prisma.review.create({
+	return prisma.review.create({
 		data: {
 			mediaId: media.id,
 			authorId: author.id,
 			body: 'body',
 			moderationStatus: 'visible',
 			comments: {
-				create: [
-					...Array.from({ length: REVIEW_COMMENT_PREVIEW }, (_, index) => ({
-						body: `shown ${index}`,
-						authorId: author.id,
-						moderationStatus: 'visible',
-					})),
-					{
-						body: 'visible remainder',
-						authorId: author.id,
-						moderationStatus: 'visible',
-					},
-					{
-						body: 'removed by a moderator',
-						authorId: author.id,
-						moderationStatus: 'removed',
-					},
-				],
+				// Explicit timestamps: these tests assert which comment comes back
+				// first, and `now()` across one batch does not reliably differ.
+				create: statuses.map((moderationStatus, index) => ({
+					body: `comment ${index}`,
+					authorId: author.id,
+					moderationStatus,
+					createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+				})),
 			},
 		},
 	})
+}
+
+test('a moderated comment is served as a tombstone, never as its body', async () => {
+	const review = await reviewWithStatuses([
+		...Array.from({ length: REVIEW_COMMENT_PREVIEW }, () => 'visible'),
+		'visible',
+		'removed',
+	])
+	const response = (await fetchDetail(review.id)) as any
+	const comments = response.data.review.comments
+	const bodies = comments.map((c: any) => c.body)
+	expect(bodies).toContain(`comment ${REVIEW_COMMENT_PREVIEW}`)
+	// The body a moderator took down does not travel; its place does.
+	expect(bodies).not.toContain(`comment ${REVIEW_COMMENT_PREVIEW + 1}`)
+	expect(bodies).toContain(REMOVED_COMMENT_BODY)
+	expect(comments.at(-1).isRemoved).toBe(true)
+})
+
+test('the remainder resumes where the page stopped, tombstones included', async () => {
+	// The page spends a slot on each tombstone it renders. Skipping past only the
+	// visible ones would step over one comment for every one that was removed,
+	// and those comments would appear nowhere at all.
+	const removedUpFront = 2
+	const review = await reviewWithStatuses([
+		...Array.from({ length: removedUpFront }, () => 'removed'),
+		...Array.from({ length: 8 }, () => 'visible'),
+	])
 	const response = (await fetchDetail(review.id)) as any
 	const bodies = response.data.review.comments.map((c: any) => c.body)
-	expect(bodies).toContain('visible remainder')
-	expect(bodies).not.toContain('removed by a moderator')
+
+	// The page showed comments 0..2 — two tombstones and one body. The remainder
+	// must therefore begin at comment 3 and skip nothing.
+	expect(bodies[0]).toBe('comment 3')
+	expect(bodies).toHaveLength(10 - REVIEW_COMMENT_PREVIEW)
+	// Nothing the page already showed comes back a second time.
+	expect(bodies).not.toContain(`comment ${removedUpFront}`)
 })
 
 test('the remainder is bounded, however many comments a review collects', async () => {
 	// A review with ten thousand comments is not a reason to send ten thousand
 	// comments.
-	const review = await reviewWithComments(210)
+	const review = await reviewWithComments(REVIEW_COMMENT_REMAINDER_LIMIT + 10)
 	const response = (await fetchDetail(review.id)) as any
-	expect(response.data.review.comments).toHaveLength(200)
+	expect(response.data.review.comments).toHaveLength(
+		REVIEW_COMMENT_REMAINDER_LIMIT,
+	)
 })
