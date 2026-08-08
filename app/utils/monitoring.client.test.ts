@@ -115,7 +115,7 @@ test('global listeners catch what React never sees', () => {
 	const reporter = initializeClientMonitoring(
 		production,
 		target as never,
-		'https://veud.example/discover?q=secret',
+		() => 'https://veud.example/discover?q=secret',
 	)
 	expect(reporter).not.toBeNull()
 	expect(Object.keys(handlers).sort()).toEqual(['error', 'unhandledrejection'])
@@ -132,7 +132,11 @@ test('an error event with only a message still reports', () => {
 			handlers[name] = handler
 		},
 	}
-	const reporter = initializeClientMonitoring(production, target as never, '/')
+	const reporter = initializeClientMonitoring(
+		production,
+		target as never,
+		() => '/',
+	)
 	handlers.error?.({ message: 'Script error.' })
 	expect(reporter?.reportCount()).toBe(1)
 })
@@ -141,7 +145,32 @@ test('no listeners are installed outside production', () => {
 	let installed = 0
 	const target = { addEventListener: () => installed++ }
 	expect(
-		initializeClientMonitoring({ MODE: 'development' }, target as never, '/'),
+		initializeClientMonitoring(
+			{ MODE: 'development' },
+			target as never,
+			() => '/',
+		),
 	).toBeNull()
 	expect(installed).toBe(0)
+})
+
+test('a crash is attributed to the route the visitor is on, not where they landed', () => {
+	// This is a client-routed app, so the document survives navigation. Capturing
+	// the URL at install time pinned every report to the landing page — and since
+	// this reporter carries no breadcrumbs, that path is the only location signal
+	// a report has, so triage would point at the wrong route entirely.
+	const { reports, send } = collector()
+	let here = 'https://veud.example/'
+	const reporter = createClientErrorReporter(production, {
+		send,
+		href: () => here,
+	})
+
+	reporter.report(new Error('crash on the home page'))
+	expect((reports[0] as { url: string }).url).toBe('/')
+
+	// The visitor navigates without the document reloading.
+	here = 'https://veud.example/lists/me/anime?sort=score'
+	reporter.report(new Error('crash on the grid'))
+	expect((reports[1] as { url: string }).url).toBe('/lists/me/anime')
 })
