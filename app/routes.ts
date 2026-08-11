@@ -111,7 +111,11 @@ export default [
 		path: 'media/fetch-data/:request',
 	}),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
+	appRoute('routes/media+/$mediaId_.cast.tsx', {
+		path: 'media/:mediaId/cast',
+	}),
 	appRoute('routes/moderation.tsx', { path: 'moderation' }),
+	appRoute('routes/people+/$personId.tsx', { path: 'people/:personId' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/calendar[.]ics.ts', {
 		path: 'resources/calendar.ics',

@@ -183,10 +183,14 @@ export const publicSurfaceLoadBudgets = Object.freeze({
 	}),
 })
 
+// Cast is one query, and only one: ingestion caps a title's credits, so the
+// whole list is fetched once and divided in JavaScript rather than asked for
+// three times. That single query is what raised each budget below by exactly
+// one when the cast section landed.
 export const mediaDetailLoadBudgets = Object.freeze({
 	anonymous: Object.freeze({
-		logicalQueries: 16,
-		sqlQueries: 24,
+		logicalQueries: 17,
+		sqlQueries: 25,
 		payloadBytes: 192 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -195,8 +199,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 0,
 	}),
 	normalizedSigned: Object.freeze({
-		logicalQueries: 24,
-		sqlQueries: 36,
+		logicalQueries: 25,
+		sqlQueries: 37,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -205,8 +209,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 1,
 	}),
 	boundedLegacy: Object.freeze({
-		logicalQueries: 25,
-		sqlQueries: 37,
+		logicalQueries: 26,
+		sqlQueries: 38,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
