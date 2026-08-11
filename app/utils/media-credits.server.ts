@@ -1,6 +1,7 @@
 import { createId } from '@paralleldrive/cuid2'
 import { type Prisma } from '@prisma/client'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
+import { splitLegacyThumbnail } from './media-detail.ts'
 
 type PrismaTransaction = Prisma.TransactionClient
 
@@ -477,7 +478,9 @@ async function resolvePeople(
  * The role MAL gives ("Story", "Art", "Story & Art") is the job, which puts a
  * mangaka in the same shape as a screenwriter.
  */
-export function normalizeMalAuthorCredits(payload: unknown): CatalogCreditInput[] {
+export function normalizeMalAuthorCredits(
+	payload: unknown,
+): CatalogCreditInput[] {
 	if (!payload || typeof payload !== 'object') return []
 	const authors = asRecordArray((payload as Record<string, unknown>).authors)
 
@@ -511,4 +514,315 @@ export function normalizeMalAuthorCredits(payload: unknown): CatalogCreditInput[
 		})
 	}
 	return boundCrew(credits)
+}
+
+// --- reading ---------------------------------------------------------------
+
+/**
+ * How many faces the billed strip shows before the rest moves to its own page.
+ *
+ * TMDB shows about this many and then a "View More" card, which is the right
+ * shape: enough to recognise the title by its cast, not so many that the strip
+ * becomes the page.
+ */
+export const TOP_BILLED_CAST = 10
+
+/** Everything a cast or crew card needs, and nothing a page has to look up. */
+const creditCardSelect = {
+	id: true,
+	role: true,
+	department: true,
+	billingOrder: true,
+	episodeCount: true,
+	creditType: true,
+	person: {
+		select: { id: true, name: true, imageUrl: true, knownForDepartment: true },
+	},
+} as const
+
+export type MediaCreditCard = {
+	id: string
+	role: string
+	department: string
+	episodeCount: number | null
+	person: {
+		id: string
+		name: string
+		imageUrl: string | null
+		knownForDepartment: string | null
+	}
+}
+
+type CreditRow = {
+	id: string
+	role: string
+	department: string
+	billingOrder: number | null
+	episodeCount: number | null
+	creditType: string
+	person: {
+		id: string
+		name: string
+		imageUrl: string | null
+		knownForDepartment: string | null
+	}
+}
+
+function toCard(row: CreditRow): MediaCreditCard {
+	return {
+		id: row.id,
+		role: row.role,
+		department: row.department,
+		episodeCount: row.episodeCount,
+		person: row.person,
+	}
+}
+
+/**
+ * The billed strip and the line of key crew beneath the overview.
+ *
+ * Both come from one query because they are one section of one page, and the
+ * media loader already runs enough of them.
+ */
+export async function getMediaCreditsPreview(
+	tx: PrismaTransaction,
+	mediaId: string,
+	{ topBilled = TOP_BILLED_CAST }: { topBilled?: number } = {},
+) {
+	const [cast, crew, castTotal] = await Promise.all([
+		tx.mediaCredit.findMany({
+			where: { mediaId, creditType: 'cast' },
+			// Nulls last: a provider that gave no billing made no claim about
+			// prominence, and letting one sort to the front would put an extra
+			// ahead of the lead.
+			orderBy: [
+				{ billingOrder: { sort: 'asc', nulls: 'last' } },
+				{ id: 'asc' },
+			],
+			take: topBilled,
+			select: creditCardSelect,
+		}),
+		tx.mediaCredit.findMany({
+			where: { mediaId, creditType: 'crew' },
+			orderBy: [{ id: 'asc' }],
+			select: creditCardSelect,
+		}),
+		tx.mediaCredit.count({ where: { mediaId, creditType: 'cast' } }),
+	])
+
+	return {
+		cast: cast.map(toCard),
+		// One line answering "whose is this?", not the crew list that has its own
+		// page. A person who both wrote and directed appears once, under the job
+		// that says more.
+		keyCrew: dedupeByPerson(
+			crew
+				.filter(row => isKeyCrewJob(row.role))
+				.sort((first, second) => crewRank(first.role) - crewRank(second.role)),
+		).map(toCard),
+		castTotal,
+		crewTotal: crew.length,
+	}
+}
+
+function dedupeByPerson(rows: CreditRow[]) {
+	const seen = new Set<string>()
+	return rows.filter(row => {
+		if (seen.has(row.person.id)) return false
+		seen.add(row.person.id)
+		return true
+	})
+}
+
+export type CrewDepartment = {
+	department: string
+	credits: MediaCreditCard[]
+}
+
+/**
+ * Everything, for the full cast and crew page.
+ *
+ * Crew is grouped by department the way a call sheet is, because a crew list
+ * ordered by anything else is unreadable — you look for the department first
+ * and the person second.
+ */
+export async function getMediaFullCredits(
+	tx: PrismaTransaction,
+	mediaId: string,
+) {
+	const rows = await tx.mediaCredit.findMany({
+		where: { mediaId },
+		orderBy: [{ billingOrder: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
+		select: creditCardSelect,
+	})
+
+	const cast = rows.filter(row => row.creditType === 'cast').map(toCard)
+	const byDepartment = new Map<string, MediaCreditCard[]>()
+	for (const row of rows) {
+		if (row.creditType !== 'crew') continue
+		// A provider that named no department still named a job; filing those
+		// under "Crew" keeps them on the page instead of in a heading with no
+		// name.
+		const department = row.department || 'Crew'
+		byDepartment.set(department, [
+			...(byDepartment.get(department) ?? []),
+			toCard(row),
+		])
+	}
+
+	const crew: CrewDepartment[] = [...byDepartment.entries()]
+		.map(([department, credits]) => ({
+			department,
+			credits: credits.sort(
+				(first, second) =>
+					crewRank(first.role) - crewRank(second.role) ||
+					first.person.name.localeCompare(second.person.name),
+			),
+		}))
+		// Departments in the order their most senior job ranks, so Directing leads
+		// and the long tail follows.
+		.sort(
+			(first, second) =>
+				crewRank(first.credits[0]?.role ?? '') -
+					crewRank(second.credits[0]?.role ?? '') ||
+				first.department.localeCompare(second.department),
+		)
+
+	return { cast, crew }
+}
+
+// --- one person ------------------------------------------------------------
+
+/** Titles per department on a person page, newest first. */
+export const MAX_PERSON_CREDITS = 200
+
+/** The strip at the top of a person page. */
+export const KNOWN_FOR_COUNT = 8
+
+export type PersonCredit = {
+	id: string
+	role: string
+	department: string
+	creditType: string
+	episodeCount: number | null
+	year: string | null
+	media: {
+		id: string
+		kind: string
+		title: string
+		imageUrl: string | null
+	}
+}
+
+function creditYear(releaseStart: Date | null, startYear: string | null) {
+	if (releaseStart) return String(releaseStart.getUTCFullYear())
+	return startYear?.trim() || null
+}
+
+/**
+ * Everything one person is credited on, which is the question a person page
+ * exists to answer.
+ *
+ * Grouped the way TMDB groups it — acting first if that is what they are known
+ * for, then each crew department — and sorted newest first inside each group,
+ * because a filmography is read backwards from now.
+ */
+export async function getPersonCredits(
+	tx: PrismaTransaction,
+	personId: string,
+	{ limit = MAX_PERSON_CREDITS }: { limit?: number } = {},
+) {
+	const rows = await tx.mediaCredit.findMany({
+		where: { personId },
+		orderBy: [{ id: 'asc' }],
+		take: limit,
+		select: {
+			id: true,
+			role: true,
+			department: true,
+			creditType: true,
+			episodeCount: true,
+			media: {
+				select: {
+					id: true,
+					kind: true,
+					title: true,
+					thumbnail: true,
+					releaseStart: true,
+					startYear: true,
+					catalogPopularity: true,
+				},
+			},
+		},
+	})
+
+	const credits: Array<PersonCredit & { popularity: number | null }> = rows.map(
+		row => ({
+			id: row.id,
+			role: row.role,
+			department: row.department,
+			creditType: row.creditType,
+			episodeCount: row.episodeCount,
+			year: creditYear(row.media.releaseStart, row.media.startYear),
+			popularity: row.media.catalogPopularity,
+			media: {
+				id: row.media.id,
+				kind: row.media.kind,
+				title: row.media.title?.trim() || `Untitled ${row.media.kind}`,
+				imageUrl: splitLegacyThumbnail(row.media.thumbnail).imageUrl,
+			},
+		}),
+	)
+
+	// The strip is what this person is recognised for, so it is ordered by how
+	// well known the title is rather than by when it came out. One entry per
+	// title: someone who wrote and directed a film is not two of its cards.
+	const seenMedia = new Set<string>()
+	const knownFor = [...credits]
+		.sort(
+			(first, second) => (second.popularity ?? -1) - (first.popularity ?? -1),
+		)
+		.filter(credit => {
+			if (seenMedia.has(credit.media.id)) return false
+			seenMedia.add(credit.media.id)
+			return true
+		})
+		.slice(0, KNOWN_FOR_COUNT)
+		.map(stripPopularity)
+
+	const groups = new Map<string, PersonCredit[]>()
+	for (const credit of credits) {
+		const group =
+			credit.creditType === 'cast' ? 'Acting' : credit.department || 'Crew'
+		groups.set(group, [...(groups.get(group) ?? []), stripPopularity(credit)])
+	}
+
+	const filmography = [...groups.entries()]
+		.map(([department, entries]) => ({
+			department,
+			// A filmography is read backwards from now. Undated work sorts last:
+			// it is usually unreleased or unknown, and either way it is not the
+			// thing to lead with.
+			credits: entries.sort(
+				(first, second) =>
+					(second.year ?? '').localeCompare(first.year ?? '') ||
+					first.media.title.localeCompare(second.media.title),
+			),
+			department_count: entries.length,
+		}))
+		.sort(
+			(first, second) =>
+				// Acting leads for an actor; otherwise the biggest body of work does.
+				second.credits.length - first.credits.length ||
+				first.department.localeCompare(second.department),
+		)
+
+	return { knownFor, filmography, total: credits.length }
+}
+
+function stripPopularity(
+	credit: PersonCredit & { popularity: number | null },
+): PersonCredit {
+	const { popularity: _popularity, ...rest } = credit
+	return rest
 }

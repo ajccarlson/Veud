@@ -14,6 +14,7 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { KeyCrew, TopBilledCast } from '#app/components/media-cast.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
 import {
@@ -48,6 +49,7 @@ import {
 	getFollowedMediaTracking,
 	getMediaCommunityStatistics,
 } from '#app/utils/media-community.server.ts'
+import { getMediaCreditsPreview } from '#app/utils/media-credits.server.ts'
 import {
 	externalMediaUrl,
 	legacyProgressUpdate,
@@ -309,6 +311,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		: Promise.resolve(null)
 	const [
 		community,
+		credits,
 		followedTracking,
 		recommendations,
 		relations,
@@ -324,6 +327,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerReminder,
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
+		getMediaCreditsPreview(prisma, media.id),
 		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
 		getSimilarMediaRecommendations(
 			{ id: media.id, kind: media.kind, genres: catalog?.genres },
@@ -579,6 +583,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			favorites: media._count.favorites,
 		},
 		socialContext: followedTracking,
+		credits,
 		recommendations,
 		relations,
 		reviews: reviewRows.map(({ likes, comments, ...review }) => ({
@@ -1837,7 +1842,16 @@ export default function MediaDetailRoute() {
 								{data.media.genres}
 							</p>
 						) : null}
+						{/* Whose is this? Directly under the description, as TMDB does
+						    it — the crew list proper has its own page. */}
+						<KeyCrew crew={data.credits.keyCrew} />
 					</section>
+
+					<TopBilledCast
+						cast={data.credits.cast}
+						total={data.credits.castTotal}
+						mediaId={data.media.id}
+					/>
 
 					{data.relations.length ? (
 						<section
