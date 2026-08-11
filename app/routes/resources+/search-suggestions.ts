@@ -5,7 +5,8 @@ import { getSearchSuggestions } from '#app/utils/search-suggestions.server.ts'
  * Suggestions for the site search bar.
  *
  * Public, because the search bar itself is: signing in changes nothing about
- * which catalog titles exist. Nothing viewer-specific is returned, so the
+ * which catalog titles or credited people exist. Nothing viewer-specific is
+ * returned, so the
  * response carries no private data to leak.
  */
 export async function loader({ request }: LoaderFunctionArgs) {

@@ -51,6 +51,7 @@ import {
 	type NaturalLanguageDiscoveryPlan,
 } from '#app/utils/natural-language-discovery.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
+import { getPeopleSearchResults } from '#app/utils/search-suggestions.server.ts'
 import { getTipOfTongueMatches } from '#app/utils/tip-of-tongue.server.ts'
 import { tipOfTongueStatus } from '#app/utils/tip-of-tongue.ts'
 import '#app/styles/discover.scss'
@@ -348,6 +349,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		rendersRecommendationGraph && viewerId
 			? getRecommendationGraph(viewerId)
 			: Promise.resolve(null)
+	const rendersPeopleResults = Boolean(
+		filters.mode === 'standard' &&
+		filters.q &&
+		filters.kind === 'all' &&
+		!filters.genre &&
+		filters.year === null &&
+		!filters.status &&
+		filters.provider === 'all' &&
+		filters.page === 1,
+	)
+	const peoplePromise = rendersPeopleResults
+		? getPeopleSearchResults(filters.q)
+		: Promise.resolve([])
 	const memoryQueryTooShort = filters.mode === 'memory' && filters.q.length < 3
 	const facetsPromise = getDiscoveryFacets()
 	const watchlistsPromise = viewerId
@@ -390,6 +404,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		watchlists,
 		recommendationGraph,
 		previousNaturalResults,
+		people,
 	] = await Promise.all([
 		naturalPlan
 			? getDiscoveryResultsForPlan(naturalPlan, viewerId, {
@@ -420,6 +435,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					filters,
 				})
 			: Promise.resolve(null),
+		peoplePromise,
 	])
 	if (memorySearch) {
 		const matchByMediaId = new Map(
@@ -460,6 +476,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				}
 			: null,
 		previousNaturalTotal: previousNaturalResults?.total ?? null,
+		people,
 	})
 }
 
@@ -983,6 +1000,64 @@ export default function DiscoverRoute() {
 					watchlists={data.watchlists}
 					loginRedirectTo={loginRedirectTo}
 				/>
+			) : null}
+
+			{data.people.length ? (
+				<section className="space-y-4" aria-labelledby="people-results-heading">
+					<header className="flex flex-wrap items-end justify-between gap-3">
+						<h2
+							id="people-results-heading"
+							className="text-2xl font-black text-veud-yellow"
+						>
+							People
+						</h2>
+						<p className="text-sm text-veud-mint">
+							Matching “{data.filters.q}”
+						</p>
+					</header>
+					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+						{data.people.map(person => (
+							<article key={person.id}>
+								<Link
+									to={`/people/${person.id}`}
+									prefetch="intent"
+									className="group grid h-full grid-cols-[4rem_minmax(0,1fr)] gap-3 overflow-hidden rounded-xl border border-veud-border/70 bg-veud-surface p-2 transition hover:-translate-y-0.5 hover:border-veud-mint"
+								>
+									<div className="aspect-[2/3] overflow-hidden rounded-lg bg-veud-ink">
+										{person.imageUrl ? (
+											<img
+												src={person.imageUrl}
+												alt=""
+												loading="lazy"
+												className="h-full w-full object-cover"
+											/>
+										) : (
+											<div
+												aria-hidden="true"
+												className="flex h-full items-center justify-center text-xl font-black text-veud-sage"
+											>
+												{person.name.slice(0, 1).toUpperCase()}
+											</div>
+										)}
+									</div>
+									<div className="min-w-0 self-center">
+										<h3 className="truncate font-black text-veud-yellow group-hover:underline">
+											{person.name}
+										</h3>
+										<p className="mt-1 text-xs text-veud-mint">
+											{[
+												person.knownForDepartment,
+												`${person.creditCount} ${person.creditCount === 1 ? 'credit' : 'credits'}`,
+											]
+												.filter(Boolean)
+												.join(' · ')}
+										</p>
+									</div>
+								</Link>
+							</article>
+						))}
+					</div>
+				</section>
 			) : null}
 
 			{data.recommendationGraph ||
