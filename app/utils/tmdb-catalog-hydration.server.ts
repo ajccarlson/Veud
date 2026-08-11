@@ -17,6 +17,11 @@ import {
 	upsertCatalogIdentity,
 } from './catalog-sync.server.ts'
 import { entryCatalogMetadataFields } from './media-catalog.ts'
+import {
+	type CatalogCreditInput,
+	normalizeTmdbCredits,
+	replaceCatalogCredits,
+} from './media-credits.server.ts'
 import { hydrateMediaCatalog } from './media.server.ts'
 import { type TmdbCatalogKind } from './tmdb-catalog-inventory.server.ts'
 
@@ -74,6 +79,7 @@ export type NormalizedTmdbDetails = {
 		value: string
 		isPrimary?: boolean
 	}>
+	credits: CatalogCreditInput[]
 }
 
 export type TmdbHydrationSummary = {
@@ -406,6 +412,7 @@ export function normalizeTmdbDetails(
 				: []),
 			...alternativeTitles(payload, kind),
 		],
+		credits: normalizeTmdbCredits(payload),
 	}
 }
 
@@ -429,10 +436,18 @@ export function tmdbDetailUrl(kind: TmdbCatalogKind, externalId: string) {
 	) {
 		throw new Error('TMDB external id must be a positive safe integer')
 	}
+	// Credits ride along on the detail request rather than costing one of their
+	// own — `append_to_response` is one HTTP call and one rate-limit slot, which
+	// is the difference between cast being free and cast doubling the time to
+	// hydrate the catalog.
+	//
+	// A series uses `aggregate_credits`, which rolls a person's roles up across
+	// seasons and carries the episode counts. `credits` on a series returns only
+	// whoever happened to be on the last season, which is not the cast.
 	const append =
 		kind === 'movie'
-			? 'alternative_titles,release_dates'
-			: 'alternative_titles,content_ratings'
+			? 'alternative_titles,release_dates,credits'
+			: 'alternative_titles,content_ratings,aggregate_credits'
 	const url = new URL(`https://api.themoviedb.org/3/${kind}/${externalId}`)
 	url.searchParams.set('language', 'en-US')
 	url.searchParams.set('append_to_response', append)
@@ -1147,6 +1162,11 @@ export async function hydrateTmdbCatalog(
 							mediaId: result.candidate.mediaId,
 							provider: 'tmdb',
 							titles: result.details.titles,
+						})
+						await replaceCatalogCredits(tx, {
+							mediaId: result.candidate.mediaId,
+							provider: 'tmdb',
+							credits: result.details.credits,
 						})
 						await tx.mediaExternalId.update({
 							where: { id: result.candidate.id },

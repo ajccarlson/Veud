@@ -22,6 +22,11 @@ import {
 	MalRequestError,
 } from './mal-catalog-inventory.server.ts'
 import { entryCatalogMetadataFields } from './media-catalog.ts'
+import {
+	type CatalogCreditInput,
+	normalizeMalAuthorCredits,
+	replaceCatalogCredits,
+} from './media-credits.server.ts'
 import { syncMediaRelations } from './media-relations.server.ts'
 import {
 	type MediaRelationCandidate,
@@ -108,6 +113,7 @@ export type NormalizedMalDetails = {
 		isPrimary?: boolean
 	}>
 	relations: MediaRelationCandidate[]
+	credits: CatalogCreditInput[]
 }
 
 export type MalHydrationSummary = {
@@ -562,6 +568,10 @@ export function normalizeMalDetails(
 			...alternativeTitles(payload),
 		],
 		relations: malRelations(payload),
+		// MAL's official API carries no cast, but a manga's authors are named
+		// people with their own ids, and they belong in the same table as
+		// everyone else.
+		credits: normalizeMalAuthorCredits(payload),
 	}
 }
 
@@ -1014,6 +1024,11 @@ export async function hydrateMalCatalog(
 							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)
+					await replaceCatalogCredits(tx, {
+						mediaId: result.candidate.mediaId,
+						provider: 'mal',
+						credits: result.details.credits,
+					})
 					await replaceCatalogTitles(tx, {
 						mediaId: candidate.mediaId,
 						provider: 'mal',
