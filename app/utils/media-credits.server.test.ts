@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
@@ -15,6 +16,14 @@ import {
 	tmdbProfileUrl,
 	type CatalogCreditInput,
 } from './media-credits.server.ts'
+
+test('the credits module stays plain text for diffs and review tools', () => {
+	const source = readFileSync(
+		new URL('./media-credits.server.ts', import.meta.url),
+		'utf8',
+	)
+	expect(source).not.toContain('\0')
+})
 
 function castEntry(overrides: Record<string, unknown> = {}) {
 	return {

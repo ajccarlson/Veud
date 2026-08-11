@@ -308,7 +308,7 @@ export function dedupeCredits(credits: CatalogCreditInput[]) {
 			credit.creditType,
 			credit.role,
 			credit.department,
-		].join(' ')
+		].join('\u0000')
 		if (seen.has(key)) continue
 		seen.add(key)
 		unique.push(credit)
