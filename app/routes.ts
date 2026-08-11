@@ -179,6 +179,9 @@ export default [
 	appRoute('routes/settings+/profile.tsx', {
 		path: 'settings/profile',
 		children: [
+			appRoute('routes/settings+/profile.appearance.tsx', {
+				path: 'appearance',
+			}),
 			appRoute('routes/settings+/profile.banner.tsx', {
 				path: 'banner',
 			}),
