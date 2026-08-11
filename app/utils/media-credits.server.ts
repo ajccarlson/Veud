@@ -589,29 +589,25 @@ export async function getMediaCreditsPreview(
 	mediaId: string,
 	{ topBilled = TOP_BILLED_CAST }: { topBilled?: number } = {},
 ) {
-	const [cast, crew, castTotal] = await Promise.all([
-		tx.mediaCredit.findMany({
-			where: { mediaId, creditType: 'cast' },
-			// Nulls last: a provider that gave no billing made no claim about
-			// prominence, and letting one sort to the front would put an extra
-			// ahead of the lead.
-			orderBy: [
-				{ billingOrder: { sort: 'asc', nulls: 'last' } },
-				{ id: 'asc' },
-			],
-			take: topBilled,
-			select: creditCardSelect,
-		}),
-		tx.mediaCredit.findMany({
-			where: { mediaId, creditType: 'crew' },
-			orderBy: [{ id: 'asc' }],
-			select: creditCardSelect,
-		}),
-		tx.mediaCredit.count({ where: { mediaId, creditType: 'cast' } }),
-	])
+	// One query, not three. Ingestion caps what can be stored per provider, so
+	// the whole credit list for a title is a few dozen rows — cheaper to fetch
+	// once and divide here than to ask the database three times. The media
+	// detail loader runs on the busiest page on the site and has a query budget
+	// for exactly this reason.
+	const rows = await tx.mediaCredit.findMany({
+		where: { mediaId },
+		// Nulls last: a provider that gave no billing made no claim about
+		// prominence, and letting one sort to the front would put an extra ahead
+		// of the lead.
+		orderBy: [{ billingOrder: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
+		select: creditCardSelect,
+	})
+
+	const cast = rows.filter(row => row.creditType === 'cast')
+	const crew = rows.filter(row => row.creditType === 'crew')
 
 	return {
-		cast: cast.map(toCard),
+		cast: cast.slice(0, topBilled).map(toCard),
 		// One line answering "whose is this?", not the crew list that has its own
 		// page. A person who both wrote and directed appears once, under the job
 		// that says more.
@@ -620,7 +616,7 @@ export async function getMediaCreditsPreview(
 				.filter(row => isKeyCrewJob(row.role))
 				.sort((first, second) => crewRank(first.role) - crewRank(second.role)),
 		).map(toCard),
-		castTotal,
+		castTotal: cast.length,
 		crewTotal: crew.length,
 	}
 }
