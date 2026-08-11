@@ -58,6 +58,12 @@ import {
 } from './utils/notification-preferences.server.ts'
 import { syncReleaseRemindersForUser } from './utils/release-reminders.server.ts'
 import { useRequestInfo } from './utils/request-info.ts'
+import {
+	absoluteUrl,
+	SITE_NAME,
+	socialMeta,
+	structuredData,
+} from './utils/seo.ts'
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
 import { getToast } from './utils/toast.server.ts'
@@ -86,13 +92,26 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
+const SITE_DESCRIPTION = `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.`
+
+// The site-wide card. React Router lets a route replace this wholesale, so a
+// page that describes itself does; everything else at least unfurls as Veud
+// rather than as a bare URL.
 export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
+	if (!loaderData) return [{ title: 'Error | Veud' }]
+	const origin = loaderData.requestInfo.origin
 	return [
-		{ title: loaderData ? 'Veud' : 'Error | Veud' },
-		{
-			name: 'description',
-			content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.`,
-		},
+		...socialMeta({
+			title: SITE_NAME,
+			description: SITE_DESCRIPTION,
+			url: absoluteUrl(origin, '/'),
+		}),
+		structuredData({
+			'@type': 'WebSite',
+			name: SITE_NAME,
+			url: absoluteUrl(origin, '/'),
+			description: SITE_DESCRIPTION,
+		}),
 	]
 }
 
