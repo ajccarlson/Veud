@@ -22,6 +22,7 @@ import {
 	normalizeTmdbCredits,
 	replaceCatalogCredits,
 } from './media-credits.server.ts'
+import { normalizeTmdbVideos, serializeMediaVideos } from './media-videos.ts'
 import { hydrateMediaCatalog } from './media.server.ts'
 import { type TmdbCatalogKind } from './tmdb-catalog-inventory.server.ts'
 
@@ -175,6 +176,12 @@ function optionalNumber(value: unknown) {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function optionalWholeNumberString(value: unknown) {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+		? String(value)
+		: null
+}
+
 function optionalAudience(value: unknown) {
 	const audience = optionalNumber(value)
 	return audience !== null && Number.isSafeInteger(audience) && audience >= 0
@@ -217,6 +224,21 @@ function commaSeparatedNames(value: unknown) {
 		.map(item => optionalString(requireObject(item, 'named item').name))
 		.filter((name): name is string => Boolean(name))
 	return names.length ? names.join(', ') : null
+}
+
+function keywordNames(value: unknown) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+	const container = value as Record<string, unknown>
+	return commaSeparatedNames(container.keywords ?? container.results)
+}
+
+function firstPositiveNumber(value: unknown) {
+	if (!Array.isArray(value)) return null
+	for (const item of value) {
+		const number = optionalNumber(item)
+		if (number !== null && number > 0) return number
+	}
+	return null
 }
 
 function languageName(code: string | null) {
@@ -356,7 +378,9 @@ export function normalizeTmdbDetails(
 					return episodes && episodes > 0 ? `${episodes} eps` : null
 				})()
 	const runtimeMinutes =
-		kind === 'movie' ? optionalNumber(payload.runtime) : null
+		kind === 'movie'
+			? optionalNumber(payload.runtime)
+			: firstPositiveNumber(payload.episode_run_time)
 	const episodeCount =
 		kind === 'tv' ? optionalNumber(payload.number_of_episodes) : null
 	const rating =
@@ -370,6 +394,7 @@ export function normalizeTmdbDetails(
 		releaseStart: releaseStart ?? undefined,
 		releaseEnd: releaseEnd ?? undefined,
 		description: optionalString(payload.overview) ?? undefined,
+		originalTitle: originalTitle ?? null,
 		startYear: releaseStart ? String(releaseStart.getUTCFullYear()) : undefined,
 		length: runtime ?? undefined,
 		runtimeMinutes:
@@ -379,6 +404,12 @@ export function normalizeTmdbDetails(
 		rating: rating ?? undefined,
 		language: languageName(originalLanguage) ?? undefined,
 		studios: commaSeparatedNames(payload.production_companies) ?? undefined,
+		networks: commaSeparatedNames(payload.networks),
+		keywords: keywordNames(payload.keywords),
+		budget: kind === 'movie' ? optionalWholeNumberString(payload.budget) : null,
+		revenue:
+			kind === 'movie' ? optionalWholeNumberString(payload.revenue) : null,
+		videos: serializeMediaVideos(normalizeTmdbVideos(payload.videos)),
 		tmdbScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogPopularity: optionalNumber(payload.popularity) ?? undefined,
@@ -446,8 +477,8 @@ export function tmdbDetailUrl(kind: TmdbCatalogKind, externalId: string) {
 	// whoever happened to be on the last season, which is not the cast.
 	const append =
 		kind === 'movie'
-			? 'alternative_titles,release_dates,credits'
-			: 'alternative_titles,content_ratings,aggregate_credits'
+			? 'alternative_titles,release_dates,credits,keywords,videos'
+			: 'alternative_titles,content_ratings,aggregate_credits,keywords,videos'
 	const url = new URL(`https://api.themoviedb.org/3/${kind}/${externalId}`)
 	url.searchParams.set('language', 'en-US')
 	url.searchParams.set('append_to_response', append)
@@ -568,8 +599,7 @@ export function providerFeedRankingScores(
 		// or upcoming feeds, where genuinely new releases naturally have fewer
 		// ratings.
 		const confidenceAudienceScale = feed === 'popular' ? 500 : 100
-		const audienceConfidence =
-			1 - Math.exp(-audience / confidenceAudienceScale)
+		const audienceConfidence = 1 - Math.exp(-audience / confidenceAudienceScale)
 		const confidenceAdjustedRank = rankScore * audienceConfidence
 		return Math.max(
 			0,
@@ -1154,7 +1184,15 @@ export async function hydrateTmdbCatalog(
 							result.details.catalog,
 							{
 								overwrite: true,
-								authoritativeFields: ['nextRelease'],
+								authoritativeFields: [
+									'nextRelease',
+									'originalTitle',
+									'networks',
+									'keywords',
+									'budget',
+									'revenue',
+									'videos',
+								],
 								syncLegacyFields: entryCatalogMetadataFields,
 							},
 						)

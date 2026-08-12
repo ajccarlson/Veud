@@ -186,6 +186,7 @@ model Media {
   nextReleaseAt     DateTime?
   genres            String?
   description       String?
+  originalTitle     String?
   airYear           String?
   startSeason       String?
   startYear         String?
@@ -199,6 +200,11 @@ model Media {
   rating            String?
   language          String?
   studios           String?
+  networks          String?
+  keywords          String?
+  budget            String?
+  revenue           String?
+  videos            String?
   serialization     String?
   authors           String?
   tmdbScore         Decimal?

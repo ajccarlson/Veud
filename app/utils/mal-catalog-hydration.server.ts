@@ -492,6 +492,10 @@ export function normalizeMalDetails(
 	const startYear = start?.getUTCFullYear() ?? seasonYear
 	const catalog: Record<string, unknown> = {
 		title,
+		originalTitle: optionalString(
+			requireObject(payload.alternative_titles ?? {}, 'MAL alternative_titles')
+				.ja,
+		),
 		thumbnail: picture
 			? `${picture}|https://myanimelist.net/${kind}/${id}`
 			: null,
@@ -1020,7 +1024,7 @@ export async function hydrateMalCatalog(
 						result.details.catalog,
 						{
 							overwrite: true,
-							authoritativeFields: ['nextRelease'],
+							authoritativeFields: ['nextRelease', 'originalTitle'],
 							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)
