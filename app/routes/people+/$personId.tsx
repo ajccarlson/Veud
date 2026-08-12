@@ -9,6 +9,10 @@ import {
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { getPersonCredits } from '#app/utils/media-credits.server.ts'
+import {
+	enrichPersonDetails,
+	personDetailsSelect,
+} from '#app/utils/person-details.server.ts'
 
 export async function loader({ params }: LoaderFunctionArgs) {
 	const personId = params['personId']
@@ -16,22 +20,16 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 	const person = await prisma.person.findUnique({
 		where: { id: personId },
-		select: {
-			id: true,
-			name: true,
-			imageUrl: true,
-			knownForDepartment: true,
-			biography: true,
-			birthday: true,
-			deathday: true,
-			placeOfBirth: true,
-		},
+		select: personDetailsSelect,
 	})
 	invariantResponse(person, 'Person not found', { status: 404 })
 
-	const credits = await getPersonCredits(prisma, person.id)
+	const [enrichedPerson, credits] = await Promise.all([
+		enrichPersonDetails(prisma, person),
+		getPersonCredits(prisma, person.id),
+	])
 
-	return json({ person, ...credits })
+	return json({ person: enrichedPerson, ...credits })
 }
 
 function displayDate(value: string | Date | null) {
@@ -65,11 +63,22 @@ function Fact({
 	)
 }
 
+function safeHomepage(value: string | null) {
+	if (!value) return null
+	try {
+		const url = new URL(value)
+		return ['http:', 'https:'].includes(url.protocol) ? url : null
+	} catch {
+		return null
+	}
+}
+
 export default function PersonRoute() {
 	const data = useLoaderData<typeof loader>()
 	const { person } = data
 	const born = displayDate(person.birthday)
 	const died = displayDate(person.deathday)
+	const homepage = safeHomepage(person.homepage)
 
 	return (
 		<main className="container space-y-10 py-8">
@@ -97,6 +106,19 @@ export default function PersonRoute() {
 						<Fact label="Born">{born}</Fact>
 						<Fact label="Died">{died}</Fact>
 						<Fact label="Place of birth">{person.placeOfBirth}</Fact>
+						<Fact label="Gender">{person.gender}</Fact>
+						<Fact label="Official site">
+							{homepage ? (
+								<a
+									href={homepage.toString()}
+									target="_blank"
+									rel="noreferrer"
+									className="underline underline-offset-4"
+								>
+									{homepage.hostname.replace(/^www\./, '')}
+								</a>
+							) : null}
+						</Fact>
 					</dl>
 				</aside>
 
