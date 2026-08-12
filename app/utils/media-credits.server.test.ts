@@ -367,6 +367,46 @@ test('one provider refreshing does not delete what another wrote', async () => {
 	).toBe(1)
 })
 
+test('a credit provider can reuse a different provider person namespace', async () => {
+	// Jikan publishes MAL person ids. Its cast rows need independent refresh
+	// ownership without minting a second identity for a MAL manga author.
+	const [anime, manga] = await Promise.all([mediaFixture(), mediaFixture()])
+	await prisma.$transaction(tx =>
+		replaceCatalogCredits(tx, {
+			mediaId: manga.id,
+			provider: 'mal',
+			credits: [person('shared-mal-person', { creditType: 'crew' })],
+		}),
+	)
+	await prisma.$transaction(tx =>
+		replaceCatalogCredits(tx, {
+			mediaId: anime.id,
+			provider: 'jikan',
+			personProvider: 'mal',
+			credits: [person('shared-mal-person')],
+		}),
+	)
+
+	const identity = await prisma.personExternalId.findUniqueOrThrow({
+		where: {
+			provider_externalId: {
+				provider: 'mal',
+				externalId: 'shared-mal-person',
+			},
+		},
+	})
+	expect(
+		await prisma.personExternalId.count({
+			where: { externalId: 'shared-mal-person' },
+		}),
+	).toBe(1)
+	expect(
+		await prisma.mediaCredit.findFirstOrThrow({
+			where: { mediaId: anime.id },
+		}),
+	).toMatchObject({ provider: 'jikan', personId: identity.personId })
+})
+
 test('an empty payload clears the credits rather than leaving stale ones', async () => {
 	const media = await mediaFixture()
 	await prisma.$transaction(tx =>

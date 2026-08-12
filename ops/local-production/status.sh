@@ -50,6 +50,7 @@ DATABASE_URL="$DATABASE_URL" "$NODE_BIN" --input-type=module -e '
 '
 
 systemctl --user --no-pager status \
+	veud-production-jikan-anime-cast.timer \
 	veud-production-mal-inventory.timer \
 	veud-production-mal-hydration.timer \
 	veud-production-mal-trending.timer \
