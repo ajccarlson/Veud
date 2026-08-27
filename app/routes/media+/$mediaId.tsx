@@ -88,6 +88,19 @@ import {
 	REVIEW_COMMENT_PREVIEW,
 	REVIEW_COMMENT_REMAINDER_LIMIT,
 } from '#app/utils/review-excerpt.ts'
+import {
+	absoluteUrl,
+	isoDate,
+	openGraphType,
+	originFromMatches,
+	schemaTypeForKind,
+	SITE_NAME,
+	socialDescription,
+	socialMeta,
+	splitGenres,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
@@ -2200,15 +2213,62 @@ export default function MediaDetailRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
-	{ title: loaderData ? `${loaderData.media.title} | Veud` : 'Media | Veud' },
-	{
-		name: 'description',
-		content:
-			loaderData?.media.description ??
-			'Media details and community tracking on Veud',
-	},
-]
+export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
+	if (!loaderData) {
+		return [
+			{ title: 'Media | Veud' },
+			{
+				name: 'description',
+				content: 'Media details and community tracking on Veud',
+			},
+		]
+	}
+
+	const { media, community } = loaderData
+	const origin = originFromMatches(matches)
+	const title = `${media.title} | ${SITE_NAME}`
+	const description = socialDescription(
+		media.description,
+		`${media.title} on ${SITE_NAME} — tracking, ratings, and reviews from the community.`,
+	)
+	const url = absoluteUrl(origin, `/media/${media.id}`)
+	const image = absoluteUrl(origin, media.imageUrl)
+
+	return [
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `Cover art for ${media.title}` : undefined,
+			type: openGraphType(media.kind, media.type),
+		}),
+		structuredData(
+			withoutEmptyValues({
+				'@type': schemaTypeForKind(media.kind, media.type),
+				name: media.title,
+				url,
+				image,
+				description,
+				genre: splitGenres(media.genres),
+				datePublished: isoDate(media.releaseStart),
+				// Only claimed when members have actually rated it. An
+				// `aggregateRating` with no ratings behind it is the kind of thing
+				// search engines penalise, and rightly.
+				aggregateRating:
+					community.meanScore !== null && community.ratings > 0
+						? {
+								'@type': 'AggregateRating',
+								ratingValue: Number(community.meanScore.toFixed(2)),
+								ratingCount: community.ratings,
+								bestRating: 10,
+								worstRating: 1,
+							}
+						: null,
+			}),
+		),
+	]
+}
 
 export function ErrorBoundary() {
 	return (

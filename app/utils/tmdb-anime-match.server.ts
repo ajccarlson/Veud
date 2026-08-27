@@ -125,3 +125,56 @@ export function searchTitles(canonical: string, alternates: string[]) {
 	}
 	return titles
 }
+
+/**
+ * Which anime this resolver considers.
+ *
+ * `tracked` is the original scope: anime somebody has on a list. It is the
+ * right default for a daily worker because a mapping only earns its keep when
+ * someone is looking at the title.
+ *
+ * `all` widens to the whole anime catalog. That is what overlap detection needs
+ * — an anime nobody tracks can still be a duplicate of a live-action row — but
+ * it is a much larger queue, so the ordering below matters more than the scope
+ * does.
+ */
+export const ANIME_MATCH_SCOPES = ['tracked', 'all'] as const
+export type AnimeMatchScope = (typeof ANIME_MATCH_SCOPES)[number]
+
+export function normalizeAnimeMatchScope(value: unknown): AnimeMatchScope {
+	return ANIME_MATCH_SCOPES.includes(value as AnimeMatchScope)
+		? (value as AnimeMatchScope)
+		: 'tracked'
+}
+
+/**
+ * The rows still worth searching for.
+ *
+ * A mapping does not go stale — it identifies a work, not a fact about it — but
+ * a refusal does, so a refusal is reconsidered once it expires.
+ */
+export function animeMatchCandidateWhere(input: {
+	now: Date
+	trackedProviderKey: string
+	unresolvedProviderKey: string
+	scope: AnimeMatchScope
+}) {
+	return {
+		kind: 'anime',
+		// Widening drops this clause and nothing else, so the two scopes cannot
+		// disagree about what "already mapped" means.
+		...(input.scope === 'tracked' ? { trackingStates: { some: {} } } : {}),
+		externalIds: {
+			none: {
+				OR: [
+					{ provider: input.trackedProviderKey, tombstonedAt: null },
+					{
+						provider: input.unresolvedProviderKey,
+						tombstonedAt: null,
+						refreshAfter: { gt: input.now },
+					},
+				],
+			},
+		},
+	}
+}

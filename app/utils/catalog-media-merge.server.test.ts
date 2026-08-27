@@ -1430,3 +1430,215 @@ test('reversal blocks legacy journals until omitted relations receive a manual i
 		await prisma.media.findUnique({ where: { id: 'merge-source' } }),
 	).toBeNull()
 })
+
+/**
+ * Streaming offers and credits belong to the losing row too.
+ *
+ * `assertSourceDrained` exists so a merge can never delete a row that still
+ * owns something. It counts twenty-odd relations and misses these two, and both
+ * cascade when the source Media is deleted — so the drain passes, the delete
+ * lands, and a title's streaming offers and its whole cast disappear with no
+ * journal entry and no way back.
+ */
+async function seedProviderOwnedRows() {
+	const base = await seedBase()
+	await prisma.watchAvailability.create({
+		data: {
+			id: 'merge-offer',
+			mediaId: 'merge-source',
+			region: 'US',
+			offerKind: 'stream',
+			providerId: 8,
+			providerName: 'Example',
+			link: 'https://www.themoviedb.org/movie/1/watch',
+			observedAt: now,
+			expiresAt: new Date(now.getTime() + 86_400_000),
+		},
+	})
+	const person = await prisma.person.create({
+		data: { id: 'merge-person', name: 'Ana Lead', normalized: 'ana lead' },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			id: 'merge-credit',
+			mediaId: 'merge-source',
+			personId: person.id,
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'The Lead',
+			billingOrder: 0,
+		},
+	})
+	return base
+}
+
+test('a merge keeps the losing row streaming offers and credits', async () => {
+	const { admin, issue } = await seedProviderOwnedRows()
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	expect(preflight.safe).toBe(true)
+	// The plan has to admit these exist before it is trusted to move them.
+	expect(preflight.moves).toMatchObject({
+		watchAvailability: 1,
+		credits: 1,
+	})
+
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+
+	// Moved onto the survivor, not deleted with the source.
+	expect(
+		await prisma.watchAvailability.findUnique({ where: { id: 'merge-offer' } }),
+	).toMatchObject({ mediaId: 'merge-target' })
+	expect(
+		await prisma.mediaCredit.findUnique({ where: { id: 'merge-credit' } }),
+	).toMatchObject({ mediaId: 'merge-target' })
+	expect(await prisma.watchAvailability.count()).toBe(1)
+	expect(await prisma.mediaCredit.count()).toBe(1)
+})
+
+test('reverting a merge puts the offers and credits back', async () => {
+	const { admin, issue } = await seedProviderOwnedRows()
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	const applied = await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+
+	await revertCatalogMediaMerge(prisma, {
+		mergeId: applied.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeReversal(applied.merge.id),
+		now: new Date(now.getTime() + 2_000),
+	})
+
+	// Back on the row they came from, not stranded on the survivor.
+	expect(
+		await prisma.watchAvailability.findUnique({ where: { id: 'merge-offer' } }),
+	).toMatchObject({ mediaId: 'merge-source' })
+	expect(
+		await prisma.mediaCredit.findUnique({ where: { id: 'merge-credit' } }),
+	).toMatchObject({ mediaId: 'merge-source' })
+})
+
+test('preflight refuses when both rows carry the same offer or credit', async () => {
+	// Two rows describing the same work routinely carry the same streaming offer
+	// and the same person in the same role. Moving one onto the other would
+	// violate the unique constraint mid-transaction, so the plan has to say no
+	// rather than discover it half way through.
+	const { issue } = await seedProviderOwnedRows()
+	await prisma.watchAvailability.create({
+		data: {
+			id: 'merge-offer-target',
+			mediaId: 'merge-target',
+			region: 'US',
+			offerKind: 'stream',
+			providerId: 8,
+			providerName: 'Example',
+			link: 'https://www.themoviedb.org/movie/2/watch',
+			observedAt: now,
+			expiresAt: new Date(now.getTime() + 86_400_000),
+		},
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			id: 'merge-credit-target',
+			mediaId: 'merge-target',
+			personId: 'merge-person',
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'The Lead',
+			billingOrder: 0,
+		},
+	})
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	expect(preflight.safe).toBe(false)
+	expect(preflight.blockers.map(blocker => blocker.code)).toEqual(
+		expect.arrayContaining([
+			'watch-availability-collision',
+			'credit-collision',
+		]),
+	)
+	// Nothing was touched: a refusal is a refusal.
+	expect(await prisma.watchAvailability.count()).toBe(2)
+	expect(await prisma.mediaCredit.count()).toBe(2)
+})
+
+test('different offers and different roles are not a collision', async () => {
+	// Two rows for the same work usually both have US offers — from different
+	// providers — and both credit people the other does not. A key that is too
+	// loose refuses those merges, which is a worse failure than the one the
+	// blocker exists to prevent, because it is silent and permanent.
+	const { issue } = await seedProviderOwnedRows()
+	await prisma.watchAvailability.create({
+		data: {
+			id: 'merge-offer-other-provider',
+			mediaId: 'merge-target',
+			region: 'US',
+			offerKind: 'stream',
+			// Same region and kind, different provider: not the same offer.
+			providerId: 9,
+			providerName: 'Other',
+			link: 'https://www.themoviedb.org/movie/2/watch',
+			observedAt: now,
+			expiresAt: new Date(now.getTime() + 86_400_000),
+		},
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			id: 'merge-credit-other-role',
+			mediaId: 'merge-target',
+			// Same person as the source credit, different role: not the same credit.
+			personId: 'merge-person',
+			provider: 'tmdb',
+			creditType: 'crew',
+			role: 'Director',
+			department: 'Directing',
+		},
+	})
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	expect(preflight.blockers.map(blocker => blocker.code)).not.toEqual(
+		expect.arrayContaining([
+			'watch-availability-collision',
+			'credit-collision',
+		]),
+	)
+	expect(preflight.safe).toBe(true)
+})

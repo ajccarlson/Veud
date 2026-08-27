@@ -1212,6 +1212,222 @@ test('hovering a list tab opens it so a dragged entry can be positioned', async 
 	await expect(page.getByRole('status')).toHaveCount(0)
 })
 
+test('dragging into a sorted list appends rather than inventing a position', async ({
+	page,
+	login,
+}) => {
+	// A list with a saved column sort never displays in stored order, so a drop
+	// index cannot be translated into one. Appending is what dropping straight
+	// onto the list's tab already does.
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const [source, destination] = await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				name: 'plain-source',
+				header: 'Plain source',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				name: 'sorted-destination',
+				header: 'Sorted destination',
+				position: 2,
+				displayedColumns: 'position, title, type',
+				defaultSortColumn: 'title',
+				defaultSortDirection: 'asc',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+	])
+	await prisma.entry.create({
+		data: {
+			watchlistId: source.id,
+			position: 1,
+			title: 'Zebra arrives',
+			type: 'TV Series',
+		},
+	})
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: destination.id,
+				position: 1,
+				title: 'Zulu kept first',
+				type: 'TV Series',
+			},
+			{
+				watchlistId: destination.id,
+				position: 2,
+				title: 'Alpha kept second',
+				type: 'TV Series',
+			},
+		],
+	})
+
+	await page.goto(`/lists/${user.username}/anime/${source.name}`)
+	const draggedRow = page
+		.locator('.ag-row')
+		.filter({ hasText: 'Zebra arrives' })
+	const dragHandle = draggedRow.locator('.ag-row-drag')
+	await draggedRow.hover()
+	await expect(dragHandle).toBeVisible()
+	await dragHandle.hover()
+	await page.mouse.down()
+	await draggedRow.hover({ position: { x: 80, y: 20 }, force: true })
+	await expect(page.locator('.ag-dnd-ghost')).toBeVisible()
+	const destinationTab = page.getByRole('link', { name: 'Sorted destination' })
+	await destinationTab.hover({ force: true })
+	await expect(destinationTab).toHaveClass(/list-nav-drag-active/)
+	// The preview renders the destination under ITS OWN sort. Stored order is
+	// Zulu then Alpha; the destination sorts by title, so Alpha must appear
+	// ABOVE Zulu. Before the fix the grid kept the source's
+	// sort — none — and showed stored order instead.
+	const firstRow = page
+		.locator('.ag-row')
+		.filter({ hasText: 'Zulu kept first' })
+	const secondRow = page
+		.locator('.ag-row')
+		.filter({ hasText: 'Alpha kept second' })
+	await expect(firstRow).toBeVisible()
+	const bounds = await firstRow.boundingBox()
+	const secondBounds = await secondRow.boundingBox()
+	expect(bounds).not.toBeNull()
+	expect(secondBounds).not.toBeNull()
+	expect(secondBounds!.y).toBeLessThan(bounds!.y)
+	// Dropped at the very top, which under a sort means nothing in particular.
+	await page.mouse.move(bounds!.x + bounds!.width / 2, bounds!.y + 2, {
+		steps: 12,
+	})
+	await page.mouse.up()
+
+	// Stored order is untouched and the newcomer is last.
+	await expect
+		.poll(() => titlesInOrder(destination.id))
+		.toEqual(['1:Zulu kept first', '2:Alpha kept second', '3:Zebra arrives'])
+})
+
+test('abandoning a drag puts the source list back the way it was', async ({
+	page,
+	login,
+}) => {
+	// Previewing a destination installs that list's sort in the shared grid. If
+	// the drag is then abandoned, the source must go back to its own order — not
+	// sit there wearing the sort of a list the viewer decided against.
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const [source, destination] = await Promise.all([
+		prisma.watchlist.create({
+			data: {
+				name: 'cancel-source',
+				header: 'Cancel source',
+				position: 1,
+				displayedColumns: 'position, title, type',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+		prisma.watchlist.create({
+			data: {
+				name: 'cancel-destination',
+				header: 'Cancel destination',
+				position: 2,
+				displayedColumns: 'position, title, type',
+				defaultSortColumn: 'title',
+				defaultSortDirection: 'asc',
+				ownerId: user.id,
+				typeId: listType.id,
+			},
+		}),
+	])
+	// Stored order is deliberately not alphabetical, so the source's own order is
+	// distinguishable from the destination's title sort.
+	await prisma.entry.createMany({
+		data: [
+			{
+				watchlistId: source.id,
+				position: 1,
+				title: 'Zulu source row',
+				type: 'TV Series',
+			},
+			{
+				watchlistId: source.id,
+				position: 2,
+				title: 'Alpha source row',
+				type: 'TV Series',
+			},
+		],
+	})
+	await prisma.entry.create({
+		data: {
+			watchlistId: destination.id,
+			position: 1,
+			title: 'Destination row',
+			type: 'TV Series',
+		},
+	})
+
+	await page.goto(`/lists/${user.username}/anime/${source.name}`)
+	// The grid's own sort state, which is the precise observable here: row order
+	// settles back on its own, the installed sort does not.
+	const sortState = () =>
+		page
+			.locator('.ag-header-cell[aria-sort]')
+			.evaluateAll(cells =>
+				cells.map(
+					cell =>
+						`${cell.getAttribute('col-id')}=${cell.getAttribute('aria-sort')}`,
+				),
+			)
+	await expect(
+		page.locator('.ag-row').filter({ hasText: 'Zulu source row' }),
+	).toBeVisible()
+	expect(await sortState()).not.toContain('title=ascending')
+
+	const draggedRow = page
+		.locator('.ag-row')
+		.filter({ hasText: 'Zulu source row' })
+	const dragHandle = draggedRow.locator('.ag-row-drag')
+	await draggedRow.hover()
+	await expect(dragHandle).toBeVisible()
+	await dragHandle.hover()
+	await page.mouse.down()
+	await draggedRow.hover({ position: { x: 80, y: 20 }, force: true })
+	await expect(page.locator('.ag-dnd-ghost')).toBeVisible()
+	await page
+		.getByRole('link', { name: 'Cancel destination' })
+		.hover({ force: true })
+	await expect(
+		page.locator('.ag-row').filter({ hasText: 'Destination row' }),
+	).toBeVisible()
+	// The preview installed the destination's sort — without this the restore
+	// below would be proving nothing.
+	await expect.poll(sortState).toContain('title=ascending')
+
+	// Change your mind: drop it back on the list it came from.
+	await page.getByRole('link', { name: 'Cancel source' }).hover({ force: true })
+	await page.mouse.up()
+
+	// The source is its own list again, not wearing the destination's sort.
+	await expect(
+		page.locator('.ag-row').filter({ hasText: 'Zulu source row' }),
+	).toBeVisible()
+	await expect.poll(sortState).not.toContain('title=ascending')
+	// And nothing moved.
+	await expect
+		.poll(() => titlesInOrder(destination.id))
+		.toEqual(['1:Destination row'])
+})
+
 test('dragging near a grid edge continuously scrolls the list', async ({
 	page,
 	login,

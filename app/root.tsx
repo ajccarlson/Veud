@@ -1,4 +1,3 @@
-import { useForm, getFormProps } from '@conform-to/react'
 import { parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
 import { useEffect } from 'react'
@@ -17,8 +16,6 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
-	useFetcher,
-	useFetchers,
 	useLoaderData,
 	useLocation,
 	// useMatches,
@@ -26,7 +23,6 @@ import {
 } from 'react-router'
 import '#app/styles/root.scss'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
-import { z } from 'zod'
 import logo from '#app/components/ui/icons/logoV3.webp'
 import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { EpicProgress } from './components/progress-bar.tsx'
@@ -46,7 +42,7 @@ import { EpicToaster } from './components/ui/sonner.tsx'
 import tailwindStyleSheetUrl from './styles/tailwind.css?url'
 import { isAiCapabilityConfigured } from './utils/ai-gateway.server.ts'
 import { getUserId, logout } from './utils/auth.server.ts'
-import { ClientHintCheck, getHints, useHints } from './utils/client-hints.tsx'
+import { ClientHintCheck, getHints } from './utils/client-hints.tsx'
 import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
@@ -57,8 +53,14 @@ import {
 	notificationInboxWhere,
 } from './utils/notification-preferences.server.ts'
 import { syncReleaseRemindersForUser } from './utils/release-reminders.server.ts'
-import { useRequestInfo } from './utils/request-info.ts'
+import {
+	absoluteUrl,
+	SITE_NAME,
+	socialMeta,
+	structuredData,
+} from './utils/seo.ts'
 import { type Theme, setTheme, getTheme } from './utils/theme.server.ts'
+import { ThemeFormSchema, useTheme } from './utils/theme.ts'
 import { makeTimings, time } from './utils/timing.server.ts'
 import { getToast } from './utils/toast.server.ts'
 import { useOptionalUser, useUser, userHasPermission } from './utils/user.ts'
@@ -86,13 +88,26 @@ export const links: LinksFunction = () => {
 	].filter(Boolean)
 }
 
+const SITE_DESCRIPTION = `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.`
+
+// The site-wide card. React Router lets a route replace this wholesale, so a
+// page that describes itself does; everything else at least unfurls as Veud
+// rather than as a bare URL.
 export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
+	if (!loaderData) return [{ title: 'Error | Veud' }]
+	const origin = loaderData.requestInfo.origin
 	return [
-		{ title: loaderData ? 'Veud' : 'Error | Veud' },
-		{
-			name: 'description',
-			content: `Veud is a multimedia tracking and rating platform, focused on giving users an intuitive and visually-appealing way of cataloging what they've viewed.`,
-		},
+		...socialMeta({
+			title: SITE_NAME,
+			description: SITE_DESCRIPTION,
+			url: absoluteUrl(origin, '/'),
+		}),
+		structuredData({
+			'@type': 'WebSite',
+			name: SITE_NAME,
+			url: absoluteUrl(origin, '/'),
+			description: SITE_DESCRIPTION,
+		}),
 	]
 }
 
@@ -236,10 +251,6 @@ export function shouldRevalidate({
 	}
 	return defaultShouldRevalidate
 }
-
-const ThemeFormSchema = z.object({
-	theme: z.enum(['system', 'light', 'dark']),
-})
 
 export async function action({ request }: ActionFunctionArgs) {
 	const contentType = request.headers.get('content-type')?.toLowerCase() ?? ''
@@ -406,10 +417,6 @@ function App() {
 				</div>
 
 				<SiteFooter />
-
-				<div className="container flex justify-end pb-5">
-					<ThemeSwitch userPreference={data.requestInfo.userPrefs.theme} />
-				</div>
 			</div>
 			<EpicToaster closeButton position="top-center" theme={theme} />
 			<EpicProgress />
@@ -695,88 +702,6 @@ function UserDropdown() {
 				</DropdownMenuContent>
 			</DropdownMenuPortal>
 		</DropdownMenu>
-	)
-}
-
-/**
- * @returns the user's theme preference, or the client hint theme if the user
- * has not set a preference.
- */
-export function useTheme() {
-	const hints = useHints()
-	const requestInfo = useRequestInfo()
-	const optimisticMode = useOptimisticThemeMode()
-	if (optimisticMode) {
-		return optimisticMode === 'system' ? hints.theme : optimisticMode
-	}
-	return requestInfo.userPrefs.theme ?? hints.theme
-}
-
-/**
- * If the user's changing their theme mode preference, this will return the
- * value it's being changed to.
- */
-export function useOptimisticThemeMode() {
-	const fetchers = useFetchers()
-	const themeFetcher = fetchers.find(f => f.formAction === '/')
-
-	if (themeFetcher && themeFetcher.formData) {
-		const submission = parseWithZod(themeFetcher.formData, {
-			schema: ThemeFormSchema,
-		})
-
-		if (submission.status === 'success') {
-			return submission.value.theme
-		}
-	}
-}
-
-/**
- * Cycles system → light → dark. `system` follows the client hint, which is
- * how someone who has never chosen gets the palette their device asked for.
- */
-function ThemeSwitch({ userPreference }: { userPreference?: Theme | null }) {
-	const fetcher = useFetcher<typeof action>()
-
-	const [form] = useForm({
-		id: 'theme-switch',
-		lastResult: fetcher.data?.result,
-	})
-
-	const optimisticMode = useOptimisticThemeMode()
-	const mode = optimisticMode ?? userPreference ?? 'system'
-	const nextMode =
-		mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system'
-	const modeLabel = {
-		light: (
-			<Icon name="sun">
-				<span className="sr-only">Light</span>
-			</Icon>
-		),
-		dark: (
-			<Icon name="moon">
-				<span className="sr-only">Dark</span>
-			</Icon>
-		),
-		system: (
-			<Icon name="laptop">
-				<span className="sr-only">System</span>
-			</Icon>
-		),
-	}
-
-	return (
-		<fetcher.Form method="POST" {...getFormProps(form)}>
-			<input type="hidden" name="theme" value={nextMode} />
-			<div className="flex gap-2">
-				<button
-					type="submit"
-					className="flex h-8 w-8 cursor-pointer items-center justify-center"
-				>
-					{modeLabel[mode]}
-				</button>
-			</div>
-		</fetcher.Form>
 	)
 }
 
