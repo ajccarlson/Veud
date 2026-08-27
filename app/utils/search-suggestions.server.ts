@@ -1,6 +1,7 @@
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
 import { splitLegacyThumbnail } from './media-detail.ts'
+import { resolveDisplayTitle, type TitleLanguage } from './media-title.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
 	clampSuggestionLimit,
@@ -22,6 +23,7 @@ export async function getSearchSuggestions(input: {
 	q: unknown
 	kind?: unknown
 	limit?: unknown
+	titleLanguage?: TitleLanguage
 }): Promise<SearchSuggestion[]> {
 	const query = normalizeSuggestionQuery(input.q)
 	if (!query) return []
@@ -57,6 +59,7 @@ export async function getSearchSuggestions(input: {
 			id: true,
 			kind: true,
 			title: true,
+			englishTitle: true,
 			type: true,
 			thumbnail: true,
 			releaseStart: true,
@@ -78,7 +81,9 @@ export async function getSearchSuggestions(input: {
 
 	const suggestions = media.map(entry => ({
 		id: entry.id,
-		title: entry.title ?? '',
+		// The suggestion has to read the way the rest of the site does, or the
+		// row someone clicks is not the row they were shown.
+		title: resolveDisplayTitle(entry, input.titleLanguage),
 		kind: entry.kind,
 		type: entry.type,
 		year: entry.releaseStart

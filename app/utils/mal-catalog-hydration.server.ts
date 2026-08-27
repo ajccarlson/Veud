@@ -236,6 +236,22 @@ function imageUrl(value: unknown) {
 	return optionalString(picture.large) ?? optionalString(picture.medium)
 }
 
+/**
+ * MAL's English title, when it has one.
+ *
+ * `optionalString` drops the empty string, which MAL returns often, so an
+ * absent English title reads as null rather than as a blank title that would
+ * render an empty row.
+ */
+function malEnglishTitle(payload: Record<string, unknown>) {
+	if (!payload.alternative_titles) return null
+	const alternatives = requireObject(
+		payload.alternative_titles,
+		'MAL alternative_titles',
+	)
+	return optionalString(alternatives.en)
+}
+
 function alternativeTitles(payload: Record<string, unknown>) {
 	if (!payload.alternative_titles) return []
 	const alternatives = requireObject(
@@ -492,6 +508,9 @@ export function normalizeMalDetails(
 	const startYear = start?.getUTCFullYear() ?? seasonYear
 	const catalog: Record<string, unknown> = {
 		title,
+		// Stored as a scalar so every list row and card can prefer it without a
+		// join. Null when MAL has no English title, which is common.
+		englishTitle: malEnglishTitle(payload),
 		thumbnail: picture
 			? `${picture}|https://myanimelist.net/${kind}/${id}`
 			: null,
@@ -1020,7 +1039,10 @@ export async function hydrateMalCatalog(
 						result.details.catalog,
 						{
 							overwrite: true,
-							authoritativeFields: ['nextRelease'],
+							// Authoritative so a title MAL later drops is cleared rather
+							// than left showing an English name the provider no longer
+							// has.
+							authoritativeFields: ['nextRelease', 'englishTitle'],
 							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)

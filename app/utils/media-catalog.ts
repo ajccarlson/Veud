@@ -4,6 +4,7 @@ import { type Prisma } from '@prisma/client'
 export const mediaCatalogSelect = {
 	thumbnail: true,
 	title: true,
+	englishTitle: true,
 	type: true,
 	releaseStart: true,
 	releaseEnd: true,
