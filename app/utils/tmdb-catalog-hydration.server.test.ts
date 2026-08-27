@@ -172,11 +172,19 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 		episode: 25,
 		season: 2,
 	})
+	// Credits ride along on the detail request rather than costing one of their
+	// own: one HTTP call, one rate-limit slot.
 	expect(
 		new URL(tmdbDetailUrl('movie', '42')).searchParams.get(
 			'append_to_response',
 		),
-	).toBe('alternative_titles,release_dates')
+	).toBe('alternative_titles,release_dates,credits')
+	// A series needs the aggregate, which rolls roles up across seasons. Plain
+	// `credits` on a series returns whoever was on the last season, which is not
+	// the cast.
+	expect(
+		new URL(tmdbDetailUrl('tv', '42')).searchParams.get('append_to_response'),
+	).toBe('alternative_titles,content_ratings,aggregate_credits')
 	expect(() => tmdbDetailUrl('movie', '../search')).toThrow(
 		'positive safe integer',
 	)
