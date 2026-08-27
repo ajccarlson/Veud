@@ -26,6 +26,15 @@ import { getLastActiveLabel } from '#app/utils/last-active.ts'
 import { cn, getUserBannerSrc, getUserImgSrc } from '#app/utils/misc.tsx'
 import { loadProfileShell } from '#app/utils/profile-data.server.ts'
 import { profileHeaders } from '#app/utils/profile-headers.ts'
+import {
+	absoluteUrl,
+	originFromMatches,
+	SITE_NAME,
+	socialDescription,
+	socialMeta,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 import { makeTimings } from '#app/utils/timing.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import '#app/styles/user-landing.scss'
@@ -308,14 +317,48 @@ export default function ProfileRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ params }) => {
-	const displayName = params['username']
+export const meta: MetaFunction<typeof loader> = ({
+	loaderData,
+	params,
+	matches,
+}) => {
+	const displayName =
+		loaderData?.user.username ?? params['username'] ?? 'Member'
+	const origin = originFromMatches(matches)
+	const title = `${displayName} | ${SITE_NAME}`
+	const description = socialDescription(
+		loaderData?.user.bio,
+		`${displayName} on ${SITE_NAME} — what they are watching, reading, and rating.`,
+	)
+	const url = absoluteUrl(origin, `/users/${displayName}`)
+	// Only a real avatar. The default silhouette says nothing and makes every
+	// profile card look like every other one.
+	const image = loaderData?.user.image?.id
+		? absoluteUrl(origin, getUserImgSrc(loaderData.user.image.id))
+		: null
+
 	return [
-		{ title: `${displayName} | Veud` },
-		{
-			name: 'description',
-			content: `Profile of ${displayName} on Veud`,
-		},
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `${displayName}'s avatar` : undefined,
+			type: 'profile',
+		}),
+		structuredData(
+			withoutEmptyValues({
+				'@type': 'ProfilePage',
+				url,
+				mainEntity: withoutEmptyValues({
+					'@type': 'Person',
+					name: displayName,
+					description,
+					image,
+					url,
+				}),
+			}),
+		),
 	]
 }
 
