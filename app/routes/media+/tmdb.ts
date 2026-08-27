@@ -1,14 +1,25 @@
+/**
+ * Which TMDB search endpoint a chosen type maps to.
+ *
+ * `multi` is the one that returns films AND series. Anything that narrows to a
+ * single endpoint makes the other kind unreachable, which is fine when someone
+ * asked for it and a trap when they cannot ask for anything else — so the
+ * caller must always have a value that lands here.
+ */
+export function tmdbSearchKind(type: string) {
+	const normalized = type.toLowerCase().replace(/[^0-9a-z]/gi, '')
+	if (normalized.includes('movie')) return 'movie'
+	if (normalized.includes('tv')) return 'tv'
+	if (normalized.includes('person')) return 'person'
+	return 'multi'
+}
+
 export async function searchTMDB(
 	entry: string,
 	type: string,
 	numResults?: number,
 ) {
-	type = type.toLowerCase().replace(/[^0-9a-z]/gi, '')
-
-	if (type.includes('movie')) type = 'movie'
-	else if (type.includes('tv')) type = 'tv'
-	else if (type.includes('person')) type = 'person'
-	else type = 'multi'
+	type = tmdbSearchKind(type)
 
 	const url =
 		'https://api.themoviedb.org/3/search/' +
