@@ -508,6 +508,10 @@ export function normalizeMalDetails(
 	const startYear = start?.getUTCFullYear() ?? seasonYear
 	const catalog: Record<string, unknown> = {
 		title,
+		originalTitle: optionalString(
+			requireObject(payload.alternative_titles ?? {}, 'MAL alternative_titles')
+				.ja,
+		),
 		// Stored as a scalar so every list row and card can prefer it without a
 		// join. Null when MAL has no English title, which is common.
 		englishTitle: malEnglishTitle(payload),
@@ -1040,9 +1044,12 @@ export async function hydrateMalCatalog(
 						{
 							overwrite: true,
 							// Authoritative so a title MAL later drops is cleared rather
-							// than left showing an English name the provider no longer
-							// has.
-							authoritativeFields: ['nextRelease', 'englishTitle'],
+							// than left showing a name the provider no longer has.
+							authoritativeFields: [
+								'nextRelease',
+								'originalTitle',
+								'englishTitle',
+							],
 							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)
