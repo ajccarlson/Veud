@@ -46,6 +46,7 @@ import { ClientHintCheck, getHints } from './utils/client-hints.tsx'
 import { prisma } from './utils/db.server.ts'
 import { getEnv } from './utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
+import { normalizeTitleLanguage } from './utils/media-title.ts'
 import { combineHeaders, getDomainUrl, getUserImgSrc } from './utils/misc.tsx'
 import { useNonce } from './utils/nonce-provider.ts'
 import {
@@ -127,6 +128,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 							id: true,
 							name: true,
 							username: true,
+							titleLanguage: true,
 							image: { select: { id: true } },
 							roles: {
 								select: {
@@ -203,6 +205,9 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 				path: url.pathname,
 				userPrefs: {
 					theme: getTheme(request),
+					// Signed out this is the default, which is the cost of putting the
+					// setting on the member rather than in a cookie.
+					titleLanguage: normalizeTitleLanguage(user?.titleLanguage),
 				},
 			},
 			ENV: getEnv(),

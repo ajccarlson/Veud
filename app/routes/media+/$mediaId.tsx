@@ -67,6 +67,8 @@ import {
 } from '#app/utils/media-journal.ts'
 import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
 import { getMediaRelations } from '#app/utils/media-relations.server.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
+import { resolveDisplayTitle } from '#app/utils/media-title.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	getNextCanonicalReminderRelease,
@@ -258,6 +260,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
 	const viewerId = await getUserId(request)
+	const titleLanguage = await getViewerTitleLanguage(request, viewerId)
 	const media = await prisma.media.findUnique({
 		where: { id: mediaId },
 		select: {
@@ -553,7 +556,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		media: {
 			id: media.id,
 			kind: media.kind,
-			title: catalog?.title?.trim() || `Untitled ${media.kind}`,
+			title: resolveDisplayTitle(
+				{ kind: media.kind, ...catalog },
+				titleLanguage,
+			),
 			type: catalog?.type,
 			description: catalog?.description,
 			genres: catalog?.genres,

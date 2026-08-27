@@ -131,7 +131,12 @@ test('the caller cannot widen the list past its limit', async () => {
 	expect(fewer).toHaveLength(3)
 })
 
-test('the response can be shared, since it holds no viewer data', async () => {
+test('the response is cached for the viewer, not shared between them', async () => {
+	// It used to be `public`, on the premise that the catalog is the same for
+	// everyone. It still is — but what the titles are CALLED now depends on the
+	// viewer's language preference, so a shared cache would answer one member
+	// with another's names. The brief cache is what absorbs repeat typing; the
+	// sharing was never the part doing that work.
 	const { tag } = await catalog('Cache')
 	const response = await loader({
 		request: new Request(
@@ -140,7 +145,7 @@ test('the response can be shared, since it holds no viewer data', async () => {
 		params: {},
 	} as any)
 	expect((response as any).init.headers['Cache-Control']).toBe(
-		'public, max-age=30',
+		'private, max-age=30',
 	)
 })
 
