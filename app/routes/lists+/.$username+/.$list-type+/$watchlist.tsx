@@ -12,6 +12,7 @@ import { TrackingAssistantDialog } from '#app/components/tracking-assistant-dial
 import { ResponsiveWatchlist } from '#app/routes/lists+/.$username+/.$list-type+/grid/responsive-watchlist.tsx'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import {
 	canonicalizeLinkedWatchlistEntry,
 	prepareWatchlistEntryForViewer,
@@ -29,6 +30,7 @@ import '#app/styles/watchlist.scss'
 
 export async function loader(params: LoaderFunctionArgs) {
 	const viewerId = await getUserId(params.request)
+	const titleLanguage = await getViewerTitleLanguage(params.request, viewerId)
 	const [listOwner, listTypes] = await Promise.all([
 		prisma.user.findUnique({
 			where: {
@@ -162,7 +164,7 @@ export async function loader(params: LoaderFunctionArgs) {
 	const isOwner = viewerId === listOwner.id
 	const normalizedEntries = listEntries
 		.map(entry => prepareWatchlistEntryForViewer(entry, listOwner.id, isOwner))
-		.map(canonicalizeLinkedWatchlistEntry)
+		.map(entry => canonicalizeLinkedWatchlistEntry(entry, titleLanguage))
 		.map(normalizeWatchlistEntryScores)
 		.sort((a, b) => a.position - b.position)
 	const listEntriesSorted = isOwner

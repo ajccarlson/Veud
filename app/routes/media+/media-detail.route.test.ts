@@ -84,6 +84,25 @@ async function fixture() {
 			thumbnail:
 				'https://example.com/fmab.jpg|https://myanimelist.net/anime/5114',
 			length: '12 eps',
+			episodeCount: 12,
+			runtimeMinutes: 24,
+			originalTitle: '鋼の錬金術師 FULLMETAL ALCHEMIST',
+			language: 'Japanese',
+			rating: 'PG-13',
+			studios: JSON.stringify([
+				'Bones|https://myanimelist.net/anime/producer/4',
+			]),
+			videos: JSON.stringify([
+				{
+					provider: 'tmdb',
+					site: 'youtube',
+					key: 'trailer_5114',
+					name: 'Official trailer',
+					type: 'Trailer',
+					official: true,
+					publishedAt: null,
+				},
+			]),
 			startSeason: 'Fall 2009',
 			description: 'Two brothers search for the Philosopher’s Stone.',
 			externalIds: {
@@ -160,6 +179,20 @@ test('public media loader prefers canonical catalog over legacy entry snapshots'
 		expect.objectContaining({
 			provider: 'mal',
 			url: 'https://myanimelist.net/anime/5114',
+		}),
+	])
+	expect(result.data.media.facts).toEqual(
+		expect.arrayContaining([
+			{ label: 'Original title', value: '鋼の錬金術師 FULLMETAL ALCHEMIST' },
+			{ label: 'Runtime', value: '24m per episode' },
+			{ label: 'Studios', value: 'Bones' },
+		]),
+	)
+	expect(result.data.media.videos).toEqual([
+		expect.objectContaining({
+			name: 'Official trailer',
+			url: 'https://www.youtube.com/watch?v=trailer_5114',
+			thumbnailUrl: 'https://i.ytimg.com/vi/trailer_5114/hqdefault.jpg',
 		}),
 	])
 	expect(result.data.community).toMatchObject({

@@ -17,6 +17,11 @@ model User {
   name     String?
   bio      String?
 
+  /// Which title to show for anime and manga: "default" is whatever the
+  /// provider calls it, "english" prefers the English one where there is one.
+  /// On the member rather than in a cookie so it follows them between devices.
+  titleLanguage       String    @default("default")
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   lastActiveAt        DateTime?
@@ -179,6 +184,14 @@ model Media {
 
   thumbnail         String?
   title             String?
+  /// The English title, for anime and manga whose canonical title is romaji.
+  ///
+  /// A scalar rather than a lookup through MediaTitle: a title is rendered on
+  /// every list row and every card, and joining a table that holds every
+  /// synonym to answer "what do I call this" would put a join on the hottest
+  /// read in the app. MAL supplies it only sometimes, so it is null often and
+  /// every reader falls back to the canonical title.
+  englishTitle      String?
   type              String?
   releaseStart      DateTime?
   releaseEnd        DateTime?
@@ -186,6 +199,7 @@ model Media {
   nextReleaseAt     DateTime?
   genres            String?
   description       String?
+  originalTitle     String?
   airYear           String?
   startSeason       String?
   startYear         String?
@@ -199,6 +213,11 @@ model Media {
   rating            String?
   language          String?
   studios           String?
+  networks          String?
+  keywords          String?
+  budget            String?
+  revenue           String?
+  videos            String?
   serialization     String?
   authors           String?
   tmdbScore         Decimal?
