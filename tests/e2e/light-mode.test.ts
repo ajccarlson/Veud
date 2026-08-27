@@ -112,3 +112,55 @@ test('formerly hardcoded colours follow the theme', async ({ page }) => {
 	const [r, g, b] = lightAccent.split(/\s+/).map(Number)
 	expect((r! + g! + b!) / 3).toBeLessThan(120)
 })
+
+test('the theme control lives in the footer and in settings, not over the page', async ({
+	page,
+}) => {
+	// It used to float in its own bar under the footer on every page, which is
+	// the complaint that moved it. The footer is where it belongs; settings is
+	// where someone who wants to think about it goes.
+	await page.goto('/')
+	const footer = page.getByRole('contentinfo')
+	await expect(footer.getByRole('button', { name: /theme:/i })).toBeVisible()
+	// One control, not one in the footer and another loose above it.
+	await expect(page.getByRole('button', { name: /theme:/i })).toHaveCount(1)
+})
+
+test('a signed-out visitor still has the choice', async ({ page }) => {
+	// The preference is a cookie, not an account setting. Most of this site is
+	// readable signed out, so moving the control behind a login would have taken
+	// the palette away from everyone reading it that way.
+	await page.emulateMedia({ colorScheme: 'dark' })
+	await page.goto('/media')
+	await expect(page.locator('html')).toHaveClass(/dark/)
+
+	await page
+		.getByRole('contentinfo')
+		.getByRole('button', { name: /theme:/i })
+		.click()
+	await expect(page.locator('html')).toHaveClass(/light/)
+})
+
+test('settings offers the three modes by name rather than a cycle', async ({
+	page,
+	login,
+}) => {
+	await login()
+	await page.emulateMedia({ colorScheme: 'dark' })
+	await page.goto('/settings/profile/appearance')
+
+	const dark = page.getByRole('radio', { name: /dark/i })
+	const light = page.getByRole('radio', { name: /light/i })
+	await expect(page.getByRole('radio', { name: /system/i })).toBeChecked()
+
+	// Picking applies immediately: the result of this setting is the page you
+	// are looking at, so a save button would be a second step to see it.
+	await light.click()
+	await expect(page.locator('html')).toHaveClass(/light/)
+	await page.reload()
+	await expect(light).toBeChecked()
+	await expect(page.locator('html')).toHaveClass(/light/)
+
+	await dark.click()
+	await expect(page.locator('html')).toHaveClass(/dark/)
+})
