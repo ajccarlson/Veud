@@ -221,18 +221,37 @@ async function requireSuccessfulResponse(response: Response) {
 	)
 }
 
+/**
+ * The type this control means when nothing has been narrowed to.
+ *
+ * It maps to TMDB's `multi` endpoint, which is the only one that returns films
+ * and series together. Choosing Movie or TV Series searches that endpoint
+ * alone, so without a way back the other kind becomes permanently unreachable
+ * — a film with a series of the same name simply stops existing.
+ */
+export const ALL_MEDIA_TYPES = 'All types'
+
 export function MediaTypeDropdown(params: any) {
+	const selected = params.columnParams.selectedSearchType
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
+					aria-label={`Search type: ${selected}`}
 					className="cursor-pointer rounded bg-[rgb(var(--veud-control))] px-[0.5rem] py-[0.1rem] text-base font-bold hover:bg-[rgb(var(--veud-muted-text))]"
 				>
-					{params.columnParams.selectedSearchType}
+					{selected}
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent sideOffset={8} align="start">
+				<DropdownMenuItem
+					onClick={() =>
+						params.columnParams.setSelectedSearchType(ALL_MEDIA_TYPES)
+					}
+				>
+					{ALL_MEDIA_TYPES}
+				</DropdownMenuItem>
 				<DropdownMenuItem
 					onClick={() => params.columnParams.setSelectedSearchType('Movie')}
 				>
