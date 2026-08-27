@@ -1,5 +1,6 @@
 import { type LoaderFunctionArgs } from 'react-router'
 import { prisma } from '#app/utils/db.server.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import {
 	canonicalizeLinkedWatchlistEntry,
 	prepareWatchlistEntryForViewer,
@@ -10,6 +11,7 @@ import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-
 import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
+	const titleLanguage = await getViewerTitleLanguage(request)
 	const searchParams = new URLSearchParams(params.request)
 
 	const watchlistId = searchParams.get('watchlistId')?.toLowerCase()
@@ -59,7 +61,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		.map(entry =>
 			prepareWatchlistEntryForViewer(entry, watchlist.ownerId, isOwner),
 		)
-		.map(canonicalizeLinkedWatchlistEntry)
+		.map(entry => canonicalizeLinkedWatchlistEntry(entry, titleLanguage))
 		.map(normalizeWatchlistEntryScores)
 	return isOwner
 		? normalized

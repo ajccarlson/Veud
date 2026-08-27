@@ -183,14 +183,18 @@ export const publicSurfaceLoadBudgets = Object.freeze({
 	}),
 })
 
-// Cast is one query, and only one: ingestion caps a title's credits, so the
-// whole list is fetched once and divided in JavaScript rather than asked for
-// three times. That single query is what raised each budget below by exactly
-// one when the cast section landed.
+// Two features have each raised these by exactly one, and each is one query.
+//
+// Cast: ingestion caps a title's credits, so the whole list is fetched once and
+// divided in JavaScript rather than asked for three times.
+//
+// Title language: the viewer's preference decides what the title on the page is
+// called. Loaders that already resolved the viewer pass the id through, so this
+// is the preference lookup alone rather than another session lookup with it.
 export const mediaDetailLoadBudgets = Object.freeze({
 	anonymous: Object.freeze({
-		logicalQueries: 17,
-		sqlQueries: 25,
+		logicalQueries: 18,
+		sqlQueries: 26,
 		payloadBytes: 192 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -199,8 +203,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 0,
 	}),
 	normalizedSigned: Object.freeze({
-		logicalQueries: 25,
-		sqlQueries: 37,
+		logicalQueries: 26,
+		sqlQueries: 38,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -209,8 +213,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 1,
 	}),
 	boundedLegacy: Object.freeze({
-		logicalQueries: 26,
-		sqlQueries: 38,
+		logicalQueries: 27,
+		sqlQueries: 39,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
