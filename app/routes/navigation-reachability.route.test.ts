@@ -56,6 +56,11 @@ test('every page is reachable from somewhere in the app', () => {
 			const patterns = [
 				new RegExp(`to=["'\`][^"'\`]*${segment}`),
 				new RegExp(`href=["'\`][^"'\`]*${segment}`),
+				// A link to a page under a dynamic parent is built rather than
+				// written: to={`/media/${id}/cast`}. Without this the checker
+				// calls every such page unreachable, which is the opposite of
+				// true and teaches people to edit the checker, not the app.
+				new RegExp(`to=\\{\`[^\`]*${segment}`),
 				new RegExp(`to: ['"\`]${segment}['"\`]`),
 				new RegExp(`redirect\\(['"\`][^'"\`]*${segment}`),
 				new RegExp(`['"\`]/${segment}['"\`]`),
