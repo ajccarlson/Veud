@@ -10,6 +10,7 @@ test('catalog snapshots exclude user-specific tracking data', () => {
 			title: 'Shared title',
 			thumbnail: 'poster|provider',
 			description: 'Shared synopsis',
+			videos: '[{"provider":"tmdb"}]',
 			personal: 9,
 			notes: 'Private note',
 			history: '{"started":true}',
@@ -19,6 +20,7 @@ test('catalog snapshots exclude user-specific tracking data', () => {
 		title: 'Shared title',
 		thumbnail: 'poster|provider',
 		description: 'Shared synopsis',
+		videos: '[{"provider":"tmdb"}]',
 	})
 })
 

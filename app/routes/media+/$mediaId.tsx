@@ -15,6 +15,7 @@ import {
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { KeyCrew, TopBilledCast } from '#app/components/media-cast.tsx'
+import { MediaFacts, MediaVideos } from '#app/components/media-facts.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
 import {
@@ -58,6 +59,7 @@ import {
 	splitLegacyThumbnail,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { mediaFacts } from '#app/utils/media-facts.ts'
 import { toggleMediaFavorite } from '#app/utils/media-favorites.server.ts'
 import {
 	journalTerms,
@@ -69,6 +71,7 @@ import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations
 import { getMediaRelations } from '#app/utils/media-relations.server.ts'
 import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import { resolveDisplayTitle } from '#app/utils/media-title.ts'
+import { mediaVideoLinks } from '#app/utils/media-videos.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	getNextCanonicalReminderRelease,
@@ -566,6 +569,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			releaseStart: catalog?.releaseStart,
 			releaseEnd: catalog?.releaseEnd,
 			imageUrl: thumbnail.imageUrl,
+			facts: mediaFacts(media.kind, catalog ?? {}),
+			videos: mediaVideoLinks(catalog?.videos),
 			upcomingRelease,
 			// Availability is regional. Without a viewer region to work from, show
 			// the one the data is densest for rather than inventing a preference.
@@ -1241,6 +1246,7 @@ export default function MediaDetailRoute() {
 							</Button>
 						))}
 					</div>
+					<MediaFacts facts={data.media.facts} />
 				</aside>
 
 				<div className="space-y-8">
@@ -1871,6 +1877,8 @@ export default function MediaDetailRoute() {
 						total={data.credits.castTotal}
 						mediaId={data.media.id}
 					/>
+
+					<MediaVideos videos={data.media.videos} />
 
 					{data.relations.length ? (
 						<section
