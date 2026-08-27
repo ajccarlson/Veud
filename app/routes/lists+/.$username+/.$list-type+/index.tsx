@@ -11,6 +11,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { getUserId } from '#app/utils/auth.server.ts'
 import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import {
 	canonicalizeLinkedWatchlistEntry,
 	publicListOwnerSelect,
@@ -181,6 +182,7 @@ export function listNavigationDisplayer(listParams: any) {
 }
 
 export async function loader(params: LoaderFunctionArgs) {
+	const titleLanguage = await getViewerTitleLanguage(params.request)
 	const [viewerId, listOwner, listTypes] = await Promise.all([
 		getUserId(params.request),
 		prisma.user.findUnique({
@@ -244,8 +246,10 @@ export async function loader(params: LoaderFunctionArgs) {
 		: []
 	const entriesByWatchlist = new Map<string, any[]>()
 	for (const rawEntry of allEntries) {
-		const { media: _media, ...entry } =
-			canonicalizeLinkedWatchlistEntry(rawEntry)
+		const { media: _media, ...entry } = canonicalizeLinkedWatchlistEntry(
+			rawEntry,
+			titleLanguage,
+		)
 		const arr = entriesByWatchlist.get(entry.watchlistId) ?? []
 		arr.push(entry)
 		entriesByWatchlist.set(entry.watchlistId, arr)

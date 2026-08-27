@@ -2,6 +2,10 @@ import {
 	entryCatalogMetadataFields,
 	type MediaCatalogSnapshot,
 } from '#app/utils/media-catalog.ts'
+import {
+	resolveDisplayTitle,
+	type TitleLanguage,
+} from '#app/utils/media-title.ts'
 import { profileHistoryTimestamp } from '#app/utils/profile-history-bounds.ts'
 
 const PUBLIC_HISTORY_CODE_UNIT_LIMIT = 64 * 1024
@@ -178,14 +182,18 @@ export function canonicalizeLinkedWatchlistEntry<
 	TEntry extends Record<string, unknown> & {
 		media: LinkedCatalogMedia | null
 	},
->(entry: TEntry): TEntry {
+>(entry: TEntry, titleLanguage: TitleLanguage = 'default'): TEntry {
 	if (!entry.media) return entry
 
 	const canonical = { ...entry } as Record<string, unknown>
 	for (const field of entryCatalogMetadataFields) {
 		if (field in canonical) canonical[field] = entry.media[field] ?? null
 	}
-	canonical.title = entry.media.title?.trim() || `Untitled ${entry.media.kind}`
+	// Every watchlist surface overlays canonical Media here, so this is the one
+	// place a viewer's title preference has to be applied for all of them. The
+	// snapshot on Entry stays canonical: it is a global column, so it could
+	// never be per-viewer anyway.
+	canonical.title = resolveDisplayTitle(entry.media, titleLanguage)
 	const externalIds = Array.isArray(entry.media.externalIds)
 		? entry.media.externalIds
 		: undefined

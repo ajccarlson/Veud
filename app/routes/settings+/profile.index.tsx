@@ -28,6 +28,10 @@ import {
 } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
+	normalizeTitleLanguage,
+	TITLE_LANGUAGES,
+} from '#app/utils/media-title.ts'
+import {
 	getUserBannerSrc,
 	getUserImgSrc,
 	useDoubleCheck,
@@ -68,6 +72,7 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			username: true,
 			bio: true,
 			email: true,
+			titleLanguage: true,
 			accountStatus: true,
 			accountStatusReason: true,
 			image: {
@@ -138,6 +143,7 @@ const profileUpdateActionIntent = 'update-profile'
 const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteAccountActionIntent = 'delete-account'
 const appealModerationActionIntent = 'appeal-moderation'
+const titleLanguageActionIntent = 'update-title-language'
 const DeleteAccountSchema = z.object({
 	confirmation: z.string().trim(),
 	currentPassword: z.string().optional(),
@@ -148,6 +154,22 @@ export async function action({ request, url }: ActionFunctionArgs) {
 	const formData = await request.formData()
 	const intent = formData.get('intent')
 	switch (intent) {
+		case titleLanguageActionIntent: {
+			const parsed = z
+				.object({ titleLanguage: z.enum(TITLE_LANGUAGES) })
+				.safeParse(Object.fromEntries(formData))
+			if (!parsed.success) {
+				return json(
+					{ ok: false as const, message: 'Unknown title setting.' },
+					{ status: 400 },
+				)
+			}
+			await prisma.user.update({
+				where: { id: userId },
+				data: { titleLanguage: parsed.data.titleLanguage },
+			})
+			return json({ ok: true as const, message: 'Title language saved.' })
+		}
 		case profileUpdateActionIntent: {
 			return profileUpdateAction({ request, userId, formData })
 		}
@@ -211,6 +233,77 @@ export async function action({ request, url }: ActionFunctionArgs) {
 	}
 }
 
+/**
+ * Which title to show for anime and manga.
+ *
+ * MAL's canonical title is the romaji one, and which of those someone wants is
+ * a preference rather than a fact about the work. It saves on change, because
+ * the result of this setting is the rest of the site.
+ *
+ * When the Appearance settings page lands this belongs there, beside the theme
+ * — they are the same kind of choice.
+ */
+function TitleLanguagePreference() {
+	const data = useLoaderData<typeof loader>()
+	const fetcher = useFetcher<{ ok: boolean; message: string }>()
+	const current = normalizeTitleLanguage(
+		fetcher.formData?.get('titleLanguage') ?? data.user.titleLanguage,
+	)
+
+	return (
+		<div className="col-span-full space-y-3">
+			<div>
+				<h2 className="text-lg font-semibold">Anime &amp; manga titles</h2>
+				<p className="text-sm text-muted-foreground">
+					Some titles have no English name recorded, and those keep the one the
+					provider uses.
+				</p>
+			</div>
+			<fetcher.Form method="POST">
+				<input type="hidden" name="intent" value={titleLanguageActionIntent} />
+				<fieldset className="space-y-2">
+					<legend className="sr-only">Anime and manga titles</legend>
+					{(
+						[
+							['default', 'As the provider lists them', 'Shingeki no Kyojin'],
+							['english', 'English where available', 'Attack on Titan'],
+						] as const
+					).map(([value, label, example]) => (
+						<div
+							key={value}
+							className="flex items-start gap-3 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-muted/40"
+						>
+							<input
+								type="radio"
+								id={`title-language-${value}`}
+								name="titleLanguage"
+								value={value}
+								defaultChecked={current === value}
+								onChange={event => fetcher.submit(event.currentTarget.form)}
+								className="mt-1.5"
+							/>
+							<label
+								htmlFor={`title-language-${value}`}
+								className="cursor-pointer"
+							>
+								<span className="font-semibold">{label}</span>
+								<span className="block text-sm text-muted-foreground">
+									{example}
+								</span>
+							</label>
+						</div>
+					))}
+				</fieldset>
+				<noscript>
+					<button type="submit" className="mt-2 underline">
+						Save
+					</button>
+				</noscript>
+			</fetcher.Form>
+		</div>
+	)
+}
+
 export default function EditUserProfile() {
 	const data = useLoaderData<typeof loader>()
 
@@ -269,6 +362,7 @@ export default function EditUserProfile() {
 				</div>
 			</div>
 			<UpdateProfile />
+			<TitleLanguagePreference />
 			<ModerationStanding />
 
 			<div className="my-6 h-1 border-b-[1.5px] border-veud-border" />
