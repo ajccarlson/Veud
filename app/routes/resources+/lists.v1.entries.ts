@@ -12,10 +12,12 @@ import {
 import { requireVisibleWatchlist } from '#app/utils/lists/visibility.server.ts'
 import { normalizeWatchlistEntryScores } from '#app/utils/lists/watchlist-entry-scores.server.ts'
 import { mediaCatalogSelect } from '#app/utils/media-catalog.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 
 const noStore = { 'Cache-Control': 'private, no-store' }
 
 export async function loader({ request }: LoaderFunctionArgs) {
+	const titleLanguage = await getViewerTitleLanguage(request)
 	const parsed = ListEntriesQuerySchema.safeParse(
 		Object.fromEntries(new URL(request.url).searchParams),
 	)
@@ -81,7 +83,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 			.map(entry =>
 				prepareWatchlistEntryForViewer(entry, watchlist.ownerId, isOwner),
 			)
-			.map(canonicalizeLinkedWatchlistEntry)
+			.map(entry => canonicalizeLinkedWatchlistEntry(entry, titleLanguage))
 			.map(normalizeWatchlistEntryScores)
 		const browserEntries = isOwner
 			? normalized
