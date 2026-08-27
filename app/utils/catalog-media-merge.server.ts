@@ -63,6 +63,21 @@ const mergeMediaInclude = {
 	},
 	recommendationFeedback: { select: { id: true, ownerId: true } },
 	libraryImportItems: { select: { id: true } },
+	// Provider-owned rows. Both cascade when a Media is deleted, so a merge that
+	// does not carry them forward destroys them silently: the losing row's
+	// streaming offers, and its whole cast and crew.
+	watchAvailability: {
+		select: { id: true, region: true, offerKind: true, providerId: true },
+	},
+	credits: {
+		select: {
+			id: true,
+			personId: true,
+			creditType: true,
+			role: true,
+			department: true,
+		},
+	},
 } satisfies Prisma.MediaInclude
 
 type MergeMedia = Prisma.MediaGetPayload<{
@@ -116,7 +131,7 @@ type MergeContext = {
 
 type MergeJournal = {
 	version: 1
-	inventoryVersion?: 3
+	inventoryVersion?: 3 | 4
 	appliedAt: string
 	sourceMedia: Record<string, unknown>
 	targetPatch: {
@@ -142,6 +157,8 @@ type MergeJournal = {
 		catalogMetricSnapshots?: string[]
 		recommendationFeedback?: string[]
 		libraryImportItems?: string[]
+		watchAvailability?: string[]
+		credits?: string[]
 		relations: RelationPlan['move']
 	}
 	pruned: {
@@ -268,6 +285,21 @@ function metricSnapshotKey(
 		snapshot.provider,
 		snapshot.kind,
 		snapshot.observedAt.toISOString(),
+	])
+}
+
+/** The unique constraint on WatchAvailability: one offer per region and kind. */
+function watchAvailabilityKey(offer: MergeMedia['watchAvailability'][number]) {
+	return stableJson([offer.region, offer.offerKind, offer.providerId])
+}
+
+/** The unique constraint on MediaCredit: one person per role per department. */
+function creditKey(credit: MergeMedia['credits'][number]) {
+	return stableJson([
+		credit.personId,
+		credit.creditType,
+		credit.role,
+		credit.department,
 	])
 }
 
@@ -524,6 +556,21 @@ async function readMergeContext(
 			source.recommendationFeedback.map(row => row.ownerId),
 			target.recommendationFeedback.map(row => row.ownerId),
 		),
+		// Both rows describe the same work, so they routinely carry the same
+		// offer and the same person. Moving one onto the other would violate the
+		// unique constraint mid-transaction; refusing is the honest answer.
+		collisionBlocker(
+			'watch-availability-collision',
+			'streaming offer',
+			source.watchAvailability.map(watchAvailabilityKey),
+			target.watchAvailability.map(watchAvailabilityKey),
+		),
+		collisionBlocker(
+			'credit-collision',
+			'credit',
+			source.credits.map(creditKey),
+			target.credits.map(creditKey),
+		),
 	].filter((value): value is MergeBlocker => Boolean(value))
 
 	return {
@@ -646,6 +693,8 @@ function preflightFromContext(
 			catalogMetricSnapshots: context.source.catalogMetricSnapshots.length,
 			recommendationFeedback: context.source.recommendationFeedback.length,
 			libraryImportItems: context.source.libraryImportItems.length,
+			watchAvailability: context.source.watchAvailability.length,
+			credits: context.source.credits.length,
 			qualityIssues: uniqueById([
 				...context.source.primaryQualityIssues,
 				...context.source.secondaryQualityIssues,
@@ -775,7 +824,7 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 	) as MergeJournal['targetPatch']['applied']
 	return {
 		version: 1,
-		inventoryVersion: 3,
+		inventoryVersion: 4,
 		appliedAt: now.toISOString(),
 		sourceMedia: serializedMedia(context.source),
 		targetPatch: { previous: targetPrevious, applied: targetApplied },
@@ -808,6 +857,8 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 				row => row.id,
 			),
 			libraryImportItems: context.source.libraryImportItems.map(row => row.id),
+			watchAvailability: context.source.watchAvailability.map(row => row.id),
+			credits: context.source.credits.map(row => row.id),
 			relations: context.relationPlan.move,
 		},
 		pruned: {
@@ -858,7 +909,9 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 			| 'releaseReminder'
 			| 'catalogMetricSnapshot'
 			| 'recommendationFeedback'
-			| 'libraryImportItem',
+			| 'libraryImportItem'
+			| 'watchAvailability'
+			| 'mediaCredit',
 	) => {
 		await (
 			tx[model] as unknown as {
@@ -889,6 +942,8 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 	await move('catalogMetricSnapshot')
 	await move('recommendationFeedback')
 	await move('libraryImportItem')
+	await move('watchAvailability')
+	await move('mediaCredit')
 
 	const releaseOccurrenceIds = movableReleaseOccurrences(context.source).map(
 		row => row.id,
@@ -963,6 +1018,8 @@ async function assertSourceDrained(
 					secondaryQualityIssues: true,
 					recommendationFeedback: true,
 					libraryImportItems: true,
+					watchAvailability: true,
+					credits: true,
 				},
 			},
 		},
@@ -1129,6 +1186,9 @@ async function assertMovedRowsStillTargeted(
 		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
 		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
 		['libraryImportItem', journal.moved.libraryImportItems ?? []],
+		// Absent from a version-3 journal, where these were never carried.
+		['watchAvailability', journal.moved.watchAvailability ?? []],
+		['mediaCredit', journal.moved.credits ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -1186,6 +1246,9 @@ async function moveJournalRowsBack(
 		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
 		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
 		['libraryImportItem', journal.moved.libraryImportItems ?? []],
+		// Absent from a version-3 journal, where these were never carried.
+		['watchAvailability', journal.moved.watchAvailability ?? []],
+		['mediaCredit', journal.moved.credits ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -1290,7 +1353,10 @@ export async function revertCatalogMediaMerge(
 		})
 		if (claim.count !== 1) throw new Error('Catalog merge is already changing')
 		const journal = parseJournal(merge.journal)
-		if (journal.inventoryVersion !== 3) {
+		// 4 added streaming offers and credits. A version-3 journal is still
+		// revertible — it restores everything it recorded — but the rows those
+		// merges deleted are already gone, which is what the bump records.
+		if (journal.inventoryVersion !== 3 && journal.inventoryVersion !== 4) {
 			throw new Error(
 				'Legacy merge reversal requires a manual relation-integrity audit',
 			)
