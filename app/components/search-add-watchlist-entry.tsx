@@ -16,6 +16,7 @@ import {
 } from '#app/routes/media+/mal.ts'
 import { getTMDBInfo, searchTMDB } from '#app/routes/media+/tmdb.ts'
 import { insertPositionForDestination } from '#app/utils/lists/insert-boundary.ts'
+import { ALL_MEDIA_TYPES } from '#app/utils/lists/media-search-type.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
@@ -220,16 +221,6 @@ async function requireSuccessfulResponse(response: Response) {
 		(await response.text()) || `Request failed (${response.status})`,
 	)
 }
-
-/**
- * The type this control means when nothing has been narrowed to.
- *
- * It maps to TMDB's `multi` endpoint, which is the only one that returns films
- * and series together. Choosing Movie or TV Series searches that endpoint
- * alone, so without a way back the other kind becomes permanently unreachable
- * — a film with a series of the same name simply stops existing.
- */
-export const ALL_MEDIA_TYPES = 'All types'
 
 export function MediaTypeDropdown(params: any) {
 	const selected = params.columnParams.selectedSearchType

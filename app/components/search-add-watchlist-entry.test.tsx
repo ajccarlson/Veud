@@ -3,10 +3,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import {
-	ALL_MEDIA_TYPES,
-	MediaTypeDropdown,
-} from './search-add-watchlist-entry.tsx'
+import { ALL_MEDIA_TYPES } from '#app/utils/lists/media-search-type.ts'
+import { MediaTypeDropdown } from './search-add-watchlist-entry.tsx'
 
 /**
  * The search-type control on the watchlist quick-add.

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { ALL_MEDIA_TYPES } from '#app/components/search-add-watchlist-entry.tsx'
+import { ALL_MEDIA_TYPES } from '#app/utils/lists/media-search-type.ts'
 import { tmdbSearchKind } from './tmdb.ts'
 
 /**
