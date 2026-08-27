@@ -30,7 +30,7 @@ import '#app/styles/watchlist.scss'
 
 export async function loader(params: LoaderFunctionArgs) {
 	const viewerId = await getUserId(params.request)
-	const titleLanguage = await getViewerTitleLanguage(params.request)
+	const titleLanguage = await getViewerTitleLanguage(params.request, viewerId)
 	const [listOwner, listTypes] = await Promise.all([
 		prisma.user.findUnique({
 			where: {

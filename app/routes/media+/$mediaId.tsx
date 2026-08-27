@@ -247,7 +247,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
 	const viewerId = await getUserId(request)
-	const titleLanguage = await getViewerTitleLanguage(request)
+	const titleLanguage = await getViewerTitleLanguage(request, viewerId)
 	const media = await prisma.media.findUnique({
 		where: { id: mediaId },
 		select: {

@@ -11,8 +11,13 @@ import { normalizeTitleLanguage, type TitleLanguage } from './media-title.ts'
  */
 export async function getViewerTitleLanguage(
 	request: Request,
+	knownUserId?: string | null,
 ): Promise<TitleLanguage> {
-	const userId = await getUserId(request)
+	// Callers that already resolved the viewer pass the id: `getUserId` costs a
+	// session lookup of its own, and doing it twice on a page that has a query
+	// budget is a query spent on nothing.
+	const userId =
+		knownUserId === undefined ? await getUserId(request) : knownUserId
 	if (!userId) return 'default'
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
