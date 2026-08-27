@@ -118,6 +118,31 @@ test('deleting a title takes its credits and leaves the people', async () => {
 	).not.toBeNull()
 })
 
+test('credit sync state is unique per provider scope and follows its title', async () => {
+	const { media } = await fixture()
+	const state = {
+		mediaId: media.id,
+		provider: 'jikan',
+		scope: 'anime-cast',
+		status: 'fresh',
+	}
+	await prisma.mediaCreditSyncState.create({ data: state })
+	await expect(
+		prisma.mediaCreditSyncState.create({ data: state }),
+	).rejects.toThrow()
+	await prisma.mediaCreditSyncState.create({
+		data: { ...state, scope: 'anime-staff' },
+	})
+	expect(
+		await prisma.mediaCreditSyncState.count({ where: { mediaId: media.id } }),
+	).toBe(2)
+
+	await prisma.media.delete({ where: { id: media.id } })
+	expect(
+		await prisma.mediaCreditSyncState.count({ where: { mediaId: media.id } }),
+	).toBe(0)
+})
+
 test('deleting a person takes their credits and identities', async () => {
 	const { media, person } = await fixture()
 	await prisma.mediaCredit.create({ data: credit(media.id, person.id) })

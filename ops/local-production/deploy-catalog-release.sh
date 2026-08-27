@@ -45,6 +45,7 @@ unit_dir="$HOME/.config/systemd/user"
 writer_lifetime_lock="$PRODUCTION_ROOT/run/catalog-writer-lifetime.lock"
 
 writer_services=(
+	veud-production-jikan-anime-cast.service
 	veud-production-mal-hydration.service
 	veud-production-mal-inventory.service
 	veud-production-mal-trending.service
@@ -57,6 +58,7 @@ writer_services=(
 	veud-production-tmdb-watch-providers.service
 )
 writer_timers=(
+	veud-production-jikan-anime-cast.timer
 	veud-production-mal-hydration.timer
 	veud-production-mal-inventory.timer
 	veud-production-mal-trending.timer
@@ -676,6 +678,7 @@ release_provider_locks() {
 	if [[ "$locks_held" == true ]]; then
 		exec 8>&-
 		exec 9>&-
+		exec 10>&-
 		locks_held=false
 	fi
 }
@@ -1330,10 +1333,11 @@ install_immutable_writer_unit_definitions
 acquire_writer_lifetime_lock_exclusive ||
 	die 'Unable to acquire the production writer lifetime lock'
 
-# Provider locks drain manually launched MAL/TMDB jobs and close the race
+# Provider locks drain manually launched Jikan/MAL/TMDB jobs and close the race
 # between stopping their systemd services and the database boundary.
 exec 8>"$PRODUCTION_ROOT/run/mal-provider.lock"
 exec 9>"$PRODUCTION_ROOT/run/tmdb-provider.lock"
+exec 10>"$PRODUCTION_ROOT/run/jikan-provider.lock"
 locks_held=true
 lock_wait_seconds="${VEUD_PRODUCTION_DEPLOY_LOCK_WAIT_SECONDS:-120}"
 [[ "$lock_wait_seconds" =~ ^[1-9][0-9]*$ ]] ||
@@ -1342,6 +1346,8 @@ flock --exclusive --wait "$lock_wait_seconds" 8 ||
 	die 'Timed out draining the MAL catalog worker'
 flock --exclusive --wait "$lock_wait_seconds" 9 ||
 	die 'Timed out draining the TMDB catalog worker'
+flock --exclusive --wait "$lock_wait_seconds" 10 ||
+	die 'Timed out draining the Jikan catalog worker'
 
 write_maintenance_state all-writers-stopped
 }
