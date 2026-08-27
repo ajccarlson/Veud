@@ -72,6 +72,12 @@ function episodeLabel(episodeCount: number | null) {
  * The whole card is the link rather than just the name, because the name is a
  * small target beside a large photograph that looks like it should be
  * clickable.
+ *
+ * Deliberately not prefetched on hover. A person page enriches itself from the
+ * provider on first view, so prefetching would turn sweeping the mouse across a
+ * cast row into that many live provider calls and catalog writes, for pages
+ * nobody opened. Prefetch belongs back here once enrichment is off the loader's
+ * critical path.
  */
 function CastCardLink({ credit }: { credit: CastCard }) {
 	const episodes = episodeLabel(credit.episodeCount)
@@ -79,7 +85,6 @@ function CastCardLink({ credit }: { credit: CastCard }) {
 		<li className="w-32 shrink-0 sm:w-36">
 			<Link
 				to={`/people/${credit.person.id}`}
-				prefetch="intent"
 				className="block h-full rounded-lg border bg-background transition hover:border-primary"
 			>
 				<PersonPortrait
@@ -181,7 +186,6 @@ export function KeyCrew({ crew }: { crew: CastCard[] }) {
 					<dd>
 						<Link
 							to={`/people/${credit.person.id}`}
-							prefetch="intent"
 							className="font-semibold hover:underline"
 						>
 							{credit.person.name}
