@@ -1,0 +1,11 @@
+[Unit]
+Description=Resume Veud production Jikan anime cast hydration daily
+
+[Timer]
+OnBootSec=4min
+OnUnitInactiveSec=1d
+Persistent=true
+Unit=veud-production-jikan-anime-cast.service
+
+[Install]
+WantedBy=timers.target
