@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { describe, expect, test } from 'vitest'
 import { prisma } from './db.server.ts'
 import {
@@ -292,4 +293,40 @@ test('watching something on a seed account keeps it from being removed', () => {
 	// ever be removed.
 	expect(Object.keys(trackingStateActivitySelect)).not.toContain('entries')
 	expect(Object.keys(watchlistActivitySelect)).not.toContain('entries')
+})
+
+test('what deletion keeps is exactly what the copy says it keeps', () => {
+	// The delete-account copy tells members their account is removed and that
+	// moderation and safety records are kept without their account named in
+	// them. That is a promise in both directions, so the set is pinned rather
+	// than pattern-matched: a new survivor would mean something is kept that the
+	// copy does not mention, and a survivor that starts cascading would mean the
+	// copy promises to keep a record that in fact goes.
+	//
+	// `SetNull` is what makes the second half true — the row outlives the
+	// account with the reference emptied. Anything else here would either block
+	// deletion outright or take the record with it.
+	const survives: string[] = []
+	for (const model of Prisma.dmmf.datamodel.models) {
+		for (const field of model.fields) {
+			if (field.kind !== 'object' || field.type !== 'User') continue
+			if (!field.relationFromFields?.length) continue
+			if (field.relationOnDelete === 'Cascade') continue
+			survives.push(`${model.name}.${field.name}:${field.relationOnDelete}`)
+		}
+	}
+
+	expect(survives.sort()).toEqual([
+		'CatalogMediaMerge.appliedBy:SetNull',
+		'CatalogMediaMerge.preparedBy:SetNull',
+		'CatalogMediaMerge.revertedBy:SetNull',
+		'CatalogMediaMergeEvent.actor:SetNull',
+		'CatalogQualityEvent.actor:SetNull',
+		'CatalogQualityIssue.reviewedBy:SetNull',
+		'ModerationAction.actor:SetNull',
+		'ModerationAction.subject:SetNull',
+		'ModerationReport.assignedTo:SetNull',
+		'ModerationReport.subject:SetNull',
+		'ServiceIncidentEvent.actor:SetNull',
+	])
 })
