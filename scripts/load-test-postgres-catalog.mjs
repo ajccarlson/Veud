@@ -260,6 +260,21 @@ function kindSql(series = 'n') {
 		ELSE 'manga' END`
 }
 
+function representativeLiveActionTrackedEntries({
+	memberNumber,
+	trackedEntries,
+	mediaCount,
+}) {
+	let liveActionEntries = 0
+	for (let slot = 1; slot <= trackedEntries; slot += 1) {
+		const mediaNumber =
+			1 + (((memberNumber - 1) * trackedEntries + slot - 1) % mediaCount)
+		const kindNumber = (mediaNumber + Math.floor(mediaNumber / 20)) % 4
+		if (kindNumber === 0 || kindNumber === 1) liveActionEntries += 1
+	}
+	return liveActionEntries
+}
+
 function profileFixtureMemberNumber(memberCount) {
 	if (!memberCount) return null
 	let memberNumber = Math.max(1, Math.floor(memberCount / 2))
@@ -304,6 +319,12 @@ function representativeProfileFixture(shape, mediaCount) {
 	const entryShape = representativeProfileEntryShape({
 		mediaCount,
 		trackedEntries: shape.trackingPerMember,
+		trackedTargetEntries: representativeLiveActionTrackedEntries({
+			memberNumber,
+			trackedEntries: shape.trackingPerMember,
+			mediaCount,
+		}),
+		memberCount: shape.memberCount,
 	})
 
 	return {

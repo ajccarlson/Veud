@@ -62,8 +62,8 @@ async function seedPerson(id: string, name: string, creditCount: number) {
 test('live people suggestions rank on the stored count and never aggregate', async () => {
 	// Person.creditCount exists so that search never aggregates MediaCredit
 	// while someone types. Reverting to `orderBy: { credits: { _count } }` would
-	// still return the right people, so nothing else notices — and the
-	// The PostgreSQL scale gate captures this same application query before it
+	// still return the right people, so nothing else notices. The PostgreSQL
+	// scale gate captures this same application query before it
 	// explains the plan. This focused test keeps the failure fast and local.
 	await seedPerson('sugg-lead', 'Ana Lead', 40)
 	await seedPerson('sugg-extra', 'Ana Extra', 1)
