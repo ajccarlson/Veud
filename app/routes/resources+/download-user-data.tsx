@@ -22,7 +22,13 @@ import { getDomainUrl } from '#app/utils/misc.tsx'
  * - `other-members-words` — written by someone else, about or to this member.
  *   Their words are their data, not this member's.
  * - `would-identify-others` — would tell the member who reported, blocked or
- *   muted them. An export must not become a way to find that out.
+ *   muted them, or hand them a list of the members they acted on. An export
+ *   must not become a way to find either out. `notificationsSent` is here for
+ *   the second reason: every row names a recipient, and moderation records the
+ *   moderator as the actor, so exporting it would give anyone who has ever
+ *   moderated a roster of everyone they actioned. Nothing is lost by
+ *   withholding it — a notification the member caused is a side effect of an
+ *   action already exported as their own comment, like or appeal.
  * - `staff-record` — actions this account took while moderating or curating,
  *   which are records about other members rather than personal content.
  */
@@ -46,7 +52,7 @@ export const userExportDispositions = {
 	reviewLikes: 'exported',
 	reviewComments: 'exported',
 	notificationsReceived: 'exported',
-	notificationsSent: 'exported',
+	notificationsSent: 'withheld:would-identify-others',
 	mediaCollections: 'exported',
 	collectionLikes: 'exported',
 	collectionComments: 'exported',
@@ -149,14 +155,6 @@ export const userExportInclude = {
 			createdAt: true,
 		},
 	},
-	notificationsSent: {
-		select: {
-			id: true,
-			type: true,
-			recipientId: true,
-			createdAt: true,
-		},
-	},
 	// Appeals they wrote about their own moderation.
 	moderationAppealDrafts: {
 		select: {
@@ -254,17 +252,32 @@ export const userExportInclude = {
 			appealOfActionId: true,
 		},
 	},
+	// What was done to them, and when.
+	//
+	// `reason` is free text a moderator wrote — `input.note || input.intent` —
+	// but for a hide, a warning or a suspension the member has already been sent
+	// it verbatim in their notification and it is on their settings page, so
+	// withholding it here would remove something they already hold. Triage
+	// actions on reports are different: their `reason` is an internal note the
+	// member has never seen and it routinely concerns whoever reported them, so
+	// only the three action types the member is shown carry it.
+	//
+	// `details` is never surfaced to the member anywhere and is not exported.
+	// Prose cannot have a third party redacted out of it automatically, and an
+	// export must not become a way to learn who reported you.
 	moderationActionsSubject: {
 		select: {
 			id: true,
 			action: true,
 			targetType: true,
 			targetId: true,
-			reason: true,
-			details: true,
 			previousStatus: true,
 			nextStatus: true,
 			createdAt: true,
+			reason: true,
+		},
+		where: {
+			action: { in: ['hide_content', 'account_warn', 'account_suspend'] },
 		},
 	},
 } satisfies Prisma.UserInclude
@@ -291,6 +304,14 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 					? {
 							...user.image,
 							url: `${domain}/resources/user-images/${user.image.id}`,
+						}
+					: null,
+				// The banner was listed without one. An export that names an image
+				// it gives no way to fetch has not exported it.
+				banner: user.banner
+					? {
+							...user.banner,
+							url: `${domain}/resources/user-banners/${user.banner.id}`,
 						}
 					: null,
 			},

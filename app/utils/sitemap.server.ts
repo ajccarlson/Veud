@@ -100,3 +100,85 @@ export function xmlResponse(body: string, maxAgeSeconds: number) {
 		},
 	})
 }
+
+/**
+ * Paths a crawler has no business being sent to.
+ *
+ * The route walk finds every page with a path, which is what makes it useful —
+ * a new public page appears without anyone remembering to list it. It also
+ * found `/login`, `/logout`, `/verify`, `/admin/cache`, `/admin/catalog`,
+ * `/admin/operations` and `/moderation`, none of which a crawler should be
+ * pointed at, and `/*`, the catch-all, which it emitted as a literal URL that
+ * always 404s.
+ *
+ * Prefixes rather than exact paths, so a new admin or auth page is excluded the
+ * day it is added rather than the day someone notices.
+ */
+const nonPublicPathPrefixes = [
+	'admin',
+	'auth',
+	'moderation',
+	'login',
+	'logout',
+	'signup',
+	'onboarding',
+	'verify',
+	'appeal',
+	'forgot-password',
+	'reset-password',
+	'settings',
+	'me',
+]
+
+export function isPublicSitemapPath(path: string) {
+	// The catch-all matches everything and resolves to nothing.
+	if (path.includes('*')) return false
+	// Dynamic segments cannot be enumerated from the manifest; the catalog
+	// sitemap covers the one set of them that matters.
+	if (path.includes(':')) return false
+	const [head] = path.replace(/^\//, '').split('/')
+	return !nonPublicPathPrefixes.includes(head ?? '')
+}
+
+type ManifestRoute = {
+	path?: string
+	index?: boolean
+	parentId?: string
+	module?: Record<string, unknown>
+}
+
+/**
+ * Every public page in the route manifest, as sitemap paths.
+ *
+ * Resource routes — those with no component — are skipped the way the library
+ * this replaces skipped them: a route that renders nothing is not a page.
+ */
+export function publicPageSitemapPaths(
+	routes: Record<string, ManifestRoute | undefined>,
+) {
+	const paths = new Set<string>()
+	for (const [id, route] of Object.entries(routes)) {
+		if (!route || id === 'root') continue
+		if (!route.module || !('default' in route.module)) continue
+
+		let path = route.path
+			? route.path.replace(/\/$/, '')
+			: route.index
+				? ''
+				: null
+		if (path === null) continue
+
+		let parent = route.parentId ? routes[route.parentId] : undefined
+		let parentId = route.parentId
+		while (parent) {
+			const parentPath = parent.path ? parent.path.replace(/\/$/, '') : ''
+			path = `${parentPath}/${path}`
+			parentId = parent.parentId
+			parent = parentId ? routes[parentId] : undefined
+		}
+		const normalized = `/${path.replace(/^\/+/, '').replace(/\/$/, '')}`
+		if (!isPublicSitemapPath(normalized)) continue
+		paths.add(normalized === '/' ? '/' : normalized)
+	}
+	return [...paths].sort()
+}

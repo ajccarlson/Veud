@@ -331,3 +331,37 @@ test('refuses to back-fill a model with no primary key to match on', async () =>
 		}),
 	).rejects.toThrow(/Keyless has deferred relations but no primary key/)
 })
+
+test('a zoneless SQLite timestamp is read as UTC, not as the operator machine', () => {
+	// DEFAULT CURRENT_TIMESTAMP writes 'YYYY-MM-DD HH:MM:SS' in UTC, and
+	// `new Date()` parses that form as local time. Transferring the same
+	// snapshot from two machines produced two different instants, while the
+	// application's own SQLite reader treats the text as UTC.
+	const model = {
+		name: 'Fixture',
+		fields: [{ name: 'firstSeenAt', type: 'DateTime', kind: 'scalar' }],
+	}
+	expect(
+		convertSqliteRow(model, {
+			firstSeenAt: '2026-07-20 15:23:21',
+		}).firstSeenAt.toISOString(),
+	).toBe('2026-07-20T15:23:21.000Z')
+	// The ISO form with an explicit zone is already unambiguous.
+	expect(
+		convertSqliteRow(model, {
+			firstSeenAt: '2026-07-20T23:06:46.914Z',
+		}).firstSeenAt.toISOString(),
+	).toBe('2026-07-20T23:06:46.914Z')
+	// Fractional seconds without a zone are the same naive form.
+	expect(
+		convertSqliteRow(model, {
+			firstSeenAt: '2026-07-20 15:23:21.500',
+		}).firstSeenAt.toISOString(),
+	).toBe('2026-07-20T15:23:21.500Z')
+	// Epoch milliseconds are unaffected.
+	expect(
+		convertSqliteRow(model, {
+			firstSeenAt: 1_700_000_000_000,
+		}).firstSeenAt.toISOString(),
+	).toBe(new Date(1_700_000_000_000).toISOString())
+})
