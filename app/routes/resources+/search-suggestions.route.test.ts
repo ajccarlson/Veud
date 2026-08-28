@@ -236,6 +236,7 @@ test('a description match is not offered as a title suggestion', async () => {
 test('a query too short to mean anything asks for nothing', async () => {
 	await catalog('Short')
 	expect(await suggest({ q: 'a' })).toEqual([])
+	expect(await suggest({ q: 'ab' })).toEqual([])
 	expect(await suggest({ q: '  ' })).toEqual([])
 	expect(await suggest({})).toEqual([])
 })

@@ -642,7 +642,7 @@ test('a person search measured on an empty result set is rejected', () => {
 		}),
 	).toThrow()
 	expect(() =>
-		assertRequiredQueryRows([{ name: 'person-name', actualRows: 48 }], {
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 32 }], {
 			'person-name': 1,
 		}),
 	).not.toThrow()
@@ -653,7 +653,7 @@ test('a broad person search that stops matching a slice is rejected', () => {
 	// stops matching a slice, it silently becomes another single-row lookup.
 	expect(() =>
 		assertRequiredQueryRows([{ name: 'person-name-broad', actualRows: 12 }], {
-			'person-name-broad': 48,
+			'person-name-broad': 32,
 		}),
 	).toThrow()
 })
