@@ -1,29 +1,34 @@
 import { data as json, type LoaderFunctionArgs } from 'react-router'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import { getSearchSuggestions } from '#app/utils/search-suggestions.server.ts'
 
 /**
  * Suggestions for the site search bar.
  *
- * Public, because the search bar itself is: signing in changes nothing about
- * which catalog titles or credited people exist. Nothing viewer-specific is
- * returned, so the
- * response carries no private data to leak.
+ * The search bar itself is public: signing in changes nothing about which
+ * catalog titles or credited people exist. What it can change is what titles
+ * are *called* — a member who asked for English anime titles must be offered
+ * the same names the rest of the site shows them, or the row they click is not
+ * the row they were shown.
  */
 export async function loader({ request }: LoaderFunctionArgs) {
 	const url = new URL(request.url)
+	const titleLanguage = await getViewerTitleLanguage(request)
 	const suggestions = await getSearchSuggestions({
 		q: url.searchParams.get('q'),
 		kind: url.searchParams.get('kind'),
 		limit: url.searchParams.get('limit'),
+		titleLanguage,
 	})
 	return json(
 		{ suggestions },
 		{
 			headers: {
-				// Same catalog for everyone, and a keystroke away from being asked
-				// again, so a shared short cache absorbs repeat typing without ever
-				// showing one person another's results.
-				'Cache-Control': 'public, max-age=30',
+				// Private rather than public: the titles depend on the viewer's
+				// language preference, so a shared cache would answer one member with
+				// another's names. Still cached briefly, which is what absorbs repeat
+				// typing — that was always the part doing the work, not the sharing.
+				'Cache-Control': 'private, max-age=30',
 			},
 		},
 	)

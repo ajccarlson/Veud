@@ -33,6 +33,27 @@ test('member can open a canonical media page and change status', async ({
 					title: '[VEUD E2E] Canonical Media Browser Test',
 					genres: 'Action, Fantasy',
 					length: '12 eps',
+					type: 'TV',
+					releaseStatus: 'Finished Airing',
+					originalTitle: '正規メディアブラウザーテスト',
+					language: 'Japanese',
+					runtimeMinutes: 24,
+					episodeCount: 12,
+					rating: 'PG-13',
+					studios: JSON.stringify([
+						'Studio Browser|https://myanimelist.net/anime/producer/7',
+					]),
+					videos: JSON.stringify([
+						{
+							provider: 'tmdb',
+							site: 'youtube',
+							key: 'browser_123',
+							name: 'Official browser trailer',
+							type: 'Trailer',
+							official: true,
+							publishedAt: null,
+						},
+					]),
 					description: 'A browser-level canonical media fixture.',
 					externalIds: {
 						create: {
@@ -132,6 +153,14 @@ test('member can open a canonical media page and change status', async ({
 				name: '[VEUD E2E] Canonical Media Browser Test',
 			}),
 		).toBeVisible()
+		await expect(page.getByRole('heading', { name: 'Facts' })).toBeVisible()
+		await expect(page.getByText('正規メディアブラウザーテスト')).toBeVisible()
+		await expect(page.getByText('24m per episode')).toBeVisible()
+		await expect(page.getByText('Studio Browser')).toBeVisible()
+		await expect(page.getByRole('heading', { name: 'Videos' })).toBeVisible()
+		await expect(
+			page.getByRole('link', { name: /Official browser trailer/ }),
+		).toHaveAttribute('href', 'https://www.youtube.com/watch?v=browser_123')
 		await expect(
 			page.getByRole('heading', { name: 'Community insights' }),
 		).toBeVisible()

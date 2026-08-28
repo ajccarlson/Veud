@@ -2,7 +2,9 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import {
+	animeMatchCandidateWhere,
 	chooseUniqueTmdbMatch,
+	normalizeAnimeMatchScope,
 	searchTitles,
 	TMDB_WATCH_PROVIDER_KEY,
 	TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
@@ -16,9 +18,9 @@ assertCatalogWriterRuntimeProof(process.env)
 
 const usage = `Usage: npm run catalog:anime-tmdb-ids -- [options]
 
-Map tracked anime to the TMDB entry for the same work, so streaming
-availability can be looked up for them. Anime ingested from MAL carry no TMDB
-id of their own.
+Map anime to the TMDB entry for the same work, so streaming availability can be
+looked up for them and so an anime can be recognised as the same work as a
+live-action row. Anime ingested from MAL carry no TMDB id of their own.
 
 The mapping is recorded under the '${TMDB_WATCH_PROVIDER_KEY}' provider, never
 under 'tmdb', so TMDB catalog hydration does not claim these rows and overwrite
@@ -32,6 +34,10 @@ ${UNRESOLVED_RETRY_DAYS} days, so refusals do not fill the queue and stall it.
 
 Options:
   --commit          Search and write (default: dry-run, no requests)
+  --scope SCOPE     'tracked' (default) or 'all'. 'all' considers every anime
+                    in the catalog, not only those someone has on a list, which
+                    is what cross-kind overlap detection needs. Tracked anime
+                    are still searched first in either scope.
   --limit N         Maximum anime to resolve (default: 200)
   --delay-ms N      Delay between search requests (default: 300)
   --help            Show this help
@@ -66,6 +72,14 @@ function positiveInteger(flag: string, fallback: number) {
 const commit = args.includes('--commit')
 const limit = positiveInteger('--limit', 200)
 const delayMs = positiveInteger('--delay-ms', 300)
+// Defaults to the original scope. Widening the queue by two orders of magnitude
+// is a decision about provider load, so it is made at the call site rather than
+// inherited by every existing invocation.
+const scopeArg = valueFor('--scope')
+const scope = normalizeAnimeMatchScope(scopeArg ?? 'tracked')
+if (scopeArg !== undefined && scope !== scopeArg) {
+	throw new Error(`--scope must be 'tracked' or 'all'`)
+}
 const apiToken = process.env['TMDB_API_KEY']?.trim()
 
 if (commit && !apiToken) throw new Error('TMDB_API_KEY is required to commit')
@@ -122,36 +136,52 @@ async function main() {
 	// recently. A mapping does not go stale — it identifies a work, not a fact
 	// about it — but a refusal does, so it is reconsidered once it expires.
 	const now = new Date()
-	const candidates = await prisma.media.findMany({
-		where: {
-			kind: 'anime',
-			trackingStates: { some: {} },
-			externalIds: {
-				none: {
-					OR: [
-						{ provider: TMDB_WATCH_PROVIDER_KEY, tombstonedAt: null },
-						{
-							provider: TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
-							tombstonedAt: null,
-							refreshAfter: { gt: now },
-						},
-					],
-				},
-			},
-		},
-		select: {
-			id: true,
-			title: true,
-			type: true,
-			startYear: true,
-			titles: { select: { value: true } },
-		},
+	const select = {
+		id: true,
+		title: true,
+		type: true,
+		startYear: true,
+		titles: { select: { value: true } },
+	}
+	const unmapped = animeMatchCandidateWhere({
+		now,
+		trackedProviderKey: TMDB_WATCH_PROVIDER_KEY,
+		unresolvedProviderKey: TMDB_WATCH_UNRESOLVED_PROVIDER_KEY,
+		scope,
+	})
+
+	// Tracked anime first, whatever the scope. A daily run has a small budget and
+	// the whole catalog is two orders of magnitude larger than the tracked slice,
+	// so ordering by id would spend months before reaching a title anyone reads.
+	// Within the untracked remainder, best known first for the same reason.
+	const tracked = await prisma.media.findMany({
+		where: { ...unmapped, trackingStates: { some: {} } },
+		select,
 		orderBy: { id: 'asc' },
 		take: limit,
 	})
+	const untracked =
+		scope === 'all' && tracked.length < limit
+			? await prisma.media.findMany({
+					where: { ...unmapped, trackingStates: { none: {} } },
+					select,
+					orderBy: [
+						{ catalogPopularity: { sort: 'desc', nulls: 'last' } },
+						{ id: 'asc' },
+					],
+					take: limit - tracked.length,
+				})
+			: []
+	const candidates = [...tracked, ...untracked]
 
 	console.log(`Mode: ${commit ? 'COMMIT' : 'DRY RUN (no search requests)'}`)
-	console.log(`Tracked anime without a TMDB mapping: ${candidates.length}`)
+	console.log(`Scope: ${scope}`)
+	console.log(
+		`Anime without a TMDB mapping in this batch: ${candidates.length}` +
+			(scope === 'all'
+				? ` (${tracked.length} tracked, ${untracked.length} untracked)`
+				: ''),
+	)
 	if (!commit) return
 
 	let resolved = 0

@@ -13,6 +13,11 @@ import {
 } from './grid-state.ts'
 import { mediaProgressParser } from '#app/utils/lists/column-functions.tsx'
 import {
+	getSortableWatchlistColumns,
+	getWatchlistDefaultSortModel,
+} from '#app/utils/lists/default-sort.ts'
+import { isManualRowOrder } from '#app/utils/lists/insert-boundary.ts'
+import {
 	getWatchlistEntries,
 	mutateList,
 } from '#app/utils/lists/mutation-client.ts'
@@ -51,6 +56,15 @@ let dragScrollViewport: HTMLElement | null = null
 let registeredDropZones: Array<{ container: Element; params: any }> = []
 let activeDragEvent: any = null
 let hoveredDestinationWatchlistId: string | null = null
+/**
+ * The grid's sort before a drag previewed another list.
+ *
+ * Captured as actual column state rather than recomputed from the source
+ * watchlist's saved default, so a column the viewer clicked survives the drag.
+ * One drag can preview several destinations in turn, so this is taken once and
+ * cleared only when the whole drag ends.
+ */
+let preDragSortState: ReturnType<GridApi['getColumnState']> | null = null
 
 function handleGlobalDragMove(mouseEvent: MouseEvent) {
 	if (!dragSession || !activeDragEvent) return
@@ -123,6 +137,10 @@ function clearDragExperience() {
 		button.classList.remove('list-nav-drag-hover', 'list-nav-drag-active')
 	})
 	document.removeEventListener('mousemove', handleGlobalDragMove)
+	if (preDragSortState) {
+		gridAPI?.applyColumnState({ state: preDragSortState })
+		preDragSortState = null
+	}
 	activeDragEvent = null
 	hoveredDestinationWatchlistId = null
 	dragSession = null
@@ -134,9 +152,35 @@ function destinationDetails(watchlistId: string) {
 	]?.find(watchlist => watchlist.id === watchlistId)
 	if (!destination) return null
 	return {
+		watchlist: destination,
 		header: destination.header,
 		path: `/lists/${columnParams.listOwner.username}/${columnParams.listTypeData.name}/${destination.name}`,
 	}
+}
+
+/**
+ * Show the grid under a watchlist's own sort.
+ *
+ * A cross-list drag reuses one grid instance, and the sort installed in it
+ * belongs to the list being viewed — the source. Previewing another list's rows
+ * without this renders them in the source's order, and the drop index taken
+ * from that order is then written as a stored position in the destination, so
+ * the entry lands somewhere nobody pointed at.
+ *
+ * `defaultState: { sort: null }` is what clears the source's sort when the
+ * destination is ordered manually.
+ */
+function applyWatchlistSort(watchlist: {
+	defaultSortColumn?: string | null
+	defaultSortDirection?: string | null
+}) {
+	gridAPI?.applyColumnState({
+		state: getWatchlistDefaultSortModel(
+			watchlist,
+			getSortableWatchlistColumns(columnParams.listTypeData.columns),
+		),
+		defaultState: { sort: null },
+	})
 }
 
 async function fetchWatchlistEntries(watchlistId: string) {
@@ -155,6 +199,11 @@ async function showDestinationPreview(event: any, watchlistId: string) {
 	try {
 		const destinationEntries = await fetchWatchlistEntries(watchlistId)
 		if (requestId !== destinationRequest || !dragSession) return
+
+		// Inside the guard: a stale preview must not leave the grid sorted for a
+		// destination the pointer already left.
+		preDragSortState ??= gridAPI.getColumnState()
+		applyWatchlistSort(details.watchlist)
 
 		const draggedEntry = {
 			...event.node.data,
@@ -371,8 +420,15 @@ export async function rowDragEnd(params: any) {
 		return
 	}
 	if (dragSession?.activated && dragSession.destinationWatchlistId) {
+		// A drop index is only a stored position when the visible order is the
+		// stored order. With the destination's own sort now installed, this asks
+		// about the destination rather than about the list we came from. Under a
+		// column sort there is no gap to point at, so the entry appends — the
+		// same thing dropping straight onto the list's tab does.
 		const draggedNode = gridAPI.getRowNode(dragSession.entryId)
-		const position = (draggedNode?.rowIndex ?? params.overIndex ?? 0) + 1
+		const position = isManualRowOrder(gridAPI.getColumnState())
+			? (draggedNode?.rowIndex ?? params.overIndex ?? 0) + 1
+			: undefined
 		await commitDraggedEntry(
 			params,
 			dragSession.destinationWatchlistId,

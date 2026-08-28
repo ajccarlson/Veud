@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import {
 	assessCatalogHealth,
 	getCatalogOperationsSnapshot,
+	type CatalogCreditCoverage,
 	type CatalogCoverage,
 } from './catalog-operations.server.ts'
 import { prisma } from './db.server.ts'
@@ -26,6 +27,25 @@ function coverage(input: Partial<CatalogCoverage> = {}): CatalogCoverage {
 		freshnessPercent: 50,
 		requestsMade: 50,
 		rateLimitEvents: 0,
+		...input,
+	}
+}
+
+function creditCoverage(
+	input: Partial<CatalogCreditCoverage> = {},
+): CatalogCreditCoverage {
+	return {
+		provider: 'jikan',
+		scope: 'anime-cast',
+		label: 'Jikan anime cast',
+		active: 100,
+		synced: 0,
+		fresh: 0,
+		queueDepth: 100,
+		failedDeferred: 0,
+		credits: 0,
+		coveragePercent: 0,
+		freshnessPercent: 0,
 		...input,
 	}
 }
@@ -170,6 +190,15 @@ test('aggregates active, hydrated, queued, deferred, and tombstoned identities',
 			lastSuccessfulAt: new Date('2026-07-23T07:02:00.000Z'),
 		},
 	})
+	await prisma.catalogSyncCursor.create({
+		data: {
+			id: 'jikan-cast-cursor',
+			provider: 'jikan',
+			kind: 'anime',
+			mode: 'hydrate',
+			lastSuccessfulAt: new Date('2026-07-23T07:02:00.000Z'),
+		},
+	})
 
 	const snapshot = await getCatalogOperationsSnapshot(prisma, { now })
 	const anime = snapshot.coverage.find(
@@ -233,6 +262,24 @@ test('marks an eligible queue without hydration state as degraded', () => {
 	expect(health.issues).toEqual(
 		expect.arrayContaining([
 			expect.objectContaining({ id: 'unmanaged-queue:tmdb:movie' }),
+		]),
+	)
+})
+
+test('marks an eligible credits queue without its companion worker as degraded', () => {
+	const health = assessCatalogHealth({
+		now,
+		coverage: [coverage({ queueDepth: 0 })],
+		creditCoverage: [creditCoverage()],
+		runs: [run()],
+		cursors: [cursor()],
+	})
+	expect(health.status).toBe('degraded')
+	expect(health.issues).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				id: 'unmanaged-credit-queue:jikan:anime-cast',
+			}),
 		]),
 	)
 })

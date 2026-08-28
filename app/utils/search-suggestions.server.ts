@@ -2,6 +2,7 @@ import { normalizeCatalogTitle } from './catalog-sync.server.ts'
 import { prisma } from './db.server.ts'
 import { normalizePersonName } from './media-credits.server.ts'
 import { splitLegacyThumbnail } from './media-detail.ts'
+import { resolveDisplayTitle, type TitleLanguage } from './media-title.ts'
 import { prismaSearchFilter } from './prisma-search.server.ts'
 import {
 	clampSuggestionLimit,
@@ -85,6 +86,7 @@ export async function getSearchSuggestions(input: {
 	q: unknown
 	kind?: unknown
 	limit?: unknown
+	titleLanguage?: TitleLanguage
 }): Promise<SearchSuggestion[]> {
 	const query = normalizeSuggestionQuery(input.q)
 	if (!query) return []
@@ -124,6 +126,7 @@ export async function getSearchSuggestions(input: {
 				id: true,
 				kind: true,
 				title: true,
+				englishTitle: true,
 				type: true,
 				thumbnail: true,
 				releaseStart: true,
@@ -146,20 +149,23 @@ export async function getSearchSuggestions(input: {
 	])
 
 	const mediaSuggestions = rankSuggestions(
-		media.map(entry => ({
-			resultType: 'media' as const,
-			id: entry.id,
-			title: entry.title ?? '',
-			label: entry.title ?? '',
-			kind: entry.kind,
-			type: entry.type,
-			year: entry.releaseStart
-				? String(entry.releaseStart.getUTCFullYear())
-				: (entry.startYear ?? entry.airYear ?? null),
-			// Thumbnails are stored as a legacy `image|providerPage` pair, so the
-			// image half is separated here rather than in the markup.
-			thumbnail: splitLegacyThumbnail(entry.thumbnail).imageUrl,
-		})),
+		media.map(entry => {
+			const title = resolveDisplayTitle(entry, input.titleLanguage)
+			return {
+				resultType: 'media' as const,
+				id: entry.id,
+				title,
+				label: title,
+				kind: entry.kind,
+				type: entry.type,
+				year: entry.releaseStart
+					? String(entry.releaseStart.getUTCFullYear())
+					: (entry.startYear ?? entry.airYear ?? null),
+				// Thumbnails are stored as a legacy `image|providerPage` pair, so the
+				// image half is separated here rather than in the markup.
+				thumbnail: splitLegacyThumbnail(entry.thumbnail).imageUrl,
+			}
+		}),
 		query,
 	)
 	const personSuggestions = rankSuggestions(
