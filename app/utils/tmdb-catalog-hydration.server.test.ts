@@ -20,6 +20,7 @@ import {
 function moviePayload(id: number, title = `Movie ${id}`) {
 	return {
 		adult: false,
+		budget: 150_000_000,
 		alternative_titles: {
 			titles: [{ iso_3166_1: 'US', title: `${title}: Alternate` }],
 		},
@@ -28,6 +29,7 @@ function moviePayload(id: number, title = `Movie ${id}`) {
 			{ id: 2, name: 'Mystery' },
 		],
 		id,
+		keywords: { keywords: [{ name: 'future' }, { name: 'ocean' }] },
 		original_language: 'fr',
 		original_title: `${title} Original`,
 		overview: `${title} overview`,
@@ -44,10 +46,22 @@ function moviePayload(id: number, title = `Movie ${id}`) {
 			],
 		},
 		runtime: 125,
+		revenue: 2_923_706_026,
 		status: 'Released',
 		title,
 		video: false,
 		vote_average: 8.25,
+		videos: {
+			results: [
+				{
+					site: 'YouTube',
+					key: 'trailer_123',
+					name: `${title} trailer`,
+					type: 'Trailer',
+					official: true,
+				},
+			],
+		},
 	}
 }
 
@@ -61,8 +75,11 @@ function tvPayload(id: number) {
 		first_air_date: '2024-01-02',
 		genres: [{ name: 'Animation' }],
 		id,
+		episode_run_time: [48],
+		keywords: { results: [{ name: 'detective' }] },
 		last_air_date: '2026-01-02',
 		name: 'Localized Series',
+		networks: [{ name: 'Example Network' }],
 		number_of_episodes: 24,
 		original_language: 'ja',
 		original_name: 'Original Series',
@@ -72,6 +89,7 @@ function tvPayload(id: number) {
 		production_companies: [{ name: 'Series Studio' }],
 		status: 'Returning Series',
 		vote_average: 7.5,
+		videos: { results: [] },
 	}
 }
 
@@ -124,6 +142,10 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 				catalogScore: 8.25,
 				catalogPopularity: 420,
 				releaseStatus: 'Released',
+				originalTitle: 'Amélie Original',
+				budget: '150000000',
+				revenue: '2923706026',
+				keywords: 'future, ocean',
 			}),
 		}),
 	)
@@ -144,6 +166,9 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 			length: '24 eps',
 			rating: 'TV-14',
 			language: 'Japanese',
+			runtimeMinutes: 48,
+			networks: 'Example Network',
+			keywords: 'detective',
 			catalogScore: 7.5,
 			releaseStatus: 'Returning Series',
 		}),
@@ -178,13 +203,13 @@ test('normalizes movie and TV details, URLs, and provider retry deadlines', () =
 		new URL(tmdbDetailUrl('movie', '42')).searchParams.get(
 			'append_to_response',
 		),
-	).toBe('alternative_titles,release_dates,credits')
+	).toBe('alternative_titles,release_dates,credits,keywords,videos')
 	// A series needs the aggregate, which rolls roles up across seasons. Plain
 	// `credits` on a series returns whoever was on the last season, which is not
 	// the cast.
 	expect(
 		new URL(tmdbDetailUrl('tv', '42')).searchParams.get('append_to_response'),
-	).toBe('alternative_titles,content_ratings,aggregate_credits')
+	).toBe('alternative_titles,content_ratings,aggregate_credits,keywords,videos')
 	expect(() => tmdbDetailUrl('movie', '../search')).toThrow(
 		'positive safe integer',
 	)
@@ -252,7 +277,16 @@ test('successful provider hydration clears stale canonical and legacy schedules'
 	})
 	await prisma.media.update({
 		where: { id: source.mediaId },
-		data: { nextRelease: staleSchedule },
+		data: {
+			nextRelease: staleSchedule,
+			originalTitle: 'Stale original',
+			networks: 'Stale network',
+			keywords: 'stale keyword',
+			budget: '123',
+			revenue: '456',
+			videos:
+				'[{"provider":"tmdb","site":"youtube","key":"stale_123","name":"Stale"}]',
+		},
 	})
 	const listType = await prisma.listType.upsert({
 		where: { name: 'liveaction' },
@@ -305,9 +339,25 @@ test('successful provider hydration clears stale canonical and legacy schedules'
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: source.mediaId },
-			select: { nextRelease: true },
+			select: {
+				nextRelease: true,
+				originalTitle: true,
+				networks: true,
+				keywords: true,
+				budget: true,
+				revenue: true,
+				videos: true,
+			},
 		}),
-	).toEqual({ nextRelease: null })
+	).toEqual({
+		nextRelease: null,
+		originalTitle: 'Original Series',
+		networks: 'Example Network',
+		keywords: 'detective',
+		budget: null,
+		revenue: null,
+		videos: null,
+	})
 	expect(
 		await prisma.entry.findUniqueOrThrow({
 			where: { id: entry.id },
@@ -417,8 +467,27 @@ test('quick-add demand outranks seeded upcoming, trending, popular, and inventor
 			catalogScore: 8.25,
 			catalogPopularity: 20,
 			releaseStatus: 'Released',
+			originalTitle: 'Movie 2 Original',
+			budget: '150000000',
+			revenue: '2923706026',
+			keywords: 'future, ocean',
 		}),
 	)
+	const hydratedVideo = await prisma.media.findFirstOrThrow({
+		where: {
+			externalIds: {
+				some: { provider: 'tmdb', kind: 'movie', externalId: '2' },
+			},
+		},
+		select: { videos: true },
+	})
+	expect(JSON.parse(hydratedVideo.videos ?? '[]')).toEqual([
+		expect.objectContaining({
+			name: 'Movie 2 trailer',
+			site: 'youtube',
+			key: 'trailer_123',
+		}),
+	])
 	expect(await prisma.mediaTitle.count()).toBe(12)
 	expect(
 		await prisma.catalogFeedItem.findMany({
@@ -699,4 +768,18 @@ test('ensuring a TMDB identity queues user-demand hydration', async () => {
 			}),
 		}),
 	)
+})
+
+test('an unknown budget or revenue is stored as absent, not as zero', () => {
+	// TMDB returns 0 rather than omitting the field, and no released film has
+	// genuinely grossed nothing. Storing the sentinel matters beyond display:
+	// `missingValue` in the merge counts "0" as present, so it would stop a real
+	// figure filling the field from the other row and read as a conflict.
+	const normalized = normalizeTmdbDetails(
+		{ ...moviePayload(43, 'Unknown Money'), budget: 0, revenue: 0 },
+		'movie',
+		new Date('2026-07-20T12:00:00.000Z'),
+	)
+	expect(normalized.catalog.budget).toBeNull()
+	expect(normalized.catalog.revenue).toBeNull()
 })

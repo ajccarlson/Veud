@@ -590,6 +590,7 @@ describe('catalog writer runtime proof', () => {
 			fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
 		)
 		const guarded = [
+			'catalog:jikan-anime-cast',
 			'catalog:mal-hydrate',
 			'catalog:mal-inventory',
 			'catalog:mal-trending',
@@ -631,6 +632,7 @@ describe('catalog writer runtime proof', () => {
 			'scripts/backfill-tracking-states.ts',
 			'scripts/bootstrap-community-owner.ts',
 			'scripts/canary-catalog-media-merge.ts',
+			'scripts/hydrate-jikan-anime-cast.ts',
 			'scripts/hydrate-mal-catalog.ts',
 			'scripts/hydrate-tmdb-catalog.ts',
 			'scripts/import-mal-inventory.ts',

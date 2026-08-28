@@ -1,4 +1,5 @@
 import { type PrismaClient } from '@prisma/client'
+import { getJikanAnimeCastMetrics } from './jikan-anime-cast.server.ts'
 
 const HOUR_MS = 60 * 60 * 1_000
 const RUN_HEARTBEAT_GRACE_MS = 15 * 60 * 1_000
@@ -71,6 +72,10 @@ export type CatalogCoverage = {
 	rateLimitEvents: number
 }
 
+export type CatalogCreditCoverage = Awaited<
+	ReturnType<typeof getJikanAnimeCastMetrics>
+>
+
 export type PopularityDiagnostic = {
 	provider: string
 	kind: string
@@ -91,6 +96,7 @@ export type PopularityDiagnostic = {
 type CatalogHealthInput = {
 	now: Date
 	coverage: CatalogCoverage[]
+	creditCoverage?: CatalogCreditCoverage[]
 	runs: CatalogRun[]
 	cursors: CatalogCursor[]
 }
@@ -145,6 +151,7 @@ function issue(
 export function assessCatalogHealth({
 	now,
 	coverage,
+	creditCoverage = [],
 	runs,
 	cursors,
 }: CatalogHealthInput) {
@@ -271,6 +278,43 @@ export function assessCatalogHealth({
 		}
 	}
 
+	for (const item of creditCoverage) {
+		const hasWorkerState =
+			runs.some(
+				run =>
+					run.provider === item.provider &&
+					run.kind === 'anime' &&
+					run.mode === 'hydrate',
+			) ||
+			cursors.some(
+				cursor =>
+					cursor.provider === item.provider &&
+					cursor.kind === 'anime' &&
+					cursor.mode === 'hydrate',
+			)
+		if (item.queueDepth > 0 && !hasWorkerState) {
+			issues.push(
+				issue(
+					`unmanaged-credit-queue:${item.provider}:${item.scope}`,
+					'warning',
+					'Eligible credits queue has no worker state',
+					`${item.label} has ${item.queueDepth.toLocaleString()} eligible titles but no hydration run or durable cursor.`,
+				),
+			)
+		}
+		const warningThreshold = Math.max(25, Math.ceil(item.active * 0.01))
+		if (item.failedDeferred >= warningThreshold) {
+			issues.push(
+				issue(
+					`deferred-credit-failures:${item.provider}:${item.scope}`,
+					'warning',
+					'Deferred credits failures are elevated',
+					`${item.label} has ${item.failedDeferred.toLocaleString()} deferred failures.`,
+				),
+			)
+		}
+	}
+
 	const status: CatalogHealthStatus = issues.some(
 		item => item.severity === 'critical',
 	)
@@ -296,6 +340,9 @@ export async function getCatalogOperationsSnapshot(
 		provider: { in: ['tmdb', 'mal'] },
 		kind: { in: ['movie', 'tv', 'anime', 'manga'] },
 	}
+	const operationsWhere = {
+		OR: [sourceWhere, { provider: 'jikan', kind: 'anime' }],
+	}
 	const [
 		totalRows,
 		activeRows,
@@ -309,6 +356,7 @@ export async function getCatalogOperationsSnapshot(
 		cursors,
 		popularAggregates,
 		popularOutlierRows,
+		creditCoverage,
 	] = await Promise.all([
 		prisma.mediaExternalId.groupBy({
 			by: ['provider', 'kind'],
@@ -377,7 +425,7 @@ export async function getCatalogOperationsSnapshot(
 			_sum: { requestsMade: true, rateLimitEvents: true },
 		}),
 		prisma.catalogSyncRun.findMany({
-			where: sourceWhere,
+			where: operationsWhere,
 			orderBy: { startedAt: 'desc' },
 			take: recentRunLimit,
 			select: {
@@ -400,7 +448,7 @@ export async function getCatalogOperationsSnapshot(
 			},
 		}),
 		prisma.catalogSyncCursor.findMany({
-			where: sourceWhere,
+			where: operationsWhere,
 			orderBy: [{ provider: 'asc' }, { kind: 'asc' }, { mode: 'asc' }],
 			select: {
 				id: true,
@@ -444,6 +492,7 @@ export async function getCatalogOperationsSnapshot(
 				media: { select: { title: true } },
 			},
 		}),
+		getJikanAnimeCastMetrics(prisma, now),
 	])
 
 	const totals = countMap(totalRows)
@@ -480,7 +529,13 @@ export async function getCatalogOperationsSnapshot(
 			...requestTelemetry,
 		}
 	})
-	const health = assessCatalogHealth({ now, coverage, runs, cursors })
+	const health = assessCatalogHealth({
+		now,
+		coverage,
+		creditCoverage: [creditCoverage],
+		runs,
+		cursors,
+	})
 	const popularity: PopularityDiagnostic[] = catalogScopes.map(scope => {
 		const aggregate = popularAggregates.find(
 			row => row.provider === scope.provider && row.kind === scope.kind,
@@ -509,6 +564,7 @@ export async function getCatalogOperationsSnapshot(
 		generatedAt: now,
 		health,
 		coverage,
+		creditCoverage: [creditCoverage],
 		runs,
 		cursors,
 		popularity,

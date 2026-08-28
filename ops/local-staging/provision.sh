@@ -352,6 +352,8 @@ cutover_units=(
 	veud-staging-app.service
 	veud-staging-backup.service
 	veud-staging-backup.timer
+	veud-staging-jikan-anime-cast.service
+	veud-staging-jikan-anime-cast.timer
 	veud-staging-mal-hydration.service
 	veud-staging-mal-hydration.timer
 	veud-staging-mal-inventory.service

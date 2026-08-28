@@ -10,8 +10,12 @@ import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.
 import {
 	assertPostgresDatabaseUrl,
 	buildModelTransferPlan,
+	planDeferredRelations,
 	containsOnlyMigrationSeededReferenceRows,
+	backfillDeferredRelations,
+	blankDeferred,
 	convertSqliteRow,
+	quotedIdentifier,
 	postgresTargetIdentity,
 	sortRowsForSelfRelations,
 } from './postgres-transfer-utils.mjs'
@@ -84,10 +88,6 @@ function writeCheckpoint(filename, checkpoint) {
 	fs.renameSync(partial, filename)
 }
 
-function quotedSqliteIdentifier(value) {
-	return `"${value.replaceAll('"', '""')}"`
-}
-
 function modelDelegate(client, modelName) {
 	const name = `${modelName[0].toLowerCase()}${modelName.slice(1)}`
 	const delegate = client[name]
@@ -130,7 +130,7 @@ function validateSource(source, requiredMigrations) {
 function sourceCount(source, table) {
 	return Number(
 		source
-			.prepare(`SELECT COUNT(*) AS count FROM ${quotedSqliteIdentifier(table)}`)
+			.prepare(`SELECT COUNT(*) AS count FROM ${quotedIdentifier(table)}`)
 			.get().count,
 	)
 }
@@ -138,7 +138,7 @@ function sourceCount(source, table) {
 function sourceRows(source, table, limit, offset) {
 	return source
 		.prepare(
-			`SELECT * FROM ${quotedSqliteIdentifier(table)}
+			`SELECT * FROM ${quotedIdentifier(table)}
 			 ORDER BY rowid LIMIT ? OFFSET ?`,
 		)
 		.all(limit, offset)
@@ -185,7 +185,89 @@ function printInventory(source, models, plan) {
 	}
 }
 
-async function transferModel({ client, source, model, batchSize, onProgress }) {
+/**
+ * Triggers that maintain a derived column must not fire while that column is
+ * itself being copied.
+ *
+ * `Person.creditCount` is kept by AFTER INSERT/DELETE triggers on MediaCredit.
+ * A transfer copies the person row with its count already in it and then
+ * inserts the credits, so every trigger firing counts a second time and the
+ * target lands on exactly twice the truth. Turning them off for the load also
+ * spares one UPDATE per credit row.
+ */
+async function userTriggerTables(client) {
+	const rows = await client.$queryRaw`
+		SELECT DISTINCT c.relname AS table
+		FROM pg_trigger t
+		JOIN pg_class c ON c.oid = t.tgrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE NOT t.tgisinternal AND n.nspname = current_schema()
+		ORDER BY 1
+	`
+	return rows.map(row => row.table)
+}
+
+async function setUserTriggers(client, tables, enabled) {
+	for (const table of tables) {
+		await client.$executeRawUnsafe(
+			`ALTER TABLE ${quotedIdentifier(table)} ${
+				enabled ? 'ENABLE' : 'DISABLE'
+			} TRIGGER USER`,
+		)
+	}
+}
+
+async function assertUserTriggersEnabled(client, tables) {
+	if (!tables.length) return
+	const disabled = await client.$queryRaw`
+		SELECT c.relname AS table, t.tgname AS trigger
+		FROM pg_trigger t
+		JOIN pg_class c ON c.oid = t.tgrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE NOT t.tgisinternal AND n.nspname = current_schema()
+			AND t.tgenabled = 'D'
+		ORDER BY 1, 2
+	`
+	if (disabled.length) {
+		throw new Error(
+			`Triggers left disabled after transfer: ${disabled
+				.map(row => `${row.table}.${row.trigger}`)
+				.join(', ')}`,
+		)
+	}
+}
+
+/**
+ * Rebuild the derived counters from the rows they count.
+ *
+ * With the triggers off the target holds whatever the snapshot held, and the
+ * snapshot's own value is only as good as the triggers that maintained it
+ * there. For a derived column the rows are the authority, so recompute and say
+ * how many were wrong rather than carrying a stale number into production.
+ */
+async function repairDerivedCounters(client) {
+	const corrected = await client.$executeRaw`
+		UPDATE "Person" AS person
+		SET "creditCount" = counted.total
+		FROM (
+			SELECT p."id", COUNT(credit."id")::integer AS total
+			FROM "Person" p
+			LEFT JOIN "MediaCredit" credit ON credit."personId" = p."id"
+			GROUP BY p."id"
+		) AS counted
+		WHERE person."id" = counted."id" AND person."creditCount" <> counted.total
+	`
+	return corrected
+}
+
+async function transferModel({
+	client,
+	source,
+	model,
+	batchSize,
+	deferredColumns,
+	onProgress,
+}) {
 	const table = model.dbName ?? model.name
 	const total = sourceCount(source, table)
 	const selfRelations = model.fields.some(
@@ -203,7 +285,9 @@ async function transferModel({ client, source, model, batchSize, onProgress }) {
 			allRows?.slice(offset, offset + batchSize) ??
 			sourceRows(source, table, batchSize, offset)
 		const result = await modelDelegate(client, model.name).createMany({
-			data: rows.map(row => convertSqliteRow(model, row)),
+			data: rows.map(row =>
+				blankDeferred(convertSqliteRow(model, row), deferredColumns),
+			),
 			skipDuplicates: true,
 		})
 		inserted += result.count
@@ -263,7 +347,10 @@ async function main() {
 		fileMustExist: true,
 	})
 	const models = Prisma.dmmf.datamodel.models
-	const plan = buildModelTransferPlan(models)
+	// Some relations have no valid insertion order at all; those columns go in
+	// empty and are filled once every row exists.
+	const deferredRelations = planDeferredRelations(models)
+	const plan = buildModelTransferPlan(models, deferredRelations)
 	try {
 		validateSource(source, requiredMigrations)
 		console.log(`Source: ${sourcePath}`)
@@ -326,6 +413,7 @@ async function main() {
 		}
 
 		const client = new PrismaClient()
+		let triggerTables = []
 		try {
 			const before = await targetCounts(client, models)
 			let occupied = [...before].filter(([, count]) => count > 0)
@@ -355,6 +443,14 @@ async function main() {
 			}
 			writeCheckpoint(checkpointPath, checkpoint)
 
+			triggerTables = await userTriggerTables(client)
+			if (triggerTables.length) {
+				console.log(
+					`Disabling user triggers for the load on: ${triggerTables.join(', ')}`,
+				)
+				await setUserTriggers(client, triggerTables, false)
+			}
+
 			for (const name of plan) {
 				const model = models.find(candidate => candidate.name === name)
 				const result = await transferModel({
@@ -362,6 +458,7 @@ async function main() {
 					source,
 					model,
 					batchSize,
+					deferredColumns: deferredRelations.get(name),
 					onProgress(processed, total, inserted) {
 						console.log(
 							`${name}: ${processed}/${total} read; ${inserted} inserted this run`,
@@ -374,6 +471,32 @@ async function main() {
 					writeCheckpoint(checkpointPath, checkpoint)
 				}
 			}
+			for (const [name, columns] of deferredRelations) {
+				const step = `${name}:deferred`
+				if (checkpoint.completedTables.includes(step)) continue
+				const model = models.find(candidate => candidate.name === name)
+				const result = await backfillDeferredRelations({
+					client,
+					source,
+					model,
+					columns,
+					batchSize,
+					delegateFor: modelDelegate,
+					onProgress(processed, total, updated) {
+						console.log(
+							`${step}: ${processed}/${total} read; ${updated} filled this run`,
+						)
+					},
+				})
+				console.log(
+					result.total
+						? `${step}: filled ${result.updated}/${result.total} ${[...columns].join(', ')}`
+						: `${step}: nothing to fill`,
+				)
+				checkpoint.completedTables.push(step)
+				writeCheckpoint(checkpointPath, checkpoint)
+			}
+
 			for (const table of implicitJoinTables) {
 				const result = await transferJoinTable({
 					client,
@@ -409,6 +532,17 @@ async function main() {
 						.join(', ')}`,
 				)
 			}
+			if (triggerTables.length) {
+				await setUserTriggers(client, triggerTables, true)
+				triggerTables = []
+			}
+			await assertUserTriggersEnabled(client, plan)
+			const repaired = await repairDerivedCounters(client)
+			console.log(
+				repaired
+					? `Derived counters: rebuilt ${repaired} Person.creditCount value${repaired === 1 ? '' : 's'} that did not match the credits.`
+					: 'Derived counters: every Person.creditCount already matched the credits.',
+			)
 			const invalidConstraints = await client.$queryRaw`
 				SELECT conname FROM pg_constraint
 				WHERE contype = 'f' AND NOT convalidated
@@ -426,6 +560,15 @@ async function main() {
 			)
 			console.log(`Checkpoint: ${checkpointPath}`)
 		} finally {
+			if (triggerTables.length) {
+				// The load failed with triggers off. Put them back before leaving,
+				// or the next writer silently stops maintaining the counters.
+				await setUserTriggers(client, triggerTables, true).catch(error => {
+					console.error(
+						`FAILED to re-enable triggers on ${triggerTables.join(', ')}: ${error.message}`,
+					)
+				})
+			}
 			await client.$disconnect()
 		}
 	} finally {

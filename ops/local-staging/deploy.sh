@@ -68,6 +68,7 @@ load_backup_offsite_receipt=''
 service_units=(
 	veud-staging-app.service
 	veud-staging-notification-digests.service
+	veud-staging-jikan-anime-cast.service
 	veud-staging-mal-hydration.service
 	veud-staging-mal-inventory.service
 	veud-staging-mal-trending.service
@@ -78,6 +79,7 @@ service_units=(
 )
 regular_timer_units=(
 	veud-staging-notification-digests.timer
+	veud-staging-jikan-anime-cast.timer
 	veud-staging-mal-hydration.timer
 	veud-staging-mal-inventory.timer
 	veud-staging-mal-trending.timer
@@ -92,6 +94,7 @@ timer_units=("${regular_timer_units[@]}" "${backup_timer_units[@]}")
 all_units=("${service_units[@]}" "${timer_units[@]}")
 boot_units=(veud-staging-app.service "${timer_units[@]}")
 completion_capable_service_units=(
+	veud-staging-jikan-anime-cast.service
 	veud-staging-mal-hydration.service
 	veud-staging-notification-digests.service
 	veud-staging-mal-inventory.service
@@ -245,6 +248,7 @@ release_provider_locks() {
 	if [[ "$locks_held" == true ]]; then
 		exec 8>&-
 		exec 9>&-
+		exec 10>&-
 		locks_held=false
 	fi
 }
@@ -714,6 +718,11 @@ configure_bootstrap_target_states() {
 			prior_running["$unit"]=1
 			prior_enabled_state["$unit"]=enabled
 		done
+	fi
+	if [[ -n "${MAL_CATALOG_POLICY_APPROVAL_REF:-}" ]]; then
+		prior_active_state[veud-staging-jikan-anime-cast.timer]=active
+		prior_running[veud-staging-jikan-anime-cast.timer]=1
+		prior_enabled_state[veud-staging-jikan-anime-cast.timer]=enabled
 	fi
 	if [[ -n "${TMDB_API_KEY:-}" ]]; then
 		for unit in \
@@ -1195,6 +1204,7 @@ fi
 
 exec 8>"$STAGING_ROOT/run/mal-provider.lock"
 exec 9>"$STAGING_ROOT/run/tmdb-provider.lock"
+exec 10>"$STAGING_ROOT/run/jikan-provider.lock"
 locks_held=true
 lock_wait_seconds="${VEUD_STAGING_DEPLOY_LOCK_WAIT_SECONDS:-120}"
 [[ "$lock_wait_seconds" =~ ^[1-9][0-9]*$ ]] ||
@@ -1203,6 +1213,8 @@ flock --exclusive --wait "$lock_wait_seconds" 8 ||
 	die 'Timed out draining the staging MAL catalog worker'
 flock --exclusive --wait "$lock_wait_seconds" 9 ||
 	die 'Timed out draining the staging TMDB catalog worker'
+flock --exclusive --wait "$lock_wait_seconds" 10 ||
+	die 'Timed out draining the staging Jikan catalog worker'
 }
 
 staging_backup_or_verify() {

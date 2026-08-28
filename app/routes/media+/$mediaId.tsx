@@ -15,6 +15,7 @@ import {
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { KeyCrew, TopBilledCast } from '#app/components/media-cast.tsx'
+import { MediaFacts, MediaVideos } from '#app/components/media-facts.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
 import {
@@ -58,6 +59,7 @@ import {
 	splitLegacyThumbnail,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { mediaFacts } from '#app/utils/media-facts.ts'
 import { toggleMediaFavorite } from '#app/utils/media-favorites.server.ts'
 import {
 	journalTerms,
@@ -67,6 +69,9 @@ import {
 } from '#app/utils/media-journal.ts'
 import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
 import { getMediaRelations } from '#app/utils/media-relations.server.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
+import { resolveDisplayTitle } from '#app/utils/media-title.ts'
+import { mediaVideoLinks } from '#app/utils/media-videos.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	getNextCanonicalReminderRelease,
@@ -85,6 +90,19 @@ import {
 	REVIEW_COMMENT_PREVIEW,
 	REVIEW_COMMENT_REMAINDER_LIMIT,
 } from '#app/utils/review-excerpt.ts'
+import {
+	absoluteUrl,
+	isoDate,
+	openGraphType,
+	originFromMatches,
+	schemaTypeForKind,
+	SITE_NAME,
+	socialDescription,
+	socialMeta,
+	splitGenres,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
@@ -245,6 +263,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
 	const viewerId = await getUserId(request)
+	const titleLanguage = await getViewerTitleLanguage(request, viewerId)
 	const media = await prisma.media.findUnique({
 		where: { id: mediaId },
 		select: {
@@ -540,13 +559,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		media: {
 			id: media.id,
 			kind: media.kind,
-			title: catalog?.title?.trim() || `Untitled ${media.kind}`,
+			title: resolveDisplayTitle(
+				{ kind: media.kind, ...catalog },
+				titleLanguage,
+			),
 			type: catalog?.type,
 			description: catalog?.description,
 			genres: catalog?.genres,
 			releaseStart: catalog?.releaseStart,
 			releaseEnd: catalog?.releaseEnd,
 			imageUrl: thumbnail.imageUrl,
+			facts: mediaFacts(media.kind, catalog ?? {}),
+			videos: mediaVideoLinks(catalog?.videos),
 			upcomingRelease,
 			// Availability is regional. Without a viewer region to work from, show
 			// the one the data is densest for rather than inventing a preference.
@@ -1222,6 +1246,7 @@ export default function MediaDetailRoute() {
 							</Button>
 						))}
 					</div>
+					<MediaFacts facts={data.media.facts} />
 				</aside>
 
 				<div className="space-y-8">
@@ -1853,6 +1878,8 @@ export default function MediaDetailRoute() {
 						mediaId={data.media.id}
 					/>
 
+					<MediaVideos videos={data.media.videos} />
+
 					{data.relations.length ? (
 						<section
 							className="space-y-4"
@@ -2192,15 +2219,62 @@ export default function MediaDetailRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
-	{ title: loaderData ? `${loaderData.media.title} | Veud` : 'Media | Veud' },
-	{
-		name: 'description',
-		content:
-			loaderData?.media.description ??
-			'Media details and community tracking on Veud',
-	},
-]
+export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
+	if (!loaderData) {
+		return [
+			{ title: 'Media | Veud' },
+			{
+				name: 'description',
+				content: 'Media details and community tracking on Veud',
+			},
+		]
+	}
+
+	const { media, community } = loaderData
+	const origin = originFromMatches(matches)
+	const title = `${media.title} | ${SITE_NAME}`
+	const description = socialDescription(
+		media.description,
+		`${media.title} on ${SITE_NAME} — tracking, ratings, and reviews from the community.`,
+	)
+	const url = absoluteUrl(origin, `/media/${media.id}`)
+	const image = absoluteUrl(origin, media.imageUrl)
+
+	return [
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `Cover art for ${media.title}` : undefined,
+			type: openGraphType(media.kind, media.type),
+		}),
+		structuredData(
+			withoutEmptyValues({
+				'@type': schemaTypeForKind(media.kind, media.type),
+				name: media.title,
+				url,
+				image,
+				description,
+				genre: splitGenres(media.genres),
+				datePublished: isoDate(media.releaseStart),
+				// Only claimed when members have actually rated it. An
+				// `aggregateRating` with no ratings behind it is the kind of thing
+				// search engines penalise, and rightly.
+				aggregateRating:
+					community.meanScore !== null && community.ratings > 0
+						? {
+								'@type': 'AggregateRating',
+								ratingValue: Number(community.meanScore.toFixed(2)),
+								ratingCount: community.ratings,
+								bestRating: 10,
+								worstRating: 1,
+							}
+						: null,
+			}),
+		),
+	]
+}
 
 export function ErrorBoundary() {
 	return (

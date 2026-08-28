@@ -271,7 +271,7 @@ test('global advanced search returns five grounded local matches without provide
 		await expect(memoryMode).toBeEnabled()
 		await memoryMode.check()
 		await siteSearch
-			.getByLabel('Search movies, TV, anime, and manga')
+			.getByLabel('Search movies, TV, anime, manga, and people')
 			.fill('A violinist in a cobalt lighthouse during a winter storm')
 		await siteSearch.getByLabel('Media type').selectOption('movie')
 		await siteSearch.getByRole('button', { name: 'Search' }).click()
@@ -351,7 +351,7 @@ test('advanced search exposes mutually exclusive AI mode checkboxes', async ({
 	await expect(memoryMode).not.toBeChecked()
 	await expect(siteSearch).toHaveAttribute('method', 'post')
 	await expect(
-		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+		siteSearch.getByLabel('Search movies, TV, anime, manga, and people'),
 	).toHaveAttribute('minlength', '3')
 	await expect(
 		siteSearch.locator('input[name="intent"][value="describe-start"]'),
@@ -361,7 +361,7 @@ test('advanced search exposes mutually exclusive AI mode checkboxes', async ({
 	await expect(describeMode).not.toBeChecked()
 	await expect(siteSearch).toHaveAttribute('method', 'get')
 	await expect(
-		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+		siteSearch.getByLabel('Search movies, TV, anime, manga, and people'),
 	).toHaveAttribute('minlength', '2')
 })
 
@@ -375,7 +375,7 @@ test('signed-out describe links do not turn the global catalog search into a POS
 		siteSearch.locator('input[name="intent"][value="describe-start"]'),
 	).toHaveCount(0)
 	await expect(
-		siteSearch.getByLabel('Search movies, TV, anime, and manga'),
+		siteSearch.getByLabel('Search movies, TV, anime, manga, and people'),
 	).toHaveAttribute('minlength', '2')
 })
 

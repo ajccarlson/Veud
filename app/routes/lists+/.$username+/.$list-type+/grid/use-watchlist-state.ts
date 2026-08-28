@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ALL_MEDIA_TYPES } from '#app/utils/lists/media-search-type.ts'
 import {
 	getSortableWatchlistColumns,
 	getWatchlistDefaultSortModel,
@@ -24,7 +25,9 @@ export function useWatchlistState(props: WatchlistViewProps) {
 		? props.listEntries
 		: localListEntries
 	const setListEntries = props.setListEntries ?? setLocalListEntries
-	const [selectedSearchType, setSelectedSearchType] = useState('Type')
+	// 'Type' rendered as an opaque label and mapped to the same both-kinds search
+	// this constant names, so the control now says what it does.
+	const [selectedSearchType, setSelectedSearchType] = useState(ALL_MEDIA_TYPES)
 	const favorites =
 		props.typedFavorites[props.listTypeData.id] ?? EMPTY_FAVORITES
 	const [favoriteIds, setFavoriteIds] = useState(() =>

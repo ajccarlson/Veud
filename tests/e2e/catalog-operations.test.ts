@@ -114,6 +114,15 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 			leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1_000),
 		},
 	})
+	await prisma.catalogSyncCursor.create({
+		data: {
+			provider: 'jikan',
+			kind: 'anime',
+			mode: 'hydrate',
+			leaseOwner: 'browser-test-worker',
+			leaseExpiresAt: new Date(Date.now() + 5 * 60 * 1_000),
+		},
+	})
 
 	try {
 		await page.goto('/admin/catalog')
@@ -126,6 +135,9 @@ test('admin catalog operations dashboard is private, responsive, and live', asyn
 		const anime = page.getByRole('region', { name: 'MAL anime' })
 		await expect(anime).toContainText('1 / 1')
 		await expect(anime).toContainText('Eligible')
+		const cast = page.getByRole('region', { name: 'Jikan anime cast' })
+		await expect(cast).toContainText('0 / 1')
+		await expect(cast).toContainText('Cast coverage')
 		await expect(page.getByText('browser-test-worker')).toBeHidden()
 		await expect(
 			page.getByRole('heading', { name: 'Catalog quality review' }),
