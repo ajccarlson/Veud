@@ -1532,7 +1532,8 @@ model ModerationReport {
   actions          ModerationAction[]       @relation("ModerationReportActions")
   aiAssessments    AiModerationAssessment[]
 
-  @@index([status, priority, createdAt])
+  @@index([status, priority, createdAt, id])
+  @@index([priority, createdAt, id])
   @@index([targetType, targetId])
   @@index([reporterId, createdAt])
   @@index([subjectId, createdAt])
@@ -1659,7 +1660,7 @@ model ModerationAction {
   appeal       ModerationReport?       @relation("ModerationAppeal")
   appealDrafts ModerationAppealDraft[]
 
-  @@index([createdAt])
+  @@index([createdAt, id])
   @@index([actorId, createdAt])
   @@index([subjectId, createdAt])
   @@index([targetType, targetId, createdAt])

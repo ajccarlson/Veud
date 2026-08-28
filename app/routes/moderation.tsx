@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import {
 	data as json,
 	Form,
@@ -22,7 +23,7 @@ import { AiGatewayError } from '#app/utils/ai-gateway.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { assessModerationReport } from '#app/utils/moderation-ai.server.ts'
 import {
-	findModerationTarget,
+	findModerationTargets,
 	moderateAccount,
 	moderateContent,
 	setModeratorRole,
@@ -44,6 +45,79 @@ const DashboardQuerySchema = z.object({
 		.catch('active'),
 	q: z.string().trim().max(100).catch(''),
 })
+
+export const MODERATION_REPORT_PAGE_SIZE = 60
+export const MODERATION_AUDIT_PAGE_SIZE = 100
+const MODERATION_CURSOR_MAX_LENGTH = 100
+const reportOrderBy = [
+	{ priority: 'asc' },
+	{ createdAt: 'asc' },
+	{ id: 'asc' },
+] as const satisfies Prisma.ModerationReportOrderByWithRelationInput[]
+const auditOrderBy = [
+	{ createdAt: 'desc' },
+	{ id: 'desc' },
+] as const satisfies Prisma.ModerationActionOrderByWithRelationInput[]
+const moderationReportSelect = {
+	id: true,
+	targetType: true,
+	targetId: true,
+	reasonCategory: true,
+	details: true,
+	status: true,
+	priority: true,
+	resolutionNote: true,
+	createdAt: true,
+	reporter: { select: { username: true } },
+	subject: {
+		select: {
+			id: true,
+			username: true,
+			accountStatus: true,
+			roles: { select: { name: true } },
+		},
+	},
+	assignedTo: { select: { username: true } },
+	appealOfAction: {
+		select: {
+			action: true,
+			reason: true,
+			createdAt: true,
+		},
+	},
+	aiAssessments: {
+		orderBy: { createdAt: 'desc' },
+		take: 1,
+		select: {
+			id: true,
+			categories: true,
+			severity: true,
+			confidence: true,
+			evidence: true,
+			uncertainty: true,
+			recommendedQueue: true,
+			model: true,
+			promptVersion: true,
+			policyVersion: true,
+			createdAt: true,
+		},
+	},
+} as const satisfies Prisma.ModerationReportSelect
+
+function moderationCursor(request: Request) {
+	const values = new URL(request.url).searchParams.getAll('cursor')
+	if (!values.length) return null
+	const cursor = values[0]
+	if (
+		values.length !== 1 ||
+		!cursor ||
+		cursor !== cursor.trim() ||
+		cursor.length > MODERATION_CURSOR_MAX_LENGTH
+	) {
+		throw new Response('Invalid moderation cursor', { status: 400 })
+	}
+	return cursor
+}
 
 const BaseActionSchema = z.object({
 	intent: z.string(),
@@ -68,6 +142,16 @@ function storedStringArray(value: string) {
 	}
 }
 
+function compareReportPageRows(
+	a: { priority: string; createdAt: Date; id: string },
+	b: { priority: string; createdAt: Date; id: string },
+) {
+	if (a.priority !== b.priority) return a.priority < b.priority ? -1 : 1
+	const createdAtDifference = a.createdAt.getTime() - b.createdAt.getTime()
+	if (createdAtDifference) return createdAtDifference
+	return a.id === b.id ? 0 : a.id < b.id ? -1 : 1
+}
+
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	const actorId = await requireUserWithPermission(request, 'read:report:any', {
 		url,
@@ -75,105 +159,150 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 	const filters = DashboardQuerySchema.parse(
 		Object.fromEntries(new URL(request.url).searchParams),
 	)
+	const cursor = moderationCursor(request)
+	if (cursor && filters.view !== 'queue' && filters.view !== 'audit') {
+		throw new Response('Invalid moderation cursor', { status: 400 })
+	}
 	const reportWhere =
 		filters.status === 'all'
-			? {}
+			? ({} satisfies Prisma.ModerationReportWhereInput)
 			: filters.status === 'active'
-				? { status: { in: ['open', 'in_review'] } }
-				: { status: filters.status }
+				? ({
+						status: { in: ['open', 'in_review'] },
+					} satisfies Prisma.ModerationReportWhereInput)
+				: ({
+						status: filters.status,
+					} satisfies Prisma.ModerationReportWhereInput)
+	const reportCursor =
+		filters.view === 'queue' && cursor
+			? await prisma.moderationReport.findFirst({
+					where: { ...reportWhere, id: cursor },
+					select: { id: true, priority: true, createdAt: true },
+				})
+			: null
+	const auditCursor =
+		filters.view === 'audit' && cursor
+			? await prisma.moderationAction.findFirst({
+					where: { id: cursor },
+					select: { id: true, createdAt: true },
+				})
+			: null
+	if (cursor && !reportCursor && !auditCursor) {
+		throw new Response('Invalid moderation cursor', { status: 400 })
+	}
+	const reportPageWhere = reportCursor
+		? ({
+				AND: [
+					reportWhere,
+					{ priority: { gte: reportCursor.priority } },
+					{
+						OR: [
+							{ priority: { gt: reportCursor.priority } },
+							{
+								priority: reportCursor.priority,
+								createdAt: { gt: reportCursor.createdAt },
+							},
+							{
+								priority: reportCursor.priority,
+								createdAt: reportCursor.createdAt,
+								id: { gt: reportCursor.id },
+							},
+						],
+					},
+				],
+			} satisfies Prisma.ModerationReportWhereInput)
+		: reportWhere
+	const auditPageWhere = auditCursor
+		? ({
+				AND: [
+					{ createdAt: { lte: auditCursor.createdAt } },
+					{
+						OR: [
+							{ createdAt: { lt: auditCursor.createdAt } },
+							{
+								createdAt: auditCursor.createdAt,
+								id: { lt: auditCursor.id },
+							},
+						],
+					},
+				],
+			} satisfies Prisma.ModerationActionWhereInput)
+		: undefined
+	const memberView = filters.view === 'members' || filters.view === 'team'
+	const reportPagePromise =
+		filters.view !== 'queue'
+			? Promise.resolve([])
+			: filters.status === 'active'
+				? Promise.all(
+						(['open', 'in_review'] as const).map(status =>
+							prisma.moderationReport.findMany({
+								where: { AND: [reportPageWhere, { status }] },
+								orderBy: reportOrderBy,
+								take: MODERATION_REPORT_PAGE_SIZE + 1,
+								select: moderationReportSelect,
+							}),
+						),
+					).then(pages =>
+						pages
+							.flat()
+							.sort(compareReportPageRows)
+							.slice(0, MODERATION_REPORT_PAGE_SIZE + 1),
+					)
+				: prisma.moderationReport.findMany({
+						where: reportPageWhere,
+						orderBy: reportOrderBy,
+						take: MODERATION_REPORT_PAGE_SIZE + 1,
+						select: moderationReportSelect,
+					})
 
-	const [reportCounts, reports, recentActions, staff, members, actor] =
+	const [reportCounts, reportRows, actionRows, staff, members, actor] =
 		await Promise.all([
 			prisma.moderationReport.groupBy({
 				by: ['status'],
 				_count: { _all: true },
 			}),
-			prisma.moderationReport.findMany({
-				where: reportWhere,
-				orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-				take: 60,
-				select: {
-					id: true,
-					targetType: true,
-					targetId: true,
-					reasonCategory: true,
-					details: true,
-					status: true,
-					priority: true,
-					resolutionNote: true,
-					createdAt: true,
-					reporter: { select: { username: true } },
-					subject: {
+			reportPagePromise,
+			filters.view === 'audit'
+				? prisma.moderationAction.findMany({
+						where: auditPageWhere,
+						orderBy: auditOrderBy,
+						take: MODERATION_AUDIT_PAGE_SIZE + 1,
+						select: {
+							id: true,
+							action: true,
+							targetType: true,
+							targetId: true,
+							reason: true,
+							details: true,
+							previousStatus: true,
+							nextStatus: true,
+							createdAt: true,
+							actor: { select: { username: true } },
+							subject: { select: { username: true } },
+						},
+					})
+				: [],
+			filters.view === 'team'
+				? prisma.user.findMany({
+						where: {
+							roles: {
+								some: {
+									name: { in: ['moderator', 'community-admin', 'admin'] },
+								},
+							},
+						},
+						orderBy: [{ username: 'asc' }],
 						select: {
 							id: true,
 							username: true,
+							name: true,
 							accountStatus: true,
+							lastActiveAt: true,
 							roles: { select: { name: true } },
 						},
-					},
-					assignedTo: { select: { username: true } },
-					appealOfAction: {
-						select: {
-							action: true,
-							reason: true,
-							createdAt: true,
-						},
-					},
-					aiAssessments: {
-						orderBy: { createdAt: 'desc' },
-						take: 1,
-						select: {
-							id: true,
-							categories: true,
-							severity: true,
-							confidence: true,
-							evidence: true,
-							uncertainty: true,
-							recommendedQueue: true,
-							model: true,
-							promptVersion: true,
-							policyVersion: true,
-							createdAt: true,
-						},
-					},
-				},
-			}),
-			prisma.moderationAction.findMany({
-				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-				take: filters.view === 'audit' ? 100 : 12,
-				select: {
-					id: true,
-					action: true,
-					targetType: true,
-					targetId: true,
-					reason: true,
-					details: true,
-					previousStatus: true,
-					nextStatus: true,
-					createdAt: true,
-					actor: { select: { username: true } },
-					subject: { select: { username: true } },
-				},
-			}),
-			prisma.user.findMany({
-				where: {
-					roles: {
-						some: {
-							name: { in: ['moderator', 'community-admin', 'admin'] },
-						},
-					},
-				},
-				orderBy: [{ username: 'asc' }],
-				select: {
-					id: true,
-					username: true,
-					name: true,
-					accountStatus: true,
-					lastActiveAt: true,
-					roles: { select: { name: true } },
-				},
-			}),
-			filters.q
+					})
+				: [],
+			memberView && filters.q
 				? prisma.user.findMany({
 						where: {
 							OR: [
@@ -202,30 +331,46 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 						},
 					})
 				: [],
-			prisma.user.findUniqueOrThrow({
-				where: { id: actorId },
-				select: {
-					roles: {
+			memberView
+				? prisma.user.findUniqueOrThrow({
+						where: { id: actorId },
 						select: {
-							name: true,
-							permissions: {
-								where: { action: 'assign', entity: 'role', access: 'any' },
-								select: { id: true },
+							roles: {
+								select: {
+									name: true,
+									permissions: {
+										where: {
+											action: 'assign',
+											entity: 'role',
+											access: 'any',
+										},
+										select: { id: true },
+									},
+								},
 							},
 						},
-					},
-				},
-			}),
+					})
+				: null,
 		])
-	const targets = await prisma.$transaction(tx =>
-		Promise.all(
-			reports.map(report =>
-				isModerationTargetType(report.targetType)
-					? findModerationTarget(tx, report.targetType, report.targetId)
-					: null,
-			),
-		),
+	const hasMoreReports = reportRows.length > MODERATION_REPORT_PAGE_SIZE
+	const reports = reportRows.slice(0, MODERATION_REPORT_PAGE_SIZE)
+	const hasMoreActions = actionRows.length > MODERATION_AUDIT_PAGE_SIZE
+	const recentActions = actionRows.slice(0, MODERATION_AUDIT_PAGE_SIZE)
+	const targetReferences = reports.flatMap((report, index) =>
+		isModerationTargetType(report.targetType)
+			? [{ index, type: report.targetType, id: report.targetId }]
+			: [],
 	)
+	const targetRows = await findModerationTargets(
+		prisma,
+		targetReferences.map(({ type, id }) => ({ type, id })),
+	)
+	const targets = Array<
+		Awaited<ReturnType<typeof findModerationTargets>>[number]
+	>(reports.length).fill(null)
+	for (const [referenceIndex, reference] of targetReferences.entries()) {
+		targets[reference.index] = targetRows[referenceIndex] ?? null
+	}
 	const counts = Object.fromEntries(
 		reportCounts.map(row => [row.status, row._count._all]),
 	)
@@ -247,12 +392,20 @@ export async function loader({ request, url }: LoaderFunctionArgs) {
 			recentActions,
 			staff,
 			members,
-			canAssignRoles: actor.roles.some(
-				role =>
-					role.name === 'admin' ||
-					role.name === 'community-admin' ||
-					role.permissions.length > 0,
-			),
+			canAssignRoles:
+				actor?.roles.some(
+					role =>
+						role.name === 'admin' ||
+						role.name === 'community-admin' ||
+						role.permissions.length > 0,
+				) ?? false,
+			hasCursor: Boolean(cursor),
+			nextCursor:
+				filters.view === 'queue' && hasMoreReports
+					? reports.at(-1)!.id
+					: filters.view === 'audit' && hasMoreActions
+						? recentActions.at(-1)!.id
+						: null,
 		},
 		{ headers: { 'Cache-Control': 'private, no-store' } },
 	)
@@ -520,10 +673,11 @@ function ActionForm({
 
 function dashboardHref(
 	view: 'queue' | 'members' | 'team' | 'audit',
-	status?: string,
+	options: { status?: string; cursor?: string } = {},
 ) {
 	const search = new URLSearchParams({ view })
-	if (status) search.set('status', status)
+	if (options.status) search.set('status', options.status)
+	if (options.cursor) search.set('cursor', options.cursor)
 	return `/moderation?${search}`
 }
 
@@ -624,7 +778,7 @@ export default function ModerationDashboard() {
 										data.filters.status === status ? 'secondary' : 'ghost'
 									}
 								>
-									<Link to={dashboardHref('queue', status)}>
+									<Link to={dashboardHref('queue', { status })}>
 										{status.replace('_', ' ')}
 									</Link>
 								</Button>
@@ -943,6 +1097,36 @@ export default function ModerationDashboard() {
 							<p>No reports match this view.</p>
 						</VeudEmptyState>
 					)}
+					{data.hasCursor || data.nextCursor ? (
+						<nav
+							aria-label="Report queue pages"
+							className="flex flex-wrap justify-end gap-2"
+						>
+							{data.hasCursor ? (
+								<Button asChild variant="ghost" size="sm">
+									<Link
+										to={dashboardHref('queue', {
+											status: data.filters.status,
+										})}
+									>
+										Newest
+									</Link>
+								</Button>
+							) : null}
+							{data.nextCursor ? (
+								<Button asChild variant="outline" size="sm">
+									<Link
+										to={dashboardHref('queue', {
+											status: data.filters.status,
+											cursor: data.nextCursor,
+										})}
+									>
+										Older reports
+									</Link>
+								</Button>
+							) : null}
+						</nav>
+					) : null}
 				</section>
 			) : null}
 
@@ -1073,9 +1257,7 @@ export default function ModerationDashboard() {
 						>
 							Immutable action log
 						</h2>
-						<p className="text-sm text-veud-copy">
-							The latest 100 staff decisions, newest first.
-						</p>
+						<p className="text-sm text-veud-copy">Newest decisions first.</p>
 					</div>
 					<div className="overflow-x-auto rounded-xl border border-veud-border bg-veud-surface">
 						<table className="min-w-full text-left text-sm">
@@ -1121,6 +1303,29 @@ export default function ModerationDashboard() {
 							</tbody>
 						</table>
 					</div>
+					{data.hasCursor || data.nextCursor ? (
+						<nav
+							aria-label="Moderation audit pages"
+							className="flex flex-wrap justify-end gap-2"
+						>
+							{data.hasCursor ? (
+								<Button asChild variant="ghost" size="sm">
+									<Link to={dashboardHref('audit')}>Newest</Link>
+								</Button>
+							) : null}
+							{data.nextCursor ? (
+								<Button asChild variant="outline" size="sm">
+									<Link
+										to={dashboardHref('audit', {
+											cursor: data.nextCursor,
+										})}
+									>
+										Older actions
+									</Link>
+								</Button>
+							) : null}
+						</nav>
+					) : null}
 				</section>
 			) : null}
 		</VeudPage>
