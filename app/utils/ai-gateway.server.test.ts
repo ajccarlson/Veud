@@ -64,6 +64,7 @@ function response(value: unknown, status = 200) {
 		JSON.stringify(
 			status === 200
 				? {
+						status: 'completed',
 						output: [
 							{
 								type: 'message',
@@ -959,6 +960,161 @@ test('honors global and capability kill switches before network access', async (
 	])
 })
 
+test('classifies refusals and persists their billed usage without retaining refusal text', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	const refusalText = 'private provider refusal explanation'
+	const promptVersion = `refusal-test-${randomUUID()}`
+	vi.stubGlobal(
+		'fetch',
+		vi.fn<typeof fetch>(
+			async () =>
+				new Response(
+					JSON.stringify({
+						status: 'completed',
+						output: [
+							{
+								type: 'message',
+								content: [{ type: 'refusal', refusal: refusalText }],
+							},
+						],
+						usage: { input_tokens: 19, output_tokens: 4 },
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } },
+				),
+		),
+	)
+
+	try {
+		await expect(
+			requestStructuredAi({
+				capability: 'review-assistance',
+				promptVersion,
+				instructions: 'Return the value.',
+				input: { memberText: 'safe input' },
+				outputSchema: OutputSchema,
+				jsonSchemaName: 'test_output',
+				jsonSchema,
+				assertSafeInput() {},
+			}),
+		).rejects.toMatchObject({ reason: 'error', status: 200 })
+
+		const memoryEvent = getAiGatewayTelemetry().at(-1)
+		expect(memoryEvent).toEqual(
+			expect.objectContaining({
+				outcome: 'error',
+				fallbackReason: 'refusal',
+				inputTokens: 19,
+				outputTokens: 4,
+			}),
+		)
+		const durableEvents = await prisma.aiUsageEvent.findMany({
+			where: { promptVersion },
+		})
+		expect(durableEvents).toEqual([
+			expect.objectContaining({
+				outcome: 'error',
+				fallbackReason: 'refusal',
+				inputTokens: 19,
+				outputTokens: 4,
+			}),
+		])
+		expect(JSON.stringify([memoryEvent, ...durableEvents])).not.toContain(
+			refusalText,
+		)
+	} finally {
+		await prisma.aiUsageEvent.deleteMany({ where: { promptVersion } })
+	}
+})
+
+test.each([
+	{
+		label: 'the output token cap',
+		payload: {
+			status: 'incomplete',
+			incomplete_details: { reason: 'max_output_tokens' },
+			output: [
+				{
+					type: 'message',
+					content: [{ type: 'output_text', text: '{"value":' }],
+				},
+			],
+			usage: { input_tokens: 20, output_tokens: 5 },
+		},
+		fallbackReason: 'max-output-tokens',
+	},
+	{
+		label: 'the provider content filter',
+		payload: {
+			status: 'incomplete',
+			incomplete_details: { reason: 'content_filter' },
+			output: [],
+			usage: { input_tokens: 21, output_tokens: 0 },
+		},
+		fallbackReason: 'content-filter',
+	},
+	{
+		label: 'an otherwise incomplete response',
+		payload: {
+			status: 'failed',
+			output: [],
+			usage: { input_tokens: 22, output_tokens: 1 },
+		},
+		fallbackReason: 'incomplete-response',
+	},
+	{
+		label: 'an empty completed response',
+		payload: {
+			status: 'completed',
+			output: [],
+			usage: { input_tokens: 23, output_tokens: 0 },
+		},
+		fallbackReason: 'empty-output',
+	},
+	{
+		label: 'a drifted response envelope',
+		payload: {
+			status: 'completed',
+			output: 'unexpected',
+			usage: { input_tokens: 24, output_tokens: 2 },
+		},
+		fallbackReason: 'invalid-output',
+	},
+] as const)(
+	'classifies $label while retaining token usage',
+	async ({ payload, fallbackReason }) => {
+		vi.stubEnv('OPENAI_API_KEY', 'test-key')
+		const fetchImpl = vi.fn<typeof fetch>(
+			async () =>
+				new Response(JSON.stringify(payload), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				}),
+		)
+		await expect(
+			requestStructuredAi({
+				capability: 'natural-language-discovery',
+				promptVersion: 'response-classification-test-v1',
+				instructions: 'Return the value.',
+				input: { memberText: 'safe input' },
+				outputSchema: OutputSchema,
+				jsonSchemaName: 'test_output',
+				jsonSchema,
+				assertSafeInput() {},
+				fetchImpl,
+			}),
+		).rejects.toMatchObject({ reason: 'error', status: 200 })
+		expect(getAiGatewayTelemetry().at(-1)).toEqual(
+			expect.objectContaining({
+				outcome: 'error',
+				fallbackReason,
+				inputTokens: payload.usage.input_tokens,
+				outputTokens: payload.usage.output_tokens,
+			}),
+		)
+	},
+)
+
 test('rejects malformed structured output and records a privacy-safe failure', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
 	const fetchImpl = vi.fn<typeof fetch>(async () =>
@@ -981,9 +1137,9 @@ test('rejects malformed structured output and records a privacy-safe failure', a
 		expect.objectContaining({
 			capability: 'natural-language-discovery',
 			outcome: 'error',
-			fallbackReason: 'error',
-			inputTokens: null,
-			outputTokens: null,
+			fallbackReason: 'invalid-output',
+			inputTokens: 10,
+			outputTokens: 2,
 		}),
 	])
 	expect(JSON.stringify(getAiGatewayTelemetry())).not.toContain('hello')

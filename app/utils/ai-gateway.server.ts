@@ -49,6 +49,12 @@ export type AiGatewayTelemetry = {
 		| 'shared-rate-limited'
 		| 'unsafe-input'
 		| 'model-unavailable'
+		| 'refusal'
+		| 'max-output-tokens'
+		| 'content-filter'
+		| 'incomplete-response'
+		| 'empty-output'
+		| 'invalid-output'
 		| null
 	status: number | null
 	inputTokens: number | null
@@ -62,7 +68,27 @@ const sharedAnonymousWarnings = new Map<AiCapability, number>()
 const telemetry: AiGatewayTelemetry[] = []
 let activeRequests = 0
 
+const responseUsageSchema = z.object({
+	input_tokens: z.number().int().nonnegative().optional(),
+	output_tokens: z.number().int().nonnegative().optional(),
+})
+
+const responseUsageEnvelopeSchema = z.object({
+	usage: responseUsageSchema.nullish(),
+})
+
 const responseEnvelopeSchema = z.object({
+	status: z
+		.enum([
+			'completed',
+			'failed',
+			'in_progress',
+			'cancelled',
+			'queued',
+			'incomplete',
+		])
+		.optional(),
+	incomplete_details: z.object({ reason: z.string().optional() }).nullish(),
 	output: z.array(
 		z.object({
 			type: z.string(),
@@ -71,12 +97,7 @@ const responseEnvelopeSchema = z.object({
 				.optional(),
 		}),
 	),
-	usage: z
-		.object({
-			input_tokens: z.number().int().nonnegative().optional(),
-			output_tokens: z.number().int().nonnegative().optional(),
-		})
-		.optional(),
+	usage: responseUsageSchema.nullish(),
 })
 
 const moderationResponseSchema = z.object({
@@ -91,17 +112,57 @@ const moderationResponseSchema = z.object({
 		.min(1),
 })
 
-function responseText(payload: unknown) {
+type ResponseUsage = z.infer<typeof responseUsageSchema> | null
+
+type ParsedResponseEnvelope =
+	| { kind: 'output'; text: string; usage: ResponseUsage }
+	| {
+			kind: 'failure'
+			telemetryReason:
+				| 'refusal'
+				| 'max-output-tokens'
+				| 'content-filter'
+				| 'incomplete-response'
+				| 'empty-output'
+				| 'invalid-output'
+			usage: ResponseUsage
+	  }
+
+function responseUsage(payload: unknown): ResponseUsage {
+	const parsed = responseUsageEnvelopeSchema.safeParse(payload)
+	return parsed.success ? (parsed.data.usage ?? null) : null
+}
+
+function parseResponseEnvelope(payload: unknown): ParsedResponseEnvelope {
+	const usage = responseUsage(payload)
 	const parsed = responseEnvelopeSchema.safeParse(payload)
-	if (!parsed.success) return { text: null, usage: null }
+	if (!parsed.success) {
+		return { kind: 'failure', telemetryReason: 'invalid-output', usage }
+	}
+	const refusal = parsed.data.output.some(output =>
+		(output.content ?? []).some(content => content.type === 'refusal'),
+	)
+	if (refusal) {
+		return { kind: 'failure', telemetryReason: 'refusal', usage }
+	}
+	const incompleteReason = parsed.data.incomplete_details?.reason
+	if (incompleteReason === 'max_output_tokens') {
+		return { kind: 'failure', telemetryReason: 'max-output-tokens', usage }
+	}
+	if (incompleteReason === 'content_filter') {
+		return { kind: 'failure', telemetryReason: 'content-filter', usage }
+	}
+	if (parsed.data.status !== undefined && parsed.data.status !== 'completed') {
+		return { kind: 'failure', telemetryReason: 'incomplete-response', usage }
+	}
 	for (const output of parsed.data.output) {
 		for (const content of output.content ?? []) {
 			if (content.type === 'output_text' && content.text) {
-				return { text: content.text, usage: parsed.data.usage ?? null }
+				return { kind: 'output', text: content.text, usage }
 			}
 		}
 	}
-	return { text: null, usage: parsed.data.usage ?? null }
+	return { kind: 'failure', telemetryReason: 'empty-output', usage }
 }
 
 async function recordTelemetry(event: AiGatewayTelemetry, persist: boolean) {
@@ -332,15 +393,27 @@ async function consumeDailyBudget(input: {
 }
 
 export class AiGatewayError extends Error {
+	readonly telemetryReason: AiGatewayTelemetry['fallbackReason']
+	readonly inputTokens: number | null
+	readonly outputTokens: number | null
+
 	constructor(
 		readonly reason:
 			'not-configured' | 'rate-limited' | 'unavailable' | 'error',
 		message: string,
 		readonly status: number | null = null,
 		readonly code: string | null = null,
+		details: {
+			telemetryReason?: AiGatewayTelemetry['fallbackReason']
+			inputTokens?: number | null
+			outputTokens?: number | null
+		} = {},
 	) {
 		super(message)
 		this.name = 'AiGatewayError'
+		this.telemetryReason = details.telemetryReason ?? null
+		this.inputTokens = details.inputTokens ?? null
+		this.outputTokens = details.outputTokens ?? null
 	}
 }
 
@@ -767,10 +840,10 @@ async function runControlledAiRequest<Output>(
 					: gatewayError.reason === 'rate-limited' &&
 						  gatewayError.code === 'shared-anonymous-client-limit'
 						? 'shared-rate-limited'
-						: gatewayError.reason,
+						: (gatewayError.telemetryReason ?? gatewayError.reason),
 				status: gatewayError.status,
-				inputTokens: null,
-				outputTokens: null,
+				inputTokens: gatewayError.inputTokens,
+				outputTokens: gatewayError.outputTokens,
 			},
 			persistOperations,
 		)
@@ -949,12 +1022,18 @@ export async function requestStructuredAi<Output>(options: {
 			})
 			const payload = await response.json().catch(() => null)
 			if (!response.ok) throw providerRequestError(response.status, payload)
-			const parsedResponse = responseText(payload)
-			if (!parsedResponse.text) {
+			const parsedResponse = parseResponseEnvelope(payload)
+			if (parsedResponse.kind === 'failure') {
 				throw new AiGatewayError(
 					'error',
 					'AI returned no structured output.',
 					response.status,
+					null,
+					{
+						telemetryReason: parsedResponse.telemetryReason,
+						inputTokens: parsedResponse.usage?.input_tokens ?? null,
+						outputTokens: parsedResponse.usage?.output_tokens ?? null,
+					},
 				)
 			}
 			try {
@@ -967,12 +1046,17 @@ export async function requestStructuredAi<Output>(options: {
 					outputTokens: parsedResponse.usage?.output_tokens ?? null,
 				}
 			} catch (error) {
+				if (error instanceof AiGatewayError) throw error
 				throw new AiGatewayError(
 					'error',
-					error instanceof Error
-						? error.message
-						: 'AI output validation failed.',
+					'AI output validation failed.',
 					response.status,
+					null,
+					{
+						telemetryReason: 'invalid-output',
+						inputTokens: parsedResponse.usage?.input_tokens ?? null,
+						outputTokens: parsedResponse.usage?.output_tokens ?? null,
+					},
 				)
 			}
 		},
