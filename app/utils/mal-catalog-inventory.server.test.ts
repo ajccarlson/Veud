@@ -577,3 +577,110 @@ test('malformed provider pages fail the run and release its lease', async () => 
 		}),
 	).toEqual(expect.objectContaining({ leaseOwner: null, leaseExpiresAt: null }))
 })
+
+test('the inventory sweep fills the English title a member reads by', async () => {
+	// Media.englishTitle is a cache of a MediaTitle row, kept as a scalar because
+	// a title is rendered on every list row. Detail hydration maintained it and
+	// this importer did not, so an anime the sweep discovered had its English
+	// title written to MediaTitle and nowhere a member could see it: anyone
+	// reading in English got the romaji while the English title sat in the
+	// database.
+	const summary = await importMalInventory({
+		...committedOptions,
+		leaseOwner: 'english-title-worker',
+		fetchImpl: inventoryFetch([rankingResult(1)]) as unknown as typeof fetch,
+	})
+	expect(summary.recordsHandled).toBeGreaterThan(0)
+
+	const identity = await prisma.mediaExternalId.findFirst({
+		where: { provider: 'mal', kind: 'anime', externalId: '1' },
+		select: { mediaId: true },
+	})
+	const media = await prisma.media.findUniqueOrThrow({
+		where: { id: identity!.mediaId },
+		select: { englishTitle: true },
+	})
+	expect(media.englishTitle).toBe('English 1')
+})
+
+test('a detail-sourced English title outranks the ranking row', async () => {
+	// Precedence matches the backfill: `english` comes from the detail payload,
+	// `inventory-english` from a ranking row.
+	await importMalInventory({
+		...committedOptions,
+		leaseOwner: 'precedence-worker',
+		fetchImpl: inventoryFetch([rankingResult(1)]) as unknown as typeof fetch,
+	})
+	const identity = await prisma.mediaExternalId.findFirstOrThrow({
+		where: { provider: 'mal', kind: 'anime', externalId: '1' },
+		select: { mediaId: true },
+	})
+	await prisma.mediaTitle.create({
+		data: {
+			mediaId: identity.mediaId,
+			provider: 'mal',
+			language: 'en',
+			titleType: 'english',
+			value: 'From The Detail Payload',
+			normalized: 'from the detail payload',
+			isPrimary: false,
+		},
+	})
+
+	// A later sweep rewrites the inventory titles and re-derives the scalar. It
+	// needs its own inventory date: rerunning a completed one is idempotent by
+	// design and would not reprocess the record at all.
+	await importMalInventory({
+		...committedOptions,
+		inventoryDate: '2026-07-21',
+		leaseOwner: 'precedence-worker-2',
+		fetchImpl: inventoryFetch([rankingResult(1)]) as unknown as typeof fetch,
+	})
+	const media = await prisma.media.findUniqueOrThrow({
+		where: { id: identity.mediaId },
+		select: { englishTitle: true },
+	})
+	expect(media.englishTitle).toBe('From The Detail Payload')
+})
+
+test('an English title MAL stops supplying is cleared, not left behind', async () => {
+	// The scalar is a cache. A cache that only ever gains values is a cache that
+	// serves a title the provider has withdrawn, and a member reading in English
+	// keeps seeing it.
+	await importMalInventory({
+		...committedOptions,
+		leaseOwner: 'clearing-worker',
+		fetchImpl: inventoryFetch([rankingResult(1)]) as unknown as typeof fetch,
+	})
+	const identity = await prisma.mediaExternalId.findFirstOrThrow({
+		where: { provider: 'mal', kind: 'anime', externalId: '1' },
+		select: { mediaId: true },
+	})
+	expect(
+		(
+			await prisma.media.findUniqueOrThrow({
+				where: { id: identity.mediaId },
+				select: { englishTitle: true },
+			})
+		).englishTitle,
+	).toBe('English 1')
+
+	const withoutEnglish = rankingResult(1)
+	// @ts-expect-error the fixture types the field as present; MAL may omit it.
+	delete withoutEnglish.node.alternative_titles.en
+	await importMalInventory({
+		...committedOptions,
+		inventoryDate: '2026-07-22',
+		leaseOwner: 'clearing-worker-2',
+		fetchImpl: inventoryFetch([withoutEnglish]) as unknown as typeof fetch,
+	})
+
+	expect(
+		(
+			await prisma.media.findUniqueOrThrow({
+				where: { id: identity.mediaId },
+				select: { englishTitle: true },
+			})
+		).englishTitle,
+	).toBeNull()
+})
