@@ -223,10 +223,24 @@ test('anonymous home hides public-marked activity with unresolved list provenanc
 	).not.toContain(`tracking:${unresolved.id}`)
 })
 
-test('new members receive discovery suggestions that exclude themselves', async () => {
-	const [viewer, candidate] = await Promise.all([
+test('new members receive discovery suggestions that exclude existing relationships', async () => {
+	const [viewer, candidate, followed, muted, blocker] = await Promise.all([
 		createUser('new_viewer'),
 		createUser('candidate'),
+		createUser('followed_candidate'),
+		createUser('muted_candidate'),
+		createUser('blocking_candidate'),
+	])
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: viewer.id, followingId: followed.id },
+		}),
+		prisma.userSafetyControl.createMany({
+			data: [
+				{ ownerId: viewer.id, targetId: muted.id, kind: 'mute' },
+				{ ownerId: blocker.id, targetId: viewer.id, kind: 'block' },
+			],
+		}),
 	])
 	const session = await prisma.session.create({
 		data: {
@@ -241,7 +255,7 @@ test('new members receive discovery suggestions that exclude themselves', async 
 		params: {},
 	} as any)
 
-	expect(result.data.followingCount).toBe(0)
+	expect(result.data.followingCount).toBe(1)
 	expect(result.data.isSignedIn).toBe(true)
 	expect(result.data.watchlists).toEqual([])
 	expect(result.data.librarySummary).toEqual({
@@ -262,7 +276,82 @@ test('new members receive discovery suggestions that exclude themselves', async 
 	expect(
 		result.data.suggestedMembers.some(member => member.id === viewer.id),
 	).toBe(false)
+	expect(
+		result.data.suggestedMembers.some(member => member.id === followed.id),
+	).toBe(false)
+	expect(
+		result.data.suggestedMembers.some(member => member.id === muted.id),
+	).toBe(false)
+	expect(
+		result.data.suggestedMembers.some(member => member.id === blocker.id),
+	).toBe(false)
 	expect(result.data.upcomingCalendar).toMatchObject({ total: 0 })
+})
+
+test('following home data stays relational instead of materializing ID lists', async () => {
+	const [viewer, followed] = await Promise.all([
+		createUser('relational_viewer'),
+		createUser('relational_followed'),
+	])
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Relational feed fixture' },
+	})
+	await Promise.all([
+		prisma.follow.create({
+			data: { followerId: viewer.id, followingId: followed.id },
+		}),
+		prisma.review.create({
+			data: {
+				authorId: followed.id,
+				mediaId: media.id,
+				body: 'A followed review found through the relation.',
+			},
+		}),
+		prisma.homeDashboardPreference.create({
+			data: {
+				ownerId: viewer.id,
+				moduleOrder: JSON.stringify([
+					'trending',
+					'continue',
+					'recommendations',
+					'following',
+					'library',
+					'upcoming',
+				]),
+				collapsedModules: JSON.stringify([
+					'trending',
+					'continue',
+					'recommendations',
+					'library',
+					'upcoming',
+				]),
+			},
+		}),
+	])
+	const followRows = vi.spyOn(prisma.follow, 'findMany')
+	const safetyRows = vi.spyOn(prisma.userSafetyControl, 'findMany')
+	const session = await prisma.session.create({
+		data: {
+			userId: viewer.id,
+			expirationDate: getSessionExpirationDate(),
+		},
+	})
+
+	const result = await loader({
+		request: new Request(BASE_URL, {
+			headers: { cookie: await getSessionCookieHeader(session) },
+		}),
+		params: {},
+	} as any)
+
+	expect(result.data.followingCount).toBe(1)
+	expect(result.data.followingFeed).toEqual([
+		expect.objectContaining({
+			actor: expect.objectContaining({ id: followed.id }),
+		}),
+	])
+	expect(followRows).not.toHaveBeenCalled()
+	expect(safetyRows).not.toHaveBeenCalled()
 })
 
 test('collapsed dashboard modules preserve their order without loading personalized data', async () => {
