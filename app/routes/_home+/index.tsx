@@ -28,7 +28,7 @@ import { getHomeLibrarySummary } from '#app/utils/home-library.server.ts'
 import { getHomeTrending } from '#app/utils/home-trending.server.ts'
 import { loadHomeUpcomingCalendar } from '#app/utils/home-upcoming.server.ts'
 import { getRecommendationGraph } from '#app/utils/recommendation-graph.server.ts'
-import { excludedUserIdsFor } from '#app/utils/user-safety.server.ts'
+import { sociallyVisibleUserWhere } from '#app/utils/user-safety.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { AnonymousHome } from './anonymous-home.tsx'
 
@@ -36,7 +36,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await getUserId(request)
 	const timeZone = getHints(request).timeZone
 	const dashboardConfig = await getHomeDashboardConfig(userId)
-	const excludedUserIds = userId ? await excludedUserIdsFor(prisma, userId) : []
 	const expanded = (module: HomeDashboardModule) =>
 		!dashboardConfig.collapsedModules.includes(module)
 	const trendingPromise =
@@ -66,21 +65,25 @@ export async function loader({ request }: LoaderFunctionArgs) {
 				})
 			: Promise.resolve([])
 	const [
-		followingRows,
+		followingSummary,
 		upcomingCalendar,
 		continuationQueue,
 		recommendationGraph,
 	] = userId
 		? await Promise.all([
 				expanded('following')
-					? prisma.follow.findMany({
-							where: {
-								followerId: userId,
-								followingId: { notIn: excludedUserIds },
-							},
-							select: { followingId: true },
-						})
-					: Promise.resolve([]),
+					? Promise.all([
+							prisma.follow.count({
+								where: {
+									followerId: userId,
+									following: {
+										is: sociallyVisibleUserWhere(userId),
+									},
+								},
+							}),
+							getFollowingActivityFeed(userId, 60),
+						]).then(([count, feed]) => ({ count, feed }))
+					: Promise.resolve({ count: 0, feed: [] }),
 				expanded('upcoming')
 					? loadHomeUpcomingCalendar(userId, timeZone)
 					: Promise.resolve(null),
@@ -91,27 +94,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
 					? getRecommendationGraph(userId)
 					: Promise.resolve(null),
 			])
-		: [[], null, [], null]
-	const followedUserIds = followingRows.map(follow => follow.followingId)
-	const followingFeed = expanded('following')
-		? await getFollowingActivityFeed(followedUserIds, 60)
-		: []
+		: [{ count: 0, feed: [] }, null, [], null]
+	const { count: followingCount, feed: followingFeed } = followingSummary
 	const suggestedMembers =
 		userId &&
 		expanded('following') &&
-		(!followedUserIds.length || !followingFeed.length)
+		(!followingCount || !followingFeed.length)
 			? await prisma.user.findMany({
 					where: {
-						id: {
-							notIn: [userId, ...followedUserIds, ...excludedUserIds],
-						},
+						id: { not: userId },
+						followers: { none: { followerId: userId } },
+						...sociallyVisibleUserWhere(userId),
 					},
 					orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
 					take: 6,
 					select: {
 						id: true,
 						username: true,
-						name: true,
 						image: { select: { id: true } },
 					},
 				})
@@ -131,7 +130,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		isSignedIn: Boolean(userId),
 		upcomingCalendar,
 		followingFeed,
-		followingCount: followedUserIds.length,
+		followingCount,
 		suggestedMembers,
 		dashboardConfig,
 		continuationQueue,

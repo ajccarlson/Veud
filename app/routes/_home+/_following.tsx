@@ -10,7 +10,6 @@ const PAGE_SIZE = 15
 type SuggestedMember = {
 	id: string
 	username: string
-	name: string | null
 	image: { id: string } | null
 }
 
@@ -46,7 +45,9 @@ function Suggestions({ members }: { members: SuggestedMember[] }) {
 	if (!members.length) return null
 	return (
 		<div className="space-y-3">
-			<h2 className="text-lg font-bold text-[rgb(var(--veud-highlight))]">Members to discover</h2>
+			<h2 className="text-lg font-bold text-[rgb(var(--veud-highlight))]">
+				Members to discover
+			</h2>
 			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				{members.map(member => (
 					<Link
@@ -103,7 +104,9 @@ export function FollowingFeed({
 		<section className="home-following min-w-0 space-y-4 text-[rgb(var(--veud-parchment))]">
 			<header className="flex flex-wrap items-end justify-between gap-3">
 				<div>
-					<h1 className="text-2xl font-black text-[rgb(var(--veud-signal))]">Following</h1>
+					<h1 className="text-2xl font-black text-[rgb(var(--veud-signal))]">
+						Following
+					</h1>
 					<p className="text-sm text-[rgb(var(--veud-accent-bright))]">
 						Recent updates from the members you follow.
 					</p>
