@@ -236,6 +236,16 @@ export const userExportInclude = {
 	},
 	aiDiscoverySessions: true,
 	trackingCommandPreviews: true,
+	// Reports they filed: what they reported, what they wrote about it, and what
+	// became of it.
+	//
+	// `resolutionNote` is not included. It is the note a moderator wrote when
+	// closing the report — `terminal ? input.note : null` — and nothing surfaces
+	// it to the reporter anywhere in the app, so an export would be the first
+	// time they saw it. It concerns the member they reported, or their own
+	// conduct in reporting, and neither belongs in a file they can hand to
+	// anyone. The same question about `moderationActionsSubject.reason` came out
+	// the other way, because that one the member is sent verbatim.
 	moderationReportsSubmitted: {
 		select: {
 			id: true,
@@ -245,7 +255,6 @@ export const userExportInclude = {
 			details: true,
 			status: true,
 			priority: true,
-			resolutionNote: true,
 			createdAt: true,
 			updatedAt: true,
 			resolvedAt: true,
