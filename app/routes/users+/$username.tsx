@@ -329,6 +329,10 @@ export const meta: MetaFunction<typeof loader> = ({
 	const description = socialDescription(
 		loaderData?.user.bio,
 		`${displayName} on ${SITE_NAME} — what they are watching, reading, and rating.`,
+		// A member's own words. The provider stripper would delete anything
+		// between angle brackets, so a bio reading "films < 90 minutes" loses the
+		// half that says what they like.
+		{ source: 'member' },
 	)
 	const url = absoluteUrl(origin, `/users/${displayName}`)
 	// Only a real avatar. The default silhouette says nothing and makes every
