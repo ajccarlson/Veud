@@ -295,6 +295,7 @@ function representativeProfileFixture(shape, mediaCount) {
 	const entryShape = representativeProfileEntryShape({
 		mediaCount,
 		trackedEntries: shape.trackingPerMember,
+		memberCount: shape.memberCount,
 	})
 
 	return {

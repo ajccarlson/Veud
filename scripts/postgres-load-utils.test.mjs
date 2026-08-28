@@ -488,39 +488,83 @@ test('derives a bounded representative catalog and member load shape', () => {
 
 test.each([
 	{
+		// Bounded by the share of the table, not by the catalog: 200 members at
+		// 100 entries each leaves room for 406 without the member holding more
+		// than a fiftieth of all entries.
 		mediaCount: 2_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 2_000, fixtureEntryRows: 1_900 },
+		memberCount: 200,
+		expected: { expectedEntries: 406, fixtureEntryRows: 306 },
 	},
 	{
+		// The certified gate configuration. Deep enough to page four times, and
+		// at 2% of the table far enough below the measured 4.5%-to-10% threshold
+		// that PostgreSQL still chooses Entry_watchlistId_id_idx.
 		mediaCount: 100_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
+		// More catalog does not buy a bigger list; the share is what binds.
 		mediaCount: 150_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
+		// A member on their own cannot be a tenth of anything. The list is what
+		// they already track, and no fixture rows are added.
 		mediaCount: 80,
 		trackedEntries: 80,
+		memberCount: 1,
 		expected: { expectedEntries: 80, fixtureEntryRows: 0 },
+	},
+	{
+		// The catalog is still a ceiling when it is the smaller of the two.
+		mediaCount: 500,
+		trackedEntries: 100,
+		memberCount: 1_000,
+		expected: { expectedEntries: 500, fixtureEntryRows: 400 },
 	},
 ])(
 	'derives a $expected.expectedEntries-entry real profile fixture',
-	({ mediaCount, trackedEntries, expected }) => {
+	({ mediaCount, trackedEntries, memberCount, expected }) => {
 		expect(
-			representativeProfileEntryShape({ mediaCount, trackedEntries }),
+			representativeProfileEntryShape({
+				mediaCount,
+				trackedEntries,
+				memberCount,
+			}),
 		).toEqual(expected)
 	},
 )
+
+test('the representative member never dominates the entry table', () => {
+	// Past roughly a twentieth of the table the planner stops choosing
+	// Entry_watchlistId_id_idx for the paged read, because a primary-key scan
+	// looks like it will reach 500 rows quickly. Measured: the index is used at
+	// 0.45% through 4.5% and abandoned at 10%.
+	for (const memberCount of [50, 200, 1_000, 5_000]) {
+		const trackedEntries = 100
+		const { expectedEntries } = representativeProfileEntryShape({
+			mediaCount: 2_000_000,
+			trackedEntries,
+			memberCount,
+		})
+		const others = (memberCount - 1) * trackedEntries
+		expect(expectedEntries / (others + expectedEntries)).toBeLessThanOrEqual(
+			0.1,
+		)
+	}
+})
 
 test('rejects a representative profile with more tracked rows than its target', () => {
 	expect(() =>
 		representativeProfileEntryShape({
 			mediaCount: 80,
 			trackedEntries: 81,
+			memberCount: 1,
 		}),
 	).toThrow('trackedEntries may not exceed')
 })

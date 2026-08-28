@@ -643,13 +643,56 @@ export function representativeLoadShape({
 	}
 }
 
+/**
+ * How large the representative member's list is, and why it is bounded.
+ *
+ * The fixture exists so that paging a deep list has to use
+ * `Entry_watchlistId_id_idx`. Sizing the list at the whole catalog defeated
+ * that: with 1000 members at 100 entries each the representative member held
+ * 99,951 of 199,900 rows, and PostgreSQL stopped choosing the index.
+ *
+ * It is not simply that the list was big. The planner's row estimate is
+ * accurate (10,767 estimated against 11,051 actual); what it cannot know is
+ * *where* those rows sit in primary-key order. It assumes they are spread
+ * evenly, so `LIMIT 500` looks like it will stop after a twentieth of the
+ * scan. The fixture's ids put them all at the end, so the chosen plan read
+ * 100,449 rows to return 500:
+ *
+ *   Entry_pkey            cost 404    17.3ms   73,201 buffers  (chosen)
+ *   Entry_watchlistId_id  cost 4,880   5.7ms      705 buffers  (forced)
+ *
+ * Twelve times the estimated cost, three times faster, a hundredth of the
+ * reads. That trap is real in production too — a member who joined recently,
+ * or bulk-imported, has all their entries in one id range — which is exactly
+ * why the gate requires the index.
+ *
+ * The planner only picks the index once the list is a small enough share that
+ * the primary-key scan cannot look cheap. Measured on this fixture, holding
+ * everything else equal:
+ *
+ *   0.45%, 1.0%, 1.8%, 4.5%  ->  Entry_watchlistId_id_idx, ~0.03ms
+ *   10%                      ->  Entry_pkey, 17.3ms, 99,949 rows discarded
+ *
+ * A twentieth leaves better than twice the margin to the observed threshold,
+ * is far closer to what one member of a thousand actually holds, and still
+ * leaves several pages to walk.
+ */
+const representativeProfileEntryShare = 50
+
 export function representativeProfileEntryShape({
 	mediaCount,
 	trackedEntries,
+	memberCount,
 }) {
 	boundedInteger('mediaCount', mediaCount, { minimum: 1, maximum: 2_000_000 })
 	boundedInteger('trackedEntries', trackedEntries, { maximum: 100_000 })
-	const expectedEntries = Math.min(mediaCount, 100_000)
+	boundedInteger('memberCount', memberCount, { maximum: 1_000_000 })
+	const otherMemberEntries = Math.max(0, (memberCount - 1) * trackedEntries)
+	const shareCap = Math.max(
+		trackedEntries,
+		Math.floor(otherMemberEntries / (representativeProfileEntryShare - 1)),
+	)
+	const expectedEntries = Math.min(mediaCount, 100_000, shareCap)
 	if (trackedEntries > expectedEntries) {
 		throw new Error(
 			'trackedEntries may not exceed the representative profile target',
