@@ -1,7 +1,11 @@
 import { faker } from '@faker-js/faker'
 import { type Prisma } from '@prisma/client'
 import { expect, test, vi } from 'vitest'
-import { action, loader } from '#app/routes/media+/$mediaId.tsx'
+import {
+	action,
+	loader,
+	MEDIA_DETAIL_COLLECTION_LIMIT,
+} from '#app/routes/media+/$mediaId.tsx'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import {
 	applyCatalogMediaMerge,
@@ -1375,6 +1379,7 @@ test('media pages add titles only to collections owned by the viewer', async () 
 	expect(loaded.data.viewer?.collections).toEqual([
 		expect.objectContaining({ id: owned.id, containsMedia: true }),
 	])
+	expect(loaded.data.viewer?.collectionsTruncated).toBe(false)
 
 	const denied = await action({
 		request: actionRequest(media.id, cookie, {
@@ -1385,6 +1390,68 @@ test('media pages add titles only to collections owned by the viewer', async () 
 	} as any).catch(error => error)
 	expect(denied).toBeInstanceOf(Response)
 	expect((denied as Response).status).toBe(404)
+})
+
+test('media pages bound recent collection choices and serialize membership only', async () => {
+	const { media, tracker, cookie } = await fixture()
+	const collectionCount = MEDIA_DETAIL_COLLECTION_LIMIT + 2
+	const collectionId = (index: number) =>
+		`${tracker.id}-media-detail-collection-${index}`
+
+	await prisma.mediaCollection.createMany({
+		data: Array.from({ length: collectionCount }, (_, index) => ({
+			id: collectionId(index),
+			ownerId: tracker.id,
+			title: `Collection ${String(index).padStart(3, '0')}`,
+			updatedAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+		})),
+	})
+	await prisma.mediaCollectionItem.create({
+		data: {
+			collectionId: collectionId(collectionCount - 1),
+			mediaId: media.id,
+			position: 0,
+		},
+	})
+
+	const findMany = vi.spyOn(prisma.mediaCollection, 'findMany')
+	const loaded = await loader({
+		request: new Request(`${BASE_URL}/media/${media.id}`, {
+			headers: { cookie },
+		}),
+		params: { mediaId: media.id },
+	} as any)
+	const collectionQuery = findMany.mock.lastCall?.[0]
+	findMany.mockRestore()
+	const collections = loaded.data.viewer?.collections ?? []
+
+	expect(collectionQuery).toMatchObject({
+		where: { ownerId: tracker.id },
+		take: MEDIA_DETAIL_COLLECTION_LIMIT + 1,
+		select: {
+			id: true,
+			title: true,
+			_count: {
+				select: { items: { where: { mediaId: media.id } } },
+			},
+		},
+	})
+	expect(collectionQuery?.select).not.toHaveProperty('items')
+	expect(collections).toHaveLength(MEDIA_DETAIL_COLLECTION_LIMIT)
+	expect(loaded.data.viewer?.collectionsTruncated).toBe(true)
+	expect(collections[0]).toEqual({
+		id: collectionId(collectionCount - 1),
+		title: `Collection ${String(collectionCount - 1).padStart(3, '0')}`,
+		containsMedia: true,
+	})
+	expect(collections.at(-1)?.id).toBe(collectionId(2))
+	expect(
+		collections.some(collection => collection.id === collectionId(1)),
+	).toBe(false)
+	for (const collection of collections) {
+		expect(collection).not.toHaveProperty('items')
+		expect(collection).not.toHaveProperty('_count')
+	}
 })
 
 test('members can create, update, and remove a release reminder', async () => {

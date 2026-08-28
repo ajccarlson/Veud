@@ -108,6 +108,8 @@ import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
 
+export const MEDIA_DETAIL_COLLECTION_LIMIT = 100
+
 const OptionalRatingSchema = z.preprocess(
 	value =>
 		value === '' || value === null || value === undefined ? null : value,
@@ -341,7 +343,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		reviewRows,
 		viewerReview,
 		viewerDiaryEntries,
-		viewerCollections,
+		viewerCollectionRows,
 		viewerFavorite,
 		viewerReminder,
 	] = await Promise.all([
@@ -479,13 +481,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			? prisma.mediaCollection.findMany({
 					where: { ownerId: viewerId },
 					orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }],
+					take: MEDIA_DETAIL_COLLECTION_LIMIT + 1,
 					select: {
 						id: true,
 						title: true,
-						items: {
-							where: { mediaId: media.id },
-							take: 1,
-							select: { id: true },
+						_count: {
+							select: {
+								items: { where: { mediaId: media.id } },
+							},
 						},
 					},
 				})
@@ -648,10 +651,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 						...entry,
 						rating: entry.rating === null ? null : Number(entry.rating),
 					})),
-					collections: viewerCollections.map(({ items, ...collection }) => ({
-						...collection,
-						containsMedia: items.length > 0,
-					})),
+					collections: viewerCollectionRows
+						.slice(0, MEDIA_DETAIL_COLLECTION_LIMIT)
+						.map(({ _count, ...collection }) => ({
+							...collection,
+							containsMedia: _count.items > 0,
+						})),
+					collectionsTruncated:
+						viewerCollectionRows.length > MEDIA_DETAIL_COLLECTION_LIMIT,
 				}
 			: null,
 	})
@@ -1701,27 +1708,43 @@ export default function MediaDetailRoute() {
 								</p>
 							</div>
 							{data.viewer.collections.length ? (
-								<Form method="post" className="flex flex-wrap items-end gap-3">
-									<input type="hidden" name="intent" value="collection-add" />
-									<div className="min-w-52 flex-1 space-y-2">
-										<Label htmlFor="collection-id">Collection</Label>
-										<select
-											id="collection-id"
-											name="collectionId"
-											className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-										>
-											{data.viewer.collections.map(collection => (
-												<option key={collection.id} value={collection.id}>
-													{collection.containsMedia ? '✓ ' : ''}
-													{collection.title}
-												</option>
-											))}
-										</select>
-									</div>
-									<Button type="submit" variant="outline" disabled={busy}>
-										Add to collection
-									</Button>
-								</Form>
+								<div className="space-y-3">
+									<Form
+										method="post"
+										className="flex flex-wrap items-end gap-3"
+									>
+										<input type="hidden" name="intent" value="collection-add" />
+										<div className="min-w-52 flex-1 space-y-2">
+											<Label htmlFor="collection-id">Collection</Label>
+											<select
+												id="collection-id"
+												name="collectionId"
+												className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+											>
+												{data.viewer.collections.map(collection => (
+													<option key={collection.id} value={collection.id}>
+														{collection.containsMedia ? '✓ ' : ''}
+														{collection.title}
+													</option>
+												))}
+											</select>
+										</div>
+										<Button type="submit" variant="outline" disabled={busy}>
+											Add to collection
+										</Button>
+									</Form>
+									{data.viewer.collectionsTruncated ? (
+										<p className="text-sm text-muted-foreground">
+											Showing your most recent collections.{' '}
+											<Link
+												to="/collections"
+												className="font-semibold underline"
+											>
+												View all
+											</Link>
+										</p>
+									) : null}
+								</div>
 							) : (
 								<p className="text-sm text-muted-foreground">
 									<Link
