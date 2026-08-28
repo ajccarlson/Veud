@@ -13,6 +13,16 @@ import {
 	personDetailsSelect,
 	schedulePersonDetailsRefresh,
 } from '#app/utils/person-details.server.ts'
+import {
+	SITE_NAME,
+	absoluteUrl,
+	isoDate,
+	originFromMatches,
+	socialDescription,
+	socialMeta,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 
 export async function loader({ params }: LoaderFunctionArgs) {
 	const personId = params['personId']
@@ -232,17 +242,44 @@ export default function PersonRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
-	if (!loaderData) return [{ title: 'Person | Veud' }]
+export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
+	if (!loaderData) return [{ title: `Person | ${SITE_NAME}` }]
+
 	const { person } = loaderData
+	const origin = originFromMatches(matches)
+	const title = `${person.name} | ${SITE_NAME}`
+	const description = socialDescription(
+		person.biography,
+		`Everything ${person.name} is credited on, across ${SITE_NAME}'s catalog.`,
+	)
+	const url = absoluteUrl(origin, `/people/${person.id}`)
+	const image = absoluteUrl(origin, person.imageUrl)
+
 	return [
-		{ title: `${person.name} | Veud` },
-		{
-			name: 'description',
-			content:
-				person.biography?.slice(0, 200) ??
-				`Everything ${person.name} is credited on, across Veud's catalog.`,
-		},
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `Photograph of ${person.name}` : undefined,
+			type: 'profile',
+		}),
+		structuredData(
+			withoutEmptyValues({
+				'@type': 'Person',
+				name: person.name,
+				url,
+				image,
+				description,
+				jobTitle: person.knownForDepartment,
+				birthDate: isoDate(person.birthday),
+				deathDate: isoDate(person.deathday),
+				birthPlace: person.placeOfBirth,
+				// Their own site, when the provider knew of one. `sameAs` is for
+				// other pages about the same person, which is exactly what this is.
+				sameAs: person.homepage ? [person.homepage] : undefined,
+			}),
+		),
 	]
 }
 
