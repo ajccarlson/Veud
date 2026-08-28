@@ -209,3 +209,42 @@ test('a JSON-LD block declares its context', () => {
 		},
 	})
 })
+
+test('a members own words survive the card intact', () => {
+	// The provider stripper removes anything between angle brackets, which is
+	// markup in a synopsis and a comparison in a member's bio.
+	// Both of these actually reach the stripper: `<...>` in that order is what
+	// the tag regex matches. A first version of this test used
+	// "rated > 8 ... films < 90", where the brackets are the wrong way round, so
+	// nothing matched and it passed whether the stripper ran or not.
+	expect(
+		socialDescription('Films < 90 minutes > worth a Friday', 'fallback', {
+			source: 'member',
+		}),
+	).toBe('Films < 90 minutes > worth a Friday')
+	expect(
+		socialDescription('2010 <-> 2020 favourites', 'fallback', {
+			source: 'member',
+		}),
+	).toBe('2010 <-> 2020 favourites')
+	// Provider text still gets the stripper it was written for.
+	expect(socialDescription('A <b>bold</b> synopsis', 'fallback')).toBe(
+		'A bold synopsis',
+	)
+})
+
+test('truncation never leaves half a surrogate pair in the card', () => {
+	// An orphaned half renders as a replacement character in someone else's
+	// unfurl, where the author cannot see it.
+	const emoji = '😀'
+	const text = `${'a'.repeat(199)}${emoji} tail`
+	const cut = socialDescription(text, 'fallback', { limit: 200 })
+	expect(cut).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+	expect(cut.endsWith('…')).toBe(true)
+})
+
+test('a description shorter than the limit is returned unchanged', () => {
+	expect(socialDescription('Short enough.', 'fallback', { limit: 200 })).toBe(
+		'Short enough.',
+	)
+})
