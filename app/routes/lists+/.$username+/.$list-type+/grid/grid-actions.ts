@@ -3,14 +3,7 @@
 // mutations. They read the shared gridAPI/columnParams from grid-state (and gridReady
 // writes gridAPI via setGridAPI); refreshGrid keeps its own columnParams parameter, which
 // shadows the import inside its body exactly as it did when this lived in the monolith.
-import type { GridApi } from 'ag-grid-community'
-import {
-	gridAPI,
-	columnParams,
-	setGridAPI,
-	type WatchlistColumnParams,
-	type WatchlistRow,
-} from './grid-state.ts'
+import { type GridApi } from 'ag-grid-community'
 import { mediaProgressParser } from '#app/utils/lists/column-functions.tsx'
 import {
 	getSortableWatchlistColumns,
@@ -21,6 +14,13 @@ import {
 	getWatchlistEntries,
 	mutateList,
 } from '#app/utils/lists/mutation-client.ts'
+import {
+	gridAPI,
+	columnParams,
+	setGridAPI,
+	type WatchlistColumnParams,
+	type WatchlistRow,
+} from './grid-state.ts'
 
 export async function moveEntry(
 	entryId: string,
@@ -465,7 +465,7 @@ export async function setterFunction(params: any) {
 
 	if (params.column.colId == 'position') {
 		updatePositions()
-	} else if (params.data != params.newValue) {
+	} else if (!Object.is(params.oldValue, params.newValue)) {
 		if (params.column.colId.toLowerCase() == 'length') {
 			const fullLengthRegex = /\d+\s*\/\s*\d+ eps/g
 			const partialLengthRegex = /\d*\s*\/*\s*\d+ eps/g
@@ -477,7 +477,7 @@ export async function setterFunction(params: any) {
 					} else {
 						throw new Error()
 					}
-				} catch (e) {
+				} catch {
 					if (partialLengthRegex.test(params.oldValue)) {
 						const lengthData = mediaProgressParser(
 							params,
