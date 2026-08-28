@@ -50,6 +50,9 @@ describe('application shutdown', () => {
 			closePrisma: () => {
 				events.push('prisma')
 			},
+			closeBackgroundTasks: () => {
+				events.push('background')
+			},
 			closeCache: () => {
 				events.push('cache')
 			},
@@ -68,7 +71,7 @@ describe('application shutdown', () => {
 
 		expect(events.slice(0, 2)).toEqual(['http:start', 'http:closed'])
 		expect(new Set(events.slice(2, -1))).toEqual(
-			new Set(['prisma', 'cache', 'vite', 'mocks']),
+			new Set(['background', 'prisma', 'cache', 'vite', 'mocks']),
 		)
 		expect(events.at(-1)).toBe('sentry')
 	})

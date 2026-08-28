@@ -1,6 +1,19 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import {
+	type AiCapability,
+	isAiCapabilityConfigured,
+	modelFor,
+} from './ai-model-config.server.ts'
 import { prisma } from './db.server.ts'
+
+export {
+	aiCapabilities,
+	DEFAULT_OPENAI_MODEL,
+	isAiCapabilityConfigured,
+	modelFor,
+} from './ai-model-config.server.ts'
+export type { AiCapability } from './ai-model-config.server.ts'
 
 const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
@@ -12,20 +25,6 @@ const MAX_TELEMETRY_EVENTS = 500
 const DAY_MS = 24 * 60 * 60 * 1_000
 const DEFAULT_DAILY_CAPABILITY_LIMIT = 5_000
 const DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT = 250
-export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna'
-
-export const aiCapabilities = [
-	'tip-of-tongue',
-	'natural-language-discovery',
-	'discovery-refinement',
-	'tracking-command',
-	'image-tip-of-tongue',
-	'import-reconciliation',
-	'review-assistance',
-	'moderation-triage',
-] as const
-
-export type AiCapability = (typeof aiCapabilities)[number]
 export type AiCircuit = {
 	unavailableUntil: number
 	unavailableReason?: 'model-unavailable'
@@ -376,44 +375,6 @@ function cooldownMs(code: string | null) {
 	return code === 'insufficient_quota' || code === 'billing_hard_limit_reached'
 		? AI_QUOTA_COOLDOWN_MS
 		: AI_UNAVAILABLE_COOLDOWN_MS
-}
-
-const capabilityModelEnvironmentKeys = {
-	'tip-of-tongue': 'OPENAI_TIP_OF_TONGUE_MODEL',
-	'natural-language-discovery': 'OPENAI_NATURAL_LANGUAGE_DISCOVERY_MODEL',
-	'discovery-refinement': 'OPENAI_DISCOVERY_REFINEMENT_MODEL',
-	'tracking-command': 'OPENAI_TRACKING_COMMAND_MODEL',
-	'image-tip-of-tongue': 'OPENAI_IMAGE_TIP_OF_TONGUE_MODEL',
-	'import-reconciliation': 'OPENAI_IMPORT_RECONCILIATION_MODEL',
-	'review-assistance': 'OPENAI_REVIEW_ASSISTANCE_MODEL',
-	'moderation-triage': 'OPENAI_MODERATION_TRIAGE_MODEL',
-} as const satisfies Record<AiCapability, string>
-
-export function modelFor(
-	capability: AiCapability,
-	fallback = DEFAULT_OPENAI_MODEL,
-) {
-	return (
-		process.env[capabilityModelEnvironmentKeys[capability]]?.trim() ||
-		process.env.OPENAI_DEFAULT_MODEL?.trim() ||
-		fallback
-	)
-}
-
-export function isAiCapabilityConfigured(capability: AiCapability) {
-	const environment = process.env as Record<string, string | undefined>
-	const capabilityFlag = `VEUD_AI_${capability
-		.replaceAll('-', '_')
-		.toUpperCase()}_ENABLED`
-	return Boolean(
-		environment.OPENAI_API_KEY?.trim() &&
-		!['0', 'false'].includes(
-			environment.VEUD_AI_ENABLED?.trim().toLowerCase() ?? 'true',
-		) &&
-		!['0', 'false'].includes(
-			environment[capabilityFlag]?.trim().toLowerCase() ?? 'true',
-		),
-	)
 }
 
 export function getAiGatewayTelemetry() {
