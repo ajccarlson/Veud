@@ -33,6 +33,7 @@ const syntheticRareDescriptionNeedle = `rare-nebula-token-${syntheticRareDescrip
 const requiredTrigramIndexesByQuery = {
 	'canonical-title': 'Media_title_trgm_idx',
 	'person-name': 'Person_normalized_trgm_idx',
+	'person-name-min-length': 'Person_normalized_trgm_idx',
 	'tracking-exact-title': 'Media_title_trgm_idx',
 	'alternate-title': 'MediaTitle_normalized_trgm_idx',
 	'rare-description': 'Media_description_trgm_idx',
@@ -67,13 +68,13 @@ const requiredProfileRowsByQuery = {
 	'profile-diary-activity': 100,
 	'profile-diary-page': 100,
 }
-// The exact-match needle returns one person; the broad needle must keep
-// matching a real slice, or the ORDER BY stops being exercised; the
-// two-character needle is what a member triggers first and matches everything.
+// The exact-match needle returns one person. Broad and minimum-length needles
+// must fill the application's 32-row candidate window, or the ORDER BY and
+// live-suggestion boundary are no longer being exercised.
 const requiredPersonRowsByQuery = {
 	'person-name': 1,
-	'person-name-broad': 48,
-	'person-name-min-length': 48,
+	'person-name-broad': 32,
+	'person-name-min-length': 32,
 }
 const profileActivityPublicRelationsSql = `LEFT JOIN "Watchlist" AS status_watchlist
    ON status_watchlist.id = activity."statusWatchlistId"
@@ -259,6 +260,21 @@ function kindSql(series = 'n') {
 		ELSE 'manga' END`
 }
 
+function representativeLiveActionTrackedEntries({
+	memberNumber,
+	trackedEntries,
+	mediaCount,
+}) {
+	let liveActionEntries = 0
+	for (let slot = 1; slot <= trackedEntries; slot += 1) {
+		const mediaNumber =
+			1 + (((memberNumber - 1) * trackedEntries + slot - 1) % mediaCount)
+		const kindNumber = (mediaNumber + Math.floor(mediaNumber / 20)) % 4
+		if (kindNumber === 0 || kindNumber === 1) liveActionEntries += 1
+	}
+	return liveActionEntries
+}
+
 function profileFixtureMemberNumber(memberCount) {
 	if (!memberCount) return null
 	let memberNumber = Math.max(1, Math.floor(memberCount / 2))
@@ -303,6 +319,12 @@ function representativeProfileFixture(shape, mediaCount) {
 	const entryShape = representativeProfileEntryShape({
 		mediaCount,
 		trackedEntries: shape.trackingPerMember,
+		trackedTargetEntries: representativeLiveActionTrackedEntries({
+			memberNumber,
+			trackedEntries: shape.trackingPerMember,
+			mediaCount,
+		}),
+		memberCount: shape.memberCount,
 	})
 
 	return {
@@ -495,8 +517,10 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 		)
 		SELECT
 			'${prefix}person-' || n,
-			'Synthetic Performer ' || n,
-			'synthetic performer ' || n,
+			CASE WHEN n % 20 = 0 THEN 'Qzx Synthetic Performer ' || n
+				ELSE 'Synthetic Performer ' || n END,
+			CASE WHEN n % 20 = 0 THEN 'qzx synthetic performer ' || n
+				ELSE 'synthetic performer ' || n END,
 			'Acting',
 			CURRENT_TIMESTAMP,
 			CURRENT_TIMESTAMP
@@ -1286,23 +1310,7 @@ async function communityAggregateMetrics(prisma, count) {
 	}
 }
 
-/**
- * The people-search statement, shared by every needle it is measured with.
- *
- * Kept beside findPeople in shape - same filter, same order, same select list,
- * same limit. `search-suggestions.server.test.ts` fails if that query starts
- * aggregating again, which is the regression this gate cannot see on its own:
- * the harness measures its own SQL, so it would keep passing.
- */
-const personSearchSql = `SELECT person.id, person.name, person."imageUrl",
-        person."knownForDepartment", person."creditCount"
-	 FROM "Person" AS person
-	 WHERE person.normalized ILIKE $1
-	   AND person."creditCount" > 0
-	 ORDER BY person."creditCount" DESC, person.name ASC, person.id ASC
-	 LIMIT 48`
-
-async function queryMetrics(prisma, count, shape, scheduleAnchor) {
+async function queryMetrics(prisma, count, shape, scheduleAnchor, reportPath) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
 	const calendarWindow = calendarLoadWindow(scheduleAnchor)
@@ -1311,39 +1319,6 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			'canonical-title',
 			'SELECT id FROM "Media" WHERE title ILIKE $1 LIMIT 24',
 			[`%Catalog Work ${needle}%`],
-		],
-		// Three shapes of the same search, because one needle cannot represent
-		// it. The select list matches what findPeople actually asks for: a
-		// narrower one would let PostgreSQL choose an index-only scan the
-		// application never gets.
-		['person-name', personSearchSql, [`%synthetic performer ${needle}%`]],
-		[
-			// The exact-match needle above returns a single row, so it sorts
-			// nothing and would stay fast however the ordering degraded. This one
-			// matches a large slice, which is what makes the ORDER BY real work.
-			'person-name-broad',
-			personSearchSql,
-			['%synthetic performer 1%'],
-		],
-		[
-			// What a member triggers first: MIN_SUGGESTION_QUERY is 2.
-			//
-			// A pg_trgm index cannot serve a LIKE pattern with fewer than three
-			// consecutive literal characters, so this scans by construction, not
-			// through bad luck with selectivity. Measured on 200,010 rows with a
-			// trigram index present, holding match count roughly equal:
-			//
-			//   ILIKE '%zqx%'  ->  5 rows, Bitmap Index Scan,   0.046 ms
-			//   ILIKE '%zq%'   -> 10 rows, Seq Scan,           46.18  ms
-			//
-			// Deliberately absent from requiredTrigramIndexesByQuery: requiring an
-			// index here would demand something PostgreSQL cannot do. It is
-			// measured so the cost of the shortest query the application accepts
-			// is visible, rather than assumed away by only testing longer
-			// needles that happen to reach the index.
-			'person-name-min-length',
-			personSearchSql,
-			['%rf%'],
 		],
 		[
 			'tracking-exact-title',
@@ -1524,6 +1499,14 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	for (const definition of definitions) {
 		queries.push(await explain(prisma, ...definition))
 	}
+	queries.push(
+		...(await runPersonSearchMeasurements({
+			exactQuery: `synthetic performer ${needle}`,
+			broadQuery: 'synthetic performer 1',
+			minimumQuery: 'qzx',
+			reportPath,
+		})),
+	)
 	if (!shape.memberCount) return queries
 	const profileFixture = representativeProfileFixture(shape, count)
 	const memberId = profileFixture.memberId
@@ -1787,6 +1770,71 @@ async function runPublicSurfaceSmoke({ username, reportPath }) {
 	fs.unlinkSync(smokeReportPath)
 	assertPublicSurfaceLoadBudgets(report)
 	return report
+}
+
+async function runPersonSearchMeasurements({
+	exactQuery,
+	broadQuery,
+	minimumQuery,
+	reportPath,
+}) {
+	const measurementPath = `${reportPath}.person-search.json`
+	if (fs.existsSync(measurementPath)) fs.unlinkSync(measurementPath)
+	const measurementScript = path.resolve(
+		'scripts/measure-person-search-postgres.ts',
+	)
+	const childArgs = [
+		'--import',
+		'tsx',
+		measurementScript,
+		'--exact-query',
+		exactQuery,
+		'--broad-query',
+		broadQuery,
+		'--minimum-query',
+		minimumQuery,
+		'--report',
+		measurementPath,
+	]
+	await new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: process.cwd(),
+			env: {
+				...process.env,
+				NODE_ENV: 'test',
+				SESSION_SECRET:
+					process.env.SESSION_SECRET ?? 'postgres-person-search-smoke-only',
+			},
+			stdio: 'inherit',
+		})
+		child.once('error', reject)
+		child.once('exit', (code, signal) => {
+			if (code === 0) {
+				resolve()
+				return
+			}
+			reject(
+				new Error(
+					`Person-search measurement failed (${signal ? `signal ${signal}` : `exit ${code}`})`,
+				),
+			)
+		})
+	})
+	if (!fs.existsSync(measurementPath)) {
+		throw new Error('Person-search measurement did not write its report')
+	}
+	const report = readJson(measurementPath, 'Person-search measurement report')
+	fs.unlinkSync(measurementPath)
+	if (
+		!report ||
+		typeof report !== 'object' ||
+		report.version !== 1 ||
+		!Array.isArray(report.queries) ||
+		report.queries.length !== 3
+	) {
+		throw new Error('Person-search measurement report must contain 3 queries')
+	}
+	return report.queries
 }
 
 async function concurrentMetrics(
@@ -2208,6 +2256,7 @@ async function main() {
 			count,
 			shape,
 			checkpoint.startedAt,
+			reportPath,
 		)
 		const profileLoaderSmoke = profileFixture.memberNumber
 			? await runProfileLoaderSmoke({

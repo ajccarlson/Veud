@@ -16,8 +16,9 @@ test('a query is only worth running once it is long enough to mean something', (
 	expect(normalizeSuggestionQuery('a')).toBeNull()
 	expect(normalizeSuggestionQuery(' ')).toBeNull()
 	expect(normalizeSuggestionQuery('')).toBeNull()
-	expect(normalizeSuggestionQuery('fr')).toBe('fr')
-	expect(MIN_SUGGESTION_QUERY).toBe(2)
+	expect(normalizeSuggestionQuery('fr')).toBeNull()
+	expect(normalizeSuggestionQuery('fri')).toBe('fri')
+	expect(MIN_SUGGESTION_QUERY).toBe(3)
 })
 
 test('whitespace is collapsed so the same query is not asked for twice', () => {

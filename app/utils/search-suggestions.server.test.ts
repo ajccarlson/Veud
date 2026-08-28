@@ -1,20 +1,56 @@
 import { expect, test } from 'vitest'
 import { prisma } from './db.server.ts'
-import { getPeopleSearchResults } from './search-suggestions.server.ts'
+import {
+	getPeopleSearchResults,
+	getSearchSuggestions,
+} from './search-suggestions.server.ts'
 import { MIN_SUGGESTION_QUERY } from './search-suggestions.ts'
 
-async function capturedQueries(run: () => Promise<unknown>) {
-	const seen: string[] = []
-	const record = (event: { query: string }) => {
-		seen.push(event.query)
+const DRAIN_MARKER = 'person-search-query-capture-drain'
+let activeCapture: string[] | null = null
+let drainResolve: (() => void) | null = null
+
+prisma.$on('query', event => {
+	if (event.query.includes(DRAIN_MARKER)) {
+		drainResolve?.()
+		return
 	}
-	prisma.$on('query', record)
+	activeCapture?.push(event.query)
+})
+
+async function drainQueryEvents() {
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(
+				() => reject(new Error('Timed out draining Prisma query events')),
+				10_000,
+			)
+			drainResolve = () => {
+				clearTimeout(timer)
+				resolve()
+			}
+			void prisma
+				.$queryRawUnsafe(`SELECT 1 /* ${DRAIN_MARKER} */`)
+				.catch(reject)
+		})
+	} finally {
+		drainResolve = null
+	}
+}
+
+async function capturedQueries(run: () => Promise<unknown>) {
+	if (activeCapture) {
+		throw new Error('Query captures may not overlap')
+	}
+	const seen: string[] = []
+	activeCapture = seen
 	try {
 		await run()
+		await drainQueryEvents()
+		return seen
 	} finally {
-		// Prisma has no $off; the listener is harmless once the array is read.
+		activeCapture = null
 	}
-	return seen
 }
 
 async function seedPerson(id: string, name: string, creditCount: number) {
@@ -23,16 +59,18 @@ async function seedPerson(id: string, name: string, creditCount: number) {
 	})
 }
 
-test('people search ranks on the stored count and never aggregates', async () => {
+test('live people suggestions rank on the stored count and never aggregate', async () => {
 	// Person.creditCount exists so that search never aggregates MediaCredit
 	// while someone types. Reverting to `orderBy: { credits: { _count } }` would
-	// still return the right people, so nothing else notices — and the
-	// PostgreSQL scale gate would not either, because it measures its own
-	// hand-written SQL rather than this query. Notice it here instead.
+	// still return the right people, so nothing else notices. The PostgreSQL
+	// scale gate captures this same application query before it
+	// explains the plan. This focused test keeps the failure fast and local.
 	await seedPerson('sugg-lead', 'Ana Lead', 40)
 	await seedPerson('sugg-extra', 'Ana Extra', 1)
 
-	const queries = await capturedQueries(() => getPeopleSearchResults('ana'))
+	const queries = await capturedQueries(() =>
+		getSearchSuggestions({ q: 'ana', kind: 'all', limit: 8 }),
+	)
 
 	const personQueries = queries.filter(sql => sql.includes('Person'))
 	expect(personQueries.length).toBeGreaterThan(0)
@@ -59,13 +97,6 @@ test('a person with no remaining credits is not offered', async () => {
 	expect(await getPeopleSearchResults('ana')).toEqual([])
 })
 
-test('the shortest accepted query is two characters', () => {
-	// The PostgreSQL scale gate requires a trigram index in the plan, but a
-	// pg_trgm index cannot serve a LIKE pattern with fewer than three
-	// consecutive literal characters. Measured on 200,010 rows with the index
-	// present and the match count held roughly equal, '%zqx%' took 0.046 ms on
-	// a Bitmap Index Scan while '%zq%' took 46.18 ms on a sequential scan. At
-	// this length the database must scan, so the gate measures that case rather
-	// than only needles long enough to reach the index.
-	expect(MIN_SUGGESTION_QUERY).toBe(2)
+test('live suggestions begin at an index-capable query length', () => {
+	expect(MIN_SUGGESTION_QUERY).toBe(3)
 })
