@@ -32,7 +32,7 @@ async function findPeople(query: string, take: number) {
 				{ normalized: prismaSearchFilter('contains', normalized) },
 				// Credit refreshes can leave an identity behind after its final title
 				// disappears. Do not offer a dead-end person page in search.
-				{ credits: { some: {} } },
+				{ creditCount: { gt: 0 } },
 			],
 		},
 		select: {
@@ -40,12 +40,12 @@ async function findPeople(query: string, take: number) {
 			name: true,
 			imageUrl: true,
 			knownForDepartment: true,
-			_count: { select: { credits: true } },
+			creditCount: true,
 		},
 		// Prominence for a person is how much of the catalog credits them. Name
 		// matching is applied afterwards, so an exact prefix still beats an
 		// interior match without letting a one-credit extra outrank a lead.
-		orderBy: [{ credits: { _count: 'desc' } }, { name: 'asc' }, { id: 'asc' }],
+		orderBy: [{ creditCount: 'desc' }, { name: 'asc' }, { id: 'asc' }],
 		take,
 	})
 }
@@ -63,12 +63,14 @@ export async function getPeopleSearchResults(
 		people.map(person => ({
 			id: person.id,
 			name: person.name,
-			label: person.name,
+			// Match and rank with the same fold. Ranking the display spelling would
+			// otherwise demote `Léa Seydoux` for a query that matched `lea seydoux`.
+			label: normalizePersonName(person.name),
 			imageUrl: person.imageUrl,
 			knownForDepartment: person.knownForDepartment,
-			creditCount: person._count.credits,
+			creditCount: person.creditCount,
 		})),
-		query,
+		normalizePersonName(query),
 	)
 		.slice(0, take)
 		.map(({ label: _label, ...person }) => person)
@@ -173,13 +175,13 @@ export async function getSearchSuggestions(input: {
 			resultType: 'person' as const,
 			id: person.id,
 			name: person.name,
-			label: person.name,
+			label: normalizePersonName(person.name),
 			thumbnail: person.imageUrl,
 			knownForDepartment: person.knownForDepartment,
-			creditCount: person._count.credits,
+			creditCount: person.creditCount,
 		})),
-		query,
-	)
+		normalizePersonName(query),
+	).map(person => ({ ...person, label: person.name }))
 
 	if (!personSuggestions.length) return mediaSuggestions.slice(0, take)
 

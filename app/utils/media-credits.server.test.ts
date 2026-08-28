@@ -297,6 +297,12 @@ test('a person is created once and shared by every title they work on', async ()
 			where: { personId: identities[0]!.personId },
 		}),
 	).toBe(2)
+	expect(
+		await prisma.person.findUnique({
+			where: { id: identities[0]!.personId },
+			select: { creditCount: true },
+		}),
+	).toEqual({ creditCount: 2 })
 })
 
 test('a refresh restates rather than accumulates', async () => {
@@ -327,6 +333,21 @@ test('a refresh restates rather than accumulates', async () => {
 	expect(
 		await prisma.personExternalId.count({ where: { externalId: 'b' } }),
 	).toBe(1)
+	const counts = await prisma.person.findMany({
+		where: { externalIds: { some: { externalId: { in: ['a', 'b', 'c'] } } } },
+		select: {
+			creditCount: true,
+			externalIds: { select: { externalId: true } },
+		},
+	})
+	expect(
+		Object.fromEntries(
+			counts.map(entry => [
+				entry.externalIds[0]!.externalId,
+				entry.creditCount,
+			]),
+		),
+	).toEqual({ a: 1, b: 0, c: 1 })
 })
 
 test('one provider refreshing does not delete what another wrote', async () => {

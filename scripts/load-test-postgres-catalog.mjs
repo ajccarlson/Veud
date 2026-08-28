@@ -1293,14 +1293,8 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			`SELECT person.id
 			 FROM "Person" AS person
 			 WHERE person.normalized ILIKE $1
-			   AND EXISTS (
-			     SELECT 1 FROM "MediaCredit" AS credit
-			     WHERE credit."personId" = person.id
-			   )
-			 ORDER BY (
-			   SELECT COUNT(*) FROM "MediaCredit" AS counted_credit
-			   WHERE counted_credit."personId" = person.id
-			 ) DESC, person.name ASC, person.id ASC
+			   AND person."creditCount" > 0
+			 ORDER BY person."creditCount" DESC, person.name ASC, person.id ASC
 			 LIMIT 48`,
 			[`%synthetic performer ${needle}%`],
 		],
@@ -2331,7 +2325,7 @@ async function main() {
 		}
 		if (publicSurfaceSmoke) {
 			console.log(
-				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries} cold/warm queries.`,
+				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries}, search=${publicSurfaceSmoke.searchSuggestions.coldQueries}/${publicSurfaceSmoke.searchSuggestions.warmQueries} cold/warm queries.`,
 			)
 		}
 		console.log(`Report written: ${reportPath}`)

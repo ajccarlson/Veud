@@ -193,6 +193,32 @@ test('people search folds punctuation and omits identities with no credits', asy
 	expect(results.map(result => result.id)).not.toContain(orphan.id)
 })
 
+test('folded exact person names outrank more credited interior matches', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	const exact = await prisma.person.create({
+		data: { name: `Léa ${tag}`, normalized: `lea ${tag}` },
+	})
+	const exactWork = await prisma.media.create({
+		data: { kind: 'movie', title: `Exact folded work ${tag}` },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			mediaId: exactWork.id,
+			personId: exact.id,
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'Lead',
+		},
+	})
+	for (let index = 0; index < 4; index += 1) {
+		await personWithCredits(`A Lea ${tag} ${index}`, 4 - index)
+	}
+
+	const results = await suggest({ q: `lea ${tag}` })
+	const people = results.filter(result => result.resultType === 'person')
+	expect(people[0]).toMatchObject({ id: exact.id, label: `Léa ${tag}` })
+})
+
 test('an alternate title finds the work it belongs to', async () => {
 	const { tag, aliased } = await catalog('Alias')
 	const results = await suggest({ q: `${tag} Beyond Journeys` })
