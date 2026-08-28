@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import { expect, test } from 'vitest'
 import {
 	DEFAULT_STAGING_CONTRACTS,
@@ -89,4 +90,46 @@ test('reports a latency-budget failure separately from route contracts', async (
 		failed: 0,
 		latencyPassed: false,
 	})
+})
+
+test('no canary marker is text the global navigation puts on every page', () => {
+	// `/discover` matched on "Discover", `/reviews` on "Reviews" and
+	// `/collections` on "Collections" — the labels of the site's own navigation,
+	// which the root layout renders in the header of every page. Each of those
+	// canaries passed for any HTML the server returned, including an error page
+	// that still rendered the shell, so it proved the site was up and nothing
+	// about the page it named.
+	const root = fs.readFileSync(
+		new URL('../app/root.tsx', import.meta.url),
+		'utf8',
+	)
+	// The navigation labels are the link text of the site-wide nav components.
+	const siteWide = new Set(
+		[
+			...root.matchAll(
+				/^\s*(Discover|Calendar|Reviews|Collections|Members)\s*$/gm,
+			),
+		].map(match => match[1]),
+	)
+	expect(
+		siteWide.size,
+		'expected to find the navigation labels in root.tsx',
+	).toBeGreaterThan(2)
+
+	const offenders = DEFAULT_STAGING_CONTRACTS.filter(
+		contract => contract.bodyIncludes && siteWide.has(contract.bodyIncludes),
+	).map(contract => `${contract.path} matches on "${contract.bodyIncludes}"`)
+
+	expect(
+		offenders,
+		'a canary matching on a navigation label passes for every page',
+	).toEqual([])
+})
+
+test('every html canary names text from its own page', () => {
+	// A marker shared by two contracts cannot distinguish them either.
+	const markers = DEFAULT_STAGING_CONTRACTS.filter(
+		contract => contract.bodyIncludes,
+	).map(contract => contract.bodyIncludes)
+	expect(new Set(markers).size).toBe(markers.length)
 })
