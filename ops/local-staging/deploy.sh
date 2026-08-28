@@ -248,6 +248,7 @@ release_provider_locks() {
 	if [[ "$locks_held" == true ]]; then
 		exec 8>&-
 		exec 9>&-
+		exec 10>&-
 		locks_held=false
 	fi
 }
@@ -1203,6 +1204,7 @@ fi
 
 exec 8>"$STAGING_ROOT/run/mal-provider.lock"
 exec 9>"$STAGING_ROOT/run/tmdb-provider.lock"
+exec 10>"$STAGING_ROOT/run/jikan-provider.lock"
 locks_held=true
 lock_wait_seconds="${VEUD_STAGING_DEPLOY_LOCK_WAIT_SECONDS:-120}"
 [[ "$lock_wait_seconds" =~ ^[1-9][0-9]*$ ]] ||
@@ -1211,6 +1213,8 @@ flock --exclusive --wait "$lock_wait_seconds" 8 ||
 	die 'Timed out draining the staging MAL catalog worker'
 flock --exclusive --wait "$lock_wait_seconds" 9 ||
 	die 'Timed out draining the staging TMDB catalog worker'
+flock --exclusive --wait "$lock_wait_seconds" 10 ||
+	die 'Timed out draining the staging Jikan catalog worker'
 }
 
 staging_backup_or_verify() {
