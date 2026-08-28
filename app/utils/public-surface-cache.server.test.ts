@@ -48,11 +48,12 @@ afterEach(() => {
 })
 
 describe('public surface cache policy', () => {
-	test('registers only the three public fragment families', () => {
+	test('registers only the public fragment families', () => {
 		expect(publicSurfaceCacheNamespaces).toEqual([
 			'anonymous-home-summary',
 			'home-trending-plan',
 			'discovery-facets',
+			'root-list-types',
 		])
 	})
 

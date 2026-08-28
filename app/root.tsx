@@ -53,7 +53,7 @@ import {
 	getNotificationPreferences,
 	notificationInboxWhere,
 } from './utils/notification-preferences.server.ts'
-import { syncReleaseRemindersForUser } from './utils/release-reminders.server.ts'
+import { getRootListTypes } from './utils/root-reference-data.server.ts'
 import {
 	absoluteUrl,
 	SITE_NAME,
@@ -114,81 +114,71 @@ export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	const timings = makeTimings('root loader')
-	const userId = await time(() => getUserId(request), {
-		timings,
-		type: 'getUserId',
-		desc: 'getUserId in root',
-	})
+	const [userId, { toast, headers: toastHeaders }, honeyProps] =
+		await Promise.all([
+			time(() => getUserId(request), {
+				timings,
+				type: 'getUserId',
+				desc: 'getUserId in root',
+			}),
+			getToast(request),
+			honeypot.getInputProps(),
+		])
 
-	const user = userId
-		? await time(
-				() =>
-					prisma.user.findUnique({
-						select: {
-							id: true,
-							name: true,
-							username: true,
-							titleLanguage: true,
-							image: { select: { id: true } },
-							roles: {
-								select: {
-									name: true,
-									permissions: {
-										select: { entity: true, action: true, access: true },
+	const [user, unreadNotificationCount, listTypes] = await Promise.all([
+		userId
+			? time(
+					() =>
+						prisma.user.findUnique({
+							select: {
+								id: true,
+								name: true,
+								username: true,
+								titleLanguage: true,
+								image: { select: { id: true } },
+								roles: {
+									select: {
+										name: true,
+										permissions: {
+											select: { entity: true, action: true, access: true },
+										},
 									},
 								},
 							},
-						},
-						where: { id: userId },
-					}),
-				{ timings, type: 'find user', desc: 'find user in root' },
-			)
-		: null
+							where: { id: userId },
+						}),
+					{ timings, type: 'find user', desc: 'find user in root' },
+				)
+			: null,
+		userId
+			? time(
+					async () => {
+						const now = new Date()
+						const preferences = await getNotificationPreferences(userId)
+						return prisma.notification.count({
+							where: {
+								recipientId: userId,
+								readAt: null,
+								availableAt: { lte: now },
+								...notificationInboxWhere(preferences),
+							},
+						})
+					},
+					{
+						timings,
+						type: 'notifications',
+						desc: 'count notifications',
+					},
+				)
+			: 0,
+		userId ? getRootListTypes({ timings }) : [],
+	])
 	if (userId && !user) {
 		console.info('something weird happened')
 		// something weird happened... The user is authenticated but we can't find
 		// them in the database. Maybe they were deleted? Let's log them out.
 		await logout({ request, redirectTo: '/' })
 	}
-	const unreadNotificationCount = userId
-		? await time(
-				async () => {
-					const now = new Date()
-					const [, preferences] = await Promise.all([
-						syncReleaseRemindersForUser(prisma, userId, now),
-						getNotificationPreferences(userId),
-					])
-					return prisma.notification.count({
-						where: {
-							recipientId: userId,
-							readAt: null,
-							availableAt: { lte: now },
-							...notificationInboxWhere(preferences),
-						},
-					})
-				},
-				{
-					timings,
-					type: 'notifications',
-					desc: 'sync and count notifications',
-				},
-			)
-		: 0
-
-	const listTypeOrder = new Map([
-		['liveaction', 0],
-		['anime', 1],
-		['manga', 2],
-	])
-	const listTypes = (await prisma.listType.findMany()).sort(
-		(first, second) =>
-			(listTypeOrder.get(first.name) ?? Number.MAX_SAFE_INTEGER) -
-				(listTypeOrder.get(second.name) ?? Number.MAX_SAFE_INTEGER) ||
-			first.header.localeCompare(second.header),
-	)
-
-	const { toast, headers: toastHeaders } = await getToast(request)
-	const honeyProps = await honeypot.getInputProps()
 
 	return json(
 		{

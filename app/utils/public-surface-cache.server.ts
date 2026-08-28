@@ -16,6 +16,7 @@ export const publicSurfaceCacheNamespaces = [
 	'anonymous-home-summary',
 	'home-trending-plan',
 	'discovery-facets',
+	'root-list-types',
 ] as const satisfies readonly CacheMetricNamespace[]
 
 export type PublicSurfaceCacheNamespace =

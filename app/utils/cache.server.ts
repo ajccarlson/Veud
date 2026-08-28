@@ -669,6 +669,7 @@ export const cacheMetricNamespaces = [
 	'anonymous-home-summary',
 	'discovery-facets',
 	'home-trending-plan',
+	'root-list-types',
 	'ranked-discovery',
 	'recommendation-graph',
 ] as const
