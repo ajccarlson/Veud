@@ -22,6 +22,7 @@ import {
 	getDiscoveryResultsForMediaIds,
 	getDiscoveryResultsForPlan,
 	getDiscoveryStatuses,
+	MIN_DISCOVERY_SUBSTRING_QUERY,
 	normalizeDiscoveryFacetSources,
 	parseDiscoveryFacets,
 	parseDiscoveryQuery,
@@ -647,6 +648,90 @@ test('discovery searches canonical metadata and exposes normalized genres', asyn
 		'Science Fiction',
 		'Slice of Life',
 	])
+})
+
+test('short discovery queries use exact indexed titles without broad text predicates', async () => {
+	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
+	const [up, x, partial, descriptionOnly] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Up',
+				titles: {
+					create: {
+						provider: 'tmdb',
+						language: 'en',
+						titleType: 'primary',
+						value: 'Up',
+						normalized: 'up',
+						isPrimary: true,
+					},
+				},
+			},
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'X',
+				titles: {
+					create: {
+						provider: 'tmdb',
+						language: 'en',
+						titleType: 'primary',
+						value: 'X',
+						normalized: 'x',
+						isPrimary: true,
+					},
+				},
+			},
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: `Upstream ${suffix}` },
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: `Look Above ${suffix}`,
+				description: 'The characters look up for an answer.',
+			},
+		}),
+	])
+
+	const count = vi.spyOn(prisma.media, 'count')
+	const exact = await getDiscoveryResults(
+		filters({ q: 'up', kind: 'movie', sort: 'title' }),
+		null,
+	)
+	const countQuery = count.mock.lastCall?.[0]
+	count.mockRestore()
+
+	expect(MIN_DISCOVERY_SUBSTRING_QUERY).toBe(3)
+	expect(exact.items.map(item => item.id)).toEqual([up.id])
+	expect(exact.items.map(item => item.id)).not.toContain(partial.id)
+	expect(exact.items.map(item => item.id)).not.toContain(descriptionOnly.id)
+	expect(countQuery).toMatchObject({
+		where: {
+			AND: [
+				{
+					OR: [{ title: 'up' }, { titles: { some: { normalized: 'up' } } }],
+				},
+				{ kind: 'movie' },
+			],
+		},
+	})
+	expect(JSON.stringify(countQuery)).not.toContain('contains')
+
+	const oneCharacter = await getDiscoveryResults(
+		filters({ q: 'x', kind: 'movie', sort: 'title' }),
+		null,
+	)
+	expect(oneCharacter.items.map(item => item.id)).toEqual([x.id])
+
+	const broad = await getDiscoveryResults(
+		filters({ q: 'ups', kind: 'movie', sort: 'title' }),
+		null,
+	)
+	expect(broad.items.map(item => item.id)).toContain(partial.id)
 })
 
 test('genre filters match mixed-case delimited tokens without substrings', async () => {

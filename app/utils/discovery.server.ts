@@ -22,6 +22,7 @@ import {
 import { TMDB_FEED_RANKING_VERSION } from './tmdb-catalog-hydration.server.ts'
 
 export const DISCOVERY_PAGE_SIZE = 24
+export const MIN_DISCOVERY_SUBSTRING_QUERY = 3
 const FOR_YOU_CANDIDATE_LIMIT = 500
 const RANKED_DISCOVERY_PLAN_LIMIT = 1_000
 const RANKING_QUERY_CHUNK_SIZE = 400
@@ -54,6 +55,13 @@ const facetVariantCollator = new Intl.Collator('en-US', {
 	usage: 'sort',
 	sensitivity: 'variant',
 })
+
+export function isShortDiscoveryTextQuery(rawQuery: string) {
+	return (
+		rawQuery.trim().length > 0 &&
+		normalizeCatalogTitle(rawQuery).length < MIN_DISCOVERY_SUBSTRING_QUERY
+	)
+}
 
 export const discoveryKinds = ['all', 'movie', 'tv', 'anime', 'manga'] as const
 export const discoveryProviders = ['all', 'tmdb', 'mal'] as const
@@ -925,26 +933,38 @@ function discoveryWhere(
 ): Prisma.MediaWhereInput {
 	const normalizedQuery = normalizeCatalogTitle(filters.q)
 	const textSearch: Prisma.MediaWhereInput | undefined = filters.q
-		? {
-				OR: [
-					{ title: prismaSearchFilter('contains', filters.q) },
-					{ description: prismaSearchFilter('contains', filters.q) },
-					...(normalizedQuery
-						? [
-								{
-									titles: {
-										some: {
-											normalized: prismaSearchFilter(
-												'contains',
-												normalizedQuery,
-											),
+		? isShortDiscoveryTextQuery(filters.q)
+			? {
+					// Trigram indexes cannot selectively serve one- or two-character
+					// contains predicates. Keep genuinely short works discoverable through
+					// indexed exact provider titles without scanning descriptions.
+					OR: [
+						{ title: filters.q },
+						...(normalizedQuery
+							? [{ titles: { some: { normalized: normalizedQuery } } }]
+							: []),
+					],
+				}
+			: {
+					OR: [
+						{ title: prismaSearchFilter('contains', filters.q) },
+						{ description: prismaSearchFilter('contains', filters.q) },
+						...(normalizedQuery
+							? [
+									{
+										titles: {
+											some: {
+												normalized: prismaSearchFilter(
+													'contains',
+													normalizedQuery,
+												),
+											},
 										},
 									},
-								},
-							]
-						: []),
-				],
-			}
+								]
+							: []),
+					],
+				}
 		: undefined
 	return {
 		AND: [
