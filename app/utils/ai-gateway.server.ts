@@ -66,6 +66,18 @@ const responseEnvelopeSchema = z.object({
 		.optional(),
 })
 
+const moderationResponseSchema = z.object({
+	results: z
+		.array(
+			z.object({
+				flagged: z.boolean(),
+				categories: z.record(z.string(), z.boolean()),
+				category_scores: z.record(z.string(), z.number()),
+			}),
+		)
+		.min(1),
+})
+
 function responseText(payload: unknown) {
 	const parsed = responseEnvelopeSchema.safeParse(payload)
 	if (!parsed.success) return { text: null, usage: null }
@@ -357,46 +369,61 @@ export function resetAiGatewayStateForTests() {
 	activeRequests = 0
 }
 
-export async function requestStructuredAi<Output>(options: {
+type ControlledAiRequestOptions<Output> = {
 	capability: AiCapability
 	promptVersion: string
-	instructions: string
+	model: string
 	input: unknown
-	/**
-	 * A preconstructed Responses API input for validated multimodal content.
-	 * It is intentionally restricted to the image TOMT capability.
-	 */
-	apiInput?: unknown
-	outputSchema: z.ZodType<Output>
-	jsonSchemaName: string
-	jsonSchema: Record<string, unknown>
 	assertSafeInput: (input: unknown) => void
 	rateLimitKey?: string
 	rateLimit?: number
 	rateLimitWindowMs?: number
-	timeoutMs?: number
-	maxOutputTokens?: number
-	model?: string
-	fallbackModel?: string
-	reasoningEffort?: 'none' | 'low' | 'medium' | 'high'
-	fetchImpl?: typeof fetch
+	timeoutMs: number
+	usesDefaultFetch: boolean
 	now?: number
 	circuit?: AiCircuit
-}) {
+	execute: (input: { apiKey: string; signal: AbortSignal }) => Promise<{
+		output: Output
+		status: number
+		inputTokens: number | null
+		outputTokens: number | null
+	}>
+}
+
+function providerRequestError(status: number, payload: unknown) {
+	const parsedError = z
+		.object({
+			error: z.object({ code: z.string().nullable().optional() }).optional(),
+		})
+		.safeParse(payload)
+	const code = parsedError.success
+		? (parsedError.data.error?.code ?? null)
+		: null
+	const unavailable = opensCircuit(status)
+	return new AiGatewayError(
+		unavailable ? 'unavailable' : 'error',
+		unavailable
+			? `AI service unavailable (${status}).`
+			: `AI request failed (${status}).`,
+		status,
+		code,
+	)
+}
+
+async function runControlledAiRequest<Output>(
+	options: ControlledAiRequestOptions<Output>,
+) {
 	const startedAtMs = options.now ?? Date.now()
 	const requestStartedAtMs = Date.now()
 	const startedAt = new Date(startedAtMs)
-	const model =
-		options.model?.trim() ||
-		modelFor(options.capability, options.fallbackModel ?? 'gpt-5.6-luna')
 	const baseTelemetry = {
 		capability: options.capability,
-		model,
+		model: options.model,
 		promptVersion: options.promptVersion,
 		startedAt,
 	}
 	const persistOperations =
-		process.env.NODE_ENV === 'production' && options.fetchImpl === undefined
+		process.env.NODE_ENV === 'production' && options.usesDefaultFetch
 	const apiKey = process.env.OPENAI_API_KEY?.trim()
 	if (!apiKey || !isAiCapabilityConfigured(options.capability)) {
 		await recordTelemetry(
@@ -417,15 +444,6 @@ export async function requestStructuredAi<Output>(options: {
 		)
 	}
 	options.assertSafeInput(options.input)
-	if (
-		options.apiInput !== undefined &&
-		options.capability !== 'image-tip-of-tongue'
-	) {
-		throw new AiGatewayError(
-			'error',
-			'Multimodal input is not permitted for this capability.',
-		)
-	}
 	const circuit = options.circuit ??
 		circuits.get(options.capability) ?? { unavailableUntil: 0 }
 	circuits.set(options.capability, circuit)
@@ -555,9 +573,192 @@ export async function requestStructuredAi<Output>(options: {
 		) {
 			throw new AiGatewayError('rate-limited', 'AI request limit reached.')
 		}
-		const response = await (options.fetchImpl ?? fetch)(
-			'https://api.openai.com/v1/responses',
+		const result = await options.execute({
+			apiKey,
+			signal: AbortSignal.timeout(options.timeoutMs),
+		})
+		status = result.status
+		await recordTelemetry(
 			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome: 'success',
+				fallbackReason: null,
+				status,
+				inputTokens: result.inputTokens,
+				outputTokens: result.outputTokens,
+			},
+			persistOperations,
+		)
+		return result.output
+	} catch (error) {
+		const gatewayError =
+			error instanceof AiGatewayError
+				? error
+				: new AiGatewayError(
+						'error',
+						error instanceof Error ? error.message : 'AI request failed.',
+						status,
+					)
+		if (gatewayError.status !== null && opensCircuit(gatewayError.status)) {
+			circuit.unavailableUntil = Math.max(
+				circuit.unavailableUntil,
+				startedAtMs + cooldownMs(gatewayError.code),
+			)
+		}
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome:
+					gatewayError.reason === 'rate-limited'
+						? 'rate-limited'
+						: gatewayError.reason === 'unavailable'
+							? 'unavailable'
+							: 'error',
+				fallbackReason: gatewayError.reason,
+				status: gatewayError.status,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
+		throw gatewayError
+	} finally {
+		activeRequests = Math.max(0, activeRequests - 1)
+	}
+}
+
+export async function requestModerationClassification(options: {
+	input: string
+	rateLimitKey: string
+	rateLimit?: number
+	rateLimitWindowMs?: number
+	timeoutMs?: number
+	fetchImpl?: typeof fetch
+	now?: number
+	circuit?: AiCircuit
+}) {
+	const model = 'omni-moderation-latest'
+	const fetchImpl = options.fetchImpl ?? fetch
+	return await runControlledAiRequest({
+		capability: 'moderation-triage',
+		promptVersion: 'moderation-classifier-v1',
+		model,
+		input: options.input,
+		assertSafeInput(input) {
+			if (typeof input !== 'string' || input.length > 3_001) {
+				throw new Error('Unsafe moderation classifier payload')
+			}
+		},
+		rateLimitKey: options.rateLimitKey,
+		rateLimit: options.rateLimit,
+		rateLimitWindowMs: options.rateLimitWindowMs,
+		timeoutMs: options.timeoutMs ?? 8_000,
+		usesDefaultFetch: options.fetchImpl === undefined,
+		now: options.now,
+		circuit: options.circuit,
+		async execute({ apiKey, signal }) {
+			const response = await fetchImpl(
+				'https://api.openai.com/v1/moderations',
+				{
+					method: 'POST',
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model, input: options.input }),
+					signal,
+				},
+			)
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) throw providerRequestError(response.status, payload)
+			const parsed = moderationResponseSchema.safeParse(payload)
+			if (!parsed.success) {
+				throw new AiGatewayError(
+					'error',
+					'AI returned an invalid moderation classification.',
+					response.status,
+				)
+			}
+			const result = parsed.data.results[0]!
+			const categories = Object.entries(result.categories)
+				.filter(([, flagged]) => flagged)
+				.map(([category]) => category)
+			const critical = Object.entries(result.category_scores).some(
+				([category, score]) =>
+					score >= 0.7 &&
+					(category.includes('minors') ||
+						category.includes('self-harm/instructions') ||
+						category.includes('hate/threatening') ||
+						category.includes('violence/graphic')),
+			)
+			return {
+				output: { flagged: result.flagged, categories, critical },
+				status: response.status,
+				inputTokens: null,
+				outputTokens: null,
+			}
+		},
+	})
+}
+
+export async function requestStructuredAi<Output>(options: {
+	capability: AiCapability
+	promptVersion: string
+	instructions: string
+	input: unknown
+	/**
+	 * A preconstructed Responses API input for validated multimodal content.
+	 * It is intentionally restricted to the image TOMT capability.
+	 */
+	apiInput?: unknown
+	outputSchema: z.ZodType<Output>
+	jsonSchemaName: string
+	jsonSchema: Record<string, unknown>
+	assertSafeInput: (input: unknown) => void
+	rateLimitKey?: string
+	rateLimit?: number
+	rateLimitWindowMs?: number
+	timeoutMs?: number
+	maxOutputTokens?: number
+	model?: string
+	fallbackModel?: string
+	reasoningEffort?: 'none' | 'low' | 'medium' | 'high'
+	fetchImpl?: typeof fetch
+	now?: number
+	circuit?: AiCircuit
+}) {
+	const model =
+		options.model?.trim() ||
+		modelFor(options.capability, options.fallbackModel ?? 'gpt-5.6-luna')
+	const fetchImpl = options.fetchImpl ?? fetch
+	return await runControlledAiRequest({
+		capability: options.capability,
+		promptVersion: options.promptVersion,
+		model,
+		input: options.input,
+		assertSafeInput(input) {
+			options.assertSafeInput(input)
+			if (
+				options.apiInput !== undefined &&
+				options.capability !== 'image-tip-of-tongue'
+			) {
+				throw new AiGatewayError(
+					'error',
+					'Multimodal input is not permitted for this capability.',
+				)
+			}
+		},
+		rateLimitKey: options.rateLimitKey,
+		rateLimit: options.rateLimit,
+		rateLimitWindowMs: options.rateLimitWindowMs,
+		timeoutMs: options.timeoutMs ?? 12_000,
+		usesDefaultFetch: options.fetchImpl === undefined,
+		now: options.now,
+		circuit: options.circuit,
+		async execute({ apiKey, signal }) {
+			const response = await fetchImpl('https://api.openai.com/v1/responses', {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${apiKey}`,
@@ -594,89 +795,36 @@ export async function requestStructuredAi<Output>(options: {
 						},
 					},
 				}),
-				signal: AbortSignal.timeout(options.timeoutMs ?? 12_000),
-			},
-		)
-		status = response.status
-		const payload = await response.json().catch(() => null)
-		if (!response.ok) {
-			const parsedError = z
-				.object({
-					error: z
-						.object({ code: z.string().nullable().optional() })
-						.optional(),
-				})
-				.safeParse(payload)
-			const code = parsedError.success
-				? (parsedError.data.error?.code ?? null)
-				: null
-			if (opensCircuit(response.status)) {
-				circuit.unavailableUntil = Math.max(
-					circuit.unavailableUntil,
-					startedAtMs + cooldownMs(code),
-				)
+				signal,
+			})
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) throw providerRequestError(response.status, payload)
+			const parsedResponse = responseText(payload)
+			if (!parsedResponse.text) {
 				throw new AiGatewayError(
-					'unavailable',
-					`AI service unavailable (${response.status}).`,
+					'error',
+					'AI returned no structured output.',
 					response.status,
-					code,
 				)
 			}
-			throw new AiGatewayError(
-				'error',
-				`AI request failed (${response.status}).`,
-				response.status,
-				code,
-			)
-		}
-		const parsedResponse = responseText(payload)
-		if (!parsedResponse.text) {
-			throw new AiGatewayError('error', 'AI returned no structured output.')
-		}
-		const result = options.outputSchema.parse(
-			JSON.parse(parsedResponse.text) as unknown,
-		)
-		await recordTelemetry(
-			{
-				...baseTelemetry,
-				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-				outcome: 'success',
-				fallbackReason: null,
-				status,
-				inputTokens: parsedResponse.usage?.input_tokens ?? null,
-				outputTokens: parsedResponse.usage?.output_tokens ?? null,
-			},
-			persistOperations,
-		)
-		return result
-	} catch (error) {
-		const gatewayError =
-			error instanceof AiGatewayError
-				? error
-				: new AiGatewayError(
-						'error',
-						error instanceof Error ? error.message : 'AI request failed.',
-						status,
-					)
-		await recordTelemetry(
-			{
-				...baseTelemetry,
-				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-				outcome:
-					gatewayError.reason === 'rate-limited'
-						? 'rate-limited'
-						: gatewayError.reason === 'unavailable'
-							? 'unavailable'
-							: 'error',
-				fallbackReason: gatewayError.reason,
-				status: gatewayError.status,
-				inputTokens: null,
-				outputTokens: null,
-			},
-			persistOperations,
-		)
-		throw gatewayError
-	} finally {
-		activeRequests = Math.max(0, activeRequests - 1)
-	}
+			try {
+				return {
+					output: options.outputSchema.parse(
+						JSON.parse(parsedResponse.text) as unknown,
+					),
+					status: response.status,
+					inputTokens: parsedResponse.usage?.input_tokens ?? null,
+					outputTokens: parsedResponse.usage?.output_tokens ?? null,
+				}
+			} catch (error) {
+				throw new AiGatewayError(
+					'error',
+					error instanceof Error
+						? error.message
+						: 'AI output validation failed.',
+					response.status,
+				)
+			}
+		},
+	})
 }

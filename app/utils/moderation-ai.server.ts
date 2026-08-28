@@ -4,6 +4,7 @@ import {
 	AiGatewayError,
 	isAiCapabilityConfigured,
 	modelFor,
+	requestModerationClassification,
 	requestStructuredAi,
 } from './ai-gateway.server.ts'
 import { findModerationTarget } from './moderation.server.ts'
@@ -67,9 +68,9 @@ const triageJsonSchema = {
 		evidence: {
 			type: 'array',
 			maxItems: 4,
-			items: { type: 'string' },
+			items: { type: 'string', minLength: 1, maxLength: 220 },
 		},
-		uncertainty: { type: 'string' },
+		uncertainty: { type: 'string', maxLength: 400 },
 		recommendedQueue: {
 			type: 'string',
 			enum: ['standard', 'harassment', 'safety', 'privacy', 'spam', 'appeals'],
@@ -77,23 +78,14 @@ const triageJsonSchema = {
 	},
 }
 
-const ModerationResponseSchema = z.object({
-	results: z
-		.array(
-			z.object({
-				flagged: z.boolean(),
-				categories: z.record(z.string(), z.boolean()),
-				category_scores: z.record(z.string(), z.number()),
-			}),
-		)
-		.min(1),
-})
-
 function redactAccountIdentifiers(
 	value: string,
 	identifiers: Array<string | null | undefined>,
 ) {
-	let redacted = value
+	let redacted = value.replace(
+		/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
+		'[email-address]',
+	)
 	const aliases = new Map<string, string>()
 	const aliasFor = (identifier: string) => {
 		const key = identifier.toLocaleLowerCase()
@@ -113,49 +105,7 @@ function redactAccountIdentifiers(
 		/@[a-z0-9][a-z0-9_.-]{0,63}/gi,
 		match => `@${aliasFor(match.slice(1))}`,
 	)
-	return redacted.replace(
-		/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
-		'[email-address]',
-	)
-}
-
-async function classifyText(
-	text: string,
-	fetchImpl: typeof fetch,
-): Promise<{
-	flagged: boolean
-	categories: string[]
-	critical: boolean
-}> {
-	const response = await fetchImpl('https://api.openai.com/v1/moderations', {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${process.env.OPENAI_API_KEY?.trim() ?? ''}`,
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify({
-			model: 'omni-moderation-latest',
-			input: text,
-		}),
-		signal: AbortSignal.timeout(8_000),
-	})
-	const payload = await response.json().catch(() => null)
-	if (!response.ok) {
-		throw new Error(`Moderation classifier unavailable (${response.status})`)
-	}
-	const result = ModerationResponseSchema.parse(payload).results[0]!
-	const categories = Object.entries(result.categories)
-		.filter(([, flagged]) => flagged)
-		.map(([category]) => category)
-	const critical = Object.entries(result.category_scores).some(
-		([category, score]) =>
-			score >= 0.7 &&
-			(category.includes('minors') ||
-				category.includes('self-harm/instructions') ||
-				category.includes('hate/threatening') ||
-				category.includes('violence/graphic')),
-	)
-	return { flagged: result.flagged, categories, critical }
+	return redacted
 }
 
 export async function assessModerationReport(
@@ -217,7 +167,13 @@ export async function assessModerationReport(
 	const combinedText = [reportedText, reporterDetails]
 		.filter(Boolean)
 		.join('\n')
-	const classifier = await classifyText(combinedText, input.fetchImpl ?? fetch)
+	const classifier = await requestModerationClassification({
+		input: combinedText,
+		rateLimitKey: input.rateLimitKey,
+		rateLimit: 20,
+		rateLimitWindowMs: 10 * 60 * 1_000,
+		fetchImpl: input.fetchImpl,
+	})
 	const safeInput = {
 		reportedContent: reportedText,
 		reportCategory: report.reasonCategory.slice(0, 80),
@@ -253,9 +209,6 @@ export async function assessModerationReport(
 				.safeParse(value)
 			if (!parsed.success) throw new Error('Unsafe moderation triage payload')
 		},
-		rateLimitKey: input.rateLimitKey,
-		rateLimit: 20,
-		rateLimitWindowMs: 10 * 60 * 1_000,
 		timeoutMs: 12_000,
 		fetchImpl: input.fetchImpl,
 	})
