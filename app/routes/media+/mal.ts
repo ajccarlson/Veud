@@ -1,3 +1,4 @@
+import { providerReleaseYear } from '#app/utils/media-detail.ts'
 export async function searchMAL(entry: string, type = 'anime', numResults = 5) {
 	const fields =
 		'id,title,main_picture,start_date,media_type,start_season,status'
@@ -332,7 +333,7 @@ export async function formatMangaInfo(data: any, full = true) {
 		// }
 		// catch(e) {}
 
-		const startYear = releaseStart!.getFullYear()
+		const startYear = providerReleaseYear(releaseStart)
 
 		let genresList = []
 		for (let genre of data['genres']) genresList.push(genre['name'])
