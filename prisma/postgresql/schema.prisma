@@ -339,6 +339,11 @@ model Person {
   /// decide which credit list leads on their page.
   knownForDepartment String?
 
+  /// Number of catalog credit rows currently pointing at this person.
+  /// Database triggers maintain this scalar so global search never has to
+  /// aggregate the complete credits table while someone types.
+  creditCount Int @default(0)
+
   /// Filled lazily, the first time someone opens this person's page.
   ///
   /// A credits payload carries a name and a portrait and nothing else. Fetching

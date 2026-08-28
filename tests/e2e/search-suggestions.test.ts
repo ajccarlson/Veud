@@ -28,7 +28,7 @@ test('typing in the search bar offers titles without leaving the page', async ({
 }) => {
 	const { tag, rows } = await seedCatalog()
 	await page.goto('/')
-	const input = page.getByLabel('Search movies, TV, anime, and manga')
+	const input = page.getByLabel('Search movies, TV, anime, manga, and people')
 	await input.fill(tag)
 
 	const listbox = page.getByRole('listbox', { name: 'Search suggestions' })
@@ -59,7 +59,7 @@ test('the media type narrows the suggestions, and a short query offers none', as
 }) => {
 	const { tag } = await seedCatalog()
 	await page.goto('/')
-	const input = page.getByLabel('Search movies, TV, anime, and manga')
+	const input = page.getByLabel('Search movies, TV, anime, manga, and people')
 
 	// One letter is not a query worth answering.
 	await input.fill('a')
@@ -83,4 +83,49 @@ test('the media type narrows the suggestions, and a short query offers none', as
 		page.getByRole('listbox', { name: 'Search suggestions' }),
 	).toHaveCount(0)
 	await expect(input).toHaveValue('')
+})
+
+test('people have their own suggestion group and open a person page', async ({
+	page,
+}) => {
+	const tag = 'person' + Math.abs(Number(process.hrtime.bigint() % 100000n))
+	const person = await prisma.person.create({
+		data: {
+			name: `${tag} Performer`,
+			normalized: `${tag} performer`,
+			knownForDepartment: 'Acting',
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: `Unrelated work ${tag.slice(-4)}` },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			mediaId: media.id,
+			personId: person.id,
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'Lead',
+		},
+	})
+
+	await page.goto('/')
+	const input = page.getByLabel('Search movies, TV, anime, manga, and people')
+	await input.fill(tag)
+
+	const listbox = page.getByRole('listbox', { name: 'Search suggestions' })
+	await expect(listbox.getByText('People', { exact: true })).toBeVisible()
+	const personOption = listbox.getByRole('option').filter({
+		hasText: `${tag} Performer`,
+	})
+	await expect(personOption).toContainText('Acting · 1 credit')
+
+	await page.getByRole('link', { name: `See all results for “${tag}”` }).click()
+	await expect(page).toHaveURL(new RegExp(`/discover\\?q=${tag}$`))
+	const people = page.getByRole('region', { name: 'People' })
+	await expect(
+		people.getByRole('link', { name: `${tag} Performer` }),
+	).toBeVisible()
+	await people.getByRole('link', { name: `${tag} Performer` }).click()
+	await expect(page).toHaveURL(new RegExp(`/people/${person.id}$`))
 })

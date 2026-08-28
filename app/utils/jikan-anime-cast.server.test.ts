@@ -321,6 +321,20 @@ test('hydrates member-demand first and shares MAL people across credit providers
 	expect(firstCall[1]?.redirect).toBe('error')
 })
 
+test('candidate fallback partitions by demand without a caller-sized id exclusion', async () => {
+	await seedHydratedAnime(21, { favorite: true })
+	await seedHydratedAnime(22)
+	const findMany = vi.spyOn(prisma.mediaExternalId, 'findMany')
+
+	const result = await hydrateJikanAnimeCast({ prisma, limit: 2 })
+
+	expect(result.recordsSeen).toBe(2)
+	expect(findMany).toHaveBeenCalledTimes(2)
+	const fallback = JSON.stringify(findMany.mock.calls[1]?.[0]?.where)
+	expect(fallback).toContain('"NOT"')
+	expect(fallback).not.toContain('"notIn"')
+})
+
 test('a successful empty response is fresh instead of being fetched forever', async () => {
 	const source = await seedHydratedAnime(30)
 	const fetchImpl = vi.fn(async () => jsonResponse({ data: [] }))
@@ -387,6 +401,59 @@ test('429 state stops the batch and blocks requests until its cooldown expires',
 	expect(blocked.requestsMade).toBe(0)
 	expect(blockedFetch).not.toHaveBeenCalled()
 })
+
+test.each([
+	{
+		label: 'network failure',
+		response: () => Promise.reject(new Error('connection reset')),
+		retryAt: new Date('2026-08-11T12:01:00.000Z'),
+	},
+	{
+		label: 'bad gateway',
+		response: () =>
+			Promise.resolve(
+				new Response('', { status: 502, statusText: 'Bad Gateway' }),
+			),
+		retryAt: new Date('2026-08-11T12:01:00.000Z'),
+	},
+	{
+		label: 'service unavailable response',
+		response: () =>
+			Promise.resolve(
+				new Response('', { status: 503, statusText: 'Service Unavailable' }),
+			),
+		retryAt: new Date('2026-08-11T12:15:00.000Z'),
+	},
+	{
+		label: 'gateway timeout',
+		response: () =>
+			Promise.resolve(
+				new Response('', { status: 504, statusText: 'Gateway Timeout' }),
+			),
+		retryAt: new Date('2026-08-11T12:01:00.000Z'),
+	},
+])(
+	'a $label defers the provider instead of burning the batch',
+	async fixture => {
+		await seedHydratedAnime(42)
+		await seedHydratedAnime(43)
+		const fetchImpl = vi.fn(fixture.response)
+
+		const result = await hydrateJikanAnimeCast({
+			...committedOptions,
+			limit: 2,
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		})
+
+		expect(result).toMatchObject({
+			recordsSeen: 1,
+			recordsFailed: 1,
+			requestsMade: 1,
+			providerRetryAfter: fixture.retryAt,
+		})
+		expect(fetchImpl).toHaveBeenCalledOnce()
+	},
+)
 
 test('a title failure is deferred while later titles continue', async () => {
 	const failed = await seedHydratedAnime(50)
