@@ -769,3 +769,17 @@ test('ensuring a TMDB identity queues user-demand hydration', async () => {
 		}),
 	)
 })
+
+test('an unknown budget or revenue is stored as absent, not as zero', () => {
+	// TMDB returns 0 rather than omitting the field, and no released film has
+	// genuinely grossed nothing. Storing the sentinel matters beyond display:
+	// `missingValue` in the merge counts "0" as present, so it would stop a real
+	// figure filling the field from the other row and read as a conflict.
+	const normalized = normalizeTmdbDetails(
+		{ ...moviePayload(43, 'Unknown Money'), budget: 0, revenue: 0 },
+		'movie',
+		new Date('2026-07-20T12:00:00.000Z'),
+	)
+	expect(normalized.catalog.budget).toBeNull()
+	expect(normalized.catalog.revenue).toBeNull()
+})

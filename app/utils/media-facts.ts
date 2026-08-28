@@ -44,6 +44,22 @@ function runtime(minutes: unknown, perEpisode: boolean) {
 	return perEpisode ? `${value} per episode` : value
 }
 
+/** Anime and TV formats whose runtime describes the whole work. */
+const singleRuntimeFormats = new Set(['movie', 'music'])
+
+/**
+ * Whether a runtime describes one instalment rather than the whole work.
+ *
+ * Kind alone is not enough. An anime film and a one-shot OVA are both kind
+ * 'anime', and "2h 5m per episode" on a film is simply wrong.
+ */
+function episodic(kind: string, catalog: MediaCatalogSnapshot) {
+	if (kind !== 'anime' && kind !== 'tv') return false
+	const format = clean(catalog.type)?.toLowerCase()
+	if (format && singleRuntimeFormats.has(format)) return false
+	return catalog.episodeCount !== 1
+}
+
 function usd(value: unknown) {
 	const raw = clean(value)
 	if (!raw || !/^\d{1,20}$/.test(raw) || raw === '0') return null
@@ -82,7 +98,7 @@ export function mediaFacts(
 	add(
 		facts,
 		'Runtime',
-		runtime(catalog.runtimeMinutes, kind === 'anime' || kind === 'tv'),
+		runtime(catalog.runtimeMinutes, episodic(kind, catalog)),
 	)
 	add(facts, 'Episodes', positiveCount(catalog.episodeCount))
 	add(facts, 'Chapters', positiveCount(catalog.chapterCount))
