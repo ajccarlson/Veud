@@ -91,7 +91,12 @@ export function socialDescription(
 			: flattenProviderText(text ?? '')
 	if (!flat) return fallback
 	if (flat.length <= limit) return flat
-	const cut = flat.slice(0, limit)
+	// `slice` cuts at a UTF-16 code unit and can land inside a surrogate pair,
+	// leaving an orphaned half that renders as a replacement character — in the
+	// unfurl on someone else's screen, where the author cannot see it. The
+	// review excerpt already guards this; a card is no less visible.
+	const sliced = flat.slice(0, limit)
+	const cut = /[\uD800-\uDBFF]$/.test(sliced) ? sliced.slice(0, -1) : sliced
 	const lastSpace = cut.lastIndexOf(' ')
 	return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`
 }

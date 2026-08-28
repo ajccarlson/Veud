@@ -453,7 +453,7 @@ test('does not spend the shared daily budget on a per-client rejection', async (
 	expect(fetchImpl).toHaveBeenCalledTimes(2)
 })
 
-test('does not spend the shared daily budget on a concurrency rejection', async () => {
+test('does not spend client or shared daily budgets on a concurrency rejection', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
 	vi.stubEnv('VEUD_AI_DAILY_LIMIT_PER_CAPABILITY', '2')
 	vi.stubEnv('VEUD_AI_MAX_CONCURRENCY', '1')
@@ -493,8 +493,130 @@ test('does not spend the shared daily budget on a concurrency rejection', async 
 		releaseFirstRequest()
 	}
 	await expect(firstRequest).resolves.toEqual({ value: 'ok' })
-	await expect(request('viewer-three')).resolves.toEqual({ value: 'ok' })
+	await expect(request('viewer-two')).resolves.toEqual({ value: 'ok' })
 	expect(fetchImpl).toHaveBeenCalledTimes(2)
+})
+
+test('reserves provider capacity for members and moderation', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_MAX_CONCURRENCY', '4')
+	let releaseRequests = () => {}
+	const requestsHeld = new Promise<void>(resolve => {
+		releaseRequests = resolve
+	})
+	const fetchImpl = vi.fn<typeof fetch>(async () => {
+		await requestsHeld
+		return response({ value: 'ok' })
+	})
+	const request = (capability: AiCapability, rateLimitKey: string) =>
+		requestStructuredAi({
+			capability,
+			promptVersion: 'priority-admission-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey,
+			fetchImpl,
+		})
+
+	const anonymousOne = request('tip-of-tongue', 'anonymous:one')
+	const anonymousTwo = request('tip-of-tongue', 'anonymous:two')
+	let memberRequest: ReturnType<typeof request> | undefined
+	let moderationRequest: ReturnType<typeof request> | undefined
+	try {
+		await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+		await expect(
+			request('tip-of-tongue', 'anonymous:three'),
+		).rejects.toMatchObject({ reason: 'unavailable' })
+
+		memberRequest = request('tracking-command', 'member:one')
+		await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(3))
+		await expect(
+			request('tracking-command', 'member:two'),
+		).rejects.toMatchObject({ reason: 'unavailable' })
+
+		moderationRequest = request('moderation-triage', 'moderator:one')
+		await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(4))
+	} finally {
+		releaseRequests()
+	}
+
+	await expect(
+		Promise.all([anonymousOne, anonymousTwo, memberRequest, moderationRequest]),
+	).resolves.toEqual([
+		{ value: 'ok' },
+		{ value: 'ok' },
+		{ value: 'ok' },
+		{ value: 'ok' },
+	])
+	expect(fetchImpl).toHaveBeenCalledTimes(4)
+	expect(
+		getAiGatewayTelemetry()
+			.filter(event => event.outcome === 'unavailable')
+			.map(event => event.fallbackReason),
+	).toEqual(['reserved-capacity', 'reserved-capacity'])
+})
+
+test('keeps anonymous requests available with a one-slot ceiling', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_MAX_CONCURRENCY', '1')
+	const fetchImpl = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+
+	await expect(
+		requestStructuredAi({
+			capability: 'tip-of-tongue',
+			promptVersion: 'minimum-capacity-test-v1',
+			instructions: 'Return the value.',
+			input: { memory: 'old animated film' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: 'anonymous:minimum',
+			fetchImpl,
+		}),
+	).resolves.toEqual({ value: 'ok' })
+	expect(fetchImpl).toHaveBeenCalledOnce()
+})
+
+test('does not reserve unused capacity when moderation is disabled', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('VEUD_AI_MAX_CONCURRENCY', '4')
+	vi.stubEnv('VEUD_AI_MODERATION_TRIAGE_ENABLED', 'false')
+	let releaseRequests = () => {}
+	const requestsHeld = new Promise<void>(resolve => {
+		releaseRequests = resolve
+	})
+	const fetchImpl = vi.fn<typeof fetch>(async () => {
+		await requestsHeld
+		return response({ value: 'ok' })
+	})
+	const request = (key: string) =>
+		requestStructuredAi({
+			capability: 'tracking-command',
+			promptVersion: 'disabled-moderation-capacity-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: key,
+			fetchImpl,
+		})
+	const requests = [1, 2, 3, 4].map(number => request(`member:${number}`))
+
+	try {
+		await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(4))
+	} finally {
+		releaseRequests()
+	}
+	await expect(Promise.all(requests)).resolves.toEqual(
+		Array.from({ length: 4 }, () => ({ value: 'ok' })),
+	)
 })
 
 test('resets in-process daily budgets at the UTC day boundary', async () => {
