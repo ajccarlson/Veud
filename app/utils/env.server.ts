@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
 const optionalBooleanFlag = z.enum(['true', 'false', '1', '0']).optional()
+const optionalModel = z
+	.string()
+	.regex(
+		/^\S+$/,
+		'Model identifiers must be non-empty and contain no whitespace.',
+	)
+	.optional()
 export const MINIMUM_PRODUCTION_SECRET_LENGTH = 32
 
 const schema = z
@@ -44,8 +51,15 @@ const schema = z
 		ANILIST_CLIENT_SECRET: z.string(),
 
 		OPENAI_API_KEY: z.string().optional(),
-		OPENAI_TIP_OF_TONGUE_MODEL: z.string().optional(),
-		OPENAI_DEFAULT_MODEL: z.string().optional(),
+		OPENAI_DEFAULT_MODEL: optionalModel,
+		OPENAI_TIP_OF_TONGUE_MODEL: optionalModel,
+		OPENAI_NATURAL_LANGUAGE_DISCOVERY_MODEL: optionalModel,
+		OPENAI_DISCOVERY_REFINEMENT_MODEL: optionalModel,
+		OPENAI_TRACKING_COMMAND_MODEL: optionalModel,
+		OPENAI_IMAGE_TIP_OF_TONGUE_MODEL: optionalModel,
+		OPENAI_IMPORT_RECONCILIATION_MODEL: optionalModel,
+		OPENAI_REVIEW_ASSISTANCE_MODEL: optionalModel,
+		OPENAI_MODERATION_TRIAGE_MODEL: optionalModel,
 		VEUD_AI_ENABLED: optionalBooleanFlag,
 		VEUD_AI_TIP_OF_TONGUE_ENABLED: optionalBooleanFlag,
 		VEUD_AI_NATURAL_LANGUAGE_DISCOVERY_ENABLED: optionalBooleanFlag,

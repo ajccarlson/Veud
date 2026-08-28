@@ -2,8 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import {
+	type AiCapability,
 	type AiCircuit,
+	DEFAULT_OPENAI_MODEL,
 	getAiGatewayTelemetry,
+	modelFor,
 	requestModerationClassification,
 	requestStructuredAi,
 	resetAiGatewayStateForTests,
@@ -23,6 +26,38 @@ const jsonSchema = {
 	required: ['value'],
 	properties: { value: { type: 'string' } },
 }
+
+const capabilityModelVariables = [
+	['tip-of-tongue', 'OPENAI_TIP_OF_TONGUE_MODEL'],
+	['natural-language-discovery', 'OPENAI_NATURAL_LANGUAGE_DISCOVERY_MODEL'],
+	['discovery-refinement', 'OPENAI_DISCOVERY_REFINEMENT_MODEL'],
+	['tracking-command', 'OPENAI_TRACKING_COMMAND_MODEL'],
+	['image-tip-of-tongue', 'OPENAI_IMAGE_TIP_OF_TONGUE_MODEL'],
+	['import-reconciliation', 'OPENAI_IMPORT_RECONCILIATION_MODEL'],
+	['review-assistance', 'OPENAI_REVIEW_ASSISTANCE_MODEL'],
+	['moderation-triage', 'OPENAI_MODERATION_TRIAGE_MODEL'],
+] as const satisfies ReadonlyArray<readonly [AiCapability, string]>
+
+test('resolves the caller fallback, global override, and centralized default in order', () => {
+	vi.stubEnv('OPENAI_DEFAULT_MODEL', '')
+	expect(modelFor('tracking-command')).toBe(DEFAULT_OPENAI_MODEL)
+	expect(modelFor('review-assistance', 'caller-fallback')).toBe(
+		'caller-fallback',
+	)
+
+	vi.stubEnv('OPENAI_DEFAULT_MODEL', 'global-model')
+	expect(modelFor('tracking-command')).toBe('global-model')
+	expect(modelFor('review-assistance', 'caller-fallback')).toBe('global-model')
+})
+
+test.each(capabilityModelVariables)(
+	'resolves the %s capability override from %s',
+	(capability, variable) => {
+		vi.stubEnv('OPENAI_DEFAULT_MODEL', 'global-model')
+		vi.stubEnv(variable, 'capability-model')
+		expect(modelFor(capability)).toBe('capability-model')
+	},
+)
 
 function response(value: unknown, status = 200) {
 	return new Response(
@@ -310,6 +345,84 @@ test('shares moderation classifier failures with the capability circuit', async 
 	).rejects.toMatchObject({ reason: 'unavailable' })
 	expect(classifierFetch).toHaveBeenCalledOnce()
 	expect(triageFetch).not.toHaveBeenCalled()
+})
+
+test('records configured model failures distinctly and suppresses retries until recovery', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const circuit: AiCircuit = { unavailableUntil: 0 }
+	const fetchImpl = vi
+		.fn<typeof fetch>()
+		.mockResolvedValueOnce(
+			response({ error: { code: 'model_not_found' } }, 404),
+		)
+		.mockResolvedValueOnce(response({ value: 'recovered' }))
+	const request = (now: number) =>
+		requestStructuredAi({
+			capability: 'review-assistance',
+			promptVersion: 'model-unavailable-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'private input' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			fetchImpl,
+			now,
+			circuit,
+		})
+
+	await expect(request(1_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: 404,
+		code: 'model_not_found',
+	})
+	expect(circuit).toMatchObject({
+		unavailableUntil: 601_000,
+		unavailableReason: 'model-unavailable',
+	})
+	await expect(request(2_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(getAiGatewayTelemetry().map(event => event.fallbackReason)).toEqual([
+		'model-unavailable',
+		'model-unavailable',
+	])
+	expect(JSON.stringify(getAiGatewayTelemetry())).not.toContain('private input')
+
+	await expect(request(601_001)).resolves.toEqual({ value: 'recovered' })
+	expect(fetchImpl).toHaveBeenCalledTimes(2)
+	expect(circuit).toEqual({ unavailableUntil: 0 })
+})
+
+test('does not classify an unrelated provider 404 as model unavailability', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const circuit: AiCircuit = { unavailableUntil: 0 }
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		response({ error: { code: 'resource_not_found' } }, 404),
+	)
+	const request = () =>
+		requestStructuredAi({
+			capability: 'review-assistance',
+			promptVersion: 'ordinary-404-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			fetchImpl,
+			circuit,
+		})
+
+	await expect(request()).rejects.toMatchObject({
+		reason: 'error',
+		status: 404,
+	})
+	await expect(request()).rejects.toMatchObject({ reason: 'error' })
+	expect(fetchImpl).toHaveBeenCalledTimes(2)
+	expect(circuit).toEqual({ unavailableUntil: 0 })
+	expect(getAiGatewayTelemetry().at(-1)).toEqual(
+		expect.objectContaining({ fallbackReason: 'error' }),
+	)
 })
 
 test('does not spend the shared daily budget on a per-client rejection', async () => {
