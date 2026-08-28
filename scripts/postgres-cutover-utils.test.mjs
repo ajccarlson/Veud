@@ -704,3 +704,34 @@ test('rejects unproven recovery and excessive database pressure', () => {
 		/interrupted run resumed.*at least 1 database pressure samples.*connection utilization.*waiting locks/s,
 	)
 })
+
+test('every required load query is one the load harness actually emits', () => {
+	// The fixtures in this file build their query list from `requiredLoadQueries`
+	// itself, so a name the harness stopped emitting stayed invisible: both sides
+	// of the assertion moved together. That is how `profile-entries` and
+	// `profile-activity` survived being renamed on 2026-07-29, leaving the gate
+	// unsatisfiable on any fresh report and the replacement queries with no
+	// timing ceiling at all.
+	//
+	// The harness calls `main()` on import, so its names are read from source.
+	const source = fs.readFileSync(
+		new URL('./load-test-postgres-catalog.mjs', import.meta.url),
+		'utf8',
+	)
+	const emitted = new Set([
+		// `[\n\t\t\t'name',` — the first element of a definitions tuple.
+		...[...source.matchAll(/\[\s*\n\s*'([a-z][a-z0-9-]*)',/g)].map(m => m[1]),
+		// `explain(prisma, 'name', ...)` — the directly measured queries.
+		...[
+			...source.matchAll(
+				/explain\(\s*\n?\s*prisma,\s*\n?\s*'([a-z][a-z0-9-]*)'/g,
+			),
+		].map(m => m[1]),
+	])
+
+	const absent = requiredLoadQueries.filter(name => !emitted.has(name))
+	expect(
+		absent,
+		`the cutover gate requires timings the load harness never emits: ${absent.join(', ')}`,
+	).toEqual([])
+})
