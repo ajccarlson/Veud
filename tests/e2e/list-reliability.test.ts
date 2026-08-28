@@ -436,11 +436,11 @@ test('member can keep tracking global search results across lists in one session
 	) {
 		const siteSearch = page.locator('form.site-search')
 		await siteSearch
-			.getByLabel('Search movies, TV, anime, and manga')
+			.getByLabel('Search movies, TV, anime, manga, and people')
 			.fill(title)
 		await siteSearch.getByLabel('Media type').selectOption('anime')
 		await siteSearch
-			.getByLabel('Search movies, TV, anime, and manga')
+			.getByLabel('Search movies, TV, anime, manga, and people')
 			.press('Enter')
 		await expect(page).toHaveURL(/\/discover\?q=/)
 		const card = page.getByRole('article').filter({ hasText: title })
@@ -474,7 +474,7 @@ test('member can keep tracking global search results across lists in one session
 	await expect(
 		page
 			.locator('form.site-search')
-			.getByLabel('Search movies, TV, anime, and manga'),
+			.getByLabel('Search movies, TV, anime, manga, and people'),
 	).toBeVisible()
 	await trackCatalogResult(titles[0], watching)
 	await page.setViewportSize({ width: 390, height: 844 })

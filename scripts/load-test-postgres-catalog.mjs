@@ -32,6 +32,7 @@ const syntheticRareDescriptionRow = 73_003
 const syntheticRareDescriptionNeedle = `rare-nebula-token-${syntheticRareDescriptionRow}`
 const requiredTrigramIndexesByQuery = {
 	'canonical-title': 'Media_title_trgm_idx',
+	'person-name': 'Person_normalized_trgm_idx',
 	'tracking-exact-title': 'Media_title_trgm_idx',
 	'alternate-title': 'MediaTitle_normalized_trgm_idx',
 	'rare-description': 'Media_description_trgm_idx',
@@ -320,6 +321,8 @@ async function databaseMetrics(prisma) {
 			pg_total_relation_size('"MediaTitle"')::bigint AS "titleBytes",
 			pg_total_relation_size('"MediaExternalId"')::bigint AS "identityBytes",
 			pg_total_relation_size('"MediaRelation"')::bigint AS "relationBytes",
+			pg_total_relation_size('"Person"')::bigint AS "personBytes",
+			pg_total_relation_size('"MediaCredit"')::bigint AS "mediaCreditBytes",
 			pg_total_relation_size('"ReleaseOccurrence"')::bigint AS "releaseOccurrenceBytes",
 			pg_total_relation_size('"TrackingState"')::bigint AS "trackingBytes",
 			pg_total_relation_size('"Entry"')::bigint AS "entryBytes",
@@ -474,6 +477,45 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 			'${prefix}media-' || n
 		FROM generate_series($1::int, $2::int) AS n
 		WHERE n % 4 = 0
+		ON CONFLICT ("id") DO NOTHING`,
+		start,
+		end,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "Person" (
+			"id", "name", "normalized", "knownForDepartment", "createdAt", "updatedAt"
+		)
+		SELECT
+			'${prefix}person-' || n,
+			'Synthetic Performer ' || n,
+			'synthetic performer ' || n,
+			'Acting',
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		FROM generate_series($1::int, $2::int) AS n
+		ON CONFLICT ("id") DO NOTHING`,
+		start,
+		end,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "MediaCredit" (
+			"id", "creditType", "role", "department", "billingOrder",
+			"provider", "catalogProvenanceVersion", "createdAt", "updatedAt",
+			"mediaId", "personId"
+		)
+		SELECT
+			'${prefix}credit-' || n,
+			'cast',
+			'Synthetic role ' || n,
+			'',
+			0,
+			CASE WHEN ${kindSql()} IN ('movie', 'tv') THEN 'tmdb' ELSE 'mal' END,
+			1,
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP,
+			'${prefix}media-' || n,
+			'${prefix}person-' || n
+		FROM generate_series($1::int, $2::int) AS n
 		ON CONFLICT ("id") DO NOTHING`,
 		start,
 		end,
@@ -1061,6 +1103,10 @@ async function representativeCounts(prisma) {
 			 WHERE id LIKE '${prefix}media-%' AND "nextReleaseAt" IS NOT NULL) AS "nextReleaseRows",
 			(SELECT COUNT(*)::int FROM "ReleaseOccurrence"
 			 WHERE id LIKE '${prefix}occurrence-%') AS "releaseOccurrenceRows",
+			(SELECT COUNT(*)::int FROM "Person"
+			 WHERE id LIKE '${prefix}person-%') AS "personRows",
+			(SELECT COUNT(*)::int FROM "MediaCredit"
+			 WHERE id LIKE '${prefix}credit-%') AS "mediaCreditRows",
 			(SELECT COUNT(*)::int FROM "User" WHERE id LIKE '${prefix}member-%') AS "memberCount",
 			(SELECT COUNT(*)::int FROM "Watchlist" WHERE id LIKE '${prefix}watchlist-%') AS "watchlistRows",
 			(SELECT COUNT(*)::int FROM "MediaCollection"
@@ -1241,6 +1287,16 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			'canonical-title',
 			'SELECT id FROM "Media" WHERE title ILIKE $1 LIMIT 24',
 			[`%Catalog Work ${needle}%`],
+		],
+		[
+			'person-name',
+			`SELECT person.id
+			 FROM "Person" AS person
+			 WHERE person.normalized ILIKE $1
+			   AND person."creditCount" > 0
+			 ORDER BY person."creditCount" DESC, person.name ASC, person.id ASC
+			 LIMIT 48`,
+			[`%synthetic performer ${needle}%`],
 		],
 		[
 			'tracking-exact-title',
@@ -1781,6 +1837,9 @@ async function cleanup(prisma) {
 	const media = await prisma.media.deleteMany({
 		where: { id: { startsWith: `${prefix}media-` } },
 	})
+	const people = await prisma.person.deleteMany({
+		where: { id: { startsWith: `${prefix}person-` } },
+	})
 	const listTypes = await prisma.listType.deleteMany({
 		where: { id: { startsWith: `${prefix}listtype-` } },
 	})
@@ -1806,6 +1865,7 @@ async function cleanup(prisma) {
 	return {
 		deletedMembers: users.count,
 		deletedMedia: media.count,
+		deletedPeople: people.count,
 		deletedSyntheticListTypes: listTypes.count,
 		residue,
 		wallMs: Number((performance.now() - started).toFixed(3)),
@@ -2030,6 +2090,8 @@ async function main() {
 			feedRows: shape.feedRows,
 			nextReleaseRows: shape.nextReleaseRows,
 			releaseOccurrenceRows: shape.releaseOccurrenceRows,
+			personRows: count,
+			mediaCreditRows: count,
 			memberCount: shape.memberCount,
 			watchlistRows: shape.watchlistRows,
 			collectionRows: shape.collectionRows,
@@ -2073,6 +2135,8 @@ async function main() {
 		await prisma.$executeRawUnsafe('ANALYZE "MediaExternalId"')
 		await prisma.$executeRawUnsafe('ANALYZE "MediaRelation"')
 		await prisma.$executeRawUnsafe('ANALYZE "CatalogFeedItem"')
+		await prisma.$executeRawUnsafe('ANALYZE "Person"')
+		await prisma.$executeRawUnsafe('ANALYZE "MediaCredit"')
 		await prisma.$executeRawUnsafe('ANALYZE "ReleaseOccurrence"')
 		if (shape.memberCount) {
 			await prisma.$executeRawUnsafe('ANALYZE "Watchlist"')
@@ -2261,7 +2325,7 @@ async function main() {
 		}
 		if (publicSurfaceSmoke) {
 			console.log(
-				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries} cold/warm queries.`,
+				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries}, search=${publicSurfaceSmoke.searchSuggestions.coldQueries}/${publicSurfaceSmoke.searchSuggestions.warmQueries} cold/warm queries.`,
 			)
 		}
 		console.log(`Report written: ${reportPath}`)
@@ -2270,7 +2334,7 @@ async function main() {
 			report.cleanup = cleaned
 			writePrivateJson(reportPath, report)
 			console.log(
-				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
+				`Cleanup removed ${cleaned.deletedMedia} media, ${cleaned.deletedPeople} people, and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
 		}
 		const validationErrors = [
