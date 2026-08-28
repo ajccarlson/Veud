@@ -1193,6 +1193,7 @@ model Notification {
   @@unique([releaseReminderId, releaseAt])
   @@index([recipientId, readAt, createdAt])
   @@index([recipientId, availableAt, readAt])
+  @@index([recipientId, availableAt, createdAt, id])
   @@index([reviewId])
   @@index([collectionId])
   @@index([releaseReminderId])

@@ -1,3 +1,4 @@
+import { type Prisma } from '@prisma/client'
 import {
 	data as json,
 	Form,
@@ -22,50 +23,114 @@ import {
 } from '#app/utils/notification-preferences.server.ts'
 import { syncReleaseRemindersForUser } from '#app/utils/release-reminders.server.ts'
 
+export const NOTIFICATION_PAGE_SIZE = 50
+const NOTIFICATION_CURSOR_MAX_LENGTH = 128
+const notificationOrderBy = [
+	{ availableAt: 'desc' },
+	{ createdAt: 'desc' },
+	{ id: 'desc' },
+] as const satisfies Prisma.NotificationOrderByWithRelationInput[]
+
+function notificationCursor(request: Request) {
+	const values = new URL(request.url).searchParams.getAll('cursor')
+	if (!values.length) return null
+	const cursor = values[0]
+	if (
+		values.length !== 1 ||
+		!cursor ||
+		cursor !== cursor.trim() ||
+		cursor.length > NOTIFICATION_CURSOR_MAX_LENGTH
+	) {
+		throw new Response('Invalid notification cursor', { status: 400 })
+	}
+	return cursor
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request)
 	const now = new Date()
+	const cursor = notificationCursor(request)
 	const [, preferences] = await Promise.all([
 		syncReleaseRemindersForUser(prisma, userId, now),
 		getNotificationPreferences(userId),
 	])
-	const notifications = await prisma.notification.findMany({
-		where: {
-			recipientId: userId,
-			availableAt: { lte: now },
-			...notificationInboxWhere(preferences),
-		},
-		orderBy: [{ availableAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
-		take: 50,
-		select: {
-			id: true,
-			type: true,
-			message: true,
-			readAt: true,
-			availableAt: true,
-			releaseAt: true,
-			createdAt: true,
-			reviewCommentId: true,
-			collectionCommentId: true,
-			actor: { select: { username: true, name: true } },
-			review: {
-				select: {
-					id: true,
-					media: { select: { id: true, title: true, kind: true } },
+	const inboxWhere = {
+		recipientId: userId,
+		availableAt: { lte: now },
+		...notificationInboxWhere(preferences),
+	} satisfies Prisma.NotificationWhereInput
+	const cursorRow = cursor
+		? await prisma.notification.findFirst({
+				where: { ...inboxWhere, id: cursor },
+				select: { id: true, availableAt: true, createdAt: true },
+			})
+		: null
+	if (cursor && !cursorRow) {
+		throw new Response('Invalid notification cursor', { status: 400 })
+	}
+	const pageWhere = cursorRow
+		? ({
+				AND: [
+					inboxWhere,
+					{ availableAt: { lte: cursorRow.availableAt } },
+					{
+						OR: [
+							{ availableAt: { lt: cursorRow.availableAt } },
+							{
+								availableAt: cursorRow.availableAt,
+								createdAt: { lt: cursorRow.createdAt },
+							},
+							{
+								availableAt: cursorRow.availableAt,
+								createdAt: cursorRow.createdAt,
+								id: { lt: cursorRow.id },
+							},
+						],
+					},
+				],
+			} satisfies Prisma.NotificationWhereInput)
+		: inboxWhere
+	const [page, unreadCount] = await Promise.all([
+		prisma.notification.findMany({
+			where: pageWhere,
+			orderBy: notificationOrderBy,
+			take: NOTIFICATION_PAGE_SIZE + 1,
+			select: {
+				id: true,
+				type: true,
+				message: true,
+				readAt: true,
+				availableAt: true,
+				releaseAt: true,
+				createdAt: true,
+				reviewCommentId: true,
+				collectionCommentId: true,
+				actor: { select: { username: true, name: true } },
+				review: {
+					select: {
+						id: true,
+						media: { select: { id: true, title: true, kind: true } },
+					},
+				},
+				collection: { select: { id: true, title: true } },
+				releaseReminder: {
+					select: {
+						media: { select: { id: true, title: true, kind: true } },
+					},
 				},
 			},
-			collection: { select: { id: true, title: true } },
-			releaseReminder: {
-				select: {
-					media: { select: { id: true, title: true, kind: true } },
-				},
-			},
-		},
-	})
+		}),
+		prisma.notification.count({
+			where: { ...inboxWhere, readAt: null },
+		}),
+	])
+	const hasMore = page.length > NOTIFICATION_PAGE_SIZE
+	const notifications = page.slice(0, NOTIFICATION_PAGE_SIZE)
 	return json({
 		notifications,
-		unreadCount: notifications.filter(notification => !notification.readAt)
-			.length,
+		unreadCount,
+		hasCursor: Boolean(cursor),
+		nextCursor: hasMore ? notifications.at(-1)!.id : null,
 	})
 }
 
@@ -322,6 +387,27 @@ export default function NotificationsRoute() {
 					New reminders and community activity will collect here.
 				</VeudEmptyState>
 			)}
+			{data.hasCursor || data.nextCursor ? (
+				<nav
+					aria-label="Notification pages"
+					className="flex flex-wrap justify-end gap-2"
+				>
+					{data.hasCursor ? (
+						<Button asChild variant="ghost" size="sm">
+							<Link to="/notifications">Newest</Link>
+						</Button>
+					) : null}
+					{data.nextCursor ? (
+						<Button asChild variant="outline" size="sm">
+							<Link
+								to={`/notifications?cursor=${encodeURIComponent(data.nextCursor)}`}
+							>
+								Older notifications
+							</Link>
+						</Button>
+					) : null}
+				</nav>
+			) : null}
 		</VeudPage>
 	)
 }

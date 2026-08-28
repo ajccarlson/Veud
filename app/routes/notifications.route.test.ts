@@ -4,7 +4,7 @@ import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 import { loader as rootLoader } from '../root.tsx'
-import { action, loader } from './notifications.tsx'
+import { action, loader, NOTIFICATION_PAGE_SIZE } from './notifications.tsx'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -144,6 +144,78 @@ test('mark all read affects only the signed-in recipient', async () => {
 	).toBe(0)
 })
 
+test('paginates the full visible inbox and reports an exact unread total', async () => {
+	const [recipient, unrelated] = await Promise.all([
+		createUser('paged_recipient'),
+		createUser('paged_unrelated'),
+	])
+	const availableAt = new Date('2026-08-28T12:00:00.000Z')
+	const rows = Array.from(
+		{ length: NOTIFICATION_PAGE_SIZE + 5 },
+		(_, index) => ({
+			id: `paged-${recipient.id}-${String(999 - index).padStart(3, '0')}`,
+			type: 'moderation_notice',
+			message: `Paged notification ${index}`,
+			recipientId: recipient.id,
+			availableAt,
+			createdAt: availableAt,
+			readAt: index < NOTIFICATION_PAGE_SIZE + 2 ? null : availableAt,
+		}),
+	)
+	await prisma.notification.createMany({ data: rows })
+	const foreign = await prisma.notification.create({
+		data: {
+			type: 'moderation_notice',
+			message: 'Foreign cursor',
+			recipientId: unrelated.id,
+			availableAt,
+		},
+	})
+	const cookie = await cookieFor(recipient.id)
+	const requestPage = (cursor?: string) =>
+		loader({
+			request: new Request(
+				`${BASE_URL}/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+				{ headers: { cookie } },
+			),
+			params: {},
+		} as any)
+
+	const first = await requestPage()
+	expect(first.data.notifications).toHaveLength(NOTIFICATION_PAGE_SIZE)
+	expect(first.data.notifications.map(notification => notification.id)).toEqual(
+		rows.slice(0, NOTIFICATION_PAGE_SIZE).map(row => row.id),
+	)
+	expect(first.data.unreadCount).toBe(NOTIFICATION_PAGE_SIZE + 2)
+	expect(first.data.hasCursor).toBe(false)
+	expect(first.data.nextCursor).toBe(rows[NOTIFICATION_PAGE_SIZE - 1]!.id)
+
+	const second = await requestPage(first.data.nextCursor!)
+	expect(
+		second.data.notifications.map(notification => notification.id),
+	).toEqual(rows.slice(NOTIFICATION_PAGE_SIZE).map(row => row.id))
+	expect(second.data.unreadCount).toBe(NOTIFICATION_PAGE_SIZE + 2)
+	expect(second.data.hasCursor).toBe(true)
+	expect(second.data.nextCursor).toBeNull()
+
+	const denied = await requestPage(foreign.id).catch(error => error)
+	expect(denied).toBeInstanceOf(Response)
+	expect((denied as Response).status).toBe(400)
+
+	for (const url of [
+		`${BASE_URL}/notifications?cursor=`,
+		`${BASE_URL}/notifications?cursor=${rows[0]!.id}&cursor=${rows[1]!.id}`,
+		`${BASE_URL}/notifications?cursor=${'x'.repeat(129)}`,
+	]) {
+		const malformed = await loader({
+			request: new Request(url, { headers: { cookie } }),
+			params: {},
+		} as any).catch(error => error)
+		expect(malformed).toBeInstanceOf(Response)
+		expect((malformed as Response).status).toBe(400)
+	}
+})
+
 test('the inbox, not the global root loader, reconciles release reminders', async () => {
 	const recipient = await createUser('release_recipient')
 	const releaseAt = new Date(Date.now() + 30 * 60 * 1_000)
@@ -228,6 +300,15 @@ test('inbox preferences filter delivery and bulk-read only visible categories', 
 		new Set(result.data.notifications.map(notification => notification.id)),
 	).toEqual(new Set([release.id, moderationNotice.id]))
 	expect(result.data.unreadCount).toBe(2)
+	const hiddenCursor = await loader({
+		request: new Request(
+			`${BASE_URL}/notifications?cursor=${encodeURIComponent(social.id)}`,
+			{ headers: { cookie } },
+		),
+		params: {},
+	} as any).catch(error => error)
+	expect(hiddenCursor).toBeInstanceOf(Response)
+	expect((hiddenCursor as Response).status).toBe(400)
 
 	await action({
 		request: actionRequest(cookie, { intent: 'read-all' }),
