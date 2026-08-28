@@ -199,6 +199,52 @@ const fixtureAccountCountSelect = Object.fromEntries(
 /** Exported for the coverage test. */
 export const fixtureAccountCountSelectForTest = fixtureAccountCountSelect
 
+/**
+ * What counts as a member having used a seed watchlist or tracking row.
+ *
+ * The seed accounts come with structure — four watchlists holding twenty-six
+ * entries, twenty-four tracking rows — so counting that would mean no seed
+ * account was ever removable. What must block removal is evidence a real person
+ * used the account, and the hand-written version counted only activity events.
+ * `TrackingState.progress` and `TrackingState.consumptionEvents` were not
+ * counted, so someone who had watched episodes on a seed account still looked
+ * untouched and the account was removed with their progress and their watch log.
+ *
+ * Classifying every relation, rather than listing the ones remembered, is what
+ * makes the next one a decision.
+ */
+const seedRowActivity = {
+	Watchlist: {
+		entries: 'seed-structure',
+		trackingStates: 'seed-structure',
+		activityEvents: 'member-activity',
+		previousActivityEvents: 'member-activity',
+	},
+	TrackingState: {
+		entries: 'seed-structure',
+		progress: 'member-activity',
+		consumptionEvents: 'member-activity',
+		activityEvents: 'member-activity',
+	},
+} as const satisfies Record<
+	string,
+	Record<string, 'seed-structure' | 'member-activity'>
+>
+
+/** Exported so the schema-coverage test can compare the classification. */
+export const seedRowActivityOwnership = seedRowActivity
+
+function activityCountSelect<T extends keyof typeof seedRowActivity>(model: T) {
+	return Object.fromEntries(
+		Object.entries(seedRowActivity[model])
+			.filter(([, ownership]) => ownership === 'member-activity')
+			.map(([name]) => [name, true]),
+	) as Record<string, true>
+}
+
+export const watchlistActivitySelect = activityCountSelect('Watchlist')
+export const trackingStateActivitySelect = activityCountSelect('TrackingState')
+
 export type MemberOwnedMediaAttachments = {
 	[K in keyof typeof attachmentSelect]: number
 }
@@ -337,11 +383,12 @@ export async function removeConfirmedTestMediaFixtures(prisma: PrismaClient) {
 						select: {
 							id: true,
 							mediaId: true,
+							// The fixture account is expected to hold exactly one tracking
+							// row with one entry, so this one counts structure as well.
 							_count: {
 								select: {
 									entries: true,
-									progress: true,
-									activityEvents: true,
+									...trackingStateActivitySelect,
 								},
 							},
 						},
@@ -457,19 +504,10 @@ export async function removeConfirmedSeedAccounts(prisma: PrismaClient) {
 					notificationPreference: { select: { id: true } },
 					roles: { select: { name: true } },
 					watchlists: {
-						select: {
-							_count: {
-								select: {
-									activityEvents: true,
-									previousActivityEvents: true,
-								},
-							},
-						},
+						select: { _count: { select: watchlistActivitySelect } },
 					},
 					trackingStates: {
-						select: {
-							_count: { select: { activityEvents: true } },
-						},
+						select: { _count: { select: trackingStateActivitySelect } },
 					},
 					_count: { select: fixtureAccountCountSelect },
 				},

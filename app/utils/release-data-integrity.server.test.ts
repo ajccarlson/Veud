@@ -5,6 +5,9 @@ import {
 	fixtureAccountCountSelectForTest,
 	mediaAttachmentOwnershipForTest,
 	mediaAttachmentRelations,
+	seedRowActivityOwnership,
+	trackingStateActivitySelect,
+	watchlistActivitySelect,
 	confirmedFixtureAccount,
 	confirmedFixtureFamily,
 	confirmedLeakedMediaFixtures,
@@ -259,4 +262,34 @@ test('an account counts every relation it has', async () => {
 	]) {
 		expect(Object.keys(fixtureAccountCountSelectForTest)).toContain(name)
 	}
+})
+
+test('every Watchlist and TrackingState relation is classified before a seed account is removed', async () => {
+	// The seed accounts come with structure — four watchlists holding twenty-six
+	// entries — so counting that would make none of them removable. What must
+	// block removal is evidence a real person used the account, and progress and
+	// consumption events were not counted, so someone who had watched episodes on
+	// a seed account still looked untouched.
+	const { Prisma } = await import('@prisma/client')
+	for (const model of ['Watchlist', 'TrackingState'] as const) {
+		const relations = Prisma.dmmf.datamodel.models
+			.find(entry => entry.name === model)!
+			.fields.filter(field => field.kind === 'object' && field.isList)
+			.map(field => field.name)
+			.sort()
+		expect(
+			Object.keys(seedRowActivityOwnership[model]).sort(),
+			`${model} has a relation nothing has classified`,
+		).toEqual(relations)
+	}
+})
+
+test('watching something on a seed account keeps it from being removed', () => {
+	expect(Object.keys(trackingStateActivitySelect)).toEqual(
+		expect.arrayContaining(['progress', 'consumptionEvents', 'activityEvents']),
+	)
+	// Entries are seed structure; counting those would mean no seed account could
+	// ever be removed.
+	expect(Object.keys(trackingStateActivitySelect)).not.toContain('entries')
+	expect(Object.keys(watchlistActivitySelect)).not.toContain('entries')
 })
