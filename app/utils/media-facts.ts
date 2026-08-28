@@ -55,9 +55,17 @@ const singleRuntimeFormats = new Set(['movie', 'music'])
  */
 function episodic(kind: string, catalog: MediaCatalogSnapshot) {
 	if (kind !== 'anime' && kind !== 'tv') return false
+	// More than one instalment is episodic whatever the provider calls the
+	// format. MAL files multi-part films as "Movie" — 5 Centimeters per Second
+	// is three, Genius Party seven, Die Neue These twelve — and the runtime
+	// stored against them is one part's, not the whole work's. Checking the
+	// format first said "2h 5m" for something nobody can watch in 2h 5m.
+	if (typeof catalog.episodeCount === 'number' && catalog.episodeCount > 1) {
+		return true
+	}
+	if (catalog.episodeCount === 1) return false
 	const format = clean(catalog.type)?.toLowerCase()
-	if (format && singleRuntimeFormats.has(format)) return false
-	return catalog.episodeCount !== 1
+	return !(format && singleRuntimeFormats.has(format))
 }
 
 function usd(value: unknown) {

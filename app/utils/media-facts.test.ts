@@ -89,3 +89,29 @@ test('a series with an unknown episode count is still labelled per episode', () 
 		}),
 	).toContainEqual({ label: 'Runtime', value: '42m per episode' })
 })
+
+test('a multi-part anime film is labelled per part', () => {
+	// MAL files these as "Movie": 5 Centimeters per Second is three parts,
+	// Genius Party seven, Die Neue These twelve. The stored runtime is one
+	// part's, so presenting it as the whole work's is simply wrong — the format
+	// must not outrank an instalment count that says otherwise.
+	expect(
+		mediaFacts('anime', {
+			title: 'Byousoku 5 Centimeter',
+			type: 'Movie',
+			runtimeMinutes: 21,
+			episodeCount: 3,
+		}),
+	).toContainEqual({ label: 'Runtime', value: '21m per episode' })
+})
+
+test('a single-part anime film is still the whole work', () => {
+	expect(
+		mediaFacts('anime', {
+			title: 'Example Film',
+			type: 'Movie',
+			runtimeMinutes: 125,
+			episodeCount: 1,
+		}),
+	).toContainEqual({ label: 'Runtime', value: '2h 5m' })
+})

@@ -136,14 +136,31 @@ export function buildModelTransferPlan(
 	return plan
 }
 
+/**
+ * A SQLite timestamp written without a zone.
+ *
+ * `DEFAULT CURRENT_TIMESTAMP` stores 'YYYY-MM-DD HH:MM:SS', and it stores it in
+ * UTC. `new Date()` parses that space-separated form as **local** time, so the
+ * same snapshot transferred from two machines produced two different instants —
+ * seven hours apart on a UTC-7 host, nine the other way from UTC+9 — while
+ * Prisma's own SQLite reader treats the text as UTC regardless of the machine.
+ * The transfer has to agree with the reader that defines what the value means.
+ */
+const naiveSqliteTimestamp =
+	/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)$/
+
 function convertedDate(value, fieldName) {
 	if (value instanceof Date) return value
+	const text = String(value)
+	const naive = naiveSqliteTimestamp.exec(text)
 	const date =
 		typeof value === 'number' || typeof value === 'bigint'
 			? new Date(Number(value))
-			: /^\d+$/.test(String(value))
+			: /^\d+$/.test(text)
 				? new Date(Number(value))
-				: new Date(String(value))
+				: naive
+					? new Date(`${naive[1]}T${naive[2]}Z`)
+					: new Date(text)
 	if (!Number.isFinite(date.getTime())) {
 		throw new Error(`Invalid SQLite DateTime in ${fieldName}: ${value}`)
 	}
