@@ -214,12 +214,32 @@ function progressLabel(unit: string) {
 	return `${unit} progress`
 }
 
+/** An instant, shown in the viewer's own day. Comments and reviews happen at a
+ * moment in time, and "yesterday evening" for the reader is the right reading. */
 function displayDate(value: Date | string | null | undefined) {
 	if (!value) return '—'
 	return new Date(value).toLocaleDateString('en-US', {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
+	})
+}
+
+/**
+ * A calendar date, shown as the date it is.
+ *
+ * Release dates and the days a member started or finished something are dates,
+ * not instants: they are stored as UTC midnight, so formatting them in the
+ * viewer's zone showed the day before for everyone west of UTC. A film released
+ * on the 27th read "Feb 26" in California.
+ */
+function displayDateOnly(value: Date | string | null | undefined) {
+	if (!value) return '—'
+	return new Date(value).toLocaleDateString('en-US', {
+		year: 'numeric',
+		month: 'short',
+		day: 'numeric',
+		timeZone: 'UTC',
 	})
 }
 
@@ -1294,8 +1314,8 @@ export default function MediaDetailRoute() {
 							)}
 						</div>
 						<div className="text-sm text-muted-foreground">
-							{displayDate(data.media.releaseStart)} –{' '}
-							{displayDate(data.media.releaseEnd)}
+							{displayDateOnly(data.media.releaseStart)} –{' '}
+							{displayDateOnly(data.media.releaseEnd)}
 						</div>
 					</header>
 
@@ -1673,8 +1693,8 @@ export default function MediaDetailRoute() {
 							</div>
 							{tracking ? (
 								<div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-									<span>Started {displayDate(tracking.startedAt)}</span>
-									<span>Completed {displayDate(tracking.completedAt)}</span>
+									<span>Started {displayDateOnly(tracking.startedAt)}</span>
+									<span>Completed {displayDateOnly(tracking.completedAt)}</span>
 									{tracking.repeatCount > 0 ? (
 										<span>{tracking.repeatCount} repeats</span>
 									) : null}
