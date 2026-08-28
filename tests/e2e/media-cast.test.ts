@@ -180,6 +180,12 @@ test('a person page answers what else they have been in', async ({ page }) => {
 			name: 'Mira Fixture',
 			normalized: 'mira fixture',
 			knownForDepartment: 'Acting',
+			biography: 'Mira works both in front of and behind the camera.',
+			birthday: new Date('1984-05-12T00:00:00Z'),
+			placeOfBirth: 'Portland, Oregon, USA',
+			gender: 'Female',
+			homepage: 'https://mira.example.test/about',
+			detailsFetchedAt: new Date(),
 			credits: {
 				create: [
 					{
@@ -214,6 +220,15 @@ test('a person page answers what else they have been in', async ({ page }) => {
 		await page.goto(`/people/${person.id}`)
 		await expect(
 			page.getByRole('heading', { name: 'Mira Fixture', level: 1 }),
+		).toBeVisible()
+		await expect(page.getByText('May 12, 1984')).toBeVisible()
+		await expect(page.getByText('Portland, Oregon, USA')).toBeVisible()
+		await expect(page.getByText('Female', { exact: true })).toBeVisible()
+		await expect(
+			page.getByRole('link', { name: 'mira.example.test' }),
+		).toHaveAttribute('href', 'https://mira.example.test/about')
+		await expect(
+			page.getByText('Mira works both in front of and behind the camera.'),
 		).toBeVisible()
 
 		// Acting and Directing are separate sections, as TMDB separates them.
