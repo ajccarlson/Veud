@@ -797,7 +797,8 @@ async function deleteAccountAction({
 		{
 			type: 'success',
 			title: 'Account deleted',
-			description: 'Your Veud account and all associated data were deleted.',
+			description:
+				'Your Veud account and everything you added here were deleted. Moderation and safety records are kept without your account named in them.',
 		},
 		{
 			headers: {
@@ -824,8 +825,10 @@ function DeleteAccount() {
 			<div className="max-w-xl">
 				<h2 className="text-h5 text-foreground">Delete account</h2>
 				<p className="mt-2 text-body-sm text-muted-foreground">
-					Permanently delete your profile, lists, activity, reviews, and all
-					other account data. This cannot be undone.
+					Permanently delete your profile, lists, activity, reviews and
+					everything else you have added here. This cannot be undone. Moderation
+					and safety records are kept, with your account no longer named in
+					them.
 				</p>
 			</div>
 			<fetcher.Form
