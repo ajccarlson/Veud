@@ -33,6 +33,17 @@ function printHuman(
 			].join(' · '),
 		)
 	}
+	for (const item of snapshot.creditCoverage) {
+		console.log(
+			[
+				item.label,
+				`${item.synced.toLocaleString()}/${item.active.toLocaleString()} synced (${item.coveragePercent}%)`,
+				`${item.credits.toLocaleString()} credits`,
+				`${item.queueDepth.toLocaleString()} eligible`,
+				`${item.failedDeferred.toLocaleString()} deferred`,
+			].join(' · '),
+		)
+	}
 	for (const issue of snapshot.health.issues) {
 		console.log(
 			`${issue.severity === 'critical' ? 'CRITICAL' : 'WARNING'}: ${issue.title} — ${issue.detail}`,

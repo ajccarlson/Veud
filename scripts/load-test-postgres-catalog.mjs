@@ -32,6 +32,8 @@ const syntheticRareDescriptionRow = 73_003
 const syntheticRareDescriptionNeedle = `rare-nebula-token-${syntheticRareDescriptionRow}`
 const requiredTrigramIndexesByQuery = {
 	'canonical-title': 'Media_title_trgm_idx',
+	'person-name': 'Person_normalized_trgm_idx',
+	'person-name-min-length': 'Person_normalized_trgm_idx',
 	'tracking-exact-title': 'Media_title_trgm_idx',
 	'alternate-title': 'MediaTitle_normalized_trgm_idx',
 	'rare-description': 'Media_description_trgm_idx',
@@ -65,6 +67,14 @@ const requiredProfileRowsByQuery = {
 	'profile-review-page': 100,
 	'profile-diary-activity': 100,
 	'profile-diary-page': 100,
+}
+// The exact-match needle returns one person. Broad and minimum-length needles
+// must fill the application's 32-row candidate window, or the ORDER BY and
+// live-suggestion boundary are no longer being exercised.
+const requiredPersonRowsByQuery = {
+	'person-name': 1,
+	'person-name-broad': 32,
+	'person-name-min-length': 32,
 }
 const profileActivityPublicRelationsSql = `LEFT JOIN "Watchlist" AS status_watchlist
    ON status_watchlist.id = activity."statusWatchlistId"
@@ -250,6 +260,21 @@ function kindSql(series = 'n') {
 		ELSE 'manga' END`
 }
 
+function representativeLiveActionTrackedEntries({
+	memberNumber,
+	trackedEntries,
+	mediaCount,
+}) {
+	let liveActionEntries = 0
+	for (let slot = 1; slot <= trackedEntries; slot += 1) {
+		const mediaNumber =
+			1 + (((memberNumber - 1) * trackedEntries + slot - 1) % mediaCount)
+		const kindNumber = (mediaNumber + Math.floor(mediaNumber / 20)) % 4
+		if (kindNumber === 0 || kindNumber === 1) liveActionEntries += 1
+	}
+	return liveActionEntries
+}
+
 function profileFixtureMemberNumber(memberCount) {
 	if (!memberCount) return null
 	let memberNumber = Math.max(1, Math.floor(memberCount / 2))
@@ -294,6 +319,12 @@ function representativeProfileFixture(shape, mediaCount) {
 	const entryShape = representativeProfileEntryShape({
 		mediaCount,
 		trackedEntries: shape.trackingPerMember,
+		trackedTargetEntries: representativeLiveActionTrackedEntries({
+			memberNumber,
+			trackedEntries: shape.trackingPerMember,
+			mediaCount,
+		}),
+		memberCount: shape.memberCount,
 	})
 
 	return {
@@ -320,6 +351,8 @@ async function databaseMetrics(prisma) {
 			pg_total_relation_size('"MediaTitle"')::bigint AS "titleBytes",
 			pg_total_relation_size('"MediaExternalId"')::bigint AS "identityBytes",
 			pg_total_relation_size('"MediaRelation"')::bigint AS "relationBytes",
+			pg_total_relation_size('"Person"')::bigint AS "personBytes",
+			pg_total_relation_size('"MediaCredit"')::bigint AS "mediaCreditBytes",
 			pg_total_relation_size('"ReleaseOccurrence"')::bigint AS "releaseOccurrenceBytes",
 			pg_total_relation_size('"TrackingState"')::bigint AS "trackingBytes",
 			pg_total_relation_size('"Entry"')::bigint AS "entryBytes",
@@ -474,6 +507,47 @@ async function insertBatch(prisma, start, end, scheduleAnchor) {
 			'${prefix}media-' || n
 		FROM generate_series($1::int, $2::int) AS n
 		WHERE n % 4 = 0
+		ON CONFLICT ("id") DO NOTHING`,
+		start,
+		end,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "Person" (
+			"id", "name", "normalized", "knownForDepartment", "createdAt", "updatedAt"
+		)
+		SELECT
+			'${prefix}person-' || n,
+			CASE WHEN n % 20 = 0 THEN 'Qzx Synthetic Performer ' || n
+				ELSE 'Synthetic Performer ' || n END,
+			CASE WHEN n % 20 = 0 THEN 'qzx synthetic performer ' || n
+				ELSE 'synthetic performer ' || n END,
+			'Acting',
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP
+		FROM generate_series($1::int, $2::int) AS n
+		ON CONFLICT ("id") DO NOTHING`,
+		start,
+		end,
+	)
+	await prisma.$executeRawUnsafe(
+		`INSERT INTO "MediaCredit" (
+			"id", "creditType", "role", "department", "billingOrder",
+			"provider", "catalogProvenanceVersion", "createdAt", "updatedAt",
+			"mediaId", "personId"
+		)
+		SELECT
+			'${prefix}credit-' || n,
+			'cast',
+			'Synthetic role ' || n,
+			'',
+			0,
+			CASE WHEN ${kindSql()} IN ('movie', 'tv') THEN 'tmdb' ELSE 'mal' END,
+			1,
+			CURRENT_TIMESTAMP,
+			CURRENT_TIMESTAMP,
+			'${prefix}media-' || n,
+			'${prefix}person-' || n
+		FROM generate_series($1::int, $2::int) AS n
 		ON CONFLICT ("id") DO NOTHING`,
 		start,
 		end,
@@ -1061,6 +1135,10 @@ async function representativeCounts(prisma) {
 			 WHERE id LIKE '${prefix}media-%' AND "nextReleaseAt" IS NOT NULL) AS "nextReleaseRows",
 			(SELECT COUNT(*)::int FROM "ReleaseOccurrence"
 			 WHERE id LIKE '${prefix}occurrence-%') AS "releaseOccurrenceRows",
+			(SELECT COUNT(*)::int FROM "Person"
+			 WHERE id LIKE '${prefix}person-%') AS "personRows",
+			(SELECT COUNT(*)::int FROM "MediaCredit"
+			 WHERE id LIKE '${prefix}credit-%') AS "mediaCreditRows",
 			(SELECT COUNT(*)::int FROM "User" WHERE id LIKE '${prefix}member-%') AS "memberCount",
 			(SELECT COUNT(*)::int FROM "Watchlist" WHERE id LIKE '${prefix}watchlist-%') AS "watchlistRows",
 			(SELECT COUNT(*)::int FROM "MediaCollection"
@@ -1232,7 +1310,7 @@ async function communityAggregateMetrics(prisma, count) {
 	}
 }
 
-async function queryMetrics(prisma, count, shape, scheduleAnchor) {
+async function queryMetrics(prisma, count, shape, scheduleAnchor, reportPath) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
 	const calendarWindow = calendarLoadWindow(scheduleAnchor)
@@ -1421,6 +1499,14 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	for (const definition of definitions) {
 		queries.push(await explain(prisma, ...definition))
 	}
+	queries.push(
+		...(await runPersonSearchMeasurements({
+			exactQuery: `synthetic performer ${needle}`,
+			broadQuery: 'synthetic performer 1',
+			minimumQuery: 'qzx',
+			reportPath,
+		})),
+	)
 	if (!shape.memberCount) return queries
 	const profileFixture = representativeProfileFixture(shape, count)
 	const memberId = profileFixture.memberId
@@ -1686,6 +1772,71 @@ async function runPublicSurfaceSmoke({ username, reportPath }) {
 	return report
 }
 
+async function runPersonSearchMeasurements({
+	exactQuery,
+	broadQuery,
+	minimumQuery,
+	reportPath,
+}) {
+	const measurementPath = `${reportPath}.person-search.json`
+	if (fs.existsSync(measurementPath)) fs.unlinkSync(measurementPath)
+	const measurementScript = path.resolve(
+		'scripts/measure-person-search-postgres.ts',
+	)
+	const childArgs = [
+		'--import',
+		'tsx',
+		measurementScript,
+		'--exact-query',
+		exactQuery,
+		'--broad-query',
+		broadQuery,
+		'--minimum-query',
+		minimumQuery,
+		'--report',
+		measurementPath,
+	]
+	await new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: process.cwd(),
+			env: {
+				...process.env,
+				NODE_ENV: 'test',
+				SESSION_SECRET:
+					process.env.SESSION_SECRET ?? 'postgres-person-search-smoke-only',
+			},
+			stdio: 'inherit',
+		})
+		child.once('error', reject)
+		child.once('exit', (code, signal) => {
+			if (code === 0) {
+				resolve()
+				return
+			}
+			reject(
+				new Error(
+					`Person-search measurement failed (${signal ? `signal ${signal}` : `exit ${code}`})`,
+				),
+			)
+		})
+	})
+	if (!fs.existsSync(measurementPath)) {
+		throw new Error('Person-search measurement did not write its report')
+	}
+	const report = readJson(measurementPath, 'Person-search measurement report')
+	fs.unlinkSync(measurementPath)
+	if (
+		!report ||
+		typeof report !== 'object' ||
+		report.version !== 1 ||
+		!Array.isArray(report.queries) ||
+		report.queries.length !== 3
+	) {
+		throw new Error('Person-search measurement report must contain 3 queries')
+	}
+	return report.queries
+}
+
 async function concurrentMetrics(
 	prisma,
 	count,
@@ -1781,6 +1932,9 @@ async function cleanup(prisma) {
 	const media = await prisma.media.deleteMany({
 		where: { id: { startsWith: `${prefix}media-` } },
 	})
+	const people = await prisma.person.deleteMany({
+		where: { id: { startsWith: `${prefix}person-` } },
+	})
 	const listTypes = await prisma.listType.deleteMany({
 		where: { id: { startsWith: `${prefix}listtype-` } },
 	})
@@ -1806,6 +1960,7 @@ async function cleanup(prisma) {
 	return {
 		deletedMembers: users.count,
 		deletedMedia: media.count,
+		deletedPeople: people.count,
 		deletedSyntheticListTypes: listTypes.count,
 		residue,
 		wallMs: Number((performance.now() - started).toFixed(3)),
@@ -2030,6 +2185,8 @@ async function main() {
 			feedRows: shape.feedRows,
 			nextReleaseRows: shape.nextReleaseRows,
 			releaseOccurrenceRows: shape.releaseOccurrenceRows,
+			personRows: count,
+			mediaCreditRows: count,
 			memberCount: shape.memberCount,
 			watchlistRows: shape.watchlistRows,
 			collectionRows: shape.collectionRows,
@@ -2073,6 +2230,8 @@ async function main() {
 		await prisma.$executeRawUnsafe('ANALYZE "MediaExternalId"')
 		await prisma.$executeRawUnsafe('ANALYZE "MediaRelation"')
 		await prisma.$executeRawUnsafe('ANALYZE "CatalogFeedItem"')
+		await prisma.$executeRawUnsafe('ANALYZE "Person"')
+		await prisma.$executeRawUnsafe('ANALYZE "MediaCredit"')
 		await prisma.$executeRawUnsafe('ANALYZE "ReleaseOccurrence"')
 		if (shape.memberCount) {
 			await prisma.$executeRawUnsafe('ANALYZE "Watchlist"')
@@ -2097,6 +2256,7 @@ async function main() {
 			count,
 			shape,
 			checkpoint.startedAt,
+			reportPath,
 		)
 		const profileLoaderSmoke = profileFixture.memberNumber
 			? await runProfileLoaderSmoke({
@@ -2123,6 +2283,15 @@ async function main() {
 			trackingWriteBatches,
 		)
 		const storageAfter = await databaseMetrics(prisma)
+		let personRowAssertionError
+		try {
+			// A search that matches nothing sorts nothing. Measuring one and
+			// reporting the number as evidence that search is fast is how a gate
+			// stops meaning anything.
+			assertRequiredQueryRows(queries, requiredPersonRowsByQuery)
+		} catch (error) {
+			personRowAssertionError = error
+		}
 		let queryIndexAssertionError
 		try {
 			assertRequiredQueryIndexes(queries, requiredTrigramIndexesByQuery)
@@ -2261,7 +2430,7 @@ async function main() {
 		}
 		if (publicSurfaceSmoke) {
 			console.log(
-				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries} cold/warm queries.`,
+				`Public surfaces: anonymous=${publicSurfaceSmoke.anonymousHome.coldQueries}/${publicSurfaceSmoke.anonymousHome.warmQueries}, signed trending=${publicSurfaceSmoke.signedTrending.coldQueries}/${publicSurfaceSmoke.signedTrending.warmQueries}, facets=${publicSurfaceSmoke.discoveryFacets.coldQueries}/${publicSurfaceSmoke.discoveryFacets.warmQueries}, search=${publicSurfaceSmoke.searchSuggestions.coldQueries}/${publicSurfaceSmoke.searchSuggestions.warmQueries} cold/warm queries.`,
 			)
 		}
 		console.log(`Report written: ${reportPath}`)
@@ -2270,10 +2439,11 @@ async function main() {
 			report.cleanup = cleaned
 			writePrivateJson(reportPath, report)
 			console.log(
-				`Cleanup removed ${cleaned.deletedMedia} media and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
+				`Cleanup removed ${cleaned.deletedMedia} media, ${cleaned.deletedPeople} people, and ${cleaned.deletedMembers} member rows in ${cleaned.wallMs}ms.`,
 			)
 		}
 		const validationErrors = [
+			...(personRowAssertionError ? [personRowAssertionError] : []),
 			...(communityAggregateAssertionError
 				? [communityAggregateAssertionError]
 				: []),

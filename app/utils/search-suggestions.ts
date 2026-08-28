@@ -15,11 +15,12 @@
 export const SUGGESTION_LIMIT = 8
 
 /**
- * A single letter matches most of the catalog, so the request would be paid for
- * on every keystroke and return nothing worth reading. Two is where a query
- * starts to mean something.
+ * One or two characters match too much of the catalog, and PostgreSQL's
+ * trigram indexes cannot serve a two-character contains search. Three keeps
+ * live, unauthenticated suggestions on an index-capable path. The form still
+ * submits shorter title searches to the full results page.
  */
-export const MIN_SUGGESTION_QUERY = 2
+export const MIN_SUGGESTION_QUERY = 3
 
 /** Long enough for any real title; the input allows more for other modes. */
 const MAX_SUGGESTION_QUERY = 100
@@ -33,14 +34,28 @@ export const SUGGESTION_KINDS = [
 ] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
 
-export type SearchSuggestion = {
+type SearchSuggestionBase = {
 	id: string
+	label: string
+	thumbnail: string | null
+}
+
+export type MediaSearchSuggestion = SearchSuggestionBase & {
+	resultType: 'media'
 	title: string
 	kind: string
 	type: string | null
 	year: string | null
-	thumbnail: string | null
 }
+
+export type PersonSearchSuggestion = SearchSuggestionBase & {
+	resultType: 'person'
+	name: string
+	knownForDepartment: string | null
+	creditCount: number
+}
+
+export type SearchSuggestion = MediaSearchSuggestion | PersonSearchSuggestion
 
 /**
  * The query to actually run, or null when there is nothing worth asking for.
@@ -100,7 +115,7 @@ export function moveSuggestionIndex(
 }
 
 /**
- * Put the titles that actually begin with what was typed at the top.
+ * Put visible labels that actually begin with what was typed at the top.
  *
  * Popularity alone is not enough. Matching is substring-based, so a well-known
  * title that merely *contains* the query inside a longer word outranks the one
@@ -112,20 +127,20 @@ export function moveSuggestionIndex(
  * everything else, which is interior matches and titles found only through an
  * alternate. Nothing is dropped; it is only moved down.
  */
-export function rankSuggestions<Item extends { title: string }>(
+export function rankSuggestions<Item extends { label: string }>(
 	items: Item[],
 	query: string,
 ) {
 	const needle = query.trim().toLowerCase()
 	if (!needle) return [...items]
 	const tierOf = (item: Item) => {
-		const title = item.title.toLowerCase()
-		if (title.startsWith(needle)) return 0
-		const at = title.indexOf(needle)
+		const label = item.label.toLowerCase()
+		if (label.startsWith(needle)) return 0
+		const at = label.indexOf(needle)
 		if (at < 0) return 2
 		// A word boundary is what makes "piece" find "One Piece" without putting
 		// it level with a match buried inside a longer word.
-		return /[^\p{L}\p{N}]/u.test(title[at - 1] ?? '') ? 1 : 2
+		return /[^\p{L}\p{N}]/u.test(label[at - 1] ?? '') ? 1 : 2
 	}
 	return items
 		.map((item, index) => ({ item, index, tier: tierOf(item) }))
@@ -136,8 +151,11 @@ export function rankSuggestions<Item extends { title: string }>(
 }
 
 /** The page a suggestion opens. */
-export function suggestionHref(suggestion: { id: string }) {
-	return `/media/${encodeURIComponent(suggestion.id)}`
+export function suggestionHref(
+	suggestion: Pick<SearchSuggestion, 'id' | 'resultType'>,
+) {
+	const path = suggestion.resultType === 'person' ? 'people' : 'media'
+	return `/${path}/${encodeURIComponent(suggestion.id)}`
 }
 
 /** The full results page for what was typed, which is always the last row. */
@@ -149,6 +167,10 @@ export function allResultsHref(query: string, kind: SuggestionKind) {
 
 /** A short line under the title: what it is, and when it came out. */
 export function suggestionMeta(suggestion: SearchSuggestion) {
+	if (suggestion.resultType === 'person') {
+		const credits = `${suggestion.creditCount} ${suggestion.creditCount === 1 ? 'credit' : 'credits'}`
+		return [suggestion.knownForDepartment, credits].filter(Boolean).join(' · ')
+	}
 	return [suggestion.type || suggestion.kind, suggestion.year]
 		.filter(Boolean)
 		.join(' · ')

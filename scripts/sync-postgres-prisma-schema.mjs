@@ -32,6 +32,11 @@ export function buildPostgresSchema(sqliteSchema) {
 		'  // Powers normalized canonical and alternate-title substring matching.',
 		'  @@index([normalized(ops: raw("gin_trgm_ops"))], type: Gin, map: "MediaTitle_normalized_trgm_idx")',
 	])
+	schema = addModelIndexes(schema, 'Person', [
+		'  // Searching people by name is the same substring problem as titles, over',
+		'  // a table that grows faster than the catalog does.',
+		'  @@index([normalized(ops: raw("gin_trgm_ops"))], type: Gin, map: "Person_normalized_trgm_idx")',
+	])
 	return schema
 }
 

@@ -1,5 +1,6 @@
 import { invariantResponse } from '@epic-web/invariant'
 import { type Prisma } from '@prisma/client'
+import { useState } from 'react'
 import {
 	data as json,
 	Form,
@@ -13,9 +14,15 @@ import {
 } from 'react-router'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { KeyCrew, TopBilledCast } from '#app/components/media-cast.tsx'
+import { MediaFacts, MediaVideos } from '#app/components/media-facts.tsx'
 import { ReportContentButton } from '#app/components/report-content-button.tsx'
 import { ReviewEditor } from '#app/components/review-editor.tsx'
-import { ReviewExpander } from '#app/components/review-expander.tsx'
+import {
+	MoreCommentsButton,
+	ReviewBody,
+	type ReviewDetailComment,
+} from '#app/components/review-expander.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
@@ -43,6 +50,7 @@ import {
 	getFollowedMediaTracking,
 	getMediaCommunityStatistics,
 } from '#app/utils/media-community.server.ts'
+import { getMediaCreditsPreview } from '#app/utils/media-credits.server.ts'
 import {
 	externalMediaUrl,
 	legacyProgressUpdate,
@@ -51,6 +59,7 @@ import {
 	splitLegacyThumbnail,
 	totalFromLegacyCounter,
 } from '#app/utils/media-detail.ts'
+import { mediaFacts } from '#app/utils/media-facts.ts'
 import { toggleMediaFavorite } from '#app/utils/media-favorites.server.ts'
 import {
 	journalTerms,
@@ -60,6 +69,9 @@ import {
 } from '#app/utils/media-journal.ts'
 import { getSimilarMediaRecommendations } from '#app/utils/media-recommendations.server.ts'
 import { getMediaRelations } from '#app/utils/media-relations.server.ts'
+import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
+import { resolveDisplayTitle } from '#app/utils/media-title.ts'
+import { mediaVideoLinks } from '#app/utils/media-videos.ts'
 import { getUserImgSrc } from '#app/utils/misc.tsx'
 import {
 	getNextCanonicalReminderRelease,
@@ -73,10 +85,24 @@ import {
 	toggleReviewLike,
 } from '#app/utils/review-engagement.server.ts'
 import {
+	displayComment,
 	reviewExcerpt,
-	hiddenCommentCount,
 	REVIEW_COMMENT_PREVIEW,
+	REVIEW_COMMENT_REMAINDER_LIMIT,
 } from '#app/utils/review-excerpt.ts'
+import {
+	absoluteUrl,
+	isoDate,
+	openGraphType,
+	originFromMatches,
+	schemaTypeForKind,
+	SITE_NAME,
+	socialDescription,
+	socialMeta,
+	splitGenres,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 import { ensureTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { trackingStateFromEntry } from '#app/utils/tracking-state.ts'
 import { setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
@@ -237,6 +263,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	const mediaId = params.mediaId
 	invariantResponse(mediaId, 'Media not found', { status: 404 })
 	const viewerId = await getUserId(request)
+	const titleLanguage = await getViewerTitleLanguage(request, viewerId)
 	const media = await prisma.media.findUnique({
 		where: { id: mediaId },
 		select: {
@@ -303,6 +330,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		: Promise.resolve(null)
 	const [
 		community,
+		credits,
 		followedTracking,
 		recommendations,
 		relations,
@@ -318,6 +346,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		viewerReminder,
 	] = await Promise.all([
 		getMediaCommunityStatistics(media.id),
+		getMediaCreditsPreview(prisma, media.id),
 		viewerId ? getFollowedMediaTracking(media.id, viewerId) : null,
 		getSimilarMediaRecommendations(
 			{ id: media.id, kind: media.kind, genres: catalog?.genres },
@@ -395,10 +424,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 				},
 				comments: {
 					// NOT filtered by moderation: the page renders removed comments as
-					// "[Removed by moderation]" tombstones, which tell a reader that
-					// something was there. See the note on hiddenComments below — this
-					// disagrees with the endpoint's visible-only skip, and reconciling
-					// the two is unfinished work rather than something to paper over.
+					// tombstones, which tell a reader that something was there. They
+					// therefore occupy a slot, and /resources/review-detail skips the
+					// same unfiltered set when it resumes — see the note there.
 					orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
 					take: REVIEW_COMMENT_PREVIEW,
 					select: {
@@ -531,13 +559,18 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 		media: {
 			id: media.id,
 			kind: media.kind,
-			title: catalog?.title?.trim() || `Untitled ${media.kind}`,
+			title: resolveDisplayTitle(
+				{ kind: media.kind, ...catalog },
+				titleLanguage,
+			),
 			type: catalog?.type,
 			description: catalog?.description,
 			genres: catalog?.genres,
 			releaseStart: catalog?.releaseStart,
 			releaseEnd: catalog?.releaseEnd,
 			imageUrl: thumbnail.imageUrl,
+			facts: mediaFacts(media.kind, catalog ?? {}),
+			videos: mediaVideoLinks(catalog?.videos),
 			upcomingRelease,
 			// Availability is regional. Without a viewer region to work from, show
 			// the one the data is densest for rather than inventing a preference.
@@ -574,6 +607,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			favorites: media._count.favorites,
 		},
 		socialContext: followedTracking,
+		credits,
 		recommendations,
 		relations,
 		reviews: reviewRows.map(({ likes, comments, ...review }) => ({
@@ -583,21 +617,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 			// rest of any one review comes from /resources/review-detail.
 			body: reviewExcerpt(review.body).text,
 			bodyTruncated: reviewExcerpt(review.body).truncated,
-			// An upper bound: _count.comments is the public total and includes
-			// moderated-away ones, which the endpoint will not serve. Filtering it
-			// here would change what "N comments" means everywhere else on the page,
-			// so the label can overstate by however many were removed.
-			hiddenComments: hiddenCommentCount(review._count.comments),
 			rating: review.rating === null ? null : Number(review.rating),
 			viewerLiked: likes.length > 0,
-			comments: comments.map(({ moderationStatus, ...comment }) => ({
-				...comment,
-				body:
-					moderationStatus === 'visible'
-						? comment.body
-						: '[Removed by moderation]',
-				isRemoved: moderationStatus !== 'visible',
-			})),
+			comments: comments.map(displayComment),
 		})),
 		activity: activityRows.map(event => ({
 			id: event.id,
@@ -635,14 +657,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 	})
 }
 
-type ReviewCommentItem = {
-	id: string
-	body: string
-	parentId: string | null
-	createdAt: Date | string
-	isRemoved: boolean
-	author: { id: string; username: string }
-}
+// The same shape whether it came with the page or from the detail endpoint —
+// they land in one thread, so one type keeps them from drifting apart.
+type ReviewCommentItem = ReviewDetailComment
 
 function ReviewCommentForm({
 	reviewId,
@@ -790,6 +807,20 @@ function ReviewDiscussion({
 	viewerId: string | null
 	busy: boolean
 }) {
+	// The remainder arrives on request and joins the same thread, so a late reply
+	// nests under the comment it answers. Null until asked for — an empty array
+	// is a real answer and must not read as "not loaded yet".
+	const [extra, setExtra] = useState<ReviewCommentItem[] | null>(null)
+	const shown = extra ? [...comments, ...extra] : comments
+	// Exact, because both ends count a removed comment: the page spends a slot on
+	// its tombstone and the endpoint skips it.
+	const hidden = Math.max(0, commentCount - shown.length)
+	// A full page is the endpoint's ceiling, not the end of the conversation.
+	// Anything short of it is everything there was, so the count is only worth
+	// reporting here.
+	const capped =
+		extra !== null && extra.length >= REVIEW_COMMENT_REMAINDER_LIMIT
+
 	return (
 		<div className="space-y-3 rounded-lg bg-muted/30 p-3">
 			<div className="text-sm font-semibold">Discussion · {commentCount}</div>
@@ -807,18 +838,24 @@ function ReviewDiscussion({
 				</p>
 			)}
 			<ReviewCommentThread
-				comments={comments}
+				comments={shown}
 				parentId={null}
 				reviewId={reviewId}
 				reviewAuthorId={reviewAuthorId}
 				viewerId={viewerId}
 				busy={busy}
 			/>
-			{commentCount > comments.length ? (
+			{capped ? (
 				<p className="text-xs text-muted-foreground">
-					Showing the first {comments.length} comments.
+					Showing the first {shown.length} of {commentCount} comments.
 				</p>
-			) : null}
+			) : (
+				<MoreCommentsButton
+					reviewId={reviewId}
+					hidden={hidden}
+					onLoaded={setExtra}
+				/>
+			)}
 		</div>
 	)
 }
@@ -1209,6 +1246,7 @@ export default function MediaDetailRoute() {
 							</Button>
 						))}
 					</div>
+					<MediaFacts facts={data.media.facts} />
 				</aside>
 
 				<div className="space-y-8">
@@ -1829,7 +1867,18 @@ export default function MediaDetailRoute() {
 								{data.media.genres}
 							</p>
 						) : null}
+						{/* Whose is this? Directly under the description, as TMDB does
+						    it — the crew list proper has its own page. */}
+						<KeyCrew crew={data.credits.keyCrew} />
 					</section>
+
+					<TopBilledCast
+						cast={data.credits.cast}
+						total={data.credits.castTotal}
+						mediaId={data.media.id}
+					/>
+
+					<MediaVideos videos={data.media.videos} />
 
 					{data.relations.length ? (
 						<section
@@ -2036,28 +2085,22 @@ export default function MediaDetailRoute() {
 												<summary className="cursor-pointer font-semibold">
 													Contains spoilers — reveal review
 												</summary>
-												<p className="mt-3 whitespace-pre-wrap leading-7 text-muted-foreground">
-													{review.body}
-												</p>
 												{/* Inside the gate: expanding a spoiler-flagged review must
 												    not print the rest of it in the clear. */}
-												<ReviewExpander
-													reviewId={review.id}
-													truncated={review.bodyTruncated}
-													hiddenComments={review.hiddenComments}
-												/>
+												<div className="mt-3">
+													<ReviewBody
+														reviewId={review.id}
+														excerpt={review.body}
+														truncated={review.bodyTruncated}
+													/>
+												</div>
 											</details>
 										) : (
-											<>
-												<p className="whitespace-pre-wrap leading-7 text-muted-foreground">
-													{review.body}
-												</p>
-												<ReviewExpander
-													reviewId={review.id}
-													truncated={review.bodyTruncated}
-													hiddenComments={review.hiddenComments}
-												/>
-											</>
+											<ReviewBody
+												reviewId={review.id}
+												excerpt={review.body}
+												truncated={review.bodyTruncated}
+											/>
 										)}
 										<div className="flex flex-wrap items-center gap-3 border-t pt-3 text-sm">
 											{data.viewer ? (
@@ -2101,6 +2144,9 @@ export default function MediaDetailRoute() {
 												</summary>
 												<div className="mt-3">
 													<ReviewDiscussion
+														// See the note on the other branch: a fetched
+														// remainder goes stale the moment a comment is added.
+														key={review._count.comments}
 														reviewId={review.id}
 														reviewAuthorId={review.author.id}
 														comments={review.comments}
@@ -2112,6 +2158,11 @@ export default function MediaDetailRoute() {
 											</details>
 										) : (
 											<ReviewDiscussion
+												// Posting or deleting a comment makes any remainder already
+												// fetched stale — most visibly the member's own new comment,
+												// which is the newest and so lands outside what was loaded.
+												// Remounting drops it and re-offers the control.
+												key={review._count.comments}
 												reviewId={review.id}
 												reviewAuthorId={review.author.id}
 												comments={review.comments}
@@ -2168,15 +2219,62 @@ export default function MediaDetailRoute() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
-	{ title: loaderData ? `${loaderData.media.title} | Veud` : 'Media | Veud' },
-	{
-		name: 'description',
-		content:
-			loaderData?.media.description ??
-			'Media details and community tracking on Veud',
-	},
-]
+export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
+	if (!loaderData) {
+		return [
+			{ title: 'Media | Veud' },
+			{
+				name: 'description',
+				content: 'Media details and community tracking on Veud',
+			},
+		]
+	}
+
+	const { media, community } = loaderData
+	const origin = originFromMatches(matches)
+	const title = `${media.title} | ${SITE_NAME}`
+	const description = socialDescription(
+		media.description,
+		`${media.title} on ${SITE_NAME} — tracking, ratings, and reviews from the community.`,
+	)
+	const url = absoluteUrl(origin, `/media/${media.id}`)
+	const image = absoluteUrl(origin, media.imageUrl)
+
+	return [
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `Cover art for ${media.title}` : undefined,
+			type: openGraphType(media.kind, media.type),
+		}),
+		structuredData(
+			withoutEmptyValues({
+				'@type': schemaTypeForKind(media.kind, media.type),
+				name: media.title,
+				url,
+				image,
+				description,
+				genre: splitGenres(media.genres),
+				datePublished: isoDate(media.releaseStart),
+				// Only claimed when members have actually rated it. An
+				// `aggregateRating` with no ratings behind it is the kind of thing
+				// search engines penalise, and rightly.
+				aggregateRating:
+					community.meanScore !== null && community.ratings > 0
+						? {
+								'@type': 'AggregateRating',
+								ratingValue: Number(community.meanScore.toFixed(2)),
+								ratingCount: community.ratings,
+								bestRating: 10,
+								worstRating: 1,
+							}
+						: null,
+			}),
+		),
+	]
+}
 
 export function ErrorBoundary() {
 	return (

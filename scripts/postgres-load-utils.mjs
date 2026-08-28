@@ -181,12 +181,30 @@ export const publicSurfaceLoadBudgets = Object.freeze({
 		warmSqlQueries: 0,
 		payloadBytes: 48 * 1024,
 	}),
+	searchSuggestions: Object.freeze({
+		// Anonymous search performs one bounded title query and one bounded person
+		// query. It is intentionally uncached in process: the HTTP response cache is
+		// keyed by query string, so both measurements must remain bounded themselves.
+		coldQueries: 2,
+		warmQueries: 2,
+		coldSqlQueries: 2,
+		warmSqlQueries: 2,
+		payloadBytes: 32 * 1024,
+	}),
 })
 
+// Two features have each raised these by exactly one, and each is one query.
+//
+// Cast: ingestion caps a title's credits, so the whole list is fetched once and
+// divided in JavaScript rather than asked for three times.
+//
+// Title language: the viewer's preference decides what the title on the page is
+// called. Loaders that already resolved the viewer pass the id through, so this
+// is the preference lookup alone rather than another session lookup with it.
 export const mediaDetailLoadBudgets = Object.freeze({
 	anonymous: Object.freeze({
-		logicalQueries: 16,
-		sqlQueries: 24,
+		logicalQueries: 18,
+		sqlQueries: 26,
 		payloadBytes: 192 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -195,8 +213,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 0,
 	}),
 	normalizedSigned: Object.freeze({
-		logicalQueries: 24,
-		sqlQueries: 36,
+		logicalQueries: 26,
+		sqlQueries: 38,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -205,8 +223,8 @@ export const mediaDetailLoadBudgets = Object.freeze({
 		expectedTrackingStateLookupSqlReads: 1,
 	}),
 	boundedLegacy: Object.freeze({
-		logicalQueries: 25,
-		sqlQueries: 37,
+		logicalQueries: 27,
+		sqlQueries: 39,
 		payloadBytes: 256 * 1024,
 		wallMs: 8_000,
 		expectedEntryReads: 0,
@@ -625,13 +643,48 @@ export function representativeLoadShape({
 	}
 }
 
+const representativeProfilePageRows = 500
+const representativeProfileEntryShare = 50
+
+/**
+ * Keep a full page in small release fixtures. At representative scale, cap the
+ * newest member near 2% of the entry table so pagination must use the compound
+ * watchlist index instead of assuming their clustered ids appear early in the
+ * primary-key scan.
+ */
 export function representativeProfileEntryShape({
 	mediaCount,
 	trackedEntries,
+	trackedTargetEntries,
+	memberCount,
 }) {
 	boundedInteger('mediaCount', mediaCount, { minimum: 1, maximum: 2_000_000 })
 	boundedInteger('trackedEntries', trackedEntries, { maximum: 100_000 })
-	const expectedEntries = Math.min(mediaCount, 100_000)
+	boundedInteger('trackedTargetEntries', trackedTargetEntries, {
+		maximum: trackedEntries,
+	})
+	boundedInteger('memberCount', memberCount, {
+		minimum: 1,
+		maximum: 1_000_000,
+	})
+	const otherMemberEntries = (memberCount - 1) * trackedEntries
+	const shareTarget = Math.min(
+		mediaCount,
+		100_000,
+		Math.max(
+			trackedEntries,
+			Math.floor(otherMemberEntries / (representativeProfileEntryShare - 1)),
+		),
+	)
+	const targetWatchlistPage = Math.min(
+		representativeProfilePageRows,
+		mediaCount - trackedEntries + trackedTargetEntries,
+	)
+	const fixtureEntryRows = Math.max(
+		shareTarget - trackedEntries,
+		targetWatchlistPage - trackedTargetEntries,
+	)
+	const expectedEntries = trackedEntries + fixtureEntryRows
 	if (trackedEntries > expectedEntries) {
 		throw new Error(
 			'trackedEntries may not exceed the representative profile target',
@@ -639,7 +692,7 @@ export function representativeProfileEntryShape({
 	}
 	return {
 		expectedEntries,
-		fixtureEntryRows: expectedEntries - trackedEntries,
+		fixtureEntryRows,
 	}
 }
 

@@ -16,6 +16,7 @@ import {
 } from '#app/routes/media+/mal.ts'
 import { getTMDBInfo, searchTMDB } from '#app/routes/media+/tmdb.ts'
 import { insertPositionForDestination } from '#app/utils/lists/insert-boundary.ts'
+import { ALL_MEDIA_TYPES } from '#app/utils/lists/media-search-type.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import {
 	mediaIdentityForMal,
@@ -222,17 +223,26 @@ async function requireSuccessfulResponse(response: Response) {
 }
 
 export function MediaTypeDropdown(params: any) {
+	const selected = params.columnParams.selectedSearchType
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
+					aria-label={`Search type: ${selected}`}
 					className="cursor-pointer rounded bg-[rgb(var(--veud-control))] px-[0.5rem] py-[0.1rem] text-base font-bold hover:bg-[rgb(var(--veud-muted-text))]"
 				>
-					{params.columnParams.selectedSearchType}
+					{selected}
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent sideOffset={8} align="start">
+				<DropdownMenuItem
+					onClick={() =>
+						params.columnParams.setSelectedSearchType(ALL_MEDIA_TYPES)
+					}
+				>
+					{ALL_MEDIA_TYPES}
+				</DropdownMenuItem>
 				<DropdownMenuItem
 					onClick={() => params.columnParams.setSelectedSearchType('Movie')}
 				>

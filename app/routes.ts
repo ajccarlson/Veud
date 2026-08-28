@@ -55,6 +55,12 @@ export default [
 	}),
 	appRoute('routes/_seo+/robots[.]txt.ts', { path: 'robots.txt' }),
 	appRoute('routes/_seo+/sitemap[.]xml.ts', { path: 'sitemap.xml' }),
+	appRoute('routes/_seo+/sitemap.pages[.]xml.ts', {
+		path: 'sitemap/pages.xml',
+	}),
+	appRoute('routes/_seo+/sitemap.media.$page[.]xml.ts', {
+		path: 'sitemap/media/:page.xml',
+	}),
 	appRoute('routes/admin+/cache.tsx', { path: 'admin/cache' }),
 	appRoute('routes/admin+/catalog.tsx', { path: 'admin/catalog' }),
 	appRoute('routes/admin+/operations.tsx', { path: 'admin/operations' }),
@@ -111,7 +117,11 @@ export default [
 		path: 'media/fetch-data/:request',
 	}),
 	appRoute('routes/media+/$mediaId.tsx', { path: 'media/:mediaId' }),
+	appRoute('routes/media+/$mediaId_.cast.tsx', {
+		path: 'media/:mediaId/cast',
+	}),
 	appRoute('routes/moderation.tsx', { path: 'moderation' }),
+	appRoute('routes/people+/$personId.tsx', { path: 'people/:personId' }),
 	appRoute('routes/notifications.tsx', { path: 'notifications' }),
 	appRoute('routes/resources+/calendar[.]ics.ts', {
 		path: 'resources/calendar.ics',
@@ -179,6 +189,9 @@ export default [
 	appRoute('routes/settings+/profile.tsx', {
 		path: 'settings/profile',
 		children: [
+			appRoute('routes/settings+/profile.appearance.tsx', {
+				path: 'appearance',
+			}),
 			appRoute('routes/settings+/profile.banner.tsx', {
 				path: 'banner',
 			}),

@@ -164,6 +164,7 @@ test('normalizes anime and manga metadata, titles, relations, URLs, and retry de
 				catalogScore: 8.4,
 				catalogPopularity: 0.5,
 				releaseStatus: 'Finished Airing',
+				originalTitle: 'アニメ 42',
 			}),
 		}),
 	)
@@ -385,6 +386,7 @@ test('hydrates user-demand first and persists canonical details, titles, relatio
 			hydrationReason: null,
 			media: expect.objectContaining({
 				title: 'Anime 2',
+				originalTitle: 'アニメ 2',
 				type: 'TV Series',
 				genres: 'Drama, Mystery',
 				catalogScore: 8.4,

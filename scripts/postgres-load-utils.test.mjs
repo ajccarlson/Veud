@@ -252,9 +252,17 @@ test('enforces cold, warm, and payload budgets for public surfaces', () => {
 			warmSqlQueries: 0,
 			payloadBytes: 12_000,
 		},
+		searchSuggestions: {
+			coldQueries: 2,
+			warmQueries: 2,
+			coldSqlQueries: 2,
+			warmSqlQueries: 2,
+			payloadBytes: 8_000,
+		},
 	}
 
 	expect(publicSurfaceLoadBudgets.discoveryFacets.payloadBytes).toBe(48 * 1024)
+	expect(publicSurfaceLoadBudgets.searchSuggestions.coldQueries).toBe(2)
 	expect(() => assertPublicSurfaceLoadBudgets(report)).not.toThrow()
 
 	report.anonymousHome.coldQueries = 13
@@ -482,37 +490,88 @@ test.each([
 	{
 		mediaCount: 2_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 2_000, fixtureEntryRows: 1_900 },
+		trackedTargetEntries: 49,
+		memberCount: 20,
+		expected: { expectedEntries: 551, fixtureEntryRows: 451 },
+	},
+	{
+		mediaCount: 2_000,
+		trackedEntries: 100,
+		trackedTargetEntries: 50,
+		memberCount: 200,
+		expected: { expectedEntries: 550, fixtureEntryRows: 450 },
 	},
 	{
 		mediaCount: 100_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		trackedTargetEntries: 50,
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
 		mediaCount: 150_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		trackedTargetEntries: 50,
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
 		mediaCount: 80,
 		trackedEntries: 80,
+		trackedTargetEntries: 40,
+		memberCount: 1,
 		expected: { expectedEntries: 80, fixtureEntryRows: 0 },
+	},
+	{
+		mediaCount: 500,
+		trackedEntries: 100,
+		trackedTargetEntries: 49,
+		memberCount: 1_000,
+		expected: { expectedEntries: 500, fixtureEntryRows: 400 },
 	},
 ])(
 	'derives a $expected.expectedEntries-entry real profile fixture',
-	({ mediaCount, trackedEntries, expected }) => {
+	({
+		mediaCount,
+		trackedEntries,
+		trackedTargetEntries,
+		memberCount,
+		expected,
+	}) => {
 		expect(
-			representativeProfileEntryShape({ mediaCount, trackedEntries }),
+			representativeProfileEntryShape({
+				mediaCount,
+				trackedEntries,
+				trackedTargetEntries,
+				memberCount,
+			}),
 		).toEqual(expected)
 	},
 )
+
+test('the representative member stays below a tenth once a full page fits', () => {
+	for (const memberCount of [51, 200, 1_000, 5_000]) {
+		const trackedEntries = 100
+		const { expectedEntries } = representativeProfileEntryShape({
+			mediaCount: 2_000_000,
+			trackedEntries,
+			trackedTargetEntries: 50,
+			memberCount,
+		})
+		const otherMemberEntries = (memberCount - 1) * trackedEntries
+		expect(
+			expectedEntries / (otherMemberEntries + expectedEntries),
+		).toBeLessThanOrEqual(0.1)
+	}
+})
 
 test('rejects a representative profile with more tracked rows than its target', () => {
 	expect(() =>
 		representativeProfileEntryShape({
 			mediaCount: 80,
 			trackedEntries: 81,
+			trackedTargetEntries: 40,
+			memberCount: 1,
 		}),
 	).toThrow('trackedEntries may not exceed')
 })
@@ -623,4 +682,29 @@ test('summarizes peak connection and lock pressure', () => {
 		peakWaitingLocks: 2,
 		peakConnectionUtilization: 0.12,
 	})
+})
+
+test('a person search measured on an empty result set is rejected', () => {
+	// A needle matching nothing skips matching, ordering and limiting, then
+	// reports a sub-millisecond number that reads as "search is fast".
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 0 }], {
+			'person-name': 1,
+		}),
+	).toThrow()
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 32 }], {
+			'person-name': 1,
+		}),
+	).not.toThrow()
+})
+
+test('a broad person search that stops matching a slice is rejected', () => {
+	// person-name-broad exists to make the ORDER BY do real work. If its needle
+	// stops matching a slice, it silently becomes another single-row lookup.
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name-broad', actualRows: 12 }], {
+			'person-name-broad': 32,
+		}),
+	).toThrow()
 })

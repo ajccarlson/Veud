@@ -40,6 +40,16 @@ import {
 import { splitLegacyThumbnail } from '#app/utils/media-detail.ts'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
 import { prismaSearchFilter } from '#app/utils/prisma-search.server.ts'
+import {
+	SITE_NAME,
+	absoluteUrl,
+	isoDate,
+	originFromMatches,
+	socialDescription,
+	socialMeta,
+	structuredData,
+	withoutEmptyValues,
+} from '#app/utils/seo.ts'
 
 const CollectionItemActionSchema = z.discriminatedUnion('intent', [
 	z.object({
@@ -819,19 +829,76 @@ export default function CollectionDetail() {
 	)
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => [
-	{
-		title: loaderData
-			? `${loaderData.collection.title} · Veud`
-			: 'Collection · Veud',
-	},
-	{
-		name: 'description',
-		content:
-			loaderData?.collection.description ??
-			'A curated media collection on Veud.',
-	},
-]
+export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
+	if (!loaderData) {
+		return [
+			{ title: `Collection · ${SITE_NAME}` },
+			{
+				name: 'description',
+				content: `A curated media collection on ${SITE_NAME}.`,
+			},
+		]
+	}
+
+	const { collection } = loaderData
+	const origin = originFromMatches(matches)
+	const owner = collection.owner.name ?? collection.owner.username
+	const count = collection.items.length
+	const title = `${collection.title} · ${SITE_NAME}`
+	const description = socialDescription(
+		collection.description,
+		`${count} title${count === 1 ? '' : 's'} collected by ${owner} on ${SITE_NAME}.`,
+	)
+	const url = absoluteUrl(origin, `/collections/${collection.id}`)
+	// The first title's artwork stands in for the collection, which is what a
+	// shared list looks like everywhere else.
+	const image = absoluteUrl(origin, collection.items[0]?.media.thumbnail)
+
+	return [
+		...socialMeta({
+			title,
+			description,
+			url,
+			image,
+			imageAlt: image ? `Cover art from ${collection.title}` : undefined,
+		}),
+		// Only for collections anyone can open. Structured data is a claim to
+		// search engines that a page exists and is worth indexing, and a private
+		// collection is neither — the viewer can still share the link, they just
+		// do not advertise it on the member's behalf.
+		...(collection.isPublic
+			? [
+					structuredData(
+						withoutEmptyValues({
+							'@type': 'CollectionPage',
+							name: collection.title,
+							url,
+							description,
+							author: withoutEmptyValues({
+								'@type': 'Person',
+								name: owner,
+								url: absoluteUrl(origin, `/users/${collection.owner.username}`),
+							}),
+							dateCreated: isoDate(collection.createdAt),
+							dateModified: isoDate(collection.updatedAt),
+							mainEntity: withoutEmptyValues({
+								'@type': 'ItemList',
+								numberOfItems: count,
+								itemListElement: collection.items
+									.slice(0, 25)
+									.map((item, index) => ({
+										'@type': 'ListItem',
+										position: index + 1,
+										url: absoluteUrl(origin, `/media/${item.media.id}`),
+										name: item.media.title,
+									})),
+							}),
+						}),
+					),
+				]
+			: []),
+	]
+}
 
 export function ErrorBoundary() {
 	return (

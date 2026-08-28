@@ -614,10 +614,9 @@ export default function CatalogAdminRoute() {
 		(sum, item) => sum + item.hydrated,
 		0,
 	)
-	const totalQueue = snapshot.coverage.reduce(
-		(sum, item) => sum + item.queueDepth,
-		0,
-	)
+	const totalQueue =
+		snapshot.coverage.reduce((sum, item) => sum + item.queueDepth, 0) +
+		snapshot.creditCoverage.reduce((sum, item) => sum + item.queueDepth, 0)
 	const activeRuns = snapshot.runs.filter(run => run.status === 'running')
 
 	return (
@@ -902,6 +901,59 @@ export default function CatalogAdminRoute() {
 									['Deferred', item.failedDeferred],
 									['Tombstoned', item.tombstoned],
 									['429 events', item.rateLimitEvents],
+								].map(([label, value]) => (
+									<div key={label} className="min-w-0">
+										<dt className="truncate text-veud-mint">{label}</dt>
+										<dd className="mt-0.5 font-black text-veud-cream">
+											{formatNumber(Number(value))}
+										</dd>
+									</div>
+								))}
+							</dl>
+						</VeudPanel>
+					))}
+					{snapshot.creditCoverage.map(item => (
+						<VeudPanel
+							key={`${item.provider}:${item.scope}`}
+							aria-label={item.label}
+							className="space-y-5"
+						>
+							<div className="flex items-start justify-between gap-3">
+								<div>
+									<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">
+										{item.provider}
+									</p>
+									<h3 className="mt-1 text-xl font-black text-veud-cream">
+										{item.label}
+									</h3>
+								</div>
+								<p className="text-right text-sm font-bold text-veud-copy">
+									{formatNumber(item.synced)} / {formatNumber(item.active)}
+								</p>
+							</div>
+							<div>
+								<div className="mb-2 flex justify-between gap-3 text-sm font-bold text-veud-copy">
+									<span>Cast coverage</span>
+									<span>{item.coveragePercent}%</span>
+								</div>
+								<div className="h-2 overflow-hidden rounded-full bg-black/35">
+									<div
+										className={cn(
+											'h-full rounded-full transition-[width]',
+											coverageTone(item.coveragePercent),
+										)}
+										style={{
+											width: `${Math.min(100, item.coveragePercent)}%`,
+										}}
+									/>
+								</div>
+							</div>
+							<dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+								{[
+									['Fresh', item.fresh],
+									['Eligible', item.queueDepth],
+									['Deferred', item.failedDeferred],
+									['Credits', item.credits],
 								].map(([label, value]) => (
 									<div key={label} className="min-w-0">
 										<dt className="truncate text-veud-mint">{label}</dt>

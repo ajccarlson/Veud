@@ -17,6 +17,12 @@ import {
 	upsertCatalogIdentity,
 } from './catalog-sync.server.ts'
 import { entryCatalogMetadataFields } from './media-catalog.ts'
+import {
+	type CatalogCreditInput,
+	normalizeTmdbCredits,
+	replaceCatalogCredits,
+} from './media-credits.server.ts'
+import { normalizeTmdbVideos, serializeMediaVideos } from './media-videos.ts'
 import { hydrateMediaCatalog } from './media.server.ts'
 import { type TmdbCatalogKind } from './tmdb-catalog-inventory.server.ts'
 
@@ -74,6 +80,7 @@ export type NormalizedTmdbDetails = {
 		value: string
 		isPrimary?: boolean
 	}>
+	credits: CatalogCreditInput[]
 }
 
 export type TmdbHydrationSummary = {
@@ -169,6 +176,20 @@ function optionalNumber(value: unknown) {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/**
+ * TMDB returns 0 for an unknown budget or revenue rather than omitting the
+ * field, and no released film has genuinely grossed nothing, so 0 is the
+ * absence of a figure. Storing it as one is not merely a cosmetic problem:
+ * `missingValue` in the merge treats "0" as present, so the sentinel would stop
+ * a real figure filling the field from the other row and register as a
+ * conflict instead.
+ */
+function optionalMoneyString(value: unknown) {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+		? String(value)
+		: null
+}
+
 function optionalAudience(value: unknown) {
 	const audience = optionalNumber(value)
 	return audience !== null && Number.isSafeInteger(audience) && audience >= 0
@@ -211,6 +232,21 @@ function commaSeparatedNames(value: unknown) {
 		.map(item => optionalString(requireObject(item, 'named item').name))
 		.filter((name): name is string => Boolean(name))
 	return names.length ? names.join(', ') : null
+}
+
+function keywordNames(value: unknown) {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+	const container = value as Record<string, unknown>
+	return commaSeparatedNames(container.keywords ?? container.results)
+}
+
+function firstPositiveNumber(value: unknown) {
+	if (!Array.isArray(value)) return null
+	for (const item of value) {
+		const number = optionalNumber(item)
+		if (number !== null && number > 0) return number
+	}
+	return null
 }
 
 function languageName(code: string | null) {
@@ -350,7 +386,9 @@ export function normalizeTmdbDetails(
 					return episodes && episodes > 0 ? `${episodes} eps` : null
 				})()
 	const runtimeMinutes =
-		kind === 'movie' ? optionalNumber(payload.runtime) : null
+		kind === 'movie'
+			? optionalNumber(payload.runtime)
+			: firstPositiveNumber(payload.episode_run_time)
 	const episodeCount =
 		kind === 'tv' ? optionalNumber(payload.number_of_episodes) : null
 	const rating =
@@ -364,6 +402,7 @@ export function normalizeTmdbDetails(
 		releaseStart: releaseStart ?? undefined,
 		releaseEnd: releaseEnd ?? undefined,
 		description: optionalString(payload.overview) ?? undefined,
+		originalTitle: originalTitle ?? null,
 		startYear: releaseStart ? String(releaseStart.getUTCFullYear()) : undefined,
 		length: runtime ?? undefined,
 		runtimeMinutes:
@@ -373,6 +412,11 @@ export function normalizeTmdbDetails(
 		rating: rating ?? undefined,
 		language: languageName(originalLanguage) ?? undefined,
 		studios: commaSeparatedNames(payload.production_companies) ?? undefined,
+		networks: commaSeparatedNames(payload.networks),
+		keywords: keywordNames(payload.keywords),
+		budget: kind === 'movie' ? optionalMoneyString(payload.budget) : null,
+		revenue: kind === 'movie' ? optionalMoneyString(payload.revenue) : null,
+		videos: serializeMediaVideos(normalizeTmdbVideos(payload.videos)),
 		tmdbScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogPopularity: optionalNumber(payload.popularity) ?? undefined,
@@ -406,6 +450,7 @@ export function normalizeTmdbDetails(
 				: []),
 			...alternativeTitles(payload, kind),
 		],
+		credits: normalizeTmdbCredits(payload),
 	}
 }
 
@@ -429,10 +474,18 @@ export function tmdbDetailUrl(kind: TmdbCatalogKind, externalId: string) {
 	) {
 		throw new Error('TMDB external id must be a positive safe integer')
 	}
+	// Credits ride along on the detail request rather than costing one of their
+	// own — `append_to_response` is one HTTP call and one rate-limit slot, which
+	// is the difference between cast being free and cast doubling the time to
+	// hydrate the catalog.
+	//
+	// A series uses `aggregate_credits`, which rolls a person's roles up across
+	// seasons and carries the episode counts. `credits` on a series returns only
+	// whoever happened to be on the last season, which is not the cast.
 	const append =
 		kind === 'movie'
-			? 'alternative_titles,release_dates'
-			: 'alternative_titles,content_ratings'
+			? 'alternative_titles,release_dates,credits,keywords,videos'
+			: 'alternative_titles,content_ratings,aggregate_credits,keywords,videos'
 	const url = new URL(`https://api.themoviedb.org/3/${kind}/${externalId}`)
 	url.searchParams.set('language', 'en-US')
 	url.searchParams.set('append_to_response', append)
@@ -553,8 +606,7 @@ export function providerFeedRankingScores(
 		// or upcoming feeds, where genuinely new releases naturally have fewer
 		// ratings.
 		const confidenceAudienceScale = feed === 'popular' ? 500 : 100
-		const audienceConfidence =
-			1 - Math.exp(-audience / confidenceAudienceScale)
+		const audienceConfidence = 1 - Math.exp(-audience / confidenceAudienceScale)
 		const confidenceAdjustedRank = rankScore * audienceConfidence
 		return Math.max(
 			0,
@@ -1139,7 +1191,15 @@ export async function hydrateTmdbCatalog(
 							result.details.catalog,
 							{
 								overwrite: true,
-								authoritativeFields: ['nextRelease'],
+								authoritativeFields: [
+									'nextRelease',
+									'originalTitle',
+									'networks',
+									'keywords',
+									'budget',
+									'revenue',
+									'videos',
+								],
 								syncLegacyFields: entryCatalogMetadataFields,
 							},
 						)
@@ -1147,6 +1207,11 @@ export async function hydrateTmdbCatalog(
 							mediaId: result.candidate.mediaId,
 							provider: 'tmdb',
 							titles: result.details.titles,
+						})
+						await replaceCatalogCredits(tx, {
+							mediaId: result.candidate.mediaId,
+							provider: 'tmdb',
+							credits: result.details.credits,
 						})
 						await tx.mediaExternalId.update({
 							where: { id: result.candidate.id },

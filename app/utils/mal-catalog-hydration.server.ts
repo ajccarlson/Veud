@@ -22,6 +22,11 @@ import {
 	MalRequestError,
 } from './mal-catalog-inventory.server.ts'
 import { entryCatalogMetadataFields } from './media-catalog.ts'
+import {
+	type CatalogCreditInput,
+	normalizeMalAuthorCredits,
+	replaceCatalogCredits,
+} from './media-credits.server.ts'
 import { syncMediaRelations } from './media-relations.server.ts'
 import {
 	type MediaRelationCandidate,
@@ -108,6 +113,7 @@ export type NormalizedMalDetails = {
 		isPrimary?: boolean
 	}>
 	relations: MediaRelationCandidate[]
+	credits: CatalogCreditInput[]
 }
 
 export type MalHydrationSummary = {
@@ -228,6 +234,22 @@ function imageUrl(value: unknown) {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) return null
 	const picture = value as Record<string, unknown>
 	return optionalString(picture.large) ?? optionalString(picture.medium)
+}
+
+/**
+ * MAL's English title, when it has one.
+ *
+ * `optionalString` drops the empty string, which MAL returns often, so an
+ * absent English title reads as null rather than as a blank title that would
+ * render an empty row.
+ */
+function malEnglishTitle(payload: Record<string, unknown>) {
+	if (!payload.alternative_titles) return null
+	const alternatives = requireObject(
+		payload.alternative_titles,
+		'MAL alternative_titles',
+	)
+	return optionalString(alternatives.en)
 }
 
 function alternativeTitles(payload: Record<string, unknown>) {
@@ -486,6 +508,13 @@ export function normalizeMalDetails(
 	const startYear = start?.getUTCFullYear() ?? seasonYear
 	const catalog: Record<string, unknown> = {
 		title,
+		originalTitle: optionalString(
+			requireObject(payload.alternative_titles ?? {}, 'MAL alternative_titles')
+				.ja,
+		),
+		// Stored as a scalar so every list row and card can prefer it without a
+		// join. Null when MAL has no English title, which is common.
+		englishTitle: malEnglishTitle(payload),
 		thumbnail: picture
 			? `${picture}|https://myanimelist.net/${kind}/${id}`
 			: null,
@@ -562,6 +591,10 @@ export function normalizeMalDetails(
 			...alternativeTitles(payload),
 		],
 		relations: malRelations(payload),
+		// MAL's official API carries no cast, but a manga's authors are named
+		// people with their own ids, and they belong in the same table as
+		// everyone else.
+		credits: normalizeMalAuthorCredits(payload),
 	}
 }
 
@@ -1010,10 +1043,21 @@ export async function hydrateMalCatalog(
 						result.details.catalog,
 						{
 							overwrite: true,
-							authoritativeFields: ['nextRelease'],
+							// Authoritative so a title MAL later drops is cleared rather
+							// than left showing a name the provider no longer has.
+							authoritativeFields: [
+								'nextRelease',
+								'originalTitle',
+								'englishTitle',
+							],
 							syncLegacyFields: entryCatalogMetadataFields,
 						},
 					)
+					await replaceCatalogCredits(tx, {
+						mediaId: result.candidate.mediaId,
+						provider: 'mal',
+						credits: result.details.credits,
+					})
 					await replaceCatalogTitles(tx, {
 						mediaId: candidate.mediaId,
 						provider: 'mal',

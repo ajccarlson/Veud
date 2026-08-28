@@ -15,7 +15,11 @@ import {
 } from './release-occurrences.server.ts'
 
 const mergeMediaInclude = {
-	externalIds: { select: { id: true } },
+	// provider and tombstonedAt are read when an absorbed TMDB identity has to be
+	// tombstoned so hydration cannot claim the surviving anime row.
+	externalIds: {
+		select: { id: true, provider: true, tombstonedAt: true },
+	},
 	titles: true,
 	catalogFeedItems: true,
 	outgoingRelations: {
@@ -63,7 +67,63 @@ const mergeMediaInclude = {
 	},
 	recommendationFeedback: { select: { id: true, ownerId: true } },
 	libraryImportItems: { select: { id: true } },
+	// Provider-owned rows. Both cascade when a Media is deleted, so a merge that
+	// does not carry them forward destroys them silently: the losing row's
+	// streaming offers, and its whole cast and crew.
+	watchAvailability: {
+		select: { id: true, region: true, offerKind: true, providerId: true },
+	},
+	credits: {
+		select: {
+			id: true,
+			personId: true,
+			creditType: true,
+			role: true,
+			department: true,
+		},
+	},
+	// Whole rows: failureCount and refreshAfter are the provider backoff, and a
+	// pruned one has to be restorable exactly on revert.
+	creditSyncStates: true,
 } satisfies Prisma.MediaInclude
+
+/** Every to-many relation on Media, and what a merge does with the losing
+ * row's records. `assertSourceDrained` counts every key here, so a relation
+ * added to the schema and left out of this ledger fails the coverage test
+ * rather than being destroyed with the source. */
+export const mediaMergeRelationDispositions = {
+	externalIds: 'move',
+	titles: 'move-or-prune',
+	outgoingRelations: 'move-or-prune',
+	incomingRelations: 'move-or-prune',
+	entries: 'move',
+	favorites: 'move',
+	trackingStates: 'move',
+	seasons: 'move',
+	installments: 'move',
+	consumptionEvents: 'move',
+	activityEvents: 'move',
+	reviews: 'move',
+	diaryEntries: 'move',
+	collectionItems: 'move',
+	releaseReminders: 'move',
+	releaseOccurrences: 'move-or-prune',
+	watchAvailability: 'move',
+	credits: 'move',
+	creditSyncStates: 'move-or-prune',
+	catalogFeedItems: 'move-or-prune',
+	catalogMetricSnapshots: 'move',
+	primaryQualityIssues: 'requeue',
+	secondaryQualityIssues: 'requeue',
+	recommendationFeedback: 'move',
+	libraryImportItems: 'move',
+} as const satisfies Record<string, 'move' | 'move-or-prune' | 'requeue'>
+
+/** The ledger as a `_count` select, so the drain assertion and the ledger
+ * cannot drift apart. */
+export const mediaMergeDrainCountSelect = Object.fromEntries(
+	Object.keys(mediaMergeRelationDispositions).map(name => [name, true]),
+) as Prisma.MediaCountOutputTypeSelect
 
 type MergeMedia = Prisma.MediaGetPayload<{
 	include: typeof mergeMediaInclude
@@ -108,6 +168,7 @@ type MergeContext = {
 	activeMergeIds: string[]
 	titlePrunes: MergeMedia['titles']
 	feedPrunes: MergeMedia['catalogFeedItems']
+	creditSyncStatePrunes: MergeMedia['creditSyncStates']
 	relationPlan: RelationPlan
 	targetFills: Partial<Record<CatalogMediaField, unknown>>
 	targetConflicts: CatalogMediaField[]
@@ -116,7 +177,7 @@ type MergeContext = {
 
 type MergeJournal = {
 	version: 1
-	inventoryVersion?: 3
+	inventoryVersion?: 3 | 4 | 5
 	appliedAt: string
 	sourceMedia: Record<string, unknown>
 	targetPatch: {
@@ -142,12 +203,19 @@ type MergeJournal = {
 		catalogMetricSnapshots?: string[]
 		recommendationFeedback?: string[]
 		libraryImportItems?: string[]
+		watchAvailability?: string[]
+		credits?: string[]
+		creditSyncStates?: string[]
+		/** Absorbed TMDB identities tombstoned so hydration cannot claim the
+		 * surviving anime row. Cleared again on revert. */
+		tombstonedExternalIds?: string[]
 		relations: RelationPlan['move']
 	}
 	pruned: {
 		titles: MergeMedia['titles']
 		catalogFeedItems: MergeMedia['catalogFeedItems']
 		relations: MergeMedia['outgoingRelations']
+		creditSyncStates?: MergeMedia['creditSyncStates']
 	}
 	qualityIssues: Array<{
 		id: string
@@ -271,6 +339,25 @@ function metricSnapshotKey(
 	])
 }
 
+/** The unique constraint on WatchAvailability: one offer per region and kind. */
+function watchAvailabilityKey(offer: MergeMedia['watchAvailability'][number]) {
+	return stableJson([offer.region, offer.offerKind, offer.providerId])
+}
+
+/** The unique constraint on MediaCredit: one person per role per department. */
+function creditSyncKey(state: MergeMedia['creditSyncStates'][number]) {
+	return stableJson([state.provider, state.scope])
+}
+
+function creditKey(credit: MergeMedia['credits'][number]) {
+	return stableJson([
+		credit.personId,
+		credit.creditType,
+		credit.role,
+		credit.department,
+	])
+}
+
 function relationKey(input: {
 	sourceMediaId: string
 	targetMediaId: string
@@ -363,7 +450,11 @@ async function readMergeContext(
 		},
 	})
 	if (!issue) throw new Error('Catalog quality issue was not found')
-	if (issue.issueType !== 'possible_duplicate' || !issue.secondaryMediaId) {
+	if (
+		(issue.issueType !== 'possible_duplicate' &&
+			issue.issueType !== 'cross_kind_duplicate') ||
+		!issue.secondaryMediaId
+	) {
 		throw new Error('Only paired duplicate candidates can be merged')
 	}
 	if (issue.status !== 'confirmed') {
@@ -415,6 +506,15 @@ async function readMergeContext(
 	const feedPrunes = source.catalogFeedItems.filter(feed =>
 		targetFeeds.has(feedKey(feed)),
 	)
+	// (media, provider, scope) is unique, so where both rows have been polled
+	// for the same provider and scope only one record can survive. The
+	// survivor's own record is the one that describes the row that lives on;
+	// the loser's is journaled and pruned rather than blocking the merge, which
+	// an operator has already judged correct.
+	const targetCreditSyncStates = keyed(target.creditSyncStates, creditSyncKey)
+	const creditSyncStatePrunes = source.creditSyncStates.filter(state =>
+		targetCreditSyncStates.has(creditSyncKey(state)),
+	)
 	const relations = relationPlan(source, target)
 	const targetFills: Partial<Record<CatalogMediaField, unknown>> = {}
 	const targetConflicts: CatalogMediaField[] = []
@@ -430,6 +530,7 @@ async function readMergeContext(
 		}
 	}
 
+	const crossKind = issue.issueType === 'cross_kind_duplicate'
 	const blockers = [
 		source.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION &&
 		target.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION
@@ -441,14 +542,39 @@ async function readMergeContext(
 					count: 1,
 					examples: [],
 				},
-		source.kind === target.kind
-			? null
-			: {
-					code: 'kind-mismatch',
-					message: `Media kinds differ (${source.kind} and ${target.kind}).`,
-					count: 1,
-					examples: [source.kind, target.kind],
-				},
+		// Kinds differing is normally the strongest signal that two rows are not
+		// the same work, so it stays a hard refusal — except for the one issue
+		// type whose entire evidence is a shared provider id, where differing
+		// kinds is the point. Even then the direction is fixed rather than left
+		// to whichever record the admin happened to pick as the target: anime
+		// survives, live action does not.
+		crossKind
+			? target.kind === 'anime' &&
+				(source.kind === 'tv' || source.kind === 'movie')
+				? null
+				: source.kind === 'anime'
+					? {
+							// They picked the wrong direction: the anime is the record
+							// being absorbed rather than the one being kept.
+							code: 'anime-must-survive',
+							message: `A cross-kind merge must keep the anime record; ${target.kind} was chosen instead.`,
+							count: 1,
+							examples: [],
+						}
+					: {
+							code: 'kind-mismatch',
+							message: `A cross-kind merge absorbs a live-action record into an anime one, not ${source.kind} into ${target.kind}.`,
+							count: 1,
+							examples: [],
+						}
+			: source.kind === target.kind
+				? null
+				: {
+						code: 'kind-mismatch',
+						message: `Media kinds differ (${source.kind} and ${target.kind}).`,
+						count: 1,
+						examples: [source.kind, target.kind],
+					},
 		activeMerges.length
 			? {
 					code: 'active-merge',
@@ -524,6 +650,21 @@ async function readMergeContext(
 			source.recommendationFeedback.map(row => row.ownerId),
 			target.recommendationFeedback.map(row => row.ownerId),
 		),
+		// Both rows describe the same work, so they routinely carry the same
+		// offer and the same person. Moving one onto the other would violate the
+		// unique constraint mid-transaction; refusing is the honest answer.
+		collisionBlocker(
+			'watch-availability-collision',
+			'streaming offer',
+			source.watchAvailability.map(watchAvailabilityKey),
+			target.watchAvailability.map(watchAvailabilityKey),
+		),
+		collisionBlocker(
+			'credit-collision',
+			'credit',
+			source.credits.map(creditKey),
+			target.credits.map(creditKey),
+		),
 	].filter((value): value is MergeBlocker => Boolean(value))
 
 	return {
@@ -533,6 +674,7 @@ async function readMergeContext(
 		activeMergeIds: activeMerges.map(merge => merge.id),
 		titlePrunes,
 		feedPrunes,
+		creditSyncStatePrunes,
 		relationPlan: relations,
 		targetFills,
 		targetConflicts,
@@ -646,6 +788,11 @@ function preflightFromContext(
 			catalogMetricSnapshots: context.source.catalogMetricSnapshots.length,
 			recommendationFeedback: context.source.recommendationFeedback.length,
 			libraryImportItems: context.source.libraryImportItems.length,
+			watchAvailability: context.source.watchAvailability.length,
+			credits: context.source.credits.length,
+			creditSyncStates:
+				context.source.creditSyncStates.length -
+				context.creditSyncStatePrunes.length,
 			qualityIssues: uniqueById([
 				...context.source.primaryQualityIssues,
 				...context.source.secondaryQualityIssues,
@@ -655,6 +802,7 @@ function preflightFromContext(
 			titles: context.titlePrunes.length,
 			catalogFeedItems: context.feedPrunes.length,
 			relations: context.relationPlan.prune.length,
+			creditSyncStates: context.creditSyncStatePrunes.length,
 		},
 		targetFills: Object.keys(context.targetFills) as CatalogMediaField[],
 		targetConflicts: context.targetConflicts,
@@ -761,6 +909,9 @@ function sourceQualityIssues(source: MergeMedia) {
 function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 	const titlePruneIds = new Set(context.titlePrunes.map(row => row.id))
 	const feedPruneIds = new Set(context.feedPrunes.map(row => row.id))
+	const creditSyncStatePruneIds = new Set(
+		context.creditSyncStatePrunes.map(row => row.id),
+	)
 	const targetPrevious = Object.fromEntries(
 		Object.keys(context.targetFills).map(field => [
 			field,
@@ -775,7 +926,7 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 	) as MergeJournal['targetPatch']['applied']
 	return {
 		version: 1,
-		inventoryVersion: 3,
+		inventoryVersion: 5,
 		appliedAt: now.toISOString(),
 		sourceMedia: serializedMedia(context.source),
 		targetPatch: { previous: targetPrevious, applied: targetApplied },
@@ -808,12 +959,24 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 				row => row.id,
 			),
 			libraryImportItems: context.source.libraryImportItems.map(row => row.id),
+			watchAvailability: context.source.watchAvailability.map(row => row.id),
+			credits: context.source.credits.map(row => row.id),
+			creditSyncStates: context.source.creditSyncStates
+				.filter(row => !creditSyncStatePruneIds.has(row.id))
+				.map(row => row.id),
+			tombstonedExternalIds:
+				context.issue.issueType === 'cross_kind_duplicate'
+					? context.source.externalIds
+							.filter(row => row.provider === 'tmdb' && !row.tombstonedAt)
+							.map(row => row.id)
+					: [],
 			relations: context.relationPlan.move,
 		},
 		pruned: {
 			titles: context.titlePrunes,
 			catalogFeedItems: context.feedPrunes,
 			relations: context.relationPlan.prune,
+			creditSyncStates: context.creditSyncStatePrunes,
 		},
 		qualityIssues: sourceQualityIssues(context.source),
 	}
@@ -826,6 +989,7 @@ async function deletePrunedCatalogRows(
 	const titleIds = context.titlePrunes.map(row => row.id)
 	const feedIds = context.feedPrunes.map(row => row.id)
 	const relationIds = context.relationPlan.prune.map(row => row.id)
+	const creditSyncStateIds = context.creditSyncStatePrunes.map(row => row.id)
 	if (titleIds.length) {
 		await tx.mediaTitle.deleteMany({ where: { id: { in: titleIds } } })
 	}
@@ -835,9 +999,54 @@ async function deletePrunedCatalogRows(
 	if (relationIds.length) {
 		await tx.mediaRelation.deleteMany({ where: { id: { in: relationIds } } })
 	}
+	if (creditSyncStateIds.length) {
+		await tx.mediaCreditSyncState.deleteMany({
+			where: { id: { in: creditSyncStateIds } },
+		})
+	}
 }
 
-async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
+/**
+ * Stop TMDB hydration claiming a row that anime just won.
+ *
+ * When a live-action record is absorbed, its real `provider:'tmdb'` identity
+ * moves onto the surviving anime record with everything else. That identity is
+ * what `eligibleHydrationWhere` selects on, so leaving it active would hand the
+ * row to TMDB hydration on its next run and overwrite the MAL-sourced title,
+ * description and scores — turning "anime wins" at merge time into "TMDB wins"
+ * an hour later. The `tmdb-watch` key exists precisely to keep TMDB off these
+ * rows; this keeps that promise through a merge.
+ *
+ * Tombstoning rather than deleting: the row stays auditable, revert can restore
+ * it, and nothing that reads external links filters tombstoned rows, so the
+ * TMDB link on the page survives. The anime already carries a `tmdb-watch`
+ * identity for the same entry, so streaming lookups are unaffected.
+ *
+ * Rewriting the provider to `tmdb-watch` instead would collide with that
+ * existing row on `@@unique([provider, kind, externalId])`.
+ */
+async function tombstoneAbsorbedTmdbIdentities(
+	tx: MergeTransaction,
+	context: MergeContext,
+	now: Date,
+) {
+	if (context.issue.issueType !== 'cross_kind_duplicate') return []
+	const absorbed = context.source.externalIds.filter(
+		row => row.provider === 'tmdb' && !row.tombstonedAt,
+	)
+	if (!absorbed.length) return []
+	await tx.mediaExternalId.updateMany({
+		where: { id: { in: absorbed.map(row => row.id) } },
+		data: { tombstonedAt: now },
+	})
+	return absorbed.map(row => row.id)
+}
+
+async function moveRowsToTarget(
+	tx: MergeTransaction,
+	context: MergeContext,
+	now: Date,
+) {
 	const sourceId = context.source.id
 	const targetId = context.target.id
 	const move = async (
@@ -858,7 +1067,10 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 			| 'releaseReminder'
 			| 'catalogMetricSnapshot'
 			| 'recommendationFeedback'
-			| 'libraryImportItem',
+			| 'libraryImportItem'
+			| 'watchAvailability'
+			| 'mediaCredit'
+			| 'mediaCreditSyncState',
 	) => {
 		await (
 			tx[model] as unknown as {
@@ -873,6 +1085,7 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 		})
 	}
 	await move('mediaExternalId')
+	await tombstoneAbsorbedTmdbIdentities(tx, context, now)
 	await move('mediaTitle')
 	await move('catalogFeedItem')
 	await move('entry')
@@ -889,6 +1102,11 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 	await move('catalogMetricSnapshot')
 	await move('recommendationFeedback')
 	await move('libraryImportItem')
+	await move('watchAvailability')
+	await move('mediaCredit')
+	// Colliding records are deleted first, so whatever is left is safe to move
+	// under the (media, provider, scope) unique key.
+	await move('mediaCreditSyncState')
 
 	const releaseOccurrenceIds = movableReleaseOccurrences(context.source).map(
 		row => row.id,
@@ -939,32 +1157,9 @@ async function assertSourceDrained(
 	const source = await tx.media.findUnique({
 		where: { id: sourceMediaId },
 		select: {
-			_count: {
-				select: {
-					externalIds: true,
-					titles: true,
-					outgoingRelations: true,
-					incomingRelations: true,
-					entries: true,
-					favorites: true,
-					trackingStates: true,
-					seasons: true,
-					installments: true,
-					consumptionEvents: true,
-					activityEvents: true,
-					reviews: true,
-					diaryEntries: true,
-					collectionItems: true,
-					releaseReminders: true,
-					releaseOccurrences: true,
-					catalogFeedItems: true,
-					catalogMetricSnapshots: true,
-					primaryQualityIssues: true,
-					secondaryQualityIssues: true,
-					recommendationFeedback: true,
-					libraryImportItems: true,
-				},
-			},
+			// Derived from the ledger so a relation cannot be added to the schema,
+			// listed there, and still slip past this check.
+			_count: { select: mediaMergeDrainCountSelect },
 		},
 	})
 	if (!source) throw new Error('Merge source disappeared before deletion')
@@ -1022,7 +1217,7 @@ export async function applyCatalogMediaMerge(
 		}
 		const journal = journalFromContext(context, now)
 		await deletePrunedCatalogRows(tx, context)
-		await moveRowsToTarget(tx, context)
+		await moveRowsToTarget(tx, context, now)
 		const targetNextRelease = Object.prototype.hasOwnProperty.call(
 			context.targetFills,
 			'nextRelease',
@@ -1129,6 +1324,11 @@ async function assertMovedRowsStillTargeted(
 		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
 		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
 		['libraryImportItem', journal.moved.libraryImportItems ?? []],
+		// Absent from a version-3 journal, where these were never carried.
+		['watchAvailability', journal.moved.watchAvailability ?? []],
+		['mediaCredit', journal.moved.credits ?? []],
+		// Absent from a version-3 or version-4 journal.
+		['mediaCreditSyncState', journal.moved.creditSyncStates ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -1186,6 +1386,11 @@ async function moveJournalRowsBack(
 		['catalogMetricSnapshot', journal.moved.catalogMetricSnapshots ?? []],
 		['recommendationFeedback', journal.moved.recommendationFeedback ?? []],
 		['libraryImportItem', journal.moved.libraryImportItems ?? []],
+		// Absent from a version-3 journal, where these were never carried.
+		['watchAvailability', journal.moved.watchAvailability ?? []],
+		['mediaCredit', journal.moved.credits ?? []],
+		// Absent from a version-3 or version-4 journal.
+		['mediaCreditSyncState', journal.moved.creditSyncStates ?? []],
 	] as const
 	for (const [model, ids] of groups) {
 		if (!ids.length) continue
@@ -1236,6 +1441,19 @@ async function restorePrunedRows(tx: MergeTransaction, journal: MergeJournal) {
 				...relation,
 				createdAt: new Date(relation.createdAt),
 				updatedAt: new Date(relation.updatedAt),
+			},
+		})
+	}
+	for (const state of journal.pruned.creditSyncStates ?? []) {
+		await tx.mediaCreditSyncState.create({
+			data: {
+				...state,
+				lastFetchedAt: state.lastFetchedAt
+					? new Date(state.lastFetchedAt)
+					: null,
+				refreshAfter: state.refreshAfter ? new Date(state.refreshAfter) : null,
+				createdAt: new Date(state.createdAt),
+				updatedAt: new Date(state.updatedAt),
 			},
 		})
 	}
@@ -1290,7 +1508,14 @@ export async function revertCatalogMediaMerge(
 		})
 		if (claim.count !== 1) throw new Error('Catalog merge is already changing')
 		const journal = parseJournal(merge.journal)
-		if (journal.inventoryVersion !== 3) {
+		// 4 added streaming offers and credits. A version-3 journal is still
+		// revertible — it restores everything it recorded — but the rows those
+		// merges deleted are already gone, which is what the bump records.
+		if (
+			journal.inventoryVersion !== 3 &&
+			journal.inventoryVersion !== 4 &&
+			journal.inventoryVersion !== 5
+		) {
 			throw new Error(
 				'Legacy merge reversal requires a manual relation-integrity audit',
 			)
@@ -1355,6 +1580,15 @@ export async function revertCatalogMediaMerge(
 		)
 		await syncNextReleaseOccurrence(tx, merge.targetMediaId, targetNextRelease)
 		await moveJournalRowsBack(tx, journal, merge.sourceMediaId)
+		// Undo the tombstone too, or a reverted cross-kind merge leaves the
+		// live-action record back in place but invisible to TMDB hydration.
+		const tombstoned = journal.moved.tombstonedExternalIds ?? []
+		if (tombstoned.length) {
+			await tx.mediaExternalId.updateMany({
+				where: { id: { in: tombstoned } },
+				data: { tombstonedAt: null },
+			})
+		}
 		await restorePrunedRows(tx, journal)
 		for (const issue of journal.qualityIssues) {
 			await tx.catalogQualityIssue.update({

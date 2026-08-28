@@ -3361,6 +3361,10 @@ test('top-level deployment policies preserve singleton, retry, recovery, and hea
 		stagingDeploy,
 		'recover_staging_cutover_failure',
 	)
+	const stagingProviderLockRelease = extractShellFunction(
+		stagingDeploy,
+		'release_provider_locks',
+	)
 
 	assertOrdered(
 		productionTopLevel,
@@ -3474,6 +3478,22 @@ test('top-level deployment policies preserve singleton, retry, recovery, and hea
 			'install_immutable_cutover_unit_definitions',
 		],
 		'staging retry ownership and writer drain',
+	)
+	assertOrdered(
+		stagingStop,
+		[
+			'exec 8>"$STAGING_ROOT/run/mal-provider.lock"',
+			'exec 9>"$STAGING_ROOT/run/tmdb-provider.lock"',
+			'exec 10>"$STAGING_ROOT/run/jikan-provider.lock"',
+			'flock --exclusive --wait "$lock_wait_seconds" 8',
+			'flock --exclusive --wait "$lock_wait_seconds" 9',
+			'flock --exclusive --wait "$lock_wait_seconds" 10',
+		],
+		'staging provider-worker drain',
+	)
+	assert.match(
+		stagingProviderLockRelease,
+		/exec 8>&-[\s\S]*exec 9>&-[\s\S]*exec 10>&-/,
 	)
 	assert.match(
 		stagingBackup,

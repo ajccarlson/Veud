@@ -10,6 +10,7 @@ systemctl --user --no-pager status \
 	veud-staging-backup.timer \
 	veud-staging-catalog-backup.timer \
 	veud-staging-notification-digests.timer \
+	veud-staging-jikan-anime-cast.timer \
 	veud-staging-mal-inventory.timer \
 	veud-staging-mal-hydration.timer \
 	veud-staging-mal-trending.timer \

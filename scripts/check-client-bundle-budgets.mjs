@@ -35,10 +35,15 @@ const budgets = [
 		gzipBytes: 8 * 1024,
 	},
 	{
+		// AG Grid 36.1.0 measured at 985.3 KiB raw / 272.4 KiB gzip, up from
+		// 36.0.2. The budget is set at the measured size rather than padded, so
+		// the next rise has to be a deliberate choice too. Almost all of this chunk
+		// is AG Grid itself; shrinking it is a real piece of work, not a budget
+		// adjustment.
 		label: 'desktop watchlist JavaScript',
 		pattern: /^watchlist-grid-[\w-]+\.js$/,
-		rawBytes: 980 * 1024,
-		gzipBytes: 270 * 1024,
+		rawBytes: 986 * 1024,
+		gzipBytes: 273 * 1024,
 	},
 	{
 		label: 'desktop watchlist CSS',

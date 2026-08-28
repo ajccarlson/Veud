@@ -17,6 +17,11 @@ model User {
   name     String?
   bio      String?
 
+  /// Which title to show for anime and manga: "default" is whatever the
+  /// provider calls it, "english" prefers the English one where there is one.
+  /// On the member rather than in a cookie so it follows them between devices.
+  titleLanguage       String    @default("default")
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   lastActiveAt        DateTime?
@@ -179,6 +184,14 @@ model Media {
 
   thumbnail         String?
   title             String?
+  /// The English title, for anime and manga whose canonical title is romaji.
+  ///
+  /// A scalar rather than a lookup through MediaTitle: a title is rendered on
+  /// every list row and every card, and joining a table that holds every
+  /// synonym to answer "what do I call this" would put a join on the hottest
+  /// read in the app. MAL supplies it only sometimes, so it is null often and
+  /// every reader falls back to the canonical title.
+  englishTitle      String?
   type              String?
   releaseStart      DateTime?
   releaseEnd        DateTime?
@@ -186,6 +199,7 @@ model Media {
   nextReleaseAt     DateTime?
   genres            String?
   description       String?
+  originalTitle     String?
   airYear           String?
   startSeason       String?
   startYear         String?
@@ -199,6 +213,11 @@ model Media {
   rating            String?
   language          String?
   studios           String?
+  networks          String?
+  keywords          String?
+  budget            String?
+  revenue           String?
+  videos            String?
   serialization     String?
   authors           String?
   tmdbScore         Decimal?
@@ -227,6 +246,8 @@ model Media {
   releaseReminders       ReleaseReminder[]
   releaseOccurrences     ReleaseOccurrence[]
   watchAvailability      WatchAvailability[]
+  credits                MediaCredit[]
+  creditSyncStates       MediaCreditSyncState[]
   catalogFeedItems       CatalogFeedItem[]
   catalogMetricSnapshots CatalogMetricSnapshot[]
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
@@ -291,6 +312,148 @@ model CatalogMetricSnapshot {
   @@index([provider, kind, observedAt])
   @@index([provider, kind, mediaId, observedAt])
   @@index([observedAt])
+}
+
+/// A person credited on a title: an actor, a director, a mangaka, a voice
+/// actor.
+///
+/// One row per person across the whole catalog, which is the point — it is what
+/// turns "what else has she been in" from a search into a query. Identity comes
+/// from the provider's own id via PersonExternalId, never from the name: two
+/// people share a name often enough that merging them would be a visible bug,
+/// and the same person's name is spelled differently by different providers.
+model Person {
+  id         String @id @default(cuid())
+  name       String
+  normalized String
+
+  /// A portrait. TMDB gives a path on its own image CDN, MAL and Jikan give a
+  /// full URL, so this is stored as the provider gave it and resolved when
+  /// rendered.
+  imageUrl String?
+
+  /// What this person is mostly known for doing — TMDB's own judgement, used to
+  /// decide which credit list leads on their page.
+  knownForDepartment String?
+
+  /// Number of catalog credit rows currently pointing at this person.
+  /// Database triggers maintain this scalar so global search never has to
+  /// aggregate the complete credits table while someone types.
+  creditCount Int @default(0)
+
+  /// Filled lazily, the first time someone opens this person's page.
+  ///
+  /// A credits payload carries a name and a portrait and nothing else. Fetching
+  /// a biography for every person in the catalog would be a million requests
+  /// for pages nobody has opened, so this is paid for on demand and then kept.
+  biography        String?
+  birthday         DateTime?
+  deathday         DateTime?
+  placeOfBirth     String?
+  gender           String?
+  homepage         String?
+  detailsFetchedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  externalIds PersonExternalId[]
+  credits     MediaCredit[]
+
+  @@index([normalized])
+  @@index([name])
+  @@index([detailsFetchedAt])
+}
+
+/// A person's identity at one provider.
+///
+/// Separate from Person for the same reason MediaExternalId is separate from
+/// Media: the same human is a TMDB id, a MAL id, and eventually others, and
+/// those have to be able to converge on one row without either one owning it.
+model PersonExternalId {
+  id         String   @id @default(cuid())
+  provider   String
+  externalId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  personId String
+
+  @@unique([provider, externalId])
+  @@index([personId])
+}
+
+/// One person's involvement in one title.
+///
+/// `creditType` separates who appears from who made it. Both live in one table
+/// because a person page wants all of it in one query, ordered together.
+model MediaCredit {
+  id String @id @default(cuid())
+
+  /// `cast` or `crew`.
+  creditType String
+
+  /// The character played, or the job done. Empty rather than null, and so is
+  /// `department`, because NULL does not compare equal to NULL in either
+  /// database — a nullable column in the uniqueness below would let the same
+  /// credit be written on every refresh.
+  role       String @default("")
+  /// The crew grouping this job belongs to: Directing, Writing, Sound. Empty
+  /// for cast, who are not departmental.
+  department String @default("")
+
+  /// Billing order as the production gave it. Cast lists are ordered by
+  /// prominence rather than alphabetically, and that order is information: it
+  /// is what "top billed cast" means.
+  billingOrder Int?
+
+  /// How many episodes this person appeared in, for series where the provider
+  /// aggregates across seasons. Null for a film, which has one of everything.
+  episodeCount Int?
+
+  provider                 String
+  catalogProvenanceVersion Int      @default(0)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  media    Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId  String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  personId String
+
+  @@unique([mediaId, personId, creditType, role, department])
+  @@index([mediaId, creditType, billingOrder])
+  @@index([personId, creditType])
+  @@index([personId, mediaId])
+  @@index([catalogProvenanceVersion, id], map: "MediaCredit_provenance_id_idx")
+}
+
+/// Fetch state for a provider's independently refreshed credits payload.
+///
+/// This cannot be inferred from MediaCredit rows: an upstream response with no
+/// usable credits is still a successful fetch and must not be requested again
+/// on every worker pass.
+model MediaCreditSyncState {
+  id       String @id @default(cuid())
+  provider String
+  scope    String
+  status   String @default("pending")
+
+  lastFetchedAt DateTime?
+  refreshAfter  DateTime?
+  failureCount  Int       @default(0)
+  lastError     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, provider, scope])
+  @@index([provider, scope, status, refreshAfter])
+  @@index([mediaId])
 }
 
 /// A provider-observed premiere, episode, chapter, or general release. The
