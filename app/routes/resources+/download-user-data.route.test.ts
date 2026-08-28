@@ -420,3 +420,15 @@ test('a moderation action carries the wording the member already has, and no mor
 		'account_suspend',
 	])
 })
+
+test('a report the member filed carries their words, not the moderator closing note', async () => {
+	// `resolutionNote` is written by a moderator when the report is closed and is
+	// surfaced to the reporter nowhere in the app, so an export would be the
+	// first time they saw it. Their own `details` is their words and stays.
+	const selected = Object.keys(
+		(userExportInclude.moderationReportsSubmitted as { select: object }).select,
+	)
+	expect(selected).toContain('details')
+	expect(selected).toContain('status')
+	expect(selected).not.toContain('resolutionNote')
+})
