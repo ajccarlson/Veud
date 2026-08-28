@@ -7,16 +7,30 @@ export const DEFAULT_STAGING_CONTRACTS = [
 		contentType: 'text/plain',
 	},
 	{ path: '/', bodyIncludes: 'Trending', contentType: 'text/html' },
-	{ path: '/discover', bodyIncludes: 'Discover', contentType: 'text/html' },
+	// Not 'Discover', 'Reviews' or 'Collections': those are the labels of the
+	// global navigation, which `root.tsx` renders inside the header of every
+	// page. A canary matching on them passes for any HTML the server returns,
+	// including an error page that still renders the shell — so it proved the
+	// site was up and nothing about the page it named. These markers are text
+	// only the page's own body contains.
+	{
+		path: '/discover',
+		bodyIncludes: 'Canonical or alternate title',
+		contentType: 'text/html',
+	},
 	{
 		path: '/calendar',
 		bodyIncludes: 'Release calendar',
 		contentType: 'text/html',
 	},
-	{ path: '/reviews', bodyIncludes: 'Reviews', contentType: 'text/html' },
+	{
+		path: '/reviews',
+		bodyIncludes: 'Title, reviewer, or review text',
+		contentType: 'text/html',
+	},
 	{
 		path: '/collections',
-		bodyIncludes: 'Collections',
+		bodyIncludes: 'Title, description, or creator',
 		contentType: 'text/html',
 	},
 	{
