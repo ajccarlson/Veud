@@ -6,7 +6,11 @@ import {
 } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
-import { loader } from './download-user-data.tsx'
+import {
+	loader,
+	userExportDispositions,
+	userExportInclude,
+} from './download-user-data.tsx'
 
 test('account export includes private recommendation feedback but omits passwords', async () => {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -325,4 +329,62 @@ test('the export carries what this member wrote, never what others wrote about t
 
 	expect(body).toContain(`MY OWN WORDS ${suffix}`)
 	expect(body).not.toContain(`SOMEONE ELSES WORDS ${suffix}`)
+})
+
+test('every User relation is classified as exported or withheld', async () => {
+	// The export omitted the member's lists, entries, reviews and diary until it
+	// was noticed by hand. Nothing stopped the next relation going the same way:
+	// the include is written out by hand and never compared to the schema.
+	//
+	// This is that comparison. Adding a relation to User without deciding
+	// whether a member's own data export contains it fails here.
+	const { Prisma } = await import('@prisma/client')
+	const user = Prisma.dmmf.datamodel.models.find(model => model.name === 'User')
+	expect(user, 'User model missing from the Prisma DMMF').toBeDefined()
+
+	const relations = user!.fields
+		.filter(field => field.kind === 'object')
+		.map(field => field.name)
+		.sort()
+
+	expect(relations).toEqual(Object.keys(userExportDispositions).sort())
+})
+
+test('the include carries exactly the relations the ledger says it does', async () => {
+	// A relation can be listed as exported and still be missing from the query,
+	// which would read as a decision that was never carried out.
+	const exported = Object.entries(userExportDispositions)
+		.filter(([, disposition]) => disposition === 'exported')
+		.map(([name]) => name)
+		.sort()
+	const included = Object.entries(userExportInclude)
+		.filter(([, value]) => value !== false)
+		.map(([name]) => name)
+		.sort()
+
+	expect(included).toEqual(exported)
+
+	// And nothing withheld is quietly present.
+	const withheld = Object.entries(userExportDispositions)
+		.filter(([, disposition]) => disposition !== 'exported')
+		.map(([name]) => name)
+	for (const name of withheld) {
+		expect(
+			included,
+			`${name} is withheld but appears in the export include`,
+		).not.toContain(name)
+	}
+})
+
+test('credentials are never exported, whatever the ledger says', async () => {
+	// A backstop that does not depend on the ledger being right: if someone
+	// reclassifies a credential as exported, the ledger test would happily pass.
+	for (const name of ['password', 'twoFactorRecoveryCodes'] as const) {
+		expect(userExportDispositions[name]).toBe('withheld:credential')
+		expect(Object.keys(userExportInclude)).not.toContain(
+			name === 'password' ? 'NEVER' : name,
+		)
+	}
+	// `password: false` is deliberately present as an explicit denial.
+	expect(userExportInclude.password).toBe(false)
 })
