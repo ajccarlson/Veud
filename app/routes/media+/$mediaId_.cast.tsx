@@ -50,7 +50,6 @@ function CreditRow({ credit }: { credit: CastCard }) {
 		<li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-2 last:border-b-0">
 			<Link
 				to={`/people/${credit.person.id}`}
-				prefetch="intent"
 				className="font-semibold hover:underline"
 			>
 				{credit.person.name}

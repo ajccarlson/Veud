@@ -297,6 +297,12 @@ test('a person is created once and shared by every title they work on', async ()
 			where: { personId: identities[0]!.personId },
 		}),
 	).toBe(2)
+	expect(
+		await prisma.person.findUnique({
+			where: { id: identities[0]!.personId },
+			select: { creditCount: true },
+		}),
+	).toEqual({ creditCount: 2 })
 })
 
 test('a refresh restates rather than accumulates', async () => {
@@ -327,6 +333,21 @@ test('a refresh restates rather than accumulates', async () => {
 	expect(
 		await prisma.personExternalId.count({ where: { externalId: 'b' } }),
 	).toBe(1)
+	const counts = await prisma.person.findMany({
+		where: { externalIds: { some: { externalId: { in: ['a', 'b', 'c'] } } } },
+		select: {
+			creditCount: true,
+			externalIds: { select: { externalId: true } },
+		},
+	})
+	expect(
+		Object.fromEntries(
+			counts.map(entry => [
+				entry.externalIds[0]!.externalId,
+				entry.creditCount,
+			]),
+		),
+	).toEqual({ a: 1, b: 0, c: 1 })
 })
 
 test('one provider refreshing does not delete what another wrote', async () => {
@@ -365,6 +386,46 @@ test('one provider refreshing does not delete what another wrote', async () => {
 			where: { mediaId: media.id, provider: 'tmdb' },
 		}),
 	).toBe(1)
+})
+
+test('a credit provider can reuse a different provider person namespace', async () => {
+	// Jikan publishes MAL person ids. Its cast rows need independent refresh
+	// ownership without minting a second identity for a MAL manga author.
+	const [anime, manga] = await Promise.all([mediaFixture(), mediaFixture()])
+	await prisma.$transaction(tx =>
+		replaceCatalogCredits(tx, {
+			mediaId: manga.id,
+			provider: 'mal',
+			credits: [person('shared-mal-person', { creditType: 'crew' })],
+		}),
+	)
+	await prisma.$transaction(tx =>
+		replaceCatalogCredits(tx, {
+			mediaId: anime.id,
+			provider: 'jikan',
+			personProvider: 'mal',
+			credits: [person('shared-mal-person')],
+		}),
+	)
+
+	const identity = await prisma.personExternalId.findUniqueOrThrow({
+		where: {
+			provider_externalId: {
+				provider: 'mal',
+				externalId: 'shared-mal-person',
+			},
+		},
+	})
+	expect(
+		await prisma.personExternalId.count({
+			where: { externalId: 'shared-mal-person' },
+		}),
+	).toBe(1)
+	expect(
+		await prisma.mediaCredit.findFirstOrThrow({
+			where: { mediaId: anime.id },
+		}),
+	).toMatchObject({ provider: 'jikan', personId: identity.personId })
 })
 
 test('an empty payload clears the credits rather than leaving stale ones', async () => {

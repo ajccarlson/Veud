@@ -1,6 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { prisma } from '#app/utils/db.server.ts'
+import { type SearchSuggestion } from '#app/utils/search-suggestions.ts'
 import { BASE_URL } from '#tests/utils.ts'
 import { loader } from './search-suggestions.ts'
 
@@ -65,10 +66,32 @@ async function suggest(params: Record<string, string>) {
 		request: new Request(url),
 		params: {},
 	} as any)
-	return (response as any).data.suggestions as Array<{
-		id: string
-		title: string
-	}>
+	return (response as any).data.suggestions as SearchSuggestion[]
+}
+
+async function personWithCredits(name: string, creditCount: number) {
+	const person = await prisma.person.create({
+		data: {
+			name,
+			normalized: name.toLowerCase(),
+			knownForDepartment: 'Acting',
+		},
+	})
+	for (let index = 0; index < creditCount; index += 1) {
+		const media = await prisma.media.create({
+			data: { kind: 'movie', title: `${name} work ${index}` },
+		})
+		await prisma.mediaCredit.create({
+			data: {
+				mediaId: media.id,
+				personId: person.id,
+				provider: 'tmdb',
+				creditType: 'cast',
+				role: `Role ${index}`,
+			},
+		})
+	}
+	return person
 }
 
 test('suggestions come back best-known first', async () => {
@@ -89,6 +112,111 @@ test('a media type narrows the list to that type', async () => {
 	// An unrecognised type widens rather than matching nothing.
 	const bogus = await suggest({ q: `Kind${tag}`, kind: 'vhs' })
 	expect(bogus.length).toBeGreaterThan(1)
+})
+
+test('people are grouped into the shared result contract and ranked by credits', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	const lead = await personWithCredits(`${tag} Lead`, 4)
+	const extra = await personWithCredits(`${tag} Extra`, 1)
+
+	const results = await suggest({ q: tag })
+	const people = results.filter(result => result.resultType === 'person')
+	expect(people.map(person => person.id)).toEqual([lead.id, extra.id])
+	expect(people[0]).toMatchObject({
+		label: `${tag} Lead`,
+		name: `${tag} Lead`,
+		knownForDepartment: 'Acting',
+		creditCount: 4,
+	})
+
+	// Choosing a media kind means media of that kind, not untyped people.
+	const movies = await suggest({ q: tag, kind: 'movie' })
+	expect(movies.every(result => result.resultType === 'media')).toBe(true)
+})
+
+test('the shared cap reserves room for people without hiding title results', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	await Promise.all(
+		Array.from({ length: 8 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `${tag} title ${index}`,
+					catalogPopularity: 1_000 - index,
+				},
+			}),
+		),
+	)
+	for (let index = 0; index < 4; index += 1) {
+		await personWithCredits(`${tag} person ${index}`, 1)
+	}
+
+	const results = await suggest({ q: tag })
+	expect(results).toHaveLength(8)
+	expect(results.filter(result => result.resultType === 'media')).toHaveLength(
+		5,
+	)
+	expect(results.filter(result => result.resultType === 'person')).toHaveLength(
+		3,
+	)
+})
+
+test('people search folds punctuation and omits identities with no credits', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	const credited = await prisma.person.create({
+		data: {
+			name: `Léa ${tag}-Seydoux`,
+			normalized: `lea ${tag} seydoux`,
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: `Unrelated ${faker.string.uuid()}` },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			mediaId: media.id,
+			personId: credited.id,
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'Lead',
+		},
+	})
+	const orphan = await prisma.person.create({
+		data: {
+			name: `Lea ${tag} Orphan`,
+			normalized: `lea ${tag} orphan`,
+		},
+	})
+
+	const results = await suggest({ q: `Lea ${tag} Seydoux` })
+	expect(results.map(result => result.id)).toContain(credited.id)
+	expect(results.map(result => result.id)).not.toContain(orphan.id)
+})
+
+test('folded exact person names outrank more credited interior matches', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	const exact = await prisma.person.create({
+		data: { name: `Léa ${tag}`, normalized: `lea ${tag}` },
+	})
+	const exactWork = await prisma.media.create({
+		data: { kind: 'movie', title: `Exact folded work ${tag}` },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			mediaId: exactWork.id,
+			personId: exact.id,
+			provider: 'tmdb',
+			creditType: 'cast',
+			role: 'Lead',
+		},
+	})
+	for (let index = 0; index < 4; index += 1) {
+		await personWithCredits(`A Lea ${tag} ${index}`, 4 - index)
+	}
+
+	const results = await suggest({ q: `lea ${tag}` })
+	const people = results.filter(result => result.resultType === 'person')
+	expect(people[0]).toMatchObject({ id: exact.id, label: `Léa ${tag}` })
 })
 
 test('an alternate title finds the work it belongs to', async () => {
@@ -131,7 +259,12 @@ test('the caller cannot widen the list past its limit', async () => {
 	expect(fewer).toHaveLength(3)
 })
 
-test('the response can be shared, since it holds no viewer data', async () => {
+test('the response is cached for the viewer, not shared between them', async () => {
+	// It used to be `public`, on the premise that the catalog is the same for
+	// everyone. It still is — but what the titles are CALLED now depends on the
+	// viewer's language preference, so a shared cache would answer one member
+	// with another's names. The brief cache is what absorbs repeat typing; the
+	// sharing was never the part doing that work.
 	const { tag } = await catalog('Cache')
 	const response = await loader({
 		request: new Request(
@@ -140,7 +273,7 @@ test('the response can be shared, since it holds no viewer data', async () => {
 		params: {},
 	} as any)
 	expect((response as any).init.headers['Cache-Control']).toBe(
-		'public, max-age=30',
+		'private, max-age=30',
 	)
 })
 
@@ -168,5 +301,8 @@ test('a title that starts with the query beats popular interior matches', async 
 
 	const results = await suggest({ q: tag })
 	expect(results).toHaveLength(8)
-	expect(results[0]!.title).toBe(`${tag} Prefix Hit`)
+	expect(results[0]).toMatchObject({
+		resultType: 'media',
+		title: `${tag} Prefix Hit`,
+	})
 })

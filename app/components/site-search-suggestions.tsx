@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
 	allResultsHref,
@@ -166,37 +166,64 @@ export function SiteSearchSuggestions({
 
 	const normalized = normalizeSuggestionQuery(query)
 	if (!open || !normalized || !suggestions.length) return null
+	const indexedSuggestions = suggestions.map((suggestion, index) => ({
+		suggestion,
+		index,
+	}))
+	const groups = [
+		{
+			resultType: 'media' as const,
+			label: 'Titles',
+			items: indexedSuggestions.filter(
+				item => item.suggestion.resultType === 'media',
+			),
+		},
+		{
+			resultType: 'person' as const,
+			label: 'People',
+			items: indexedSuggestions.filter(
+				item => item.suggestion.resultType === 'person',
+			),
+		},
+	].filter(group => group.items.length)
 
 	return (
 		<div className="site-search-suggestions" ref={containerRef}>
 			<ul id={listId} role="listbox" aria-label="Search suggestions">
-				{suggestions.map((suggestion, index) => (
-					<li
-						key={suggestion.id}
-						id={`${optionId}-${index}`}
-						role="option"
-						aria-selected={index === activeIndex}
-						data-active={index === activeIndex || undefined}
-					>
-						<a
-							href={suggestionHref(suggestion)}
-							onMouseEnter={() => setActiveIndex(index)}
-							onClick={() => setOpen(false)}
-						>
-							{suggestion.thumbnail ? (
-								<img src={suggestion.thumbnail} alt="" loading="lazy" />
-							) : (
-								<span
-									className="site-search-suggestion-blank"
-									aria-hidden="true"
-								/>
-							)}
-							<span className="site-search-suggestion-text">
-								<strong>{suggestion.title}</strong>
-								<small>{suggestionMeta(suggestion)}</small>
-							</span>
-						</a>
-					</li>
+				{groups.map(group => (
+					<Fragment key={group.resultType}>
+						<li role="presentation" className="site-search-suggestion-heading">
+							{group.label}
+						</li>
+						{group.items.map(({ suggestion, index }) => (
+							<li
+								key={`${suggestion.resultType}:${suggestion.id}`}
+								id={`${optionId}-${index}`}
+								role="option"
+								aria-selected={index === activeIndex}
+								data-active={index === activeIndex || undefined}
+							>
+								<a
+									href={suggestionHref(suggestion)}
+									onMouseEnter={() => setActiveIndex(index)}
+									onClick={() => setOpen(false)}
+								>
+									{suggestion.thumbnail ? (
+										<img src={suggestion.thumbnail} alt="" loading="lazy" />
+									) : (
+										<span
+											className="site-search-suggestion-blank"
+											aria-hidden="true"
+										/>
+									)}
+									<span className="site-search-suggestion-text">
+										<strong>{suggestion.label}</strong>
+										<small>{suggestionMeta(suggestion)}</small>
+									</span>
+								</a>
+							</li>
+						))}
+					</Fragment>
 				))}
 			</ul>
 			<a

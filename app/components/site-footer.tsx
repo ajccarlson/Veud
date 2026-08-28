@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { ThemeSwitch } from '#app/components/theme-switch.tsx'
 
 export function SiteFooter() {
 	return (
@@ -29,6 +30,10 @@ export function SiteFooter() {
 					Privacy
 				</Link>
 			</span>
+			{/* The palette is a cookie, not an account setting, so it has to be
+			    reachable signed out — most of this site is readable without an
+			    account. Settings has the full control; this is the one that travels. */}
+			<ThemeSwitch />
 		</footer>
 	)
 }

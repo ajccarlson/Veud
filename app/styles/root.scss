@@ -387,6 +387,21 @@
 		list-style: none;
 	}
 
+	.site-search-suggestion-heading {
+		padding: 0.45rem 0.6rem 0.3rem;
+		color: rgb(var(--veud-sage));
+		background: rgb(var(--veud-surface) / 0.72);
+		border-top: 1px solid rgb(var(--veud-border) / 0.32);
+		font-size: 0.64rem;
+		font-weight: 800;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+	}
+
+	.site-search-suggestion-heading:first-child {
+		border-top: 0;
+	}
+
 	.site-search-suggestions a {
 		display: flex;
 		gap: 0.6rem;

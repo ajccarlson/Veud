@@ -332,7 +332,14 @@ export async function replaceCatalogCredits(
 	tx: PrismaTransaction,
 	input: {
 		mediaId: string
+		/** Provider that owns and refreshes these credit rows. */
 		provider: string
+		/**
+		 * Provider namespace that owns the person's external id. Defaults to the
+		 * credit provider. Jikan exposes MAL person ids, so its credits use
+		 * `provider: 'jikan'` and `personProvider: 'mal'`.
+		 */
+		personProvider?: string
 		credits: CatalogCreditInput[]
 		catalogProvenanceVersion?: number
 		now?: Date
@@ -340,6 +347,10 @@ export async function replaceCatalogCredits(
 ) {
 	const provider = input.provider.trim()
 	if (!provider) throw new Error('replaceCatalogCredits requires a provider')
+	const personProvider = (input.personProvider ?? provider).trim()
+	if (!personProvider) {
+		throw new Error('replaceCatalogCredits requires a person provider')
+	}
 	const now = input.now ?? new Date()
 	const credits = dedupeCredits(input.credits)
 
@@ -350,7 +361,12 @@ export async function replaceCatalogCredits(
 	})
 	if (!credits.length) return { people: 0, credits: 0 }
 
-	const personIdByExternalId = await resolvePeople(tx, provider, credits, now)
+	const personIdByExternalId = await resolvePeople(
+		tx,
+		personProvider,
+		credits,
+		now,
+	)
 
 	await tx.mediaCredit.createMany({
 		data: credits.flatMap(credit => {
