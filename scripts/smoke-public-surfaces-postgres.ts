@@ -56,15 +56,23 @@ async function main() {
 
 	const username = valueFor('--username')
 	const reportPath = path.resolve(valueFor('--report'))
-	const [{ prisma }, anonymousHome, trending, discovery, publicCache, cache] =
-		await Promise.all([
-			import('#app/utils/db.server.ts'),
-			import('#app/utils/anonymous-home.server.ts'),
-			import('#app/utils/home-trending.server.ts'),
-			import('#app/utils/discovery.server.ts'),
-			import('#app/utils/public-surface-cache.server.ts'),
-			import('#app/utils/cache.server.ts'),
-		])
+	const [
+		{ prisma },
+		anonymousHome,
+		trending,
+		discovery,
+		searchSuggestions,
+		publicCache,
+		cache,
+	] = await Promise.all([
+		import('#app/utils/db.server.ts'),
+		import('#app/utils/anonymous-home.server.ts'),
+		import('#app/utils/home-trending.server.ts'),
+		import('#app/utils/discovery.server.ts'),
+		import('#app/routes/resources+/search-suggestions.ts'),
+		import('#app/utils/public-surface-cache.server.ts'),
+		import('#app/utils/cache.server.ts'),
+	])
 
 	let activeMeasurement: { queries: number; sqlQueries: number } | null = null
 	// Logical queries are counted synchronously in the instrumented delegate, but
@@ -132,6 +140,7 @@ async function main() {
 		[prisma.activityEvent, ['findMany']],
 		[prisma.catalogFeedItem, ['findMany']],
 		[prisma.trackingState, ['findMany']],
+		[prisma.person, ['findMany']],
 		[prisma, ['$queryRaw']],
 	] as const) {
 		for (const operation of operations) {
@@ -246,6 +255,18 @@ async function main() {
 		const facetsCold = await measured(loadFacets)
 		const facetsWarm = await measured(loadFacets)
 
+		const loadSearchSuggestions = async () => {
+			const response = await searchSuggestions.loader({
+				request: new Request(
+					'http://localhost/resources/search-suggestions?q=Synthetic+Performer+1',
+				),
+				params: {},
+			} as never)
+			return response.data
+		}
+		const searchCold = await measured(loadSearchSuggestions)
+		const searchWarm = await measured(loadSearchSuggestions)
+
 		for (const [label, rails] of [
 			['anonymous', anonymousCold.value.rails],
 			['signed', signedCold.value],
@@ -310,6 +331,20 @@ async function main() {
 		) {
 			throw new Error('Discovery facets were empty or exceeded cardinality')
 		}
+		if (
+			searchCold.value.suggestions.length < 1 ||
+			searchCold.value.suggestions.length > 8 ||
+			!searchCold.value.suggestions.some(
+				item =>
+					item.resultType === 'person' &&
+					Number.isSafeInteger(item.creditCount) &&
+					item.creditCount > 0,
+			)
+		) {
+			throw new Error(
+				'Search suggestions did not return a bounded credited person result',
+			)
+		}
 
 		const report = {
 			version: 1,
@@ -359,12 +394,25 @@ async function main() {
 				statuses: facetsWarm.value.statuses.length,
 				truncated: facetsWarm.value.truncated,
 			},
+			searchSuggestions: {
+				coldQueries: searchCold.queries,
+				warmQueries: searchWarm.queries,
+				coldSqlQueries: searchCold.sqlQueries,
+				warmSqlQueries: searchWarm.sqlQueries,
+				payloadBytes: payloadBytes(searchWarm.value),
+				coldWallMs: searchCold.wallMs,
+				warmWallMs: searchWarm.wallMs,
+				items: searchWarm.value.suggestions.length,
+				people: searchWarm.value.suggestions.filter(
+					item => item.resultType === 'person',
+				).length,
+			},
 			cacheOperations: cache.getCacheOperationsSnapshot(),
 		}
 		assertPublicSurfaceLoadBudgets(report)
 		writePrivateJson(reportPath, report)
 		console.log(
-			`Public-surface smoke passed: anonymous ${report.anonymousHome.coldQueries}/${report.anonymousHome.warmQueries}, signed trending ${report.signedTrending.coldQueries}/${report.signedTrending.warmQueries}, facets ${report.discoveryFacets.coldQueries}/${report.discoveryFacets.warmQueries} cold/warm queries.`,
+			`Public-surface smoke passed: anonymous ${report.anonymousHome.coldQueries}/${report.anonymousHome.warmQueries}, signed trending ${report.signedTrending.coldQueries}/${report.signedTrending.warmQueries}, facets ${report.discoveryFacets.coldQueries}/${report.discoveryFacets.warmQueries}, search ${report.searchSuggestions.coldQueries}/${report.searchSuggestions.warmQueries} cold/warm queries.`,
 		)
 	} finally {
 		if (smokeFixture) {

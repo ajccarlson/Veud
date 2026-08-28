@@ -51,7 +51,7 @@ export function SiteSearch({
 				<input type="hidden" name="intent" value="describe-start" />
 			) : null}
 			<label className="sr-only" htmlFor="site-search-query">
-				Search movies, TV, anime, and manga
+				Search movies, TV, anime, manga, and people
 			</label>
 			<input
 				id="site-search-query"
@@ -60,7 +60,7 @@ export function SiteSearch({
 				minLength={selectedMode === 'describe' ? 3 : 2}
 				maxLength={500}
 				required
-				placeholder="Search media…"
+				placeholder="Search media or people…"
 				autoComplete="off"
 				defaultValue={query}
 			/>
