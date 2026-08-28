@@ -358,13 +358,25 @@ async function findCandidates(prisma: PrismaClient, now: Date, take: number) {
 	if (demanded.length >= take) return demanded
 	const remaining = await prisma.mediaExternalId.findMany({
 		where: {
-			AND: [eligible, { id: { notIn: demanded.map(item => item.id) } }],
+			// The first query returned every eligible demanded row when it returned
+			// fewer than `take`. Select the other partition structurally instead of
+			// sending a caller-sized `notIn` array back through Prisma's bind limit.
+			AND: [eligible, { media: { is: { NOT: memberDemand } } }],
 		},
 		orderBy: [{ sourcePopularity: 'desc' }, { externalId: 'asc' }],
 		take: take - demanded.length,
 		select: candidateSelect,
 	})
 	return [...demanded, ...remaining]
+}
+
+function shouldDeferJikanProvider(error: unknown) {
+	if (!(error instanceof JikanRequestError)) return false
+	// A connection failure or an edge/proxy outage affects the provider, not one
+	// anime. Continuing would pay the same timeout for every remaining row.
+	return (
+		error.status === null || [429, 502, 503, 504].includes(error.status ?? 0)
+	)
 }
 
 function boundedError(error: unknown) {
@@ -584,11 +596,9 @@ export async function hydrateJikanAnimeCast(
 			}
 			const failureCount =
 				candidate.media.creditSyncStates[0]?.failureCount ?? 0
-			providerRetryAfter =
-				error instanceof JikanRequestError &&
-				[429, 503].includes(error.status ?? 0)
-					? jikanRetryDeadline({ error, failureCount, now: batchNow })
-					: null
+			providerRetryAfter = shouldDeferJikanProvider(error)
+				? jikanRetryDeadline({ error, failureCount, now: batchNow })
+				: null
 			cursor = {
 				version: 1,
 				providerRetryAfter: providerRetryAfter?.toISOString() ?? null,
