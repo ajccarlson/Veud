@@ -1,3 +1,16 @@
+/**
+ * The catalog columns a merge reconciles between two rows.
+ *
+ * A field missing here is not merged: the survivor keeps its own value, the
+ * loser's is deleted with its row, and the reversal journal has no record of
+ * it. `englishTitle` was added to the schema and not to this list, so merging
+ * a row that had one into a row that did not simply lost it.
+ *
+ * `catalog-media-merge-fields.test.ts` compares this against the Prisma schema.
+ * Deliberately absent, and asserted there: `nextReleaseAt`, which is derived
+ * from `nextRelease` by `deriveNextReleaseAt` and maintained alongside it
+ * rather than reconciled on its own.
+ */
 export const catalogMediaFields = [
 	'thumbnail',
 	'title',
@@ -8,6 +21,7 @@ export const catalogMediaFields = [
 	'genres',
 	'description',
 	'originalTitle',
+	'englishTitle',
 	'airYear',
 	'startSeason',
 	'startYear',

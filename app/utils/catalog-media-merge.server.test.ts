@@ -1797,3 +1797,60 @@ test('reverting a merge puts a moved credit sync state back', async () => {
 		}),
 	).toMatchObject({ mediaId: 'merge-source', failureCount: 3 })
 })
+
+test('a merge keeps the English title the losing row carried', async () => {
+	// englishTitle is what a member sees when they ask for English titles. It was
+	// absent from catalogMediaFields, so merging a row that had one into a row
+	// that did not deleted it with the losing row, and the journal had nothing to
+	// restore on revert.
+	const { admin, issue } = await seedBase()
+	await prisma.media.update({
+		where: { id: 'merge-source' },
+		data: { englishTitle: 'The English One' },
+	})
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	expect(preflight.targetFills).toContain('englishTitle')
+
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	const applied = await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+
+	expect(
+		(await prisma.media.findUnique({ where: { id: 'merge-target' } }))
+			?.englishTitle,
+	).toBe('The English One')
+
+	await revertCatalogMediaMerge(prisma, {
+		mergeId: applied.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeReversal(applied.merge.id),
+		now: new Date(now.getTime() + 2_000),
+	})
+
+	// The survivor had none of its own, so the reversal has to take it back off.
+	expect(
+		(await prisma.media.findUnique({ where: { id: 'merge-target' } }))
+			?.englishTitle,
+	).toBeNull()
+	expect(
+		(await prisma.media.findUnique({ where: { id: 'merge-source' } }))
+			?.englishTitle,
+	).toBe('The English One')
+})
