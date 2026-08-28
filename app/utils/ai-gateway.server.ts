@@ -45,6 +45,7 @@ export type AiGatewayTelemetry = {
 		| 'unavailable'
 		| 'error'
 		| 'concurrency'
+		| 'reserved-capacity'
 		| 'shared-rate-limited'
 		| 'unsafe-input'
 		| 'model-unavailable'
@@ -132,18 +133,25 @@ async function recordTelemetry(event: AiGatewayTelemetry, persist: boolean) {
 	}
 }
 
-function consumeRequest(input: {
+type InMemoryRateLimit = {
 	capability: AiCapability
 	key: string
 	now: number
 	limit: number
 	windowMs: number
-}) {
+}
+
+function recentRequestTimestamps(input: InMemoryRateLimit) {
 	const storageKey = `${input.capability}:${input.key}`
 	const cutoff = input.now - input.windowMs
-	const recent = (requestHistory.get(storageKey) ?? []).filter(
+	return (requestHistory.get(storageKey) ?? []).filter(
 		timestamp => timestamp > cutoff,
 	)
+}
+
+function consumeRequest(input: InMemoryRateLimit) {
+	const storageKey = `${input.capability}:${input.key}`
+	const recent = recentRequestTimestamps(input)
 	if (recent.length >= input.limit) {
 		requestHistory.set(storageKey, recent)
 		return false
@@ -160,6 +168,10 @@ function consumeRequest(input: {
 		}
 	}
 	return true
+}
+
+function hasRequestCapacity(input: InMemoryRateLimit) {
+	return recentRequestTimestamps(input).length < input.limit
 }
 
 async function consumeDurableRequest(input: {
@@ -211,6 +223,20 @@ function configuredLimit(name: string, fallback: number) {
 	return Number.isFinite(value) && value > 0
 		? Math.min(1_000_000, value)
 		: fallback
+}
+
+function concurrencyLimitForRequest(input: {
+	maxConcurrency: number
+	capability: AiCapability
+	isAnonymous: boolean
+	moderationEnabled: boolean
+}) {
+	if (input.maxConcurrency <= 1 || input.capability === 'moderation-triage') {
+		return input.maxConcurrency
+	}
+	const memberLimit = input.maxConcurrency - (input.moderationEnabled ? 1 : 0)
+	if (!input.isAnonymous) return memberLimit
+	return Math.max(1, memberLimit - (memberLimit > 1 ? 1 : 0))
 }
 
 function warnAtBudgetThreshold(input: {
@@ -565,7 +591,7 @@ async function runControlledAiRequest<Output>(
 	const withinLocalLimit = aggregateBudgetBlocked
 		? true
 		: rateLimitInput
-			? consumeRequest(rateLimitInput)
+			? hasRequestCapacity(rateLimitInput)
 			: true
 	if (aggregateBudgetBlocked || !withinLocalLimit) {
 		const sharedClientLimit = !aggregateBudgetBlocked && isSharedAnonymous
@@ -595,13 +621,21 @@ async function runControlledAiRequest<Output>(
 	const maxConcurrency = Number.isFinite(configuredConcurrency)
 		? Math.min(20, Math.max(1, configuredConcurrency))
 		: 4
-	if (activeRequests >= maxConcurrency) {
+	const requestConcurrencyLimit = concurrencyLimitForRequest({
+		maxConcurrency,
+		capability: options.capability,
+		isAnonymous,
+		moderationEnabled: isAiCapabilityConfigured('moderation-triage'),
+	})
+	if (activeRequests >= requestConcurrencyLimit) {
+		const fallbackReason =
+			activeRequests < maxConcurrency ? 'reserved-capacity' : 'concurrency'
 		await recordTelemetry(
 			{
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'unavailable',
-				fallbackReason: 'concurrency',
+				fallbackReason,
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -613,6 +647,7 @@ async function runControlledAiRequest<Output>(
 			'AI concurrency capacity is temporarily full.',
 		)
 	}
+	if (rateLimitInput) consumeRequest(rateLimitInput)
 	activeRequests += 1
 
 	let status: number | null = null
