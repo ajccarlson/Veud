@@ -54,3 +54,38 @@ test('omits malformed, empty, zero, and unsafe values', () => {
 		}),
 	).toEqual([])
 })
+
+test('an anime film is not labelled per episode', () => {
+	// Anime films are kind 'anime' like the series are, so gating the label on
+	// kind alone put "2h 5m per episode" on every one of them.
+	expect(
+		mediaFacts('anime', {
+			title: 'Example Film',
+			type: 'Movie',
+			runtimeMinutes: 125,
+		}),
+	).toContainEqual({ label: 'Runtime', value: '2h 5m' })
+})
+
+test('a one-shot special is not labelled per episode', () => {
+	// A single instalment has no "per episode" to speak of, whatever its format.
+	expect(
+		mediaFacts('anime', {
+			title: 'Example Special',
+			type: 'Special',
+			runtimeMinutes: 45,
+			episodeCount: 1,
+		}),
+	).toContainEqual({ label: 'Runtime', value: '45m' })
+})
+
+test('a series with an unknown episode count is still labelled per episode', () => {
+	// A currently-airing series often has no count yet. It is still episodic.
+	expect(
+		mediaFacts('tv', {
+			title: 'Example Series',
+			type: 'Scripted',
+			runtimeMinutes: 42,
+		}),
+	).toContainEqual({ label: 'Runtime', value: '42m per episode' })
+})

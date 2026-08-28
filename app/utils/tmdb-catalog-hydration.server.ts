@@ -176,8 +176,16 @@ function optionalNumber(value: unknown) {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function optionalWholeNumberString(value: unknown) {
-	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+/**
+ * TMDB returns 0 for an unknown budget or revenue rather than omitting the
+ * field, and no released film has genuinely grossed nothing, so 0 is the
+ * absence of a figure. Storing it as one is not merely a cosmetic problem:
+ * `missingValue` in the merge treats "0" as present, so the sentinel would stop
+ * a real figure filling the field from the other row and register as a
+ * conflict instead.
+ */
+function optionalMoneyString(value: unknown) {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 		? String(value)
 		: null
 }
@@ -406,9 +414,8 @@ export function normalizeTmdbDetails(
 		studios: commaSeparatedNames(payload.production_companies) ?? undefined,
 		networks: commaSeparatedNames(payload.networks),
 		keywords: keywordNames(payload.keywords),
-		budget: kind === 'movie' ? optionalWholeNumberString(payload.budget) : null,
-		revenue:
-			kind === 'movie' ? optionalWholeNumberString(payload.revenue) : null,
+		budget: kind === 'movie' ? optionalMoneyString(payload.budget) : null,
+		revenue: kind === 'movie' ? optionalMoneyString(payload.revenue) : null,
 		videos: serializeMediaVideos(normalizeTmdbVideos(payload.videos)),
 		tmdbScore: optionalNumber(payload.vote_average) ?? undefined,
 		catalogScore: optionalNumber(payload.vote_average) ?? undefined,

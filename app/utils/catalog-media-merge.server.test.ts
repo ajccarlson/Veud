@@ -475,6 +475,7 @@ test('applies and reverses a complete safe relation inventory without data loss'
 	expect(preflight.prunes).toEqual({
 		titles: 1,
 		catalogFeedItems: 1,
+		creditSyncStates: 0,
 		relations: 2,
 	})
 	expect(preflight.moves).toMatchObject({
@@ -1641,4 +1642,158 @@ test('different offers and different roles are not a collision', async () => {
 		]),
 	)
 	expect(preflight.safe).toBe(true)
+})
+
+async function seedCreditSyncState(
+	mediaId: string,
+	overrides: { id: string; failureCount?: number; scope?: string },
+) {
+	return prisma.mediaCreditSyncState.create({
+		data: {
+			id: overrides.id,
+			mediaId,
+			provider: 'jikan',
+			scope: overrides.scope ?? 'cast',
+			status: 'failed',
+			failureCount: overrides.failureCount ?? 3,
+			lastFetchedAt: now,
+			refreshAfter: new Date(now.getTime() + 86_400_000),
+			lastError: 'no usable cast',
+		},
+	})
+}
+
+test('a merge carries the losing row credit backoff onto the survivor', async () => {
+	// failureCount is what holds a repeatedly-failing row out of the Jikan
+	// queue, and a row with no state at all is immediately eligible again. Drop
+	// the state on merge and the survivor goes straight back to full-rate
+	// polling for cast that is not there.
+	const { admin, issue } = await seedBase()
+	await seedCreditSyncState('merge-source', { id: 'merge-sync' })
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	expect(preflight.safe).toBe(true)
+	expect(preflight.moves).toMatchObject({ creditSyncStates: 1 })
+
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+
+	expect(
+		await prisma.mediaCreditSyncState.findUnique({
+			where: { id: 'merge-sync' },
+		}),
+	).toMatchObject({ mediaId: 'merge-target', failureCount: 3 })
+	expect(await prisma.mediaCreditSyncState.count()).toBe(1)
+})
+
+test('a merge keeps the survivor own state when both rows carry one', async () => {
+	// Both rows describing the same anime will routinely have been polled for
+	// the same provider and scope. The unique key is (media, provider, scope),
+	// so one of them has to go; the survivor's own record is the one that
+	// describes the row that lives on.
+	const { admin, issue } = await seedBase()
+	await seedCreditSyncState('merge-source', {
+		id: 'merge-sync',
+		failureCount: 5,
+	})
+	await seedCreditSyncState('merge-target', {
+		id: 'merge-sync-target',
+		failureCount: 1,
+	})
+
+	const preflight = await buildCatalogMediaMergePreflight(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		now,
+	})
+	// A collision here is routine bookkeeping, not a reason to refuse a merge
+	// the operator has already judged correct.
+	expect(preflight.safe).toBe(true)
+	expect(preflight.moves).toMatchObject({ creditSyncStates: 0 })
+	expect(preflight.prunes).toMatchObject({ creditSyncStates: 1 })
+
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	const applied = await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+
+	expect(await prisma.mediaCreditSyncState.findMany()).toMatchObject([
+		{ id: 'merge-sync-target', mediaId: 'merge-target', failureCount: 1 },
+	])
+
+	await revertCatalogMediaMerge(prisma, {
+		mergeId: applied.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeReversal(applied.merge.id),
+		now: new Date(now.getTime() + 2_000),
+	})
+
+	// The pruned record is restored intact, backoff included, not merely
+	// recreated with default counters.
+	expect(
+		await prisma.mediaCreditSyncState.findUnique({
+			where: { id: 'merge-sync' },
+		}),
+	).toMatchObject({ mediaId: 'merge-source', failureCount: 5 })
+	expect(await prisma.mediaCreditSyncState.count()).toBe(2)
+})
+
+test('reverting a merge puts a moved credit sync state back', async () => {
+	const { admin, issue } = await seedBase()
+	await seedCreditSyncState('merge-source', { id: 'merge-sync' })
+	const prepared = await prepareCatalogMediaMerge(prisma, {
+		issueId: issue.id,
+		targetMediaId: 'merge-target',
+		actorId: admin.id,
+		now,
+	})
+	const applied = await applyCatalogMediaMerge(prisma, {
+		mergeId: prepared.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeConfirmation(
+			'merge-source',
+			'merge-target',
+		),
+		now: new Date(now.getTime() + 1_000),
+	})
+	await revertCatalogMediaMerge(prisma, {
+		mergeId: applied.merge.id,
+		actorId: admin.id,
+		confirmation: expectedCatalogMergeReversal(applied.merge.id),
+		now: new Date(now.getTime() + 2_000),
+	})
+
+	expect(
+		await prisma.mediaCreditSyncState.findUnique({
+			where: { id: 'merge-sync' },
+		}),
+	).toMatchObject({ mediaId: 'merge-source', failureCount: 3 })
 })

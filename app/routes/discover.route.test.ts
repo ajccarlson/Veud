@@ -90,6 +90,55 @@ test('anonymous discovery loads filters and falls back from personalized ranking
 	expect(result.data).not.toHaveProperty('truncated')
 })
 
+test('plain catalog searches include bounded people results on the first page', async () => {
+	const tag = faker.string.alphanumeric({ length: 8 }).toLowerCase()
+	const person = await prisma.person.create({
+		data: {
+			name: `${tag} Director`,
+			normalized: `${tag} director`,
+			knownForDepartment: 'Directing',
+		},
+	})
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: `Unrelated ${faker.string.uuid()}` },
+	})
+	await prisma.mediaCredit.create({
+		data: {
+			mediaId: media.id,
+			personId: person.id,
+			provider: 'tmdb',
+			creditType: 'crew',
+			role: 'Director',
+			department: 'Directing',
+		},
+	})
+
+	const result = await loader({
+		request: new Request(`${BASE_URL}/discover?q=${tag}`),
+		params: {},
+	} as any)
+	expect(result.data.people).toEqual([
+		expect.objectContaining({
+			id: person.id,
+			name: `${tag} Director`,
+			knownForDepartment: 'Directing',
+			creditCount: 1,
+		}),
+	])
+
+	const filtered = await loader({
+		request: new Request(`${BASE_URL}/discover?q=${tag}&kind=movie`),
+		params: {},
+	} as any)
+	expect(filtered.data.people).toEqual([])
+
+	const laterPage = await loader({
+		request: new Request(`${BASE_URL}/discover?q=${tag}&page=2`),
+		params: {},
+	} as any)
+	expect(laterPage.data.people).toEqual([])
+})
+
 test('signed-in discovery returns unseen recommendation graph results', async () => {
 	const viewer = await createUser('discover_viewer')
 	const listType = await prisma.listType.upsert({
