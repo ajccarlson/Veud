@@ -9,8 +9,16 @@ export const requiredLoadQueries = [
 	'popular-page',
 	'related-media',
 	'trending-feed',
-	'profile-entries',
-	'profile-activity',
+	// Renamed by #118 on 2026-07-29 when profile analytics were bounded:
+	// `profile-entries` became `profile-entry-page`, and `profile-activity`
+	// split into an owner and a public variant. This list was not updated, so
+	// the gate demanded two timings nothing has emitted since — unsatisfiable on
+	// any fresh report — and the ceilings for the three queries that replaced
+	// them were never applied. `postgres-cutover-utils.test.mjs` now reads the
+	// load harness and fails if a required name is not one it emits.
+	'profile-entry-page',
+	'profile-activity-owner',
+	'profile-activity-public',
 ]
 
 const backupCountFields = [
