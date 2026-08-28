@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import {
 	getAiGatewayTelemetry,
+	requestModerationClassification,
 	requestStructuredAi,
 	resetAiGatewayStateForTests,
 } from './ai-gateway.server.ts'
@@ -39,6 +40,24 @@ function response(value: unknown, status = 200) {
 		),
 		{ status, headers: { 'content-type': 'application/json' } },
 	)
+}
+
+function moderationResponse(
+	value: unknown = {
+		results: [
+			{
+				flagged: true,
+				categories: { harassment: true, violence: false },
+				category_scores: { harassment: 0.9, violence: 0.1 },
+			},
+		],
+	},
+	status = 200,
+) {
+	return new Response(JSON.stringify(value), {
+		status,
+		headers: { 'content-type': 'application/json' },
+	})
 }
 
 test('sends only the asserted input with storage disabled and validates output', async () => {
@@ -103,6 +122,81 @@ test('enforces per-capability rate limits without sending rejected requests', as
 		reason: 'rate-limited',
 	})
 	expect(fetchImpl).toHaveBeenCalledOnce()
+})
+
+test('applies gateway admission and telemetry to moderation classification', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
+		expect(String(url)).toBe('https://api.openai.com/v1/moderations')
+		expect(JSON.parse(String(init?.body))).toEqual({
+			model: 'omni-moderation-latest',
+			input: 'reported text',
+		})
+		return moderationResponse()
+	})
+	const request = () =>
+		requestModerationClassification({
+			input: 'reported text',
+			rateLimitKey: 'staff:moderator-one',
+			rateLimit: 1,
+			now: 1_000,
+			fetchImpl,
+		})
+
+	await expect(request()).resolves.toEqual({
+		flagged: true,
+		categories: ['harassment'],
+		critical: false,
+	})
+	await expect(request()).rejects.toMatchObject({ reason: 'rate-limited' })
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(getAiGatewayTelemetry()).toEqual([
+		expect.objectContaining({
+			capability: 'moderation-triage',
+			model: 'omni-moderation-latest',
+			promptVersion: 'moderation-classifier-v1',
+			outcome: 'success',
+			status: 200,
+		}),
+		expect.objectContaining({
+			capability: 'moderation-triage',
+			promptVersion: 'moderation-classifier-v1',
+			outcome: 'rate-limited',
+		}),
+	])
+})
+
+test('shares moderation classifier failures with the capability circuit', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const classifierFetch = vi.fn<typeof fetch>(async () =>
+		moderationResponse({ error: { code: 'insufficient_quota' } }, 429),
+	)
+	await expect(
+		requestModerationClassification({
+			input: 'reported text',
+			rateLimitKey: 'staff:moderator-two',
+			now: 1_000,
+			fetchImpl: classifierFetch,
+		}),
+	).rejects.toMatchObject({ reason: 'unavailable', status: 429 })
+
+	const triageFetch = vi.fn<typeof fetch>()
+	await expect(
+		requestStructuredAi({
+			capability: 'moderation-triage',
+			promptVersion: 'moderation-triage-test-v1',
+			instructions: 'Return the value.',
+			input: { reportedContent: 'reported text' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			now: 2_000,
+			fetchImpl: triageFetch,
+		}),
+	).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(classifierFetch).toHaveBeenCalledOnce()
+	expect(triageFetch).not.toHaveBeenCalled()
 })
 
 test('does not spend the shared daily budget on a per-client rejection', async () => {

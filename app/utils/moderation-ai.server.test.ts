@@ -1,5 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest'
-import { resetAiGatewayStateForTests } from './ai-gateway.server.ts'
+import {
+	getAiGatewayTelemetry,
+	resetAiGatewayStateForTests,
+} from './ai-gateway.server.ts'
 import { prisma } from './db.server.ts'
 import { assessModerationReport } from './moderation-ai.server.ts'
 
@@ -42,7 +45,7 @@ test('stores advisory triage without creating a moderator action', async () => {
 			targetId: review.id,
 			reasonCategory: 'harassment',
 			details:
-				'The phrase asks for an action against triage_reporter at person@example.com.',
+				'The phrase asks for an action against triage_reporter at private.local-part@example.com.',
 		},
 	})
 	const outbound: string[] = []
@@ -99,10 +102,47 @@ test('stores advisory triage without creating a moderator action', async () => {
 		'suspend the reporter right now',
 	])
 	expect(await prisma.moderationAction.count()).toBe(0)
-	expect(outbound[1]).not.toContain(media.title!)
-	expect(outbound[1]).not.toContain(author.username)
-	expect(outbound[1]).not.toContain(reporter.username)
-	expect(outbound[1]).not.toContain('person@example.com')
+	for (const body of outbound) {
+		expect(body).not.toContain(media.title!)
+		expect(body).not.toContain(author.username)
+		expect(body).not.toContain(reporter.username)
+		expect(body).not.toContain('private.local-part')
+		expect(body).not.toContain('example.com')
+	}
+	expect(JSON.parse(outbound[1]!)).toEqual(
+		expect.objectContaining({
+			text: expect.objectContaining({
+				format: expect.objectContaining({
+					schema: expect.objectContaining({
+						properties: expect.objectContaining({
+							evidence: expect.objectContaining({
+								items: {
+									type: 'string',
+									minLength: 1,
+									maxLength: 220,
+								},
+							}),
+							uncertainty: {
+								type: 'string',
+								maxLength: 400,
+							},
+						}),
+					}),
+				}),
+			}),
+		}),
+	)
+	expect(getAiGatewayTelemetry()).toEqual([
+		expect.objectContaining({
+			model: 'omni-moderation-latest',
+			promptVersion: 'moderation-classifier-v1',
+			outcome: 'success',
+		}),
+		expect.objectContaining({
+			promptVersion: 'moderation-triage-v1',
+			outcome: 'success',
+		}),
+	])
 })
 
 test('operator kill switch prevents both classifier and triage network calls', async () => {
