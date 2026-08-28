@@ -15,11 +15,12 @@
 export const SUGGESTION_LIMIT = 8
 
 /**
- * A single letter matches most of the catalog, so the request would be paid for
- * on every keystroke and return nothing worth reading. Two is where a query
- * starts to mean something.
+ * One or two characters match too much of the catalog, and PostgreSQL's
+ * trigram indexes cannot serve a two-character contains search. Three keeps
+ * live, unauthenticated suggestions on an index-capable path. The form still
+ * submits shorter title searches to the full results page.
  */
-export const MIN_SUGGESTION_QUERY = 2
+export const MIN_SUGGESTION_QUERY = 3
 
 /** Long enough for any real title; the input allows more for other modes. */
 const MAX_SUGGESTION_QUERY = 100

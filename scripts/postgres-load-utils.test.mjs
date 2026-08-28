@@ -490,37 +490,88 @@ test.each([
 	{
 		mediaCount: 2_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 2_000, fixtureEntryRows: 1_900 },
+		trackedTargetEntries: 49,
+		memberCount: 20,
+		expected: { expectedEntries: 551, fixtureEntryRows: 451 },
+	},
+	{
+		mediaCount: 2_000,
+		trackedEntries: 100,
+		trackedTargetEntries: 50,
+		memberCount: 200,
+		expected: { expectedEntries: 550, fixtureEntryRows: 450 },
 	},
 	{
 		mediaCount: 100_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		trackedTargetEntries: 50,
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
 		mediaCount: 150_000,
 		trackedEntries: 100,
-		expected: { expectedEntries: 100_000, fixtureEntryRows: 99_900 },
+		trackedTargetEntries: 50,
+		memberCount: 1_000,
+		expected: { expectedEntries: 2_038, fixtureEntryRows: 1_938 },
 	},
 	{
 		mediaCount: 80,
 		trackedEntries: 80,
+		trackedTargetEntries: 40,
+		memberCount: 1,
 		expected: { expectedEntries: 80, fixtureEntryRows: 0 },
+	},
+	{
+		mediaCount: 500,
+		trackedEntries: 100,
+		trackedTargetEntries: 49,
+		memberCount: 1_000,
+		expected: { expectedEntries: 500, fixtureEntryRows: 400 },
 	},
 ])(
 	'derives a $expected.expectedEntries-entry real profile fixture',
-	({ mediaCount, trackedEntries, expected }) => {
+	({
+		mediaCount,
+		trackedEntries,
+		trackedTargetEntries,
+		memberCount,
+		expected,
+	}) => {
 		expect(
-			representativeProfileEntryShape({ mediaCount, trackedEntries }),
+			representativeProfileEntryShape({
+				mediaCount,
+				trackedEntries,
+				trackedTargetEntries,
+				memberCount,
+			}),
 		).toEqual(expected)
 	},
 )
+
+test('the representative member stays below a tenth once a full page fits', () => {
+	for (const memberCount of [51, 200, 1_000, 5_000]) {
+		const trackedEntries = 100
+		const { expectedEntries } = representativeProfileEntryShape({
+			mediaCount: 2_000_000,
+			trackedEntries,
+			trackedTargetEntries: 50,
+			memberCount,
+		})
+		const otherMemberEntries = (memberCount - 1) * trackedEntries
+		expect(
+			expectedEntries / (otherMemberEntries + expectedEntries),
+		).toBeLessThanOrEqual(0.1)
+	}
+})
 
 test('rejects a representative profile with more tracked rows than its target', () => {
 	expect(() =>
 		representativeProfileEntryShape({
 			mediaCount: 80,
 			trackedEntries: 81,
+			trackedTargetEntries: 40,
+			memberCount: 1,
 		}),
 	).toThrow('trackedEntries may not exceed')
 })
@@ -642,7 +693,7 @@ test('a person search measured on an empty result set is rejected', () => {
 		}),
 	).toThrow()
 	expect(() =>
-		assertRequiredQueryRows([{ name: 'person-name', actualRows: 48 }], {
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 32 }], {
 			'person-name': 1,
 		}),
 	).not.toThrow()
@@ -653,7 +704,7 @@ test('a broad person search that stops matching a slice is rejected', () => {
 	// stops matching a slice, it silently becomes another single-row lookup.
 	expect(() =>
 		assertRequiredQueryRows([{ name: 'person-name-broad', actualRows: 12 }], {
-			'person-name-broad': 48,
+			'person-name-broad': 32,
 		}),
 	).toThrow()
 })
