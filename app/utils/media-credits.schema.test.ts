@@ -55,6 +55,12 @@ test('a refresh cannot write the same credit twice', async () => {
 	expect(await prisma.mediaCredit.count({ where: { mediaId: media.id } })).toBe(
 		1,
 	)
+	expect(
+		await prisma.person.findUnique({
+			where: { id: person.id },
+			select: { creditCount: true },
+		}),
+	).toEqual({ creditCount: 1 })
 })
 
 test('the same person can hold different roles on one title', async () => {
@@ -79,6 +85,12 @@ test('the same person can hold different roles on one title', async () => {
 	expect(await prisma.mediaCredit.count({ where: { mediaId: media.id } })).toBe(
 		3,
 	)
+	expect(
+		await prisma.person.findUnique({
+			where: { id: person.id },
+			select: { creditCount: true },
+		}),
+	).toEqual({ creditCount: 3 })
 })
 
 test('a provider identity belongs to exactly one person', async () => {
@@ -115,7 +127,38 @@ test('deleting a title takes its credits and leaves the people', async () => {
 	).toBe(0)
 	expect(
 		await prisma.person.findUnique({ where: { id: person.id } }),
-	).not.toBeNull()
+	).toMatchObject({ creditCount: 0 })
+})
+
+test('reassigning a credit recounts both people', async () => {
+	// Catalog writes do not normally reassign a person, but keeping this case
+	// correct makes creditCount a database invariant rather than a convention
+	// that every future importer has to remember.
+	const { media, person } = await fixture()
+	const destination = await prisma.person.create({
+		data: { name: 'Credit destination', normalized: 'credit destination' },
+	})
+	const created = await prisma.mediaCredit.create({
+		data: credit(media.id, person.id),
+	})
+
+	await prisma.mediaCredit.update({
+		where: { id: created.id },
+		data: { personId: destination.id },
+	})
+
+	expect(
+		await prisma.person.findMany({
+			where: { id: { in: [person.id, destination.id] } },
+			orderBy: { id: 'asc' },
+			select: { id: true, creditCount: true },
+		}),
+	).toEqual(
+		[
+			{ id: person.id, creditCount: 0 },
+			{ id: destination.id, creditCount: 1 },
+		].sort((left, right) => left.id.localeCompare(right.id)),
+	)
 })
 
 test('credit sync state is unique per provider scope and follows its title', async () => {
