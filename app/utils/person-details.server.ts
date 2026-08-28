@@ -1,8 +1,14 @@
 import { type Prisma, type PrismaClient } from '@prisma/client'
 import { normalizePersonName } from './media-credits.server.ts'
+import { parseTmdbRetryAfter } from './tmdb-catalog-hydration.server.ts'
 
 export const PERSON_DETAILS_FRESH_MS = 30 * 24 * 60 * 60 * 1000
 export const PERSON_DETAILS_FAILURE_BACKOFF_MS = 5 * 60 * 1000
+/**
+ * A person TMDB does not have is not a transient failure. Asking again in five
+ * minutes, forever, is how a permanent 404 becomes a standing request.
+ */
+export const PERSON_DETAILS_MISSING_BACKOFF_MS = 30 * 24 * 60 * 60 * 1000
 const PERSON_DETAILS_TIMEOUT_MS = 3_000
 const PERSON_DETAILS_MAX_FAILURE_BACKOFFS = 1_000
 
@@ -35,6 +41,48 @@ type EnrichmentOptions = {
 
 const inFlight = new Map<string, Promise<PersonDetailsRecord>>()
 const retryAfter = new Map<string, number>()
+
+/**
+ * Provider-wide failure state, separate from the per-person kind.
+ *
+ * Per-person backoff cannot see an outage: a rotated key or a provider that is
+ * down fails for every person, and each one someone views is a fresh id with no
+ * backoff recorded, so every page pays the full timeout for as long as the
+ * outage lasts. Counting consecutive failures across all people turns that into
+ * one slow attempt rather than one per person.
+ */
+let consecutiveFailures = 0
+let providerRetryAt = 0
+
+/** Enough to distinguish an outage from one title the provider has lost. */
+export const PERSON_DETAILS_PROVIDER_FAILURE_THRESHOLD = 3
+export const PERSON_DETAILS_PROVIDER_COOLDOWN_MS = 5 * 60 * 1000
+
+function providerCooldownActive(now: number) {
+	return providerRetryAt > now
+}
+
+function rememberProviderSuccess() {
+	consecutiveFailures = 0
+	providerRetryAt = 0
+}
+
+/**
+ * Record a failure and, once they stop looking like isolated ones, stop asking.
+ *
+ * `retryAt` is the provider's own `Retry-After` when it gave one — being told
+ * when to come back and ignoring it is how a client earns a longer ban.
+ */
+function rememberProviderFailure(now: number, retryAt: number | null) {
+	consecutiveFailures += 1
+	if (retryAt) {
+		providerRetryAt = Math.max(providerRetryAt, retryAt)
+		return
+	}
+	if (consecutiveFailures >= PERSON_DETAILS_PROVIDER_FAILURE_THRESHOLD) {
+		providerRetryAt = now + PERSON_DETAILS_PROVIDER_COOLDOWN_MS
+	}
+}
 
 function failureBackoffActive(personId: string, now: number) {
 	for (const [id, expiresAt] of retryAfter) {
@@ -177,22 +225,45 @@ async function fetchAndStorePersonDetails(
 			},
 		)
 		if (!response.ok) {
-			throw new Error(`TMDB person request failed with ${response.status}`)
+			const error = new Error(
+				`TMDB person request failed with ${response.status}`,
+			) as Error & { status?: number; retryAfter?: Date | null }
+			error.status = response.status
+			error.retryAfter = parseTmdbRetryAfter(
+				response.headers.get('retry-after'),
+				now,
+			)
+			throw error
 		}
 		const details = normalizeTmdbPersonDetails(
 			await response.json(),
 			externalId,
 		)
-		return await database.person.update({
+		const stored = await database.person.update({
 			where: { id: person.id },
 			data: { ...details, detailsFetchedAt: now },
 			select: personDetailsSelect,
 		})
+		rememberProviderSuccess()
+		return stored
 	} catch (error) {
+		// A permanent 404 is not worth asking about every five minutes, and a
+		// provider that supplied Retry-After has already answered the question.
+		const status = (error as { status?: number }).status ?? null
+		const retryAfter =
+			(error as { retryAfter?: Date | null }).retryAfter ?? null
+		// Retry-After is deliberately NOT applied per person: it is a client-wide
+		// limit, so it belongs on the provider cooldown below, which is set from
+		// the same value and always outlasts this. Duplicating it here would be a
+		// branch no test could reach.
 		rememberFailure(
 			person.id,
-			now.getTime() + PERSON_DETAILS_FAILURE_BACKOFF_MS,
+			now.getTime() +
+				(status === 404
+					? PERSON_DETAILS_MISSING_BACKOFF_MS
+					: PERSON_DETAILS_FAILURE_BACKOFF_MS),
 		)
+		rememberProviderFailure(now.getTime(), retryAfter?.getTime() ?? null)
 		console.warn(
 			`TMDB person enrichment failed for ${person.id}: ${
 				error instanceof Error ? error.message : String(error)
@@ -220,6 +291,7 @@ export async function enrichPersonDetails(
 	if (!options.fetchImpl && process.env.VEUD_E2E === '1') return person
 	if (!configuredApiToken(options)) return person
 	if (failureBackoffActive(person.id, now.getTime())) return person
+	if (providerCooldownActive(now.getTime())) return person
 
 	const existing = inFlight.get(person.id)
 	if (existing) return existing
@@ -238,7 +310,38 @@ export async function enrichPersonDetails(
 	return request
 }
 
+/**
+ * Refresh a person in the background, and never make a page wait for it.
+ *
+ * A biography and a birthday are worth having and not worth a page load. The
+ * awaited form below is what a caller uses when it genuinely wants the fetched
+ * record — a test, or a job. A request handler uses this: it renders whatever
+ * is stored, and the next view of that person has the rest.
+ *
+ * Returns nothing on purpose. There is no result a caller could act on without
+ * waiting, and a promise here is an invitation to await it.
+ */
+export function schedulePersonDetailsRefresh(
+	database: PersonDetailsDatabase,
+	person: PersonDetailsRecord,
+	options: EnrichmentOptions = {},
+): void {
+	void enrichPersonDetails(database, person, options).catch(error => {
+		// enrichPersonDetails already degrades to the stored record on a provider
+		// failure, so reaching here means something unexpected. It must still not
+		// escape: nothing is waiting for this, and an unhandled rejection in a
+		// request handler takes the process down.
+		console.warn(
+			`Background person enrichment failed for ${person.id}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		)
+	})
+}
+
 export function resetPersonDetailsRuntimeStateForTests() {
 	inFlight.clear()
 	retryAfter.clear()
+	consecutiveFailures = 0
+	providerRetryAt = 0
 }

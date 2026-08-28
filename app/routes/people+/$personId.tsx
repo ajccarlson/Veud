@@ -10,8 +10,8 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { getPersonCredits } from '#app/utils/media-credits.server.ts'
 import {
-	enrichPersonDetails,
 	personDetailsSelect,
+	schedulePersonDetailsRefresh,
 } from '#app/utils/person-details.server.ts'
 
 export async function loader({ params }: LoaderFunctionArgs) {
@@ -24,12 +24,15 @@ export async function loader({ params }: LoaderFunctionArgs) {
 	})
 	invariantResponse(person, 'Person not found', { status: 404 })
 
-	const [enrichedPerson, credits] = await Promise.all([
-		enrichPersonDetails(prisma, person),
-		getPersonCredits(prisma, person.id),
-	])
+	const credits = await getPersonCredits(prisma, person.id)
 
-	return json({ person: enrichedPerson, ...credits })
+	// Deliberately not awaited. Enrichment is a live provider request and a
+	// catalog write; awaiting it puts TMDB's latency on every first view of a
+	// person, and a provider outage on every one of them. The page renders what
+	// is stored and the next view has the rest.
+	schedulePersonDetailsRefresh(prisma, person)
+
+	return json({ person, ...credits })
 }
 
 function displayDate(value: string | Date | null) {
