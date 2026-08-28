@@ -15,7 +15,11 @@ import {
 } from './release-occurrences.server.ts'
 
 const mergeMediaInclude = {
-	externalIds: { select: { id: true } },
+	// provider and tombstonedAt are read when an absorbed TMDB identity has to be
+	// tombstoned so hydration cannot claim the surviving anime row.
+	externalIds: {
+		select: { id: true, provider: true, tombstonedAt: true },
+	},
 	titles: true,
 	catalogFeedItems: true,
 	outgoingRelations: {
@@ -159,6 +163,9 @@ type MergeJournal = {
 		libraryImportItems?: string[]
 		watchAvailability?: string[]
 		credits?: string[]
+		/** Absorbed TMDB identities tombstoned so hydration cannot claim the
+		 * surviving anime row. Cleared again on revert. */
+		tombstonedExternalIds?: string[]
 		relations: RelationPlan['move']
 	}
 	pruned: {
@@ -395,7 +402,11 @@ async function readMergeContext(
 		},
 	})
 	if (!issue) throw new Error('Catalog quality issue was not found')
-	if (issue.issueType !== 'possible_duplicate' || !issue.secondaryMediaId) {
+	if (
+		(issue.issueType !== 'possible_duplicate' &&
+			issue.issueType !== 'cross_kind_duplicate') ||
+		!issue.secondaryMediaId
+	) {
 		throw new Error('Only paired duplicate candidates can be merged')
 	}
 	if (issue.status !== 'confirmed') {
@@ -462,6 +473,7 @@ async function readMergeContext(
 		}
 	}
 
+	const crossKind = issue.issueType === 'cross_kind_duplicate'
 	const blockers = [
 		source.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION &&
 		target.catalogProvenanceVersion === TRUSTED_CATALOG_PROVENANCE_VERSION
@@ -473,14 +485,39 @@ async function readMergeContext(
 					count: 1,
 					examples: [],
 				},
-		source.kind === target.kind
-			? null
-			: {
-					code: 'kind-mismatch',
-					message: `Media kinds differ (${source.kind} and ${target.kind}).`,
-					count: 1,
-					examples: [source.kind, target.kind],
-				},
+		// Kinds differing is normally the strongest signal that two rows are not
+		// the same work, so it stays a hard refusal — except for the one issue
+		// type whose entire evidence is a shared provider id, where differing
+		// kinds is the point. Even then the direction is fixed rather than left
+		// to whichever record the admin happened to pick as the target: anime
+		// survives, live action does not.
+		crossKind
+			? target.kind === 'anime' &&
+				(source.kind === 'tv' || source.kind === 'movie')
+				? null
+				: source.kind === 'anime'
+					? {
+							// They picked the wrong direction: the anime is the record
+							// being absorbed rather than the one being kept.
+							code: 'anime-must-survive',
+							message: `A cross-kind merge must keep the anime record; ${target.kind} was chosen instead.`,
+							count: 1,
+							examples: [],
+						}
+					: {
+							code: 'kind-mismatch',
+							message: `A cross-kind merge absorbs a live-action record into an anime one, not ${source.kind} into ${target.kind}.`,
+							count: 1,
+							examples: [],
+						}
+			: source.kind === target.kind
+				? null
+				: {
+						code: 'kind-mismatch',
+						message: `Media kinds differ (${source.kind} and ${target.kind}).`,
+						count: 1,
+						examples: [source.kind, target.kind],
+					},
 		activeMerges.length
 			? {
 					code: 'active-merge',
@@ -859,6 +896,12 @@ function journalFromContext(context: MergeContext, now: Date): MergeJournal {
 			libraryImportItems: context.source.libraryImportItems.map(row => row.id),
 			watchAvailability: context.source.watchAvailability.map(row => row.id),
 			credits: context.source.credits.map(row => row.id),
+			tombstonedExternalIds:
+				context.issue.issueType === 'cross_kind_duplicate'
+					? context.source.externalIds
+							.filter(row => row.provider === 'tmdb' && !row.tombstonedAt)
+							.map(row => row.id)
+					: [],
 			relations: context.relationPlan.move,
 		},
 		pruned: {
@@ -888,7 +931,47 @@ async function deletePrunedCatalogRows(
 	}
 }
 
-async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
+/**
+ * Stop TMDB hydration claiming a row that anime just won.
+ *
+ * When a live-action record is absorbed, its real `provider:'tmdb'` identity
+ * moves onto the surviving anime record with everything else. That identity is
+ * what `eligibleHydrationWhere` selects on, so leaving it active would hand the
+ * row to TMDB hydration on its next run and overwrite the MAL-sourced title,
+ * description and scores — turning "anime wins" at merge time into "TMDB wins"
+ * an hour later. The `tmdb-watch` key exists precisely to keep TMDB off these
+ * rows; this keeps that promise through a merge.
+ *
+ * Tombstoning rather than deleting: the row stays auditable, revert can restore
+ * it, and nothing that reads external links filters tombstoned rows, so the
+ * TMDB link on the page survives. The anime already carries a `tmdb-watch`
+ * identity for the same entry, so streaming lookups are unaffected.
+ *
+ * Rewriting the provider to `tmdb-watch` instead would collide with that
+ * existing row on `@@unique([provider, kind, externalId])`.
+ */
+async function tombstoneAbsorbedTmdbIdentities(
+	tx: MergeTransaction,
+	context: MergeContext,
+	now: Date,
+) {
+	if (context.issue.issueType !== 'cross_kind_duplicate') return []
+	const absorbed = context.source.externalIds.filter(
+		row => row.provider === 'tmdb' && !row.tombstonedAt,
+	)
+	if (!absorbed.length) return []
+	await tx.mediaExternalId.updateMany({
+		where: { id: { in: absorbed.map(row => row.id) } },
+		data: { tombstonedAt: now },
+	})
+	return absorbed.map(row => row.id)
+}
+
+async function moveRowsToTarget(
+	tx: MergeTransaction,
+	context: MergeContext,
+	now: Date,
+) {
 	const sourceId = context.source.id
 	const targetId = context.target.id
 	const move = async (
@@ -926,6 +1009,7 @@ async function moveRowsToTarget(tx: MergeTransaction, context: MergeContext) {
 		})
 	}
 	await move('mediaExternalId')
+	await tombstoneAbsorbedTmdbIdentities(tx, context, now)
 	await move('mediaTitle')
 	await move('catalogFeedItem')
 	await move('entry')
@@ -1079,7 +1163,7 @@ export async function applyCatalogMediaMerge(
 		}
 		const journal = journalFromContext(context, now)
 		await deletePrunedCatalogRows(tx, context)
-		await moveRowsToTarget(tx, context)
+		await moveRowsToTarget(tx, context, now)
 		const targetNextRelease = Object.prototype.hasOwnProperty.call(
 			context.targetFills,
 			'nextRelease',
@@ -1421,6 +1505,15 @@ export async function revertCatalogMediaMerge(
 		)
 		await syncNextReleaseOccurrence(tx, merge.targetMediaId, targetNextRelease)
 		await moveJournalRowsBack(tx, journal, merge.sourceMediaId)
+		// Undo the tombstone too, or a reverted cross-kind merge leaves the
+		// live-action record back in place but invisible to TMDB hydration.
+		const tombstoned = journal.moved.tombstonedExternalIds ?? []
+		if (tombstoned.length) {
+			await tx.mediaExternalId.updateMany({
+				where: { id: { in: tombstoned } },
+				data: { tombstonedAt: null },
+			})
+		}
 		await restorePrunedRows(tx, journal)
 		for (const issue of journal.qualityIssues) {
 			await tx.catalogQualityIssue.update({
