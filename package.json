@@ -153,7 +153,7 @@
     "ag-grid-react": "^36.1.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
-    "chalk": "^5.3.0",
+    "chalk": "^6.0.0",
     "class-variance-authority": "^0.7.0",
     "close-with-grace": "^2.5.0",
     "clsx": "^2.1.0",
