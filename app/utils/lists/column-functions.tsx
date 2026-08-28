@@ -64,7 +64,23 @@ export function DeferredMediaSearchBar(params: any) {
 	)
 }
 
-export function dateFormatter(params: any) {
+/**
+ * A calendar date, shown as the date it is.
+ *
+ * A release date, a start date and a finish date are dates, not instants: they
+ * are stored as UTC midnight, so formatting them in the viewer's zone shows the
+ * day before for everyone west of UTC. A film released on the 27th read "2/26"
+ * in California.
+ *
+ * `dateFormatter` stays as it is for values that really are instants — when a
+ * row was added is a moment in time, and the viewer's own day is the right one
+ * to show for that.
+ */
+export function dateOnlyFormatter(params: any) {
+	return dateFormatter(params, 'UTC')
+}
+
+export function dateFormatter(params: any, timeZone?: string) {
 	try {
 		if (
 			!params ||
@@ -77,9 +93,18 @@ export function dateFormatter(params: any) {
 
 		let date = new Date(params)
 
-		let year = new Intl.DateTimeFormat('en', { year: '2-digit' }).format(date)
-		let month = new Intl.DateTimeFormat('en', { month: 'numeric' }).format(date)
-		let day = new Intl.DateTimeFormat('en', { day: 'numeric' }).format(date)
+		let year = new Intl.DateTimeFormat('en', {
+			year: '2-digit',
+			timeZone,
+		}).format(date)
+		let month = new Intl.DateTimeFormat('en', {
+			month: 'numeric',
+			timeZone,
+		}).format(date)
+		let day = new Intl.DateTimeFormat('en', {
+			day: 'numeric',
+			timeZone,
+		}).format(date)
 		return `${month}/${day}/${year}`
 	} catch (e) {
 		console.error(e)
