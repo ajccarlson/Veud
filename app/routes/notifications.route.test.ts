@@ -3,6 +3,7 @@ import { expect, test } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { loader as rootLoader } from '../root.tsx'
 import { action, loader } from './notifications.tsx'
 
 async function createUser(prefix: string) {
@@ -141,6 +142,54 @@ test('mark all read affects only the signed-in recipient', async () => {
 			where: { recipientId: recipient.id, readAt: null },
 		}),
 	).toBe(0)
+})
+
+test('the inbox, not the global root loader, reconciles release reminders', async () => {
+	const recipient = await createUser('release_recipient')
+	const releaseAt = new Date(Date.now() + 30 * 60 * 1_000)
+	const media = await prisma.media.create({
+		data: {
+			kind: 'tv',
+			title: 'Upcoming Reminder Fixture',
+			nextRelease: JSON.stringify({
+				releaseDate: releaseAt.toISOString(),
+				episode: 4,
+			}),
+		},
+	})
+	const reminder = await prisma.releaseReminder.create({
+		data: { ownerId: recipient.id, mediaId: media.id, leadMinutes: 60 },
+	})
+	const cookie = await cookieFor(recipient.id)
+	const rootUrl = new URL(BASE_URL)
+
+	const rootResult = await rootLoader({
+		request: new Request(rootUrl, { headers: { cookie } }),
+		url: rootUrl,
+		params: {},
+	} as any)
+	expect(rootResult.data.unreadNotificationCount).toBe(0)
+	expect(
+		await prisma.notification.count({
+			where: { releaseReminderId: reminder.id },
+		}),
+	).toBe(0)
+
+	const inboxResult = await loader({
+		request: new Request(`${BASE_URL}/notifications`, {
+			headers: { cookie },
+		}),
+		params: {},
+	} as any)
+	expect(inboxResult.data.unreadCount).toBe(1)
+	expect(inboxResult.data.notifications).toEqual([
+		expect.objectContaining({
+			type: 'release_reminder',
+			releaseReminder: expect.objectContaining({
+				media: expect.objectContaining({ id: media.id }),
+			}),
+		}),
+	])
 })
 
 test('inbox preferences filter delivery and bulk-read only visible categories', async () => {
