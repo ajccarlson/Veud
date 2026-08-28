@@ -35,11 +35,3 @@ node_modules
 .env.*
 !.env.example
 
-# Claude Code local config
-.claude/
-CLAUDE.md
-
-# Private Codex/Claude coordination state
-/.ai-team/
-/AGENTS.md
-/CLAUDE.local.md
