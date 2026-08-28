@@ -860,6 +860,48 @@ test('list landing keeps every list reachable inside the viewport', async ({
 	).toBeVisible()
 })
 
+test('list settings preserve reordered saved columns', async ({
+	page,
+	login,
+}) => {
+	const user = await login()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { name: 'anime' },
+	})
+	const watchlist = await prisma.watchlist.create({
+		data: {
+			name: 'reorderedcolumnslist',
+			header: 'Reordered columns list',
+			position: 1,
+			displayedColumns: 'notes, title, position',
+			description: 'A list used to verify reordered saved columns.',
+			ownerId: user.id,
+			typeId: listType.id,
+		},
+	})
+
+	await page.goto(`/lists/${user.username}/anime`)
+	await page
+		.getByRole('button', {
+			name: 'Edit Reordered columns list list settings',
+		})
+		.click()
+
+	await expect(page.getByLabel('Position', { exact: true })).toBeChecked()
+	await expect(page.getByLabel('Title', { exact: true })).toBeChecked()
+	await expect(page.getByLabel('Notes', { exact: true })).toBeChecked()
+	await expect(page.getByLabel('Type', { exact: true })).not.toBeChecked()
+
+	await page.getByRole('button', { name: 'Submit' }).click()
+	await expect
+		.poll(() =>
+			prisma.watchlist
+				.findUniqueOrThrow({ where: { id: watchlist.id } })
+				.then(list => list.displayedColumns),
+		)
+		.toBe('position, title, notes')
+})
+
 test('list landing switches media types without a reload or stale cards', async ({
 	page,
 	login,
