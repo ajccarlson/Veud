@@ -13,11 +13,11 @@ import { visibleWatchlistWhere } from '#app/utils/lists/visibility.server.ts'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 import { getViewerTitleLanguage } from '#app/utils/media-title.server.ts'
 import {
-	canonicalizeLinkedWatchlistEntry,
 	publicListOwnerSelect,
 	publicListTypeSelect,
 	publicWatchlistSelect,
 } from '#app/utils/lists/public-watchlist.server.ts'
+import { loadListLandingPreviews } from '#app/utils/list-landing.server.ts'
 import {
 	timeSince,
 	getStartYear,
@@ -45,6 +45,7 @@ async function createNewList(
 		...current,
 		{
 			watchlist: addData,
+			entryCount: 0,
 			listEntries: [],
 		},
 	])
@@ -69,9 +70,7 @@ function getWatchlistNav(entryData: any, listParams: any) {
 						<span className="list-visibility-badge">Private</span>
 					) : null}
 				</div>
-				<div className="list-landing-nav-length">
-					{entryData.listEntries.length}
-				</div>
+				<div className="list-landing-nav-length">{entryData.entryCount}</div>
 			</div>
 			<div className="list-landing-nav-bottom-container">
 				<div className="list-landing-nav-bottom">
@@ -85,7 +84,7 @@ function getWatchlistNav(entryData: any, listParams: any) {
 									<hr className="list-landing-nav-entry-preview-separator"></hr>
 								) : null}
 								<div className="list-landing-nav-thumbnail-container">
-									{entryData.listEntries.slice(0, 5).map((listEntry: any) => (
+									{entryData.listEntries.map((listEntry: any) => (
 										<div
 											key={listEntry.id}
 											className="list-landing-nav-thumbnail-item"
@@ -209,72 +208,22 @@ export async function loader(params: LoaderFunctionArgs) {
 		select: publicWatchlistSelect,
 	})
 
-	let watchListData: any[] = []
-	let watchListNavs: any[] = []
-	let watchListSettings: any[] = []
-
 	const watchListsSorted = watchLists.sort((a, b) => a.position - b.position)
+	const previews = await loadListLandingPreviews(
+		prisma,
+		watchListsSorted.map(watchlist => watchlist.id),
+		titleLanguage,
+	)
+	const watchListData = watchListsSorted.map(watchlist => ({
+		watchlist,
+		...(previews.get(watchlist.id) ?? {
+			entryCount: 0,
+			listEntries: [],
+		}),
+	}))
 
-	// One batched query for all entries across these watchlists, grouped in memory — instead
-	// of a query per watchlist (N+1).
-	const allEntries = watchListsSorted.length
-		? await prisma.entry.findMany({
-				where: { watchlistId: { in: watchListsSorted.map(w => w.id) } },
-				select: {
-					id: true,
-					watchlistId: true,
-					position: true,
-					thumbnail: true,
-					title: true,
-					type: true,
-					airYear: true,
-					startSeason: true,
-					startYear: true,
-					media: {
-						select: {
-							kind: true,
-							thumbnail: true,
-							title: true,
-							type: true,
-							airYear: true,
-							startSeason: true,
-							startYear: true,
-						},
-					},
-				},
-			})
-		: []
-	const entriesByWatchlist = new Map<string, any[]>()
-	for (const rawEntry of allEntries) {
-		const { media: _media, ...entry } = canonicalizeLinkedWatchlistEntry(
-			rawEntry,
-			titleLanguage,
-		)
-		const arr = entriesByWatchlist.get(entry.watchlistId) ?? []
-		arr.push(entry)
-		entriesByWatchlist.set(entry.watchlistId, arr)
-	}
-
-	for (const watchlist of watchListsSorted) {
-		const listEntries = entriesByWatchlist.get(watchlist.id) ?? []
-
-		const entryData = {
-			watchlist: watchlist,
-			listEntries: listEntries.sort(
-				(a: any, b: any) => a.position - b.position,
-			),
-		}
-
-		watchListData.push(entryData)
-	}
-
-	if (watchListNavs.length < 1) {
-		watchListNavs = [`<h1">No lists found</h1>`]
-	}
 	return json({
 		watchListData,
-		watchListNavs,
-		watchListSettings,
 		listOwner,
 		username: params['params']['username'],
 		listTypes,
