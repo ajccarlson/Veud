@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { type Prisma, type PrismaClient } from '@prisma/client'
 import { normalizeCatalogTitle } from './catalog-sync.server.ts'
+import { TMDB_WATCH_PROVIDER_KEY } from './tmdb-anime-match.server.ts'
 
 const MAX_SCAN_LIMIT = 2_000
 const MAX_REVIEW_NOTE_LENGTH = 500
@@ -8,6 +9,7 @@ const REPAIR_PRIORITY = 50_000
 
 export const catalogQualityIssueTypes = [
 	'possible_duplicate',
+	'cross_kind_duplicate',
 	'title_conflict',
 	'missing_image',
 	'invalid_image',
@@ -84,7 +86,8 @@ function mediaYear(media: CatalogQualityMedia) {
 	return null
 }
 
-function mediaLabel(media: CatalogQualityMedia) {
+/** Takes only what it reads, so a narrower selection can be labelled too. */
+function mediaLabel(media: { id: string; kind: string; title: string | null }) {
 	return media.title?.trim() || `Untitled ${media.kind} (${media.id})`
 }
 
@@ -627,5 +630,129 @@ export async function getCatalogQualitySnapshot(
 			count: row._count._all,
 		})),
 		issues: [...activeIssues, ...reviewedIssues],
+	}
+}
+
+/**
+ * An anime row and a live-action row that are the same work.
+ *
+ * Deliberately not a title comparison. Cross-kind title equality over this
+ * catalog returns almost nothing but false positives — "Air", "Monster" and
+ * "Metropolis" are each an anime and an unrelated film — and the two
+ * normalizers in this codebase disagree by design, one preserving Japanese
+ * voiced marks and one stripping every combining mark. Merging on that evidence
+ * would destroy real rows.
+ *
+ * The signal used instead is an exact provider id. `resolve-anime-tmdb-ids`
+ * records "this anime is TMDB entry N" under the `tmdb-watch` key, and TMDB
+ * inventory records "this row IS TMDB entry N" under `tmdb`. Where those name
+ * the same (kind, externalId) on different media, the two rows are the same
+ * work — an identity, not a guess. `@@unique([provider, kind, externalId])`
+ * makes the pairing one to one.
+ *
+ * Coverage is exactly as wide as the resolver has run, and no wider. It never
+ * pairs an anime the resolver refused, which is disproportionately seasons and
+ * sequels — the rows most likely to share a name with something live action.
+ */
+export async function detectCrossKindDuplicates(
+	prisma: PrismaClient,
+	{ limit = 500, afterId }: { limit?: number; afterId?: string } = {},
+) {
+	const take = boundedLimit(limit)
+	const mappings = await prisma.mediaExternalId.findMany({
+		where: {
+			provider: TMDB_WATCH_PROVIDER_KEY,
+			tombstonedAt: null,
+			...(afterId ? { id: { gt: afterId } } : {}),
+		},
+		orderBy: { id: 'asc' },
+		take,
+		select: {
+			id: true,
+			kind: true,
+			externalId: true,
+			mediaId: true,
+			media: { select: { id: true, kind: true, title: true } },
+		},
+	})
+	if (!mappings.length) {
+		return { findings: [], scanned: 0, nextCursor: afterId ?? null }
+	}
+
+	// The live-action side, looked up by the same (kind, externalId) the mapping
+	// names. `tmdb-watch-unresolved` is excluded by the provider filter above,
+	// which matters: those rows store a media id in `externalId`, so joining them
+	// would pair unrelated works.
+	const liveAction = await prisma.mediaExternalId.findMany({
+		where: {
+			provider: 'tmdb',
+			tombstonedAt: null,
+			OR: mappings.map(mapping => ({
+				kind: mapping.kind,
+				externalId: mapping.externalId,
+			})),
+		},
+		select: {
+			kind: true,
+			externalId: true,
+			mediaId: true,
+			media: { select: { id: true, kind: true, title: true } },
+		},
+	})
+	const byIdentity = new Map(
+		liveAction.map(row => [`${row.kind} ${row.externalId}`, row]),
+	)
+
+	const findings: CatalogQualityFinding[] = []
+	for (const mapping of mappings) {
+		const counterpart = byIdentity.get(`${mapping.kind} ${mapping.externalId}`)
+		if (!counterpart) continue
+		// The same row holding both keys is not an overlap.
+		if (counterpart.mediaId === mapping.mediaId) continue
+		// Anime always survives, so refuse to emit a pair that could not honour
+		// that. A mis-provisioned mapping must not become a merge plan.
+		if (mapping.media.kind !== 'anime') continue
+		if (counterpart.media.kind !== 'tv' && counterpart.media.kind !== 'movie') {
+			continue
+		}
+
+		findings.push({
+			fingerprint: fingerprint(
+				'cross_kind_duplicate',
+				mapping.media.id,
+				counterpart.media.id,
+				mapping.kind,
+				mapping.externalId,
+			),
+			issueType: 'cross_kind_duplicate',
+			severity: 'warning',
+			// An exact provider id, not a similarity score.
+			confidence: 1,
+			summary: `${mediaLabel(mapping.media)} and ${mediaLabel(counterpart.media)} are the same TMDB ${mapping.kind} ${mapping.externalId}. The anime record is the one to keep.`,
+			evidence: evidence({
+				reasons: ['shared-tmdb-identity'],
+				tmdbKind: mapping.kind,
+				tmdbId: mapping.externalId,
+				anime: {
+					id: mapping.media.id,
+					kind: mapping.media.kind,
+					title: mapping.media.title,
+				},
+				liveAction: {
+					id: counterpart.media.id,
+					kind: counterpart.media.kind,
+					title: counterpart.media.title,
+				},
+			}),
+			// Primary is the survivor: the merge target is chosen from here.
+			primaryMediaId: mapping.media.id,
+			secondaryMediaId: counterpart.media.id,
+		})
+	}
+
+	return {
+		findings,
+		scanned: mappings.length,
+		nextCursor: mappings.at(-1)?.id ?? afterId ?? null,
 	}
 }
