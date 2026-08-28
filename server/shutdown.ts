@@ -29,6 +29,7 @@ type NamedCloser = {
 
 export type ApplicationShutdownDependencies = {
 	httpServer: ClosableHttpServer
+	closeBackgroundTasks?: () => MaybePromise
 	closePrisma: () => MaybePromise
 	closeCache: () => MaybePromise
 	flushSentry: () => MaybePromise
@@ -187,6 +188,14 @@ export function createApplicationShutdown(
 		}
 
 		const closers: NamedCloser[] = [
+			...(dependencies.closeBackgroundTasks
+				? ([
+						{
+							name: 'background tasks',
+							close: dependencies.closeBackgroundTasks,
+						},
+					] as NamedCloser[])
+				: []),
 			{ name: 'Prisma', close: dependencies.closePrisma },
 			{ name: 'cache', close: dependencies.closeCache },
 		]

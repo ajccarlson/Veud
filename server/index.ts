@@ -15,6 +15,11 @@ import {
 	type cspNonceContext as CspNonceContext,
 	type serverBuildContext as ServerBuildContext,
 } from '../app/env.ts'
+import {
+	type AiModelHealthResult,
+	shouldStartAiModelHealthMonitor,
+	startAiModelHealthMonitor,
+} from '../app/utils/ai-model-health.server.ts'
 import { closeCacheResources } from '../app/utils/cache.server.ts'
 import { canonicalOriginFromEnvironment } from '../app/utils/canonical-origin.ts'
 import { prisma } from '../app/utils/db.server.ts'
@@ -409,6 +414,43 @@ const server = desiredHost
 	? app.listen(portToUse, desiredHost, handleListening)
 	: app.listen(portToUse, handleListening)
 
+let aiModelHealthMonitor: ReturnType<typeof startAiModelHealthMonitor> | null =
+	null
+
+function reportAiModelHealth(results: AiModelHealthResult[]) {
+	for (const result of results) {
+		const level =
+			result.status === 'available'
+				? 'info'
+				: result.status === 'shutdown-announced'
+					? 'warn'
+					: 'error'
+		const fields = {
+			model: result.model,
+			consumers: result.consumers.join(','),
+			status: result.status,
+			httpStatus: result.httpStatus,
+			providerCode: result.providerCode,
+			resolvedModel: result.resolvedModel,
+			shutdownDate: result.shutdownDate,
+			daysUntilShutdown: result.daysUntilShutdown,
+			actionRequired: result.actionRequired,
+		}
+		writeStructuredLog(level, 'ai.model_health', fields)
+		if (result.status !== 'available') {
+			Sentry.captureMessage('Configured AI model health requires attention', {
+				level: level === 'error' ? 'error' : 'warning',
+				tags: {
+					component: 'ai-model-health',
+					model: result.model,
+					status: result.status,
+				},
+				extra: fields,
+			})
+		}
+	}
+}
+
 function handleListening() {
 	const addy = server.address()
 	const portUsed =
@@ -444,6 +486,17 @@ ${lanUrl ? `${chalk.bold('On Your Network:')}  ${chalk.cyan(lanUrl)}` : ''}
 ${chalk.bold('Press Ctrl+C to stop')}
 		`.trim(),
 	)
+	if (shouldStartAiModelHealthMonitor(MODE, isVettedProductionTestRuntime)) {
+		aiModelHealthMonitor ??= startAiModelHealthMonitor({
+			onResults: reportAiModelHealth,
+			onMonitorError(error) {
+				writeStructuredLog('error', 'ai.model_health_monitor_failed', {
+					errorName: error instanceof Error ? error.name : 'UnknownError',
+				})
+				Sentry.captureException(error)
+			},
+		})
+	}
 }
 
 export function createServerShutdown({
@@ -453,6 +506,7 @@ export function createServerShutdown({
 } = {}) {
 	const shutdown = createApplicationShutdown({
 		httpServer: server,
+		closeBackgroundTasks: () => aiModelHealthMonitor?.close(),
 		closePrisma: () => prisma.$disconnect(),
 		closeCache: closeCacheResources,
 		flushSentry: async () => {
