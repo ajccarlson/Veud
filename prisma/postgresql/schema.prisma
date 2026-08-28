@@ -247,6 +247,7 @@ model Media {
   releaseOccurrences     ReleaseOccurrence[]
   watchAvailability      WatchAvailability[]
   credits                MediaCredit[]
+  creditSyncStates       MediaCreditSyncState[]
   catalogFeedItems       CatalogFeedItem[]
   catalogMetricSnapshots CatalogMetricSnapshot[]
   primaryQualityIssues   CatalogQualityIssue[]    @relation("CatalogQualityPrimaryMedia")
@@ -427,6 +428,33 @@ model MediaCredit {
   @@index([personId, creditType])
   @@index([personId, mediaId])
   @@index([catalogProvenanceVersion, id], map: "MediaCredit_provenance_id_idx")
+}
+
+/// Fetch state for a provider's independently refreshed credits payload.
+///
+/// This cannot be inferred from MediaCredit rows: an upstream response with no
+/// usable credits is still a successful fetch and must not be requested again
+/// on every worker pass.
+model MediaCreditSyncState {
+  id       String @id @default(cuid())
+  provider String
+  scope    String
+  status   String @default("pending")
+
+  lastFetchedAt DateTime?
+  refreshAfter  DateTime?
+  failureCount  Int       @default(0)
+  lastError     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  media   Media  @relation(fields: [mediaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  mediaId String
+
+  @@unique([mediaId, provider, scope])
+  @@index([provider, scope, status, refreshAfter])
+  @@index([mediaId])
 }
 
 /// A provider-observed premiere, episode, chapter, or general release. The
