@@ -4,6 +4,8 @@ import { prisma } from './db.server.ts'
 
 const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
+const AI_TRANSIENT_FAILURE_WINDOW_MS = 60 * 1_000
+const AI_TRANSIENT_FAILURE_THRESHOLD = 3
 const MAX_RATE_LIMIT_KEYS = 5_000
 const MAX_TELEMETRY_EVENTS = 500
 const DAY_MS = 24 * 60 * 60 * 1_000
@@ -22,7 +24,11 @@ export const aiCapabilities = [
 ] as const
 
 export type AiCapability = (typeof aiCapabilities)[number]
-export type AiCircuit = { unavailableUntil: number }
+export type AiCircuit = {
+	unavailableUntil: number
+	transientFailures?: number
+	transientWindowStartedAt?: number
+}
 
 export type AiGatewayTelemetry = {
 	capability: AiCapability
@@ -292,8 +298,47 @@ export class AiGatewayError extends Error {
 	}
 }
 
-function opensCircuit(status: number) {
-	return status === 401 || status === 403 || status === 429 || status >= 500
+function opensCircuitImmediately(status: number) {
+	return status === 401 || status === 403 || status === 429
+}
+
+function isTransientTransportError(error: unknown) {
+	const name =
+		typeof error === 'object' && error !== null && 'name' in error
+			? error.name
+			: null
+	return (
+		error instanceof TypeError ||
+		name === 'AbortError' ||
+		name === 'NetworkError' ||
+		name === 'TimeoutError'
+	)
+}
+
+function clearTransientFailures(circuit: AiCircuit) {
+	delete circuit.transientFailures
+	delete circuit.transientWindowStartedAt
+}
+
+function recordTransientFailure(circuit: AiCircuit, now: number) {
+	const windowStartedAt = circuit.transientWindowStartedAt
+	if (
+		windowStartedAt === undefined ||
+		now - windowStartedAt >= AI_TRANSIENT_FAILURE_WINDOW_MS
+	) {
+		circuit.transientWindowStartedAt = now
+		circuit.transientFailures = 1
+	} else {
+		circuit.transientFailures = (circuit.transientFailures ?? 0) + 1
+	}
+	if ((circuit.transientFailures ?? 0) < AI_TRANSIENT_FAILURE_THRESHOLD) {
+		return
+	}
+	circuit.unavailableUntil = Math.max(
+		circuit.unavailableUntil,
+		now + AI_UNAVAILABLE_COOLDOWN_MS,
+	)
+	clearTransientFailures(circuit)
 }
 
 function cooldownMs(code: string | null) {
@@ -399,7 +444,7 @@ function providerRequestError(status: number, payload: unknown) {
 	const code = parsedError.success
 		? (parsedError.data.error?.code ?? null)
 		: null
-	const unavailable = opensCircuit(status)
+	const unavailable = opensCircuitImmediately(status) || status >= 500
 	return new AiGatewayError(
 		unavailable ? 'unavailable' : 'error',
 		unavailable
@@ -578,6 +623,7 @@ async function runControlledAiRequest<Output>(
 			signal: AbortSignal.timeout(options.timeoutMs),
 		})
 		status = result.status
+		clearTransientFailures(circuit)
 		await recordTelemetry(
 			{
 				...baseTelemetry,
@@ -592,19 +638,36 @@ async function runControlledAiRequest<Output>(
 		)
 		return result.output
 	} catch (error) {
+		const transportFailure = isTransientTransportError(error)
 		const gatewayError =
 			error instanceof AiGatewayError
 				? error
-				: new AiGatewayError(
-						'error',
-						error instanceof Error ? error.message : 'AI request failed.',
-						status,
-					)
-		if (gatewayError.status !== null && opensCircuit(gatewayError.status)) {
+				: transportFailure
+					? new AiGatewayError(
+							'unavailable',
+							'AI service is temporarily unavailable.',
+						)
+					: new AiGatewayError(
+							'error',
+							error instanceof Error ? error.message : 'AI request failed.',
+							status,
+						)
+		if (
+			gatewayError.status !== null &&
+			opensCircuitImmediately(gatewayError.status)
+		) {
 			circuit.unavailableUntil = Math.max(
 				circuit.unavailableUntil,
 				startedAtMs + cooldownMs(gatewayError.code),
 			)
+			clearTransientFailures(circuit)
+		} else if (
+			transportFailure ||
+			(gatewayError.status !== null && gatewayError.status >= 500)
+		) {
+			recordTransientFailure(circuit, startedAtMs)
+		} else if (gatewayError.status !== null) {
+			clearTransientFailures(circuit)
 		}
 		await recordTelemetry(
 			{

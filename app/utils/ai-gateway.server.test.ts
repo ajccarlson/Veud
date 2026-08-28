@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, test, vi } from 'vitest'
 import { z } from 'zod'
 import {
+	type AiCircuit,
 	getAiGatewayTelemetry,
 	requestModerationClassification,
 	requestStructuredAi,
@@ -390,7 +391,7 @@ test('enforces the durable daily capability budget across client keys and proces
 
 test('opens a shared circuit for provider and quota failures', async () => {
 	vi.stubEnv('OPENAI_API_KEY', 'test-key')
-	const circuit = { unavailableUntil: 0 }
+	const circuit: AiCircuit = { unavailableUntil: 0 }
 	const firstFetch = vi.fn<typeof fetch>(async () =>
 		response({ error: { code: 'insufficient_quota' } }, 429),
 	)
@@ -415,6 +416,123 @@ test('opens a shared circuit for provider and quota failures', async () => {
 		requestStructuredAi({ ...options, now: 2_000, fetchImpl: secondFetch }),
 	).rejects.toMatchObject({ reason: 'unavailable' })
 	expect(secondFetch).not.toHaveBeenCalled()
+})
+
+test('opens the circuit only after three transient server failures', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const circuit: AiCircuit = { unavailableUntil: 0 }
+	const fetchImpl = vi.fn<typeof fetch>(async () =>
+		response({ error: { code: 'server_error' } }, 500),
+	)
+	const request = (now: number) =>
+		requestStructuredAi({
+			capability: 'review-assistance',
+			promptVersion: 'server-circuit-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			now,
+			circuit,
+			fetchImpl,
+		})
+
+	await expect(request(1_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: 500,
+	})
+	await expect(request(2_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: 500,
+	})
+	expect(circuit.unavailableUntil).toBe(0)
+	await expect(request(3_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: 500,
+	})
+	expect(circuit.unavailableUntil).toBe(603_000)
+	await expect(request(4_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: null,
+	})
+	expect(fetchImpl).toHaveBeenCalledTimes(3)
+})
+
+test('counts transport failures in a bounded window and resets after success', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const circuit: AiCircuit = { unavailableUntil: 0 }
+	const outcomes = [
+		'timeout',
+		'timeout',
+		'success',
+		'timeout',
+		'timeout',
+		'timeout',
+		'timeout',
+		'timeout',
+	] as const
+	let outcomeIndex = 0
+	const fetchImpl = vi.fn<typeof fetch>(async () => {
+		const outcome = outcomes[outcomeIndex++]
+		if (outcome === 'timeout') {
+			const error = new Error('provider timed out')
+			error.name = 'TimeoutError'
+			throw error
+		}
+		return response({ value: 'ok' })
+	})
+	const request = (now: number) =>
+		requestStructuredAi({
+			capability: 'natural-language-discovery',
+			promptVersion: 'transport-circuit-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			now,
+			circuit,
+			fetchImpl,
+		})
+
+	await expect(request(1_000)).rejects.toMatchObject({
+		reason: 'unavailable',
+		status: null,
+	})
+	await expect(request(2_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(circuit).toEqual(
+		expect.objectContaining({
+			unavailableUntil: 0,
+			transientFailures: 2,
+			transientWindowStartedAt: 1_000,
+		}),
+	)
+	await expect(request(3_000)).resolves.toEqual({ value: 'ok' })
+	expect(circuit.transientFailures).toBeUndefined()
+
+	await expect(request(4_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	await expect(request(5_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(circuit.unavailableUntil).toBe(0)
+	await expect(request(64_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(circuit.transientFailures).toBe(1)
+	await expect(request(65_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	await expect(request(66_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(circuit.unavailableUntil).toBe(666_000)
+
+	await expect(request(67_000)).rejects.toMatchObject({ reason: 'unavailable' })
+	expect(fetchImpl).toHaveBeenCalledTimes(8)
+	expect(getAiGatewayTelemetry()).toEqual(
+		expect.arrayContaining([
+			expect.objectContaining({
+				promptVersion: 'transport-circuit-test-v1',
+				outcome: 'unavailable',
+				status: null,
+			}),
+		]),
+	)
 })
 
 test('honors global and capability kill switches before network access', async () => {
