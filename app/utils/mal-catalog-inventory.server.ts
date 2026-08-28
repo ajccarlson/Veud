@@ -536,6 +536,41 @@ async function replaceMalInventoryTitles(
 	})
 	if (unique.size)
 		await tx.mediaTitle.createMany({ data: [...unique.values()] })
+	await syncEnglishTitle(tx, mediaId)
+}
+
+/**
+ * Keep `Media.englishTitle` matching the titles just written.
+ *
+ * The column is a cache of a `MediaTitle` row, kept as a scalar because a title
+ * is rendered on every list row and every card and joining the synonym table to
+ * answer "what do I call this" would put a join on the hottest read. A cache
+ * only works while something maintains it: detail hydration does, and this
+ * importer did not, so an anime the sweep discovered had its English title
+ * written to `MediaTitle` and nowhere a member could see it. Anyone reading in
+ * English got the romaji while the English title sat in the database.
+ *
+ * Precedence matches the backfill: `english` comes from the detail payload and
+ * beats `inventory-english`, which comes from a ranking row. Nulled when MAL
+ * stops supplying one, so a title that goes away goes away.
+ */
+async function syncEnglishTitle(tx: Prisma.TransactionClient, mediaId: string) {
+	const candidates = await tx.mediaTitle.findMany({
+		where: {
+			mediaId,
+			provider: 'mal',
+			language: 'en',
+			titleType: { in: ['english', 'inventory-english'] },
+		},
+		select: { titleType: true, value: true },
+	})
+	const preferred =
+		candidates.find(title => title.titleType === 'english') ??
+		candidates.find(title => title.titleType === 'inventory-english')
+	await tx.media.update({
+		where: { id: mediaId },
+		data: { englishTitle: preferred?.value ?? null },
+	})
 }
 
 function wait(milliseconds: number) {

@@ -2,7 +2,9 @@ import { expect, test } from 'vitest'
 import {
 	SITEMAP_MAX_PAGES,
 	SITEMAP_PAGE_SIZE,
+	isPublicSitemapPath,
 	parseSitemapPage,
+	publicPageSitemapPaths,
 	sitemapIndexXml,
 	sitemapPageCount,
 	urlSetXml,
@@ -90,4 +92,78 @@ test('the index points at the other sitemaps, not at pages', () => {
 	// A sitemap index must not contain <url> elements.
 	expect(xml).not.toContain('<url>')
 	expect(xml).toContain('<loc>https://veud.test/sitemap/media/1.xml</loc>')
+})
+
+test('the catch-all route is never advertised', () => {
+	// `generateSitemap` emitted this as a literal `/*`, a URL that always 404s,
+	// because it only skipped paths containing a colon.
+	expect(isPublicSitemapPath('/*')).toBe(false)
+	expect(isPublicSitemapPath('/media/*')).toBe(false)
+})
+
+test('sign-in, admin and moderation surfaces are never advertised', () => {
+	for (const path of [
+		'/login',
+		'/logout',
+		'/signup',
+		'/verify',
+		'/appeal',
+		'/onboarding',
+		'/forgot-password',
+		'/reset-password',
+		'/admin/cache',
+		'/admin/operations',
+		'/moderation',
+		'/auth/github',
+	]) {
+		expect(isPublicSitemapPath(path), `${path} should not be advertised`).toBe(
+			false,
+		)
+	}
+})
+
+test('real public pages still are', () => {
+	for (const path of ['/', '/discover', '/calendar', '/reviews', '/support']) {
+		expect(isPublicSitemapPath(path), `${path} should be advertised`).toBe(true)
+	}
+})
+
+test('a path that merely starts with an excluded word is still public', () => {
+	// Prefix matching is on whole path segments, so a future `/loginless` or
+	// `/administration` page is not excluded by accident.
+	expect(isPublicSitemapPath('/administration')).toBe(true)
+	expect(isPublicSitemapPath('/logins')).toBe(true)
+})
+
+test('the manifest walk skips resource routes and dynamic paths', () => {
+	const paths = publicPageSitemapPaths({
+		root: { module: { default: () => null } },
+		'routes/discover': { path: 'discover', module: { default: () => null } },
+		'routes/$': { path: '*', module: { default: () => null } },
+		'routes/admin': { path: 'admin/cache', module: { default: () => null } },
+		'routes/media.$id': {
+			path: 'media/:mediaId',
+			module: { default: () => null },
+		},
+		// A resource route renders nothing, so it is not a page.
+		'routes/resource': {
+			path: 'resources/thing',
+			module: { loader: () => null },
+		},
+	})
+	expect(paths).toEqual(['/discover'])
+})
+
+test('a nested page keeps its parent path', () => {
+	const paths = publicPageSitemapPaths({
+		'routes/_home': { path: '', module: { default: () => null } },
+		'routes/_home.index': {
+			index: true,
+			parentId: 'routes/_home',
+			module: { default: () => null },
+		},
+		'routes/lists': { path: 'lists', module: { default: () => null } },
+	})
+	expect(paths).toContain('/lists')
+	expect(paths).toContain('/')
 })

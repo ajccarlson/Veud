@@ -1,7 +1,11 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { getFollowingActivityFeed } from './activity-feed.server.ts'
+import {
+	FOLLOWING_COLLECTION_EXCERPT_LENGTH,
+	getFollowingActivityFeed,
+} from './activity-feed.server.ts'
 import { prisma } from './db.server.ts'
+import { REVIEW_EXCERPT_LENGTH } from './review-excerpt.ts'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -15,10 +19,14 @@ async function createUser(prefix: string) {
 }
 
 test('following activity merges supported events in time order and scopes actors', async () => {
-	const [followed, unrelated] = await Promise.all([
+	const [viewer, followed, unrelated] = await Promise.all([
+		createUser('viewer'),
 		createUser('followed'),
 		createUser('unrelated'),
 	])
+	await prisma.follow.create({
+		data: { followerId: viewer.id, followingId: followed.id },
+	})
 	const media = await prisma.media.create({
 		data: { kind: 'anime', title: 'Feed Fixture' },
 	})
@@ -113,7 +121,7 @@ test('following activity merges supported events in time order and scopes actors
 		},
 	})
 
-	const feed = await getFollowingActivityFeed([followed.id, followed.id])
+	const feed = await getFollowingActivityFeed(viewer.id)
 
 	expect(feed.map(item => item.id)).toEqual([
 		`collection:${collection.id}`,
@@ -160,6 +168,101 @@ test('following activity merges supported events in time order and scopes actors
 			}),
 		]),
 	)
-	expect(await getFollowingActivityFeed([followed.id], 2)).toHaveLength(2)
-	expect(await getFollowingActivityFeed([])).toEqual([])
+	expect(await getFollowingActivityFeed(viewer.id, 2)).toHaveLength(2)
+	expect(await getFollowingActivityFeed('')).toEqual([])
+})
+
+test('following activity enforces safety relations and bounds authored text', async () => {
+	const [viewer, visible, muted, blocker] = await Promise.all([
+		createUser('bounded_viewer'),
+		createUser('bounded_visible'),
+		createUser('bounded_muted'),
+		createUser('bounded_blocker'),
+	])
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Bounded social payload' },
+	})
+	await prisma.follow.createMany({
+		data: [visible, muted, blocker].map(member => ({
+			followerId: viewer.id,
+			followingId: member.id,
+		})),
+	})
+	await prisma.userSafetyControl.createMany({
+		data: [
+			{ ownerId: viewer.id, targetId: muted.id, kind: 'mute' },
+			{ ownerId: blocker.id, targetId: viewer.id, kind: 'block' },
+		],
+	})
+	const longReview = 'A deliberately long followed review. '.repeat(40)
+	const longDescription = 'A deliberately long collection description. '.repeat(
+		30,
+	)
+	const [
+		visibleReview,
+		visibleCollection,
+		nullDescriptionCollection,
+		mutedReview,
+		blockerReview,
+	] = await Promise.all([
+		prisma.review.create({
+			data: { authorId: visible.id, mediaId: media.id, body: longReview },
+		}),
+		prisma.mediaCollection.create({
+			data: {
+				ownerId: visible.id,
+				title: 'Bounded collection',
+				description: longDescription,
+				isPublic: true,
+			},
+		}),
+		prisma.mediaCollection.create({
+			data: {
+				ownerId: visible.id,
+				title: 'Collection without a description',
+				isPublic: true,
+			},
+		}),
+		prisma.review.create({
+			data: {
+				authorId: muted.id,
+				mediaId: media.id,
+				body: 'Muted review',
+			},
+		}),
+		prisma.review.create({
+			data: {
+				authorId: blocker.id,
+				mediaId: media.id,
+				body: 'Blocking review',
+			},
+		}),
+	])
+
+	const feed = await getFollowingActivityFeed(viewer.id)
+	const ids = feed.map(item => item.id)
+	expect(ids).toContain(`review:${visibleReview.id}`)
+	expect(ids).toContain(`collection:${visibleCollection.id}`)
+	expect(ids).not.toContain(`review:${mutedReview.id}`)
+	expect(ids).not.toContain(`review:${blockerReview.id}`)
+
+	const reviewItem = feed.find(item => item.id === `review:${visibleReview.id}`)
+	expect(reviewItem?.review?.body.length).toBeLessThanOrEqual(
+		REVIEW_EXCERPT_LENGTH + 1,
+	)
+	expect(reviewItem?.review?.body.endsWith('…')).toBe(true)
+	expect(reviewItem?.actor).not.toHaveProperty('name')
+
+	const collectionItem = feed.find(
+		item => item.id === `collection:${visibleCollection.id}`,
+	)
+	expect(collectionItem?.collection?.description?.length).toBeLessThanOrEqual(
+		FOLLOWING_COLLECTION_EXCERPT_LENGTH + 1,
+	)
+	expect(collectionItem?.collection?.description?.endsWith('…')).toBe(true)
+
+	const nullDescriptionItem = feed.find(
+		item => item.id === `collection:${nullDescriptionCollection.id}`,
+	)
+	expect(nullDescriptionItem?.collection?.description).toBeNull()
 })

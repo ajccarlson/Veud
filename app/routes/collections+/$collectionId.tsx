@@ -848,11 +848,18 @@ export const meta: MetaFunction<typeof loader> = ({ loaderData, matches }) => {
 	const description = socialDescription(
 		collection.description,
 		`${count} title${count === 1 ? '' : 's'} collected by ${owner} on ${SITE_NAME}.`,
+		{ source: 'member' },
 	)
 	const url = absoluteUrl(origin, `/collections/${collection.id}`)
 	// The first title's artwork stands in for the collection, which is what a
-	// shared list looks like everywhere else.
-	const image = absoluteUrl(origin, collection.items[0]?.media.thumbnail)
+	// shared list looks like everywhere else. `thumbnail` is a legacy composite
+	// on older rows — image and external link joined by a pipe — so it has to go
+	// through the same split the collection card itself uses, or the card links
+	// an image URL with a MyAnimeList address glued to the end of it.
+	const image = absoluteUrl(
+		origin,
+		splitLegacyThumbnail(collection.items[0]?.media.thumbnail).imageUrl,
+	)
 
 	return [
 		...socialMeta({

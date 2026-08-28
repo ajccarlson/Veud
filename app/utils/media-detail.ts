@@ -19,6 +19,20 @@ export function progressUnitsForMediaKind(
 	return []
 }
 
+/**
+ * The year a work came out, read the way the provider meant it.
+ *
+ * TMDB's `release_date` and MAL's `start_date` are date-only strings, so
+ * `new Date` gives UTC midnight. Reading the year with `getFullYear` reads it in
+ * the ingesting machine's zone, which files anything released on 1 January
+ * under the previous year on every host west of UTC — and makes the catalogue
+ * depend on where the importer happened to run.
+ */
+export function providerReleaseYear(value: Date | null | undefined) {
+	if (!value || Number.isNaN(value.getTime())) return null
+	return value.getUTCFullYear()
+}
+
 export function splitLegacyThumbnail(thumbnail: string | null | undefined) {
 	if (!thumbnail) return { imageUrl: null, externalUrl: null }
 	const separatorIndex = thumbnail.lastIndexOf('|')

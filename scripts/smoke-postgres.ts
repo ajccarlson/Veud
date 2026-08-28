@@ -6,6 +6,10 @@ import {
 	rollbackLibraryImportBatch,
 } from '#app/utils/library-import-commit.server.ts'
 import { type LibraryImportItem } from '#app/utils/library-import.ts'
+import {
+	LIST_LANDING_PREVIEW_LIMIT,
+	loadListLandingPreviews,
+} from '#app/utils/list-landing.server.ts'
 import { publicTrackingStateWhere } from '#app/utils/lists/visibility.ts'
 import {
 	escapeSqlLikeLiteral,
@@ -23,6 +27,7 @@ const requiredIndexes = new Set([
 	'Media_nextReleaseAt_idx',
 	'ReleaseOccurrence_releaseAt_status_idx',
 	'TrackingState_mediaId_idx',
+	'Entry_watchlistId_position_id_idx',
 ])
 
 function assertPostgresUrl(value: string | undefined) {
@@ -532,6 +537,29 @@ async function main() {
 				},
 			})
 		const publicScoredWatchlist = await createTrackerWatchlist(user.id, true)
+		await prisma.entry.createMany({
+			data: [7, 1, 6, 2, 5, 3, 4].map(position => ({
+				watchlistId: publicScoredWatchlist.id,
+				mediaId: media.id,
+				position,
+				title: `Stale landing preview ${position}`,
+			})),
+		})
+		const landingPreview = (
+			await loadListLandingPreviews(prisma, [publicScoredWatchlist.id])
+		).get(publicScoredWatchlist.id)
+		if (
+			landingPreview?.entryCount !== 7 ||
+			landingPreview.listEntries.length !== LIST_LANDING_PREVIEW_LIMIT ||
+			landingPreview.listEntries.some(
+				(entry, index) =>
+					entry.position !== index + 1 || entry.title !== media.title,
+			)
+		) {
+			throw new Error(
+				'PostgreSQL list landing did not preserve exact counts, bounded ordering, and canonical titles',
+			)
+		}
 		const publicUnscoredWatchlist = await createTrackerWatchlist(
 			publicUnscoredTracker.id,
 			true,
@@ -614,7 +642,7 @@ async function main() {
 		}
 
 		console.log(
-			'PostgreSQL smoke test passed: schema, required indexes, model writes, provider-aware searches, release ranges, community aggregates, visibility boundaries, and atomic import rollback are healthy.',
+			'PostgreSQL smoke test passed: schema, required indexes, model writes, provider-aware searches, release ranges, bounded list previews, community aggregates, visibility boundaries, and atomic import rollback are healthy.',
 		)
 	} finally {
 		if (mediaId) await prisma.media.deleteMany({ where: { id: mediaId } })

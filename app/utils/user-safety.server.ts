@@ -2,6 +2,29 @@ import { type Prisma, type PrismaClient } from '@prisma/client'
 
 type SafetyDb = PrismaClient | Prisma.TransactionClient
 
+/**
+ * A member who may appear on a viewer's personalized social surfaces.
+ *
+ * Keeping this as a relation predicate lets callers enforce mute/block privacy
+ * inside their own bounded query. Materializing every excluded member ID and
+ * expanding it into `NOT IN (...)` makes request size grow with account age and
+ * makes different social surfaces drift on which direction of a block counts.
+ */
+export function sociallyVisibleUserWhere(
+	viewerId: string,
+): Prisma.UserWhereInput {
+	return {
+		// Controls the viewer placed on the candidate.
+		safetyControlsReceived: {
+			none: { ownerId: viewerId, kind: { in: ['mute', 'block'] } },
+		},
+		// A block the candidate placed on the viewer is symmetric.
+		safetyControlsOwned: {
+			none: { targetId: viewerId, kind: 'block' },
+		},
+	}
+}
+
 export async function getUserSafetyState(
 	db: SafetyDb,
 	ownerId: string,

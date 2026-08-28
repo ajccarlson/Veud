@@ -820,6 +820,7 @@ model Entry {
 
   // non-unique foreign key
   @@index([watchlistId, id])
+  @@index([watchlistId, position, id])
   @@index([mediaId])
   @@index([trackingStateId])
 }

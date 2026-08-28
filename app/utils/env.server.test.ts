@@ -43,6 +43,35 @@ function fieldErrors(environment: NodeJS.ProcessEnv) {
 	return result.error.flatten().fieldErrors
 }
 
+const modelVariables = [
+	'OPENAI_DEFAULT_MODEL',
+	'OPENAI_TIP_OF_TONGUE_MODEL',
+	'OPENAI_NATURAL_LANGUAGE_DISCOVERY_MODEL',
+	'OPENAI_DISCOVERY_REFINEMENT_MODEL',
+	'OPENAI_TRACKING_COMMAND_MODEL',
+	'OPENAI_IMAGE_TIP_OF_TONGUE_MODEL',
+	'OPENAI_IMPORT_RECONCILIATION_MODEL',
+	'OPENAI_REVIEW_ASSISTANCE_MODEL',
+	'OPENAI_MODERATION_TRIAGE_MODEL',
+] as const
+
+describe('AI model configuration', () => {
+	test.each(modelVariables)('accepts a typed %s override', variable => {
+		expect(
+			parseEnvironment(productionEnvironment({ [variable]: 'provider-model' }))
+				.success,
+		).toBe(true)
+	})
+
+	test.each(modelVariables)('rejects an invalid %s override', variable => {
+		for (const value of ['', '   ', 'model with spaces']) {
+			expect(
+				fieldErrors(productionEnvironment({ [variable]: value }))[variable],
+			).toBeDefined()
+		}
+	})
+})
+
 describe('environment cryptographic secrets', () => {
 	test('accepts strong production secrets and deliberately blank providers', () => {
 		expect(parseEnvironment(productionEnvironment()).success).toBe(true)

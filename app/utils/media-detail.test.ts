@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import {
 	externalMediaUrl,
+	providerReleaseYear,
 	legacyProgressUpdate,
 	listTypeNameForMediaKind,
 	progressUnitsForMediaKind,
@@ -79,9 +80,7 @@ test('stores manga units independently and does not log downward corrections', (
 	)
 	expect(chapter.chapters).toBe('7 / 100')
 	const chapterHistory = JSON.parse(chapter.history) as any
-	expect(chapterHistory.progress.chapter[7].finishDate).toEqual([
-		3000,
-	])
+	expect(chapterHistory.progress.chapter[7].finishDate).toEqual([3000])
 
 	const correction = legacyProgressUpdate(
 		{ history: chapter.history, chapters: chapter.chapters },
@@ -95,4 +94,20 @@ test('stores manga units independently and does not log downward corrections', (
 	)
 	const correctionHistory = JSON.parse(correction.history) as any
 	expect(correctionHistory.progress.chapter[4]).toBeUndefined()
+})
+
+test('a release year is the provider year, not the importing machine year', () => {
+	// TMDB's release_date and MAL's start_date are date-only, so `new Date` gives
+	// UTC midnight. Reading the year locally filed anything released on
+	// 1 January under the previous year on every host west of UTC — and made the
+	// catalogue depend on where the importer happened to run.
+	expect(providerReleaseYear(new Date('2026-01-01'))).toBe(2026)
+	expect(providerReleaseYear(new Date('2025-12-31'))).toBe(2025)
+	expect(providerReleaseYear(new Date('2026-06-15'))).toBe(2026)
+})
+
+test('a missing or unparseable release date has no year', () => {
+	expect(providerReleaseYear(null)).toBeNull()
+	expect(providerReleaseYear(undefined)).toBeNull()
+	expect(providerReleaseYear(new Date('not a date'))).toBeNull()
 })

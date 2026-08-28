@@ -1,69 +1,47 @@
 import { Form } from 'react-router'
+import { Spacer } from '#app/components/spacer.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 import { timeSince } from '#app/utils/lists/column-functions.tsx'
 import {
 	getSortableWatchlistColumns,
 	watchlistColumnLabel,
 } from '#app/utils/lists/default-sort.ts'
-import { Icon } from '#app/components/ui/icon.tsx'
-import { Spacer } from '#app/components/spacer.tsx'
 import { mutateList } from '#app/utils/lists/mutation-client.ts'
 
+const internalWatchlistColumns = new Set(['id', 'watchlistId', 'watchlist'])
+
+export function getCheckedWatchlistColumns(
+	columns: readonly string[],
+	displayedColumns: readonly string[],
+) {
+	const displayedColumnSet = new Set(displayedColumns)
+
+	return columns.filter(
+		column =>
+			!internalWatchlistColumns.has(column) && displayedColumnSet.has(column),
+	)
+}
+
 function checkDisplayedColumns(columns: string[], displayedColumns: string[]) {
-	let checkedColumns: any[] = []
-	let displayedIndex = 0
+	const checkedColumns = new Set(
+		getCheckedWatchlistColumns(columns, displayedColumns),
+	)
 
-	for (let column of columns) {
-		if (column == 'id' || column == 'watchlistId' || column == 'watchlist')
-			continue
-
-		if (displayedColumns[displayedIndex]) {
-			if (column == displayedColumns[displayedIndex]) {
-				checkedColumns.push(
-					<label key={column} className="list-landing-settings-checkbox-item">
-						<input
-							id={`${column}-checkbox`}
-							name={`${column}-checkbox`}
-							type="checkbox"
-							defaultChecked={true}
-						/>
-						{(column.charAt(0).toUpperCase() + column.substr(1))
-							.split(/(?=[A-Z])/)
-							.join(' ')}
-					</label>,
-				)
-
-				displayedIndex++
-			} else {
-				checkedColumns.push(
-					<label key={column} className="list-landing-settings-checkbox-item">
-						<input
-							type="checkbox"
-							id={`${column}-checkbox`}
-							name={`${column}-checkbox`}
-						/>
-						{(column.charAt(0).toUpperCase() + column.substr(1))
-							.split(/(?=[A-Z])/)
-							.join(' ')}
-					</label>,
-				)
-			}
-		} else {
-			checkedColumns.push(
-				<label key={column} className="list-landing-settings-checkbox-item">
-					<input
-						type="checkbox"
-						id={`${column}-checkbox`}
-						name={`${column}-checkbox`}
-					/>
-					{(column.charAt(0).toUpperCase() + column.substr(1))
-						.split(/(?=[A-Z])/)
-						.join(' ')}
-				</label>,
-			)
-		}
-	}
-
-	return checkedColumns
+	return columns
+		.filter(column => !internalWatchlistColumns.has(column))
+		.map(column => (
+			<label key={column} className="list-landing-settings-checkbox-item">
+				<input
+					id={`${column}-checkbox`}
+					name={`${column}-checkbox`}
+					type="checkbox"
+					defaultChecked={checkedColumns.has(column)}
+				/>
+				{(column.charAt(0).toUpperCase() + column.slice(1))
+					.split(/(?=[A-Z])/)
+					.join(' ')}
+			</label>
+		))
 }
 
 async function handleSubmit(
@@ -185,9 +163,7 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
 					<h2 className="list-landing-nav-header">
 						{entryData.watchlist.header}
 					</h2>
-					<div className="list-landing-nav-length">
-						{entryData.listEntries.length}
-					</div>
+					<div className="list-landing-nav-length">{entryData.entryCount}</div>
 				</div>
 				<div className="list-landing-nav-bottom-container">
 					<div className="list-landing-nav-bottom">

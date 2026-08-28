@@ -388,3 +388,47 @@ test('credentials are never exported, whatever the ledger says', async () => {
 	// `password: false` is deliberately present as an explicit denial.
 	expect(userExportInclude.password).toBe(false)
 })
+
+test('an export never names the members a notification went to', async () => {
+	// `notificationsSent` is the actor side. Moderation records the moderator as
+	// the actor, so a recipient list is a roster of everyone that account has
+	// acted on — the exact thing `would-identify-others` exists to prevent, and
+	// it was exported until this was noticed.
+	expect(userExportDispositions.notificationsSent).toBe(
+		'withheld:would-identify-others',
+	)
+	expect(Object.keys(userExportInclude)).not.toContain('notificationsSent')
+})
+
+test('a moderation action carries the wording the member already has, and no more', async () => {
+	const entry = userExportInclude.moderationActionsSubject as {
+		select: Record<string, unknown>
+		where: { action: { in: string[] } }
+	}
+
+	// The member is sent `reason` verbatim in their notification and sees it on
+	// their settings page, so withholding it would remove something they hold.
+	expect(Object.keys(entry.select)).toContain('reason')
+	// `details` is never surfaced to them and is free text a moderator wrote.
+	expect(Object.keys(entry.select)).not.toContain('details')
+
+	// And only for the actions they are actually shown. A report-triage action's
+	// reason is an internal note about whoever reported them.
+	expect(entry.where.action.in).toEqual([
+		'hide_content',
+		'account_warn',
+		'account_suspend',
+	])
+})
+
+test('a report the member filed carries their words, not the moderator closing note', async () => {
+	// `resolutionNote` is written by a moderator when the report is closed and is
+	// surfaced to the reporter nowhere in the app, so an export would be the
+	// first time they saw it. Their own `details` is their words and stays.
+	const selected = Object.keys(
+		(userExportInclude.moderationReportsSubmitted as { select: object }).select,
+	)
+	expect(selected).toContain('details')
+	expect(selected).toContain('status')
+	expect(selected).not.toContain('resolutionNote')
+})

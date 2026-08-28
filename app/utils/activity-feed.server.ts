@@ -1,6 +1,11 @@
 import { activityEventLabel, diaryActivityLabel } from './activity.ts'
 import { prisma } from './db.server.ts'
 import { publicActivityEventWhere } from './lists/visibility.ts'
+import { reviewExcerpt } from './review-excerpt.ts'
+import { sociallyVisibleUserWhere } from './user-safety.server.ts'
+
+/** Collection prose only supports a three-line preview on the home card. */
+export const FOLLOWING_COLLECTION_EXCERPT_LENGTH = 360
 
 export type FollowingActivityFeedItem = {
 	id: string
@@ -10,7 +15,6 @@ export type FollowingActivityFeedItem = {
 	actor: {
 		id: string
 		username: string
-		name: string | null
 		image: { id: string } | null
 	}
 	media: {
@@ -53,16 +57,18 @@ function mediaItem(media: {
 }
 
 export async function getFollowingActivityFeed(
-	actorIds: string[],
+	viewerId: string,
 	limit = 60,
 ): Promise<FollowingActivityFeedItem[]> {
-	const uniqueActorIds = [...new Set(actorIds)]
-	if (!uniqueActorIds.length) return []
+	if (!viewerId) return []
 	const take = Math.min(Math.max(Math.trunc(limit), 1), 100)
+	const followedActorWhere = {
+		followers: { some: { followerId: viewerId } },
+		...sociallyVisibleUserWhere(viewerId),
+	}
 	const actorSelect = {
 		id: true,
 		username: true,
-		name: true,
 		image: { select: { id: true } },
 	} as const
 	const mediaSelect = {
@@ -76,7 +82,7 @@ export async function getFollowingActivityFeed(
 		await Promise.all([
 			prisma.activityEvent.findMany({
 				where: {
-					actorId: { in: uniqueActorIds },
+					actor: { is: followedActorWhere },
 					AND: [publicActivityEventWhere],
 				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -101,7 +107,7 @@ export async function getFollowingActivityFeed(
 			}),
 			prisma.review.findMany({
 				where: {
-					authorId: { in: uniqueActorIds },
+					author: { is: followedActorWhere },
 					moderationStatus: 'visible',
 				},
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -117,7 +123,7 @@ export async function getFollowingActivityFeed(
 				},
 			}),
 			prisma.diaryEntry.findMany({
-				where: { ownerId: { in: uniqueActorIds } },
+				where: { owner: { is: followedActorWhere } },
 				orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
 				take,
 				select: {
@@ -132,7 +138,7 @@ export async function getFollowingActivityFeed(
 			}),
 			prisma.mediaCollection.findMany({
 				where: {
-					ownerId: { in: uniqueActorIds },
+					owner: { is: followedActorWhere },
 					isPublic: true,
 					moderationStatus: 'visible',
 				},
@@ -177,7 +183,7 @@ export async function getFollowingActivityFeed(
 			media: mediaItem(row.media),
 			collection: null,
 			review: {
-				body: row.body,
+				body: reviewExcerpt(row.body).text,
 				containsSpoilers: row.containsSpoilers,
 				rating: row.rating === null ? null : Number(row.rating),
 			},
@@ -208,7 +214,13 @@ export async function getFollowingActivityFeed(
 			collection: {
 				id: row.id,
 				title: row.title,
-				description: row.description,
+				description:
+					row.description === null
+						? null
+						: reviewExcerpt(
+								row.description,
+								FOLLOWING_COLLECTION_EXCERPT_LENGTH,
+							).text,
 				itemCount: row._count.items,
 				items: row.items,
 			},

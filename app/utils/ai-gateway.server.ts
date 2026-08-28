@@ -1,28 +1,36 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import {
+	type AiCapability,
+	isAiCapabilityConfigured,
+	modelFor,
+} from './ai-model-config.server.ts'
 import { prisma } from './db.server.ts'
+
+export {
+	aiCapabilities,
+	DEFAULT_OPENAI_MODEL,
+	isAiCapabilityConfigured,
+	modelFor,
+} from './ai-model-config.server.ts'
+export type { AiCapability } from './ai-model-config.server.ts'
 
 const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
+const AI_TRANSIENT_FAILURE_WINDOW_MS = 60 * 1_000
+const AI_TRANSIENT_FAILURE_THRESHOLD = 3
+const SHARED_ANONYMOUS_WARNING_INTERVAL_MS = 10 * 60 * 1_000
 const MAX_RATE_LIMIT_KEYS = 5_000
 const MAX_TELEMETRY_EVENTS = 500
 const DAY_MS = 24 * 60 * 60 * 1_000
 const DEFAULT_DAILY_CAPABILITY_LIMIT = 5_000
 const DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT = 250
-
-export const aiCapabilities = [
-	'tip-of-tongue',
-	'natural-language-discovery',
-	'discovery-refinement',
-	'tracking-command',
-	'image-tip-of-tongue',
-	'import-reconciliation',
-	'review-assistance',
-	'moderation-triage',
-] as const
-
-export type AiCapability = (typeof aiCapabilities)[number]
-export type AiCircuit = { unavailableUntil: number }
+export type AiCircuit = {
+	unavailableUntil: number
+	unavailableReason?: 'model-unavailable'
+	transientFailures?: number
+	transientWindowStartedAt?: number
+}
 
 export type AiGatewayTelemetry = {
 	capability: AiCapability
@@ -37,6 +45,16 @@ export type AiGatewayTelemetry = {
 		| 'unavailable'
 		| 'error'
 		| 'concurrency'
+		| 'reserved-capacity'
+		| 'shared-rate-limited'
+		| 'unsafe-input'
+		| 'model-unavailable'
+		| 'refusal'
+		| 'max-output-tokens'
+		| 'content-filter'
+		| 'incomplete-response'
+		| 'empty-output'
+		| 'invalid-output'
 		| null
 	status: number | null
 	inputTokens: number | null
@@ -46,10 +64,31 @@ export type AiGatewayTelemetry = {
 const requestHistory = new Map<string, number[]>()
 const blockedDailyBudgets = new Map<string, number>()
 const circuits = new Map<AiCapability, AiCircuit>()
+const sharedAnonymousWarnings = new Map<AiCapability, number>()
 const telemetry: AiGatewayTelemetry[] = []
 let activeRequests = 0
 
+const responseUsageSchema = z.object({
+	input_tokens: z.number().int().nonnegative().optional(),
+	output_tokens: z.number().int().nonnegative().optional(),
+})
+
+const responseUsageEnvelopeSchema = z.object({
+	usage: responseUsageSchema.nullish(),
+})
+
 const responseEnvelopeSchema = z.object({
+	status: z
+		.enum([
+			'completed',
+			'failed',
+			'in_progress',
+			'cancelled',
+			'queued',
+			'incomplete',
+		])
+		.optional(),
+	incomplete_details: z.object({ reason: z.string().optional() }).nullish(),
 	output: z.array(
 		z.object({
 			type: z.string(),
@@ -58,25 +97,72 @@ const responseEnvelopeSchema = z.object({
 				.optional(),
 		}),
 	),
-	usage: z
-		.object({
-			input_tokens: z.number().int().nonnegative().optional(),
-			output_tokens: z.number().int().nonnegative().optional(),
-		})
-		.optional(),
+	usage: responseUsageSchema.nullish(),
 })
 
-function responseText(payload: unknown) {
+const moderationResponseSchema = z.object({
+	results: z
+		.array(
+			z.object({
+				flagged: z.boolean(),
+				categories: z.record(z.string(), z.boolean()),
+				category_scores: z.record(z.string(), z.number()),
+			}),
+		)
+		.min(1),
+})
+
+type ResponseUsage = z.infer<typeof responseUsageSchema> | null
+
+type ParsedResponseEnvelope =
+	| { kind: 'output'; text: string; usage: ResponseUsage }
+	| {
+			kind: 'failure'
+			telemetryReason:
+				| 'refusal'
+				| 'max-output-tokens'
+				| 'content-filter'
+				| 'incomplete-response'
+				| 'empty-output'
+				| 'invalid-output'
+			usage: ResponseUsage
+	  }
+
+function responseUsage(payload: unknown): ResponseUsage {
+	const parsed = responseUsageEnvelopeSchema.safeParse(payload)
+	return parsed.success ? (parsed.data.usage ?? null) : null
+}
+
+function parseResponseEnvelope(payload: unknown): ParsedResponseEnvelope {
+	const usage = responseUsage(payload)
 	const parsed = responseEnvelopeSchema.safeParse(payload)
-	if (!parsed.success) return { text: null, usage: null }
+	if (!parsed.success) {
+		return { kind: 'failure', telemetryReason: 'invalid-output', usage }
+	}
+	const refusal = parsed.data.output.some(output =>
+		(output.content ?? []).some(content => content.type === 'refusal'),
+	)
+	if (refusal) {
+		return { kind: 'failure', telemetryReason: 'refusal', usage }
+	}
+	const incompleteReason = parsed.data.incomplete_details?.reason
+	if (incompleteReason === 'max_output_tokens') {
+		return { kind: 'failure', telemetryReason: 'max-output-tokens', usage }
+	}
+	if (incompleteReason === 'content_filter') {
+		return { kind: 'failure', telemetryReason: 'content-filter', usage }
+	}
+	if (parsed.data.status !== undefined && parsed.data.status !== 'completed') {
+		return { kind: 'failure', telemetryReason: 'incomplete-response', usage }
+	}
 	for (const output of parsed.data.output) {
 		for (const content of output.content ?? []) {
 			if (content.type === 'output_text' && content.text) {
-				return { text: content.text, usage: parsed.data.usage ?? null }
+				return { kind: 'output', text: content.text, usage }
 			}
 		}
 	}
-	return { text: null, usage: parsed.data.usage ?? null }
+	return { kind: 'failure', telemetryReason: 'empty-output', usage }
 }
 
 async function recordTelemetry(event: AiGatewayTelemetry, persist: boolean) {
@@ -108,18 +194,25 @@ async function recordTelemetry(event: AiGatewayTelemetry, persist: boolean) {
 	}
 }
 
-function consumeRequest(input: {
+type InMemoryRateLimit = {
 	capability: AiCapability
 	key: string
 	now: number
 	limit: number
 	windowMs: number
-}) {
+}
+
+function recentRequestTimestamps(input: InMemoryRateLimit) {
 	const storageKey = `${input.capability}:${input.key}`
 	const cutoff = input.now - input.windowMs
-	const recent = (requestHistory.get(storageKey) ?? []).filter(
+	return (requestHistory.get(storageKey) ?? []).filter(
 		timestamp => timestamp > cutoff,
 	)
+}
+
+function consumeRequest(input: InMemoryRateLimit) {
+	const storageKey = `${input.capability}:${input.key}`
+	const recent = recentRequestTimestamps(input)
 	if (recent.length >= input.limit) {
 		requestHistory.set(storageKey, recent)
 		return false
@@ -136,6 +229,10 @@ function consumeRequest(input: {
 		}
 	}
 	return true
+}
+
+function hasRequestCapacity(input: InMemoryRateLimit) {
+	return recentRequestTimestamps(input).length < input.limit
 }
 
 async function consumeDurableRequest(input: {
@@ -189,6 +286,20 @@ function configuredLimit(name: string, fallback: number) {
 		: fallback
 }
 
+function concurrencyLimitForRequest(input: {
+	maxConcurrency: number
+	capability: AiCapability
+	isAnonymous: boolean
+	moderationEnabled: boolean
+}) {
+	if (input.maxConcurrency <= 1 || input.capability === 'moderation-triage') {
+		return input.maxConcurrency
+	}
+	const memberLimit = input.maxConcurrency - (input.moderationEnabled ? 1 : 0)
+	if (!input.isAnonymous) return memberLimit
+	return Math.max(1, memberLimit - (memberLimit > 1 ? 1 : 0))
+}
+
 function warnAtBudgetThreshold(input: {
 	capability: AiCapability
 	scope: 'global' | 'anonymous'
@@ -203,6 +314,20 @@ function warnAtBudgetThreshold(input: {
 		scope: input.scope,
 		count: input.count,
 		limit: input.limit,
+	})
+}
+
+function warnSharedAnonymousLimit(capability: AiCapability, now: number) {
+	const lastWarning = sharedAnonymousWarnings.get(capability)
+	if (
+		lastWarning !== undefined &&
+		now - lastWarning < SHARED_ANONYMOUS_WARNING_INTERVAL_MS
+	) {
+		return
+	}
+	sharedAnonymousWarnings.set(capability, now)
+	console.warn('Shared anonymous AI request bucket reached its limit', {
+		capability,
 	})
 }
 
@@ -268,56 +393,87 @@ async function consumeDailyBudget(input: {
 }
 
 export class AiGatewayError extends Error {
+	readonly telemetryReason: AiGatewayTelemetry['fallbackReason']
+	readonly inputTokens: number | null
+	readonly outputTokens: number | null
+
 	constructor(
 		readonly reason:
 			'not-configured' | 'rate-limited' | 'unavailable' | 'error',
 		message: string,
 		readonly status: number | null = null,
 		readonly code: string | null = null,
+		details: {
+			telemetryReason?: AiGatewayTelemetry['fallbackReason']
+			inputTokens?: number | null
+			outputTokens?: number | null
+		} = {},
 	) {
 		super(message)
 		this.name = 'AiGatewayError'
+		this.telemetryReason = details.telemetryReason ?? null
+		this.inputTokens = details.inputTokens ?? null
+		this.outputTokens = details.outputTokens ?? null
 	}
 }
 
-function opensCircuit(status: number) {
-	return status === 401 || status === 403 || status === 429 || status >= 500
+function opensCircuitImmediately(status: number) {
+	return status === 401 || status === 403 || status === 429
+}
+
+function isModelUnavailableCode(code: string | null) {
+	return code === 'model_not_found'
+}
+
+function isTransientTransportError(error: unknown) {
+	const name =
+		typeof error === 'object' && error !== null && 'name' in error
+			? error.name
+			: null
+	return (
+		error instanceof TypeError ||
+		name === 'AbortError' ||
+		name === 'NetworkError' ||
+		name === 'TimeoutError'
+	)
+}
+
+function clearTransientFailures(circuit: AiCircuit) {
+	delete circuit.transientFailures
+	delete circuit.transientWindowStartedAt
+}
+
+function clearCircuitAvailability(circuit: AiCircuit) {
+	circuit.unavailableUntil = 0
+	delete circuit.unavailableReason
+}
+
+function recordTransientFailure(circuit: AiCircuit, now: number) {
+	const windowStartedAt = circuit.transientWindowStartedAt
+	if (
+		windowStartedAt === undefined ||
+		now - windowStartedAt >= AI_TRANSIENT_FAILURE_WINDOW_MS
+	) {
+		circuit.transientWindowStartedAt = now
+		circuit.transientFailures = 1
+	} else {
+		circuit.transientFailures = (circuit.transientFailures ?? 0) + 1
+	}
+	if ((circuit.transientFailures ?? 0) < AI_TRANSIENT_FAILURE_THRESHOLD) {
+		return
+	}
+	circuit.unavailableUntil = Math.max(
+		circuit.unavailableUntil,
+		now + AI_UNAVAILABLE_COOLDOWN_MS,
+	)
+	delete circuit.unavailableReason
+	clearTransientFailures(circuit)
 }
 
 function cooldownMs(code: string | null) {
 	return code === 'insufficient_quota' || code === 'billing_hard_limit_reached'
 		? AI_QUOTA_COOLDOWN_MS
 		: AI_UNAVAILABLE_COOLDOWN_MS
-}
-
-export function modelFor(capability: AiCapability, fallback: string) {
-	const capabilityKey = `OPENAI_${capability
-		.replaceAll('-', '_')
-		.toUpperCase()}_MODEL`
-	return (
-		process.env[capabilityKey]?.trim() ||
-		(capability === 'tip-of-tongue'
-			? process.env.OPENAI_TIP_OF_TONGUE_MODEL?.trim()
-			: '') ||
-		process.env.OPENAI_DEFAULT_MODEL?.trim() ||
-		fallback
-	)
-}
-
-export function isAiCapabilityConfigured(capability: AiCapability) {
-	const environment = process.env as Record<string, string | undefined>
-	const capabilityFlag = `VEUD_AI_${capability
-		.replaceAll('-', '_')
-		.toUpperCase()}_ENABLED`
-	return Boolean(
-		environment.OPENAI_API_KEY?.trim() &&
-		!['0', 'false'].includes(
-			environment.VEUD_AI_ENABLED?.trim().toLowerCase() ?? 'true',
-		) &&
-		!['0', 'false'].includes(
-			environment[capabilityFlag]?.trim().toLowerCase() ?? 'true',
-		),
-	)
 }
 
 export function getAiGatewayTelemetry() {
@@ -353,50 +509,69 @@ export function resetAiGatewayStateForTests() {
 	requestHistory.clear()
 	blockedDailyBudgets.clear()
 	circuits.clear()
+	sharedAnonymousWarnings.clear()
 	telemetry.splice(0)
 	activeRequests = 0
 }
 
-export async function requestStructuredAi<Output>(options: {
+type ControlledAiRequestOptions<Output> = {
 	capability: AiCapability
 	promptVersion: string
-	instructions: string
+	model: string
 	input: unknown
-	/**
-	 * A preconstructed Responses API input for validated multimodal content.
-	 * It is intentionally restricted to the image TOMT capability.
-	 */
-	apiInput?: unknown
-	outputSchema: z.ZodType<Output>
-	jsonSchemaName: string
-	jsonSchema: Record<string, unknown>
 	assertSafeInput: (input: unknown) => void
 	rateLimitKey?: string
 	rateLimit?: number
 	rateLimitWindowMs?: number
-	timeoutMs?: number
-	maxOutputTokens?: number
-	model?: string
-	fallbackModel?: string
-	reasoningEffort?: 'none' | 'low' | 'medium' | 'high'
-	fetchImpl?: typeof fetch
+	timeoutMs: number
+	usesDefaultFetch: boolean
 	now?: number
 	circuit?: AiCircuit
-}) {
+	execute: (input: { apiKey: string; signal: AbortSignal }) => Promise<{
+		output: Output
+		status: number
+		inputTokens: number | null
+		outputTokens: number | null
+	}>
+}
+
+function providerRequestError(status: number, payload: unknown) {
+	const parsedError = z
+		.object({
+			error: z.object({ code: z.string().nullable().optional() }).optional(),
+		})
+		.safeParse(payload)
+	const code = parsedError.success
+		? (parsedError.data.error?.code ?? null)
+		: null
+	const unavailable =
+		opensCircuitImmediately(status) ||
+		status >= 500 ||
+		isModelUnavailableCode(code)
+	return new AiGatewayError(
+		unavailable ? 'unavailable' : 'error',
+		unavailable
+			? `AI service unavailable (${status}).`
+			: `AI request failed (${status}).`,
+		status,
+		code,
+	)
+}
+
+async function runControlledAiRequest<Output>(
+	options: ControlledAiRequestOptions<Output>,
+) {
 	const startedAtMs = options.now ?? Date.now()
 	const requestStartedAtMs = Date.now()
 	const startedAt = new Date(startedAtMs)
-	const model =
-		options.model?.trim() ||
-		modelFor(options.capability, options.fallbackModel ?? 'gpt-5.6-luna')
 	const baseTelemetry = {
 		capability: options.capability,
-		model,
+		model: options.model,
 		promptVersion: options.promptVersion,
 		startedAt,
 	}
 	const persistOperations =
-		process.env.NODE_ENV === 'production' && options.fetchImpl === undefined
+		process.env.NODE_ENV === 'production' && options.usesDefaultFetch
 	const apiKey = process.env.OPENAI_API_KEY?.trim()
 	if (!apiKey || !isAiCapabilityConfigured(options.capability)) {
 		await recordTelemetry(
@@ -416,15 +591,22 @@ export async function requestStructuredAi<Output>(options: {
 			'This AI capability is not configured.',
 		)
 	}
-	options.assertSafeInput(options.input)
-	if (
-		options.apiInput !== undefined &&
-		options.capability !== 'image-tip-of-tongue'
-	) {
-		throw new AiGatewayError(
-			'error',
-			'Multimodal input is not permitted for this capability.',
+	try {
+		options.assertSafeInput(options.input)
+	} catch (error) {
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'error',
+				fallbackReason: 'unsafe-input',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
 		)
+		throw error
 	}
 	const circuit = options.circuit ??
 		circuits.get(options.capability) ?? { unavailableUntil: 0 }
@@ -435,7 +617,7 @@ export async function requestStructuredAi<Output>(options: {
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'unavailable',
-				fallbackReason: 'unavailable',
+				fallbackReason: circuit.unavailableReason ?? 'unavailable',
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -447,6 +629,7 @@ export async function requestStructuredAi<Output>(options: {
 			'AI capability is temporarily unavailable.',
 		)
 	}
+	if (circuit.unavailableUntil) clearCircuitAvailability(circuit)
 	const dailyLimit = configuredLimit(
 		'VEUD_AI_DAILY_LIMIT_PER_CAPABILITY',
 		DEFAULT_DAILY_CAPABILITY_LIMIT,
@@ -456,6 +639,7 @@ export async function requestStructuredAi<Output>(options: {
 		DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT,
 	)
 	const isAnonymous = options.rateLimitKey?.startsWith('anonymous:') === true
+	const isSharedAnonymous = options.rateLimitKey === 'anonymous:shared'
 	const aggregateBudgetBlocked =
 		isDailyBudgetBlocked({
 			capability: options.capability,
@@ -477,16 +661,24 @@ export async function requestStructuredAi<Output>(options: {
 				windowMs: options.rateLimitWindowMs ?? 10 * 60 * 1_000,
 			}
 		: null
-	const withinLocalLimit =
-		!aggregateBudgetBlocked &&
-		(rateLimitInput ? consumeRequest(rateLimitInput) : true)
+	const withinLocalLimit = aggregateBudgetBlocked
+		? true
+		: rateLimitInput
+			? hasRequestCapacity(rateLimitInput)
+			: true
 	if (aggregateBudgetBlocked || !withinLocalLimit) {
+		const sharedClientLimit = !aggregateBudgetBlocked && isSharedAnonymous
+		if (sharedClientLimit) {
+			warnSharedAnonymousLimit(options.capability, startedAtMs)
+		}
 		await recordTelemetry(
 			{
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'rate-limited',
-				fallbackReason: 'rate-limited',
+				fallbackReason: sharedClientLimit
+					? 'shared-rate-limited'
+					: 'rate-limited',
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -502,13 +694,21 @@ export async function requestStructuredAi<Output>(options: {
 	const maxConcurrency = Number.isFinite(configuredConcurrency)
 		? Math.min(20, Math.max(1, configuredConcurrency))
 		: 4
-	if (activeRequests >= maxConcurrency) {
+	const requestConcurrencyLimit = concurrencyLimitForRequest({
+		maxConcurrency,
+		capability: options.capability,
+		isAnonymous,
+		moderationEnabled: isAiCapabilityConfigured('moderation-triage'),
+	})
+	if (activeRequests >= requestConcurrencyLimit) {
+		const fallbackReason =
+			activeRequests < maxConcurrency ? 'reserved-capacity' : 'concurrency'
 		await recordTelemetry(
 			{
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'unavailable',
-				fallbackReason: 'concurrency',
+				fallbackReason,
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -520,6 +720,7 @@ export async function requestStructuredAi<Output>(options: {
 			'AI concurrency capacity is temporarily full.',
 		)
 	}
+	if (rateLimitInput) consumeRequest(rateLimitInput)
 	activeRequests += 1
 
 	let status: number | null = null
@@ -553,11 +754,234 @@ export async function requestStructuredAi<Output>(options: {
 			!withinAnonymousDailyLimit ||
 			!withinGlobalDailyLimit
 		) {
-			throw new AiGatewayError('rate-limited', 'AI request limit reached.')
+			const sharedClientLimit = !withinDurableLimit && isSharedAnonymous
+			if (sharedClientLimit) {
+				warnSharedAnonymousLimit(options.capability, startedAtMs)
+			}
+			throw new AiGatewayError(
+				'rate-limited',
+				'AI request limit reached.',
+				null,
+				sharedClientLimit ? 'shared-anonymous-client-limit' : null,
+			)
 		}
-		const response = await (options.fetchImpl ?? fetch)(
-			'https://api.openai.com/v1/responses',
+		const result = await options.execute({
+			apiKey,
+			signal: AbortSignal.timeout(options.timeoutMs),
+		})
+		status = result.status
+		clearCircuitAvailability(circuit)
+		clearTransientFailures(circuit)
+		await recordTelemetry(
 			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome: 'success',
+				fallbackReason: null,
+				status,
+				inputTokens: result.inputTokens,
+				outputTokens: result.outputTokens,
+			},
+			persistOperations,
+		)
+		return result.output
+	} catch (error) {
+		const transportFailure = isTransientTransportError(error)
+		const gatewayError =
+			error instanceof AiGatewayError
+				? error
+				: transportFailure
+					? new AiGatewayError(
+							'unavailable',
+							'AI service is temporarily unavailable.',
+						)
+					: new AiGatewayError(
+							'error',
+							error instanceof Error ? error.message : 'AI request failed.',
+							status,
+						)
+		if (isModelUnavailableCode(gatewayError.code)) {
+			circuit.unavailableUntil = Math.max(
+				circuit.unavailableUntil,
+				startedAtMs + AI_UNAVAILABLE_COOLDOWN_MS,
+			)
+			circuit.unavailableReason = 'model-unavailable'
+			clearTransientFailures(circuit)
+		} else if (
+			gatewayError.status !== null &&
+			opensCircuitImmediately(gatewayError.status)
+		) {
+			circuit.unavailableUntil = Math.max(
+				circuit.unavailableUntil,
+				startedAtMs + cooldownMs(gatewayError.code),
+			)
+			delete circuit.unavailableReason
+			clearTransientFailures(circuit)
+		} else if (
+			transportFailure ||
+			(gatewayError.status !== null && gatewayError.status >= 500)
+		) {
+			recordTransientFailure(circuit, startedAtMs)
+		} else if (gatewayError.status !== null) {
+			clearTransientFailures(circuit)
+		}
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
+				outcome:
+					gatewayError.reason === 'rate-limited'
+						? 'rate-limited'
+						: gatewayError.reason === 'unavailable'
+							? 'unavailable'
+							: 'error',
+				fallbackReason: isModelUnavailableCode(gatewayError.code)
+					? 'model-unavailable'
+					: gatewayError.reason === 'rate-limited' &&
+						  gatewayError.code === 'shared-anonymous-client-limit'
+						? 'shared-rate-limited'
+						: (gatewayError.telemetryReason ?? gatewayError.reason),
+				status: gatewayError.status,
+				inputTokens: gatewayError.inputTokens,
+				outputTokens: gatewayError.outputTokens,
+			},
+			persistOperations,
+		)
+		throw gatewayError
+	} finally {
+		activeRequests = Math.max(0, activeRequests - 1)
+	}
+}
+
+export async function requestModerationClassification(options: {
+	input: string
+	rateLimitKey: string
+	rateLimit?: number
+	rateLimitWindowMs?: number
+	timeoutMs?: number
+	fetchImpl?: typeof fetch
+	now?: number
+	circuit?: AiCircuit
+}) {
+	const model = 'omni-moderation-latest'
+	const fetchImpl = options.fetchImpl ?? fetch
+	return await runControlledAiRequest({
+		capability: 'moderation-triage',
+		promptVersion: 'moderation-classifier-v1',
+		model,
+		input: options.input,
+		assertSafeInput(input) {
+			if (typeof input !== 'string' || input.length > 3_001) {
+				throw new Error('Unsafe moderation classifier payload')
+			}
+		},
+		rateLimitKey: options.rateLimitKey,
+		rateLimit: options.rateLimit,
+		rateLimitWindowMs: options.rateLimitWindowMs,
+		timeoutMs: options.timeoutMs ?? 8_000,
+		usesDefaultFetch: options.fetchImpl === undefined,
+		now: options.now,
+		circuit: options.circuit,
+		async execute({ apiKey, signal }) {
+			const response = await fetchImpl(
+				'https://api.openai.com/v1/moderations',
+				{
+					method: 'POST',
+					headers: {
+						Authorization: `Bearer ${apiKey}`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ model, input: options.input }),
+					signal,
+				},
+			)
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) throw providerRequestError(response.status, payload)
+			const parsed = moderationResponseSchema.safeParse(payload)
+			if (!parsed.success) {
+				throw new AiGatewayError(
+					'error',
+					'AI returned an invalid moderation classification.',
+					response.status,
+				)
+			}
+			const result = parsed.data.results[0]!
+			const categories = Object.entries(result.categories)
+				.filter(([, flagged]) => flagged)
+				.map(([category]) => category)
+			const critical = Object.entries(result.category_scores).some(
+				([category, score]) =>
+					score >= 0.7 &&
+					(category.includes('minors') ||
+						category.includes('self-harm/instructions') ||
+						category.includes('hate/threatening') ||
+						category.includes('violence/graphic')),
+			)
+			return {
+				output: { flagged: result.flagged, categories, critical },
+				status: response.status,
+				inputTokens: null,
+				outputTokens: null,
+			}
+		},
+	})
+}
+
+export async function requestStructuredAi<Output>(options: {
+	capability: AiCapability
+	promptVersion: string
+	instructions: string
+	input: unknown
+	/**
+	 * A preconstructed Responses API input for validated multimodal content.
+	 * It is intentionally restricted to the image TOMT capability.
+	 */
+	apiInput?: unknown
+	outputSchema: z.ZodType<Output>
+	jsonSchemaName: string
+	jsonSchema: Record<string, unknown>
+	assertSafeInput: (input: unknown) => void
+	rateLimitKey?: string
+	rateLimit?: number
+	rateLimitWindowMs?: number
+	timeoutMs?: number
+	maxOutputTokens?: number
+	model?: string
+	fallbackModel?: string
+	reasoningEffort?: 'none' | 'low' | 'medium' | 'high'
+	fetchImpl?: typeof fetch
+	now?: number
+	circuit?: AiCircuit
+}) {
+	const model =
+		options.model?.trim() || modelFor(options.capability, options.fallbackModel)
+	const fetchImpl = options.fetchImpl ?? fetch
+	return await runControlledAiRequest({
+		capability: options.capability,
+		promptVersion: options.promptVersion,
+		model,
+		input: options.input,
+		assertSafeInput(input) {
+			options.assertSafeInput(input)
+			if (
+				options.apiInput !== undefined &&
+				options.capability !== 'image-tip-of-tongue'
+			) {
+				throw new AiGatewayError(
+					'error',
+					'Multimodal input is not permitted for this capability.',
+				)
+			}
+		},
+		rateLimitKey: options.rateLimitKey,
+		rateLimit: options.rateLimit,
+		rateLimitWindowMs: options.rateLimitWindowMs,
+		timeoutMs: options.timeoutMs ?? 12_000,
+		usesDefaultFetch: options.fetchImpl === undefined,
+		now: options.now,
+		circuit: options.circuit,
+		async execute({ apiKey, signal }) {
+			const response = await fetchImpl('https://api.openai.com/v1/responses', {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${apiKey}`,
@@ -594,89 +1018,47 @@ export async function requestStructuredAi<Output>(options: {
 						},
 					},
 				}),
-				signal: AbortSignal.timeout(options.timeoutMs ?? 12_000),
-			},
-		)
-		status = response.status
-		const payload = await response.json().catch(() => null)
-		if (!response.ok) {
-			const parsedError = z
-				.object({
-					error: z
-						.object({ code: z.string().nullable().optional() })
-						.optional(),
-				})
-				.safeParse(payload)
-			const code = parsedError.success
-				? (parsedError.data.error?.code ?? null)
-				: null
-			if (opensCircuit(response.status)) {
-				circuit.unavailableUntil = Math.max(
-					circuit.unavailableUntil,
-					startedAtMs + cooldownMs(code),
-				)
+				signal,
+			})
+			const payload = await response.json().catch(() => null)
+			if (!response.ok) throw providerRequestError(response.status, payload)
+			const parsedResponse = parseResponseEnvelope(payload)
+			if (parsedResponse.kind === 'failure') {
 				throw new AiGatewayError(
-					'unavailable',
-					`AI service unavailable (${response.status}).`,
+					'error',
+					'AI returned no structured output.',
 					response.status,
-					code,
+					null,
+					{
+						telemetryReason: parsedResponse.telemetryReason,
+						inputTokens: parsedResponse.usage?.input_tokens ?? null,
+						outputTokens: parsedResponse.usage?.output_tokens ?? null,
+					},
 				)
 			}
-			throw new AiGatewayError(
-				'error',
-				`AI request failed (${response.status}).`,
-				response.status,
-				code,
-			)
-		}
-		const parsedResponse = responseText(payload)
-		if (!parsedResponse.text) {
-			throw new AiGatewayError('error', 'AI returned no structured output.')
-		}
-		const result = options.outputSchema.parse(
-			JSON.parse(parsedResponse.text) as unknown,
-		)
-		await recordTelemetry(
-			{
-				...baseTelemetry,
-				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-				outcome: 'success',
-				fallbackReason: null,
-				status,
-				inputTokens: parsedResponse.usage?.input_tokens ?? null,
-				outputTokens: parsedResponse.usage?.output_tokens ?? null,
-			},
-			persistOperations,
-		)
-		return result
-	} catch (error) {
-		const gatewayError =
-			error instanceof AiGatewayError
-				? error
-				: new AiGatewayError(
-						'error',
-						error instanceof Error ? error.message : 'AI request failed.',
-						status,
-					)
-		await recordTelemetry(
-			{
-				...baseTelemetry,
-				durationMs: Math.max(0, Date.now() - requestStartedAtMs),
-				outcome:
-					gatewayError.reason === 'rate-limited'
-						? 'rate-limited'
-						: gatewayError.reason === 'unavailable'
-							? 'unavailable'
-							: 'error',
-				fallbackReason: gatewayError.reason,
-				status: gatewayError.status,
-				inputTokens: null,
-				outputTokens: null,
-			},
-			persistOperations,
-		)
-		throw gatewayError
-	} finally {
-		activeRequests = Math.max(0, activeRequests - 1)
-	}
+			try {
+				return {
+					output: options.outputSchema.parse(
+						JSON.parse(parsedResponse.text) as unknown,
+					),
+					status: response.status,
+					inputTokens: parsedResponse.usage?.input_tokens ?? null,
+					outputTokens: parsedResponse.usage?.output_tokens ?? null,
+				}
+			} catch (error) {
+				if (error instanceof AiGatewayError) throw error
+				throw new AiGatewayError(
+					'error',
+					'AI output validation failed.',
+					response.status,
+					null,
+					{
+						telemetryReason: 'invalid-output',
+						inputTokens: parsedResponse.usage?.input_tokens ?? null,
+						outputTokens: parsedResponse.usage?.output_tokens ?? null,
+					},
+				)
+			}
+		},
+	})
 }

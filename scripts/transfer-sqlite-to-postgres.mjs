@@ -217,7 +217,7 @@ async function setUserTriggers(client, tables, enabled) {
 	}
 }
 
-async function assertUserTriggersEnabled(client, tables) {
+async function assertUserTriggersEnabled(client, tables, { hint } = {}) {
 	if (!tables.length) return
 	const disabled = await client.$queryRaw`
 		SELECT c.relname AS table, t.tgname AS trigger
@@ -229,10 +229,11 @@ async function assertUserTriggersEnabled(client, tables) {
 		ORDER BY 1, 2
 	`
 	if (disabled.length) {
+		const listed = disabled.map(row => `${row.table}.${row.trigger}`).join(', ')
 		throw new Error(
-			`Triggers left disabled after transfer: ${disabled
-				.map(row => `${row.table}.${row.trigger}`)
-				.join(', ')}`,
+			hint
+				? `Triggers are disabled on the target: ${listed}. ${hint}`
+				: `Triggers left disabled after transfer: ${listed}`,
 		)
 	}
 }
@@ -443,12 +444,38 @@ async function main() {
 			}
 			writeCheckpoint(checkpointPath, checkpoint)
 
-			triggerTables = await userTriggerTables(client)
-			if (triggerTables.length) {
-				console.log(
-					`Disabling user triggers for the load on: ${triggerTables.join(', ')}`,
-				)
-				await setUserTriggers(client, triggerTables, false)
+			// A previous run that was killed outright never reached its `finally`,
+			// so its triggers are still off and nothing else would ever say so.
+			// Refuse rather than load on top of a target whose derived columns
+			// stopped being maintained at an unknown point.
+			await assertUserTriggersEnabled(client, plan, {
+				hint:
+					'A previous transfer was interrupted before it re-enabled them. ' +
+					'Re-enable them (ALTER TABLE ... ENABLE TRIGGER USER) and verify ' +
+					'Person.creditCount before resuming.',
+			})
+
+			// Only turn them off if there is actually something left to insert.
+			// A --resume of an already-finished transfer would otherwise disable
+			// triggers on a live database purely to re-enable them a moment later,
+			// and a kill inside that window leaves them off while the checkpoint
+			// reads "completed".
+			const remainingTables = plan.filter(
+				name => !checkpoint.completedTables.includes(name),
+			)
+			const remainingJoinTables = implicitJoinTables.filter(
+				table => !checkpoint.completedTables.includes(table),
+			)
+			if (remainingTables.length || remainingJoinTables.length) {
+				triggerTables = await userTriggerTables(client)
+				if (triggerTables.length) {
+					console.log(
+						`Disabling user triggers for the load on: ${triggerTables.join(', ')}`,
+					)
+					await setUserTriggers(client, triggerTables, false)
+				}
+			} else {
+				console.log('Nothing left to insert; leaving triggers alone.')
 			}
 
 			for (const name of plan) {

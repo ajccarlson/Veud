@@ -1,6 +1,63 @@
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
+test('short catalog searches match exact titles without broad partial results', async ({
+	page,
+}) => {
+	const [exact, partial, descriptionOnly] = await Promise.all([
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Q7',
+				titles: {
+					create: {
+						provider: 'tmdb',
+						language: 'en',
+						titleType: 'primary',
+						value: 'Q7',
+						normalized: 'q7',
+						isPrimary: true,
+					},
+				},
+			},
+		}),
+		prisma.media.create({
+			data: { kind: 'movie', title: 'Q8 Extended Browser Result' },
+		}),
+		prisma.media.create({
+			data: {
+				kind: 'movie',
+				title: 'Short Browser Description Result',
+				description: 'A Q8 catalog fixture.',
+			},
+		}),
+	])
+
+	try {
+		await page.goto('/discover?q=q7&kind=movie&sort=title')
+		await expect(page.getByText('Q7', { exact: true })).toBeVisible()
+
+		await page.goto('/discover?q=q8&kind=movie&sort=title')
+		await expect(
+			page.getByText(
+				'Short searches match exact titles. Use at least three characters for partial titles and descriptions.',
+			),
+		).toBeVisible()
+		await expect(
+			page.getByText(partial.title!, { exact: true }),
+		).not.toBeVisible()
+		await expect(
+			page.getByText(descriptionOnly.title!, { exact: true }),
+		).not.toBeVisible()
+	} finally {
+		await prisma.media
+			.deleteMany({
+				where: { id: { in: [exact.id, partial.id, descriptionOnly.id] } },
+			})
+			.catch(() => {})
+	}
+})
+
 test('member can filter the catalog and discover an unseen personalized title', async ({
 	page,
 	login,

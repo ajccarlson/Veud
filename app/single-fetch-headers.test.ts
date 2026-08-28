@@ -1,6 +1,7 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { headers as rootHeaders, loader as rootLoader } from './root.tsx'
 import { headers as connectionHeaders } from './routes/settings+/profile.connections.tsx'
+import { prisma } from './utils/db.server.ts'
 import { profileHeaders } from './utils/profile-headers.ts'
 
 const parentHeaders = new Headers()
@@ -8,6 +9,7 @@ const parentHeaders = new Headers()
 describe('Single Fetch headers', () => {
 	test('the root loader marks its account-aware data private and non-cacheable', async () => {
 		const url = new URL('https://veud.example/')
+		const listTypes = vi.spyOn(prisma.listType, 'findMany')
 		const response = await rootLoader({
 			request: new Request(url),
 			url,
@@ -17,6 +19,8 @@ describe('Single Fetch headers', () => {
 		expect(new Headers(response.init?.headers).get('Cache-Control')).toBe(
 			'private, no-store',
 		)
+		expect(response.data.listTypes).toEqual([])
+		expect(listTypes).not.toHaveBeenCalled()
 	})
 
 	test('the root preserves loader and action cookies without overriding the stream content type', () => {

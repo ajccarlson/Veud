@@ -64,15 +64,39 @@ function flattenProviderText(text: string) {
  * is worse than a generic one, because the unfurl looks broken instead of
  * plain.
  */
+/**
+ * Collapse whitespace without touching the words.
+ *
+ * Provider synopses arrive with markup in them, which is why the stripper
+ * exists. A member's own description is not provider text: `Films < 90 minutes`
+ * or `Everything I rated > 8` looks like a tag to a regular expression, and
+ * stripping it deletes the sentence they actually wrote from the card while
+ * their own page still shows it in full.
+ */
+function flattenAuthoredText(text: string) {
+	return text.replace(/\s+/g, ' ').trim()
+}
+
 export function socialDescription(
 	text: string | null | undefined,
 	fallback: string,
-	limit = MAX_SOCIAL_DESCRIPTION,
+	{
+		limit = MAX_SOCIAL_DESCRIPTION,
+		source = 'provider',
+	}: { limit?: number; source?: 'provider' | 'member' } = {},
 ) {
-	const flat = flattenProviderText(text ?? '')
+	const flat =
+		source === 'member'
+			? flattenAuthoredText(text ?? '')
+			: flattenProviderText(text ?? '')
 	if (!flat) return fallback
 	if (flat.length <= limit) return flat
-	const cut = flat.slice(0, limit)
+	// `slice` cuts at a UTF-16 code unit and can land inside a surrogate pair,
+	// leaving an orphaned half that renders as a replacement character — in the
+	// unfurl on someone else's screen, where the author cannot see it. The
+	// review excerpt already guards this; a card is no less visible.
+	const sliced = flat.slice(0, limit)
+	const cut = /[\uD800-\uDBFF]$/.test(sliced) ? sliced.slice(0, -1) : sliced
 	const lastSpace = cut.lastIndexOf(' ')
 	return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`
 }
