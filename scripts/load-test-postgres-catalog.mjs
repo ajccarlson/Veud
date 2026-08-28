@@ -67,6 +67,14 @@ const requiredProfileRowsByQuery = {
 	'profile-diary-activity': 100,
 	'profile-diary-page': 100,
 }
+// The exact-match needle returns one person; the broad needle must keep
+// matching a real slice, or the ORDER BY stops being exercised; the
+// two-character needle is what a member triggers first and matches everything.
+const requiredPersonRowsByQuery = {
+	'person-name': 1,
+	'person-name-broad': 48,
+	'person-name-min-length': 48,
+}
 const profileActivityPublicRelationsSql = `LEFT JOIN "Watchlist" AS status_watchlist
    ON status_watchlist.id = activity."statusWatchlistId"
  LEFT JOIN "Watchlist" AS previous_status_watchlist
@@ -1279,6 +1287,22 @@ async function communityAggregateMetrics(prisma, count) {
 	}
 }
 
+/**
+ * The people-search statement, shared by every needle it is measured with.
+ *
+ * Kept beside findPeople in shape - same filter, same order, same select list,
+ * same limit. `search-suggestions.server.test.ts` fails if that query starts
+ * aggregating again, which is the regression this gate cannot see on its own:
+ * the harness measures its own SQL, so it would keep passing.
+ */
+const personSearchSql = `SELECT person.id, person.name, person."imageUrl",
+        person."knownForDepartment", person."creditCount"
+	 FROM "Person" AS person
+	 WHERE person.normalized ILIKE $1
+	   AND person."creditCount" > 0
+	 ORDER BY person."creditCount" DESC, person.name ASC, person.id ASC
+	 LIMIT 48`
+
 async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 	const needle = Math.max(4, Math.floor(count * 0.73))
 	const alternate = Math.max(4, Math.floor((count * 0.44) / 4) * 4)
@@ -1289,15 +1313,38 @@ async function queryMetrics(prisma, count, shape, scheduleAnchor) {
 			'SELECT id FROM "Media" WHERE title ILIKE $1 LIMIT 24',
 			[`%Catalog Work ${needle}%`],
 		],
+		// Three shapes of the same search, because one needle cannot represent
+		// it. The select list matches what findPeople actually asks for: a
+		// narrower one would let PostgreSQL choose an index-only scan the
+		// application never gets.
+		['person-name', personSearchSql, [`%synthetic performer ${needle}%`]],
 		[
-			'person-name',
-			`SELECT person.id
-			 FROM "Person" AS person
-			 WHERE person.normalized ILIKE $1
-			   AND person."creditCount" > 0
-			 ORDER BY person."creditCount" DESC, person.name ASC, person.id ASC
-			 LIMIT 48`,
-			[`%synthetic performer ${needle}%`],
+			// The exact-match needle above returns a single row, so it sorts
+			// nothing and would stay fast however the ordering degraded. This one
+			// matches a large slice, which is what makes the ORDER BY real work.
+			'person-name-broad',
+			personSearchSql,
+			['%synthetic performer 1%'],
+		],
+		[
+			// What a member triggers first: MIN_SUGGESTION_QUERY is 2.
+			//
+			// A pg_trgm index cannot serve a LIKE pattern with fewer than three
+			// consecutive literal characters, so this scans by construction, not
+			// through bad luck with selectivity. Measured on 200,010 rows with a
+			// trigram index present, holding match count roughly equal:
+			//
+			//   ILIKE '%zqx%'  ->  5 rows, Bitmap Index Scan,   0.046 ms
+			//   ILIKE '%zq%'   -> 10 rows, Seq Scan,           46.18  ms
+			//
+			// Deliberately absent from requiredTrigramIndexesByQuery: requiring an
+			// index here would demand something PostgreSQL cannot do. It is
+			// measured so the cost of the shortest query the application accepts
+			// is visible, rather than assumed away by only testing longer
+			// needles that happen to reach the index.
+			'person-name-min-length',
+			personSearchSql,
+			['%rf%'],
 		],
 		[
 			'tracking-exact-title',
@@ -2188,6 +2235,15 @@ async function main() {
 			trackingWriteBatches,
 		)
 		const storageAfter = await databaseMetrics(prisma)
+		let personRowAssertionError
+		try {
+			// A search that matches nothing sorts nothing. Measuring one and
+			// reporting the number as evidence that search is fast is how a gate
+			// stops meaning anything.
+			assertRequiredQueryRows(queries, requiredPersonRowsByQuery)
+		} catch (error) {
+			personRowAssertionError = error
+		}
 		let queryIndexAssertionError
 		try {
 			assertRequiredQueryIndexes(queries, requiredTrigramIndexesByQuery)
@@ -2339,6 +2395,7 @@ async function main() {
 			)
 		}
 		const validationErrors = [
+			...(personRowAssertionError ? [personRowAssertionError] : []),
 			...(communityAggregateAssertionError
 				? [communityAggregateAssertionError]
 				: []),

@@ -676,3 +676,28 @@ test('summarizes peak connection and lock pressure', () => {
 		peakConnectionUtilization: 0.12,
 	})
 })
+
+test('a person search measured on an empty result set is rejected', () => {
+	// A needle matching nothing skips matching, ordering and limiting, then
+	// reports a sub-millisecond number that reads as "search is fast".
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 0 }], {
+			'person-name': 1,
+		}),
+	).toThrow()
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name', actualRows: 48 }], {
+			'person-name': 1,
+		}),
+	).not.toThrow()
+})
+
+test('a broad person search that stops matching a slice is rejected', () => {
+	// person-name-broad exists to make the ORDER BY do real work. If its needle
+	// stops matching a slice, it silently becomes another single-row lookup.
+	expect(() =>
+		assertRequiredQueryRows([{ name: 'person-name-broad', actualRows: 12 }], {
+			'person-name-broad': 48,
+		}),
+	).toThrow()
+})
