@@ -5,6 +5,7 @@ import { columnParams } from './grid-state.ts'
 import { setterFunction } from './grid-actions.ts'
 import {
 	dateFormatter,
+	dateOnlyFormatter,
 	hyperlinkRenderer,
 	titleCellRenderer,
 	typeCellRenderer,
@@ -108,7 +109,7 @@ export function infoColumns() {
 			valueSetter: (params: any) => {
 				setterFunction(params)
 			},
-			valueFormatter: (params: any) => dateFormatter(params.value),
+			valueFormatter: (params: any) => dateOnlyFormatter(params.value),
 			minWidth: 65,
 			maxWidth: 72,
 			filter: 'agDateColumnFilter',
@@ -121,7 +122,7 @@ export function infoColumns() {
 			valueSetter: (params: any) => {
 				setterFunction(params)
 			},
-			valueFormatter: (params: any) => dateFormatter(params.value),
+			valueFormatter: (params: any) => dateOnlyFormatter(params.value),
 			minWidth: 65,
 			maxWidth: 72,
 			filter: 'agDateColumnFilter',
