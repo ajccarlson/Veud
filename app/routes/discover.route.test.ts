@@ -3,6 +3,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import * as discoveryServer from '#app/utils/discovery.server.ts'
+import * as naturalLanguageDiscoveryServer from '#app/utils/natural-language-discovery.server.ts'
 import { type NaturalLanguageDiscoveryPlan } from '#app/utils/natural-language-discovery.ts'
 import * as recommendationGraphServer from '#app/utils/recommendation-graph.server.ts'
 import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
@@ -27,6 +28,23 @@ vi.mock('#app/utils/recommendation-graph.server.ts', async importOriginal => {
 	}
 })
 
+vi.mock(
+	'#app/utils/natural-language-discovery.server.ts',
+	async importOriginal => {
+		const actual =
+			(await importOriginal()) as typeof naturalLanguageDiscoveryServer
+		return {
+			...actual,
+			createNaturalLanguageDiscoveryPlan: vi.fn(
+				actual.createNaturalLanguageDiscoveryPlan,
+			),
+			refineNaturalLanguageDiscoveryPlan: vi.fn(
+				actual.refineNaturalLanguageDiscoveryPlan,
+			),
+		}
+	},
+)
+
 afterEach(() => {
 	vi.clearAllMocks()
 	vi.unstubAllEnvs()
@@ -48,6 +66,48 @@ async function cookieFor(userId: string) {
 		data: { userId, expirationDate: getSessionExpirationDate() },
 	})
 	return getSessionCookieHeader(session)
+}
+
+function discoveryPlan(
+	overrides: Partial<NaturalLanguageDiscoveryPlan> = {},
+): NaturalLanguageDiscoveryPlan {
+	return {
+		kinds: ['anime'],
+		includeGenres: ['Psychological'],
+		excludeGenres: ['Romance'],
+		includeTerms: [],
+		excludeTerms: [],
+		yearFrom: null,
+		yearTo: null,
+		releaseStatus: null,
+		language: null,
+		toneTerms: [],
+		pace: null,
+		lengthUnit: 'episodes',
+		lengthFrom: null,
+		lengthTo: 23,
+		sort: 'popular',
+		explanation: 'Short psychological anime.',
+		unsupportedConstraints: [],
+		...overrides,
+	}
+}
+
+async function submitDiscoveryAction(
+	cookie: string,
+	form: Record<string, string>,
+) {
+	return action({
+		request: new Request(`${BASE_URL}/discover`, {
+			method: 'POST',
+			headers: {
+				cookie,
+				'content-type': 'application/x-www-form-urlencoded',
+			},
+			body: new URLSearchParams(form),
+		}),
+		params: {},
+	} as any)
 }
 
 test('anonymous discovery loads filters and falls back from personalized ranking', async () => {
@@ -341,30 +401,217 @@ test('memory-search GET remains local even when AI is configured', async () => {
 	)
 })
 
+test('discovery start failures return inline action data without creating a session', async () => {
+	const owner = await createUser('discovery_start_errors')
+	const cookie = await cookieFor(owner.id)
+	const invalid = await submitDiscoveryAction(cookie, {
+		intent: 'describe-start',
+		q: 'x',
+		kind: 'movie',
+	})
+	expect(invalid.init?.status).toBe(400)
+	expect(invalid.data).toEqual({
+		ok: false,
+		error: 'Invalid discovery assistant action',
+	})
+
+	vi.mocked(
+		naturalLanguageDiscoveryServer.createNaturalLanguageDiscoveryPlan,
+	).mockRejectedValueOnce(new Error('temporary gateway failure'))
+	const unavailable = await submitDiscoveryAction(cookie, {
+		intent: 'describe-start',
+		q: 'A tense mystery in a remote winter town',
+		kind: 'tv',
+	})
+	expect(unavailable.init?.status).toBe(503)
+	expect(unavailable.data).toEqual({
+		ok: false,
+		error: expect.stringMatching(/^Discovery assistant unavailable:/),
+	})
+	expect(
+		await prisma.aiDiscoverySession.count({ where: { ownerId: owner.id } }),
+	).toBe(0)
+
+	const plan = discoveryPlan({ kinds: ['tv'] })
+	vi.mocked(
+		naturalLanguageDiscoveryServer.createNaturalLanguageDiscoveryPlan,
+	).mockResolvedValueOnce(plan)
+	await expect(
+		submitDiscoveryAction(cookie, {
+			intent: 'describe-start',
+			q: 'A tense mystery in a remote winter town',
+			kind: 'tv',
+		}),
+	).rejects.toMatchObject({ status: 302 })
+	expect(
+		await prisma.aiDiscoverySession.findFirstOrThrow({
+			where: { ownerId: owner.id },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			phrases: JSON.stringify(['A tense mystery in a remote winter town']),
+			plans: JSON.stringify([plan]),
+		}),
+	)
+})
+
+test('stale and invalid discovery sessions return inline errors without mutation', async () => {
+	const [owner, other] = await Promise.all([
+		createUser('discovery_inline_owner'),
+		createUser('discovery_inline_other'),
+	])
+	const [ownerCookie, otherCookie] = await Promise.all([
+		cookieFor(owner.id),
+		cookieFor(other.id),
+	])
+	const plan = discoveryPlan()
+	const session = await prisma.aiDiscoverySession.create({
+		data: {
+			ownerId: owner.id,
+			phrases: JSON.stringify(['short psychological anime']),
+			plans: JSON.stringify([plan]),
+			expiresAt: new Date(Date.now() + 60_000),
+		},
+	})
+
+	const foreign = await submitDiscoveryAction(otherCookie, {
+		intent: 'describe-relax',
+		sessionId: session.id,
+	})
+	expect(foreign.init?.status).toBe(404)
+	expect(foreign.data).toEqual({
+		ok: false,
+		error: 'Discovery session expired',
+	})
+
+	await prisma.aiDiscoverySession.update({
+		where: { id: session.id },
+		data: { expiresAt: new Date(Date.now() - 1_000) },
+	})
+	const expired = await submitDiscoveryAction(ownerCookie, {
+		intent: 'describe-relax',
+		sessionId: session.id,
+	})
+	expect(expired.init?.status).toBe(404)
+	expect(expired.data).toEqual(foreign.data)
+
+	const invalid = await prisma.aiDiscoverySession.create({
+		data: {
+			ownerId: owner.id,
+			phrases: JSON.stringify(['short psychological anime']),
+			plans: JSON.stringify([plan]),
+			currentStep: 1,
+			expiresAt: new Date(Date.now() + 60_000),
+		},
+	})
+	const invalidResult = await submitDiscoveryAction(ownerCookie, {
+		intent: 'describe-relax',
+		sessionId: invalid.id,
+	})
+	expect(invalidResult.init?.status).toBe(409)
+	expect(invalidResult.data).toEqual({
+		ok: false,
+		error: 'Discovery session is invalid',
+	})
+	expect(
+		await prisma.aiDiscoverySession.findUniqueOrThrow({
+			where: { id: invalid.id },
+		}),
+	).toEqual(
+		expect.objectContaining({ currentStep: 1, plans: JSON.stringify([plan]) }),
+	)
+})
+
+test('non-relaxable and failed refinements preserve the current discovery plan', async () => {
+	const owner = await createUser('discovery_preserved_plan')
+	const cookie = await cookieFor(owner.id)
+	const plan = discoveryPlan({
+		includeGenres: [],
+		excludeGenres: [],
+		lengthUnit: null,
+		lengthTo: null,
+	})
+	const session = await prisma.aiDiscoverySession.create({
+		data: {
+			ownerId: owner.id,
+			phrases: JSON.stringify(['anime']),
+			plans: JSON.stringify([plan]),
+			expiresAt: new Date(Date.now() + 60_000),
+		},
+	})
+	const relax = await submitDiscoveryAction(cookie, {
+		intent: 'describe-relax',
+		sessionId: session.id,
+	})
+	expect(relax.init?.status).toBe(409)
+	expect(relax.data).toEqual({
+		ok: false,
+		error: 'That constraint cannot be relaxed safely.',
+	})
+
+	vi.mocked(
+		naturalLanguageDiscoveryServer.refineNaturalLanguageDiscoveryPlan,
+	).mockRejectedValueOnce(new Error('temporary gateway failure'))
+	const refine = await submitDiscoveryAction(cookie, {
+		intent: 'describe-refine',
+		sessionId: session.id,
+		refinement: 'Make it more atmospheric',
+	})
+	expect(refine.init?.status).toBe(503)
+	expect(refine.data).toEqual({
+		ok: false,
+		error:
+			'Refinement is temporarily unavailable. Your last valid filters and results are unchanged.',
+	})
+	expect(
+		await prisma.aiDiscoverySession.findUniqueOrThrow({
+			where: { id: session.id },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			currentStep: 0,
+			phrases: JSON.stringify(['anime']),
+			plans: JSON.stringify([plan]),
+		}),
+	)
+
+	const refinedPlan = discoveryPlan({
+		kinds: ['anime'],
+		includeGenres: ['Mystery'],
+		excludeGenres: [],
+		lengthUnit: null,
+		lengthTo: null,
+		explanation: 'Atmospheric mystery anime.',
+	})
+	vi.mocked(
+		naturalLanguageDiscoveryServer.refineNaturalLanguageDiscoveryPlan,
+	).mockResolvedValueOnce(refinedPlan)
+	await expect(
+		submitDiscoveryAction(cookie, {
+			intent: 'describe-refine',
+			sessionId: session.id,
+			refinement: 'Make it more atmospheric',
+		}),
+	).rejects.toMatchObject({ status: 302 })
+	expect(
+		await prisma.aiDiscoverySession.findUniqueOrThrow({
+			where: { id: session.id },
+		}),
+	).toEqual(
+		expect.objectContaining({
+			currentStep: 1,
+			phrases: JSON.stringify(['anime', 'Make it more atmospheric']),
+			plans: JSON.stringify([plan, refinedPlan]),
+		}),
+	)
+})
+
 test('discovery refinement is owner-scoped and undo restores the exact prior plan', async () => {
 	const [owner, other] = await Promise.all([
 		createUser('discovery_session_owner'),
 		createUser('discovery_session_other'),
 	])
-	const plan: NaturalLanguageDiscoveryPlan = {
-		kinds: ['anime'],
-		includeGenres: ['Psychological'],
-		excludeGenres: ['Romance'],
-		includeTerms: [],
-		excludeTerms: [],
-		yearFrom: null,
-		yearTo: null,
-		releaseStatus: null,
-		language: null,
-		toneTerms: [],
-		pace: null,
-		lengthUnit: 'episodes',
-		lengthFrom: null,
-		lengthTo: 23,
-		sort: 'popular',
-		explanation: 'Short psychological anime.',
-		unsupportedConstraints: [],
-	}
+	const plan = discoveryPlan()
 	const session = await prisma.aiDiscoverySession.create({
 		data: {
 			ownerId: owner.id,
@@ -382,19 +629,22 @@ test('discovery refinement is owner-scoped and undo restores the exact prior pla
 		chipValue: 'Romance',
 	})
 
-	await expect(
-		action({
-			request: new Request(`${BASE_URL}/discover`, {
-				method: 'POST',
-				headers: {
-					cookie: otherCookie,
-					'content-type': 'application/x-www-form-urlencoded',
-				},
-				body: form,
-			}),
-			params: {},
-		} as any),
-	).rejects.toMatchObject({ status: 404 })
+	const foreign = await action({
+		request: new Request(`${BASE_URL}/discover`, {
+			method: 'POST',
+			headers: {
+				cookie: otherCookie,
+				'content-type': 'application/x-www-form-urlencoded',
+			},
+			body: form,
+		}),
+		params: {},
+	} as any)
+	expect(foreign.init?.status).toBe(404)
+	expect(foreign.data).toEqual({
+		ok: false,
+		error: 'Discovery session expired',
+	})
 	expect(
 		await prisma.aiDiscoverySession.findUniqueOrThrow({
 			where: { id: session.id },
