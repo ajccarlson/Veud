@@ -35,6 +35,7 @@ import {
 	getDiscoveryResults,
 	getDiscoveryResultsForMediaIds,
 	getDiscoveryResultsForPlan,
+	isShortDiscoveryTextQuery,
 	parseDiscoveryQuery,
 	type DiscoveryQuery,
 	type DiscoveryResults,
@@ -456,6 +457,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		memorySearchSource: memorySearch?.source ?? null,
 		memorySearchFallbackReason: memorySearch?.fallbackReason ?? null,
 		memoryQueryTooShort,
+		shortCatalogQuery:
+			filters.mode === 'standard' && isShortDiscoveryTextQuery(filters.q),
 		aiSearchAvailable: isAiCapabilityConfigured('tip-of-tongue'),
 		naturalDiscoveryAvailable: Boolean(
 			viewerId && isAiCapabilityConfigured('natural-language-discovery'),
@@ -564,6 +567,7 @@ export default function DiscoverRoute() {
 	const memorySearchPending =
 		navigationMemorySearchPending || imageSearchPending
 	const aiSearchPending = memorySearchPending || describePending
+	const shortCatalogQuery = data.shortCatalogQuery
 	const fetchedMemoryItems =
 		data.filters.mode === 'memory' && imageFetcher.data?.ok
 			? imageFetcher.data.items
@@ -1273,7 +1277,9 @@ export default function DiscoverRoute() {
 							<p>
 								{data.memoryQueryTooShort
 									? 'Describe at least three characters of what you remember.'
-									: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
+									: shortCatalogQuery
+										? 'Short searches match exact titles. Use at least three characters for partial titles and descriptions.'
+										: 'Try a broader search, another media type, or clear the filters to explore the full catalog.'}
 							</p>
 						</VeudEmptyState>
 					)}
