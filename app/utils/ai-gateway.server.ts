@@ -6,6 +6,7 @@ const AI_UNAVAILABLE_COOLDOWN_MS = 10 * 60 * 1_000
 const AI_QUOTA_COOLDOWN_MS = 60 * 60 * 1_000
 const AI_TRANSIENT_FAILURE_WINDOW_MS = 60 * 1_000
 const AI_TRANSIENT_FAILURE_THRESHOLD = 3
+const SHARED_ANONYMOUS_WARNING_INTERVAL_MS = 10 * 60 * 1_000
 const MAX_RATE_LIMIT_KEYS = 5_000
 const MAX_TELEMETRY_EVENTS = 500
 const DAY_MS = 24 * 60 * 60 * 1_000
@@ -43,6 +44,8 @@ export type AiGatewayTelemetry = {
 		| 'unavailable'
 		| 'error'
 		| 'concurrency'
+		| 'shared-rate-limited'
+		| 'unsafe-input'
 		| null
 	status: number | null
 	inputTokens: number | null
@@ -52,6 +55,7 @@ export type AiGatewayTelemetry = {
 const requestHistory = new Map<string, number[]>()
 const blockedDailyBudgets = new Map<string, number>()
 const circuits = new Map<AiCapability, AiCircuit>()
+const sharedAnonymousWarnings = new Map<AiCapability, number>()
 const telemetry: AiGatewayTelemetry[] = []
 let activeRequests = 0
 
@@ -221,6 +225,20 @@ function warnAtBudgetThreshold(input: {
 		scope: input.scope,
 		count: input.count,
 		limit: input.limit,
+	})
+}
+
+function warnSharedAnonymousLimit(capability: AiCapability, now: number) {
+	const lastWarning = sharedAnonymousWarnings.get(capability)
+	if (
+		lastWarning !== undefined &&
+		now - lastWarning < SHARED_ANONYMOUS_WARNING_INTERVAL_MS
+	) {
+		return
+	}
+	sharedAnonymousWarnings.set(capability, now)
+	console.warn('Shared anonymous AI request bucket reached its limit', {
+		capability,
 	})
 }
 
@@ -410,6 +428,7 @@ export function resetAiGatewayStateForTests() {
 	requestHistory.clear()
 	blockedDailyBudgets.clear()
 	circuits.clear()
+	sharedAnonymousWarnings.clear()
 	telemetry.splice(0)
 	activeRequests = 0
 }
@@ -488,7 +507,23 @@ async function runControlledAiRequest<Output>(
 			'This AI capability is not configured.',
 		)
 	}
-	options.assertSafeInput(options.input)
+	try {
+		options.assertSafeInput(options.input)
+	} catch (error) {
+		await recordTelemetry(
+			{
+				...baseTelemetry,
+				durationMs: 0,
+				outcome: 'error',
+				fallbackReason: 'unsafe-input',
+				status: null,
+				inputTokens: null,
+				outputTokens: null,
+			},
+			persistOperations,
+		)
+		throw error
+	}
 	const circuit = options.circuit ??
 		circuits.get(options.capability) ?? { unavailableUntil: 0 }
 	circuits.set(options.capability, circuit)
@@ -519,6 +554,7 @@ async function runControlledAiRequest<Output>(
 		DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT,
 	)
 	const isAnonymous = options.rateLimitKey?.startsWith('anonymous:') === true
+	const isSharedAnonymous = options.rateLimitKey === 'anonymous:shared'
 	const aggregateBudgetBlocked =
 		isDailyBudgetBlocked({
 			capability: options.capability,
@@ -540,16 +576,24 @@ async function runControlledAiRequest<Output>(
 				windowMs: options.rateLimitWindowMs ?? 10 * 60 * 1_000,
 			}
 		: null
-	const withinLocalLimit =
-		!aggregateBudgetBlocked &&
-		(rateLimitInput ? consumeRequest(rateLimitInput) : true)
+	const withinLocalLimit = aggregateBudgetBlocked
+		? true
+		: rateLimitInput
+			? consumeRequest(rateLimitInput)
+			: true
 	if (aggregateBudgetBlocked || !withinLocalLimit) {
+		const sharedClientLimit = !aggregateBudgetBlocked && isSharedAnonymous
+		if (sharedClientLimit) {
+			warnSharedAnonymousLimit(options.capability, startedAtMs)
+		}
 		await recordTelemetry(
 			{
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'rate-limited',
-				fallbackReason: 'rate-limited',
+				fallbackReason: sharedClientLimit
+					? 'shared-rate-limited'
+					: 'rate-limited',
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -616,7 +660,16 @@ async function runControlledAiRequest<Output>(
 			!withinAnonymousDailyLimit ||
 			!withinGlobalDailyLimit
 		) {
-			throw new AiGatewayError('rate-limited', 'AI request limit reached.')
+			const sharedClientLimit = !withinDurableLimit && isSharedAnonymous
+			if (sharedClientLimit) {
+				warnSharedAnonymousLimit(options.capability, startedAtMs)
+			}
+			throw new AiGatewayError(
+				'rate-limited',
+				'AI request limit reached.',
+				null,
+				sharedClientLimit ? 'shared-anonymous-client-limit' : null,
+			)
 		}
 		const result = await options.execute({
 			apiKey,
@@ -679,7 +732,11 @@ async function runControlledAiRequest<Output>(
 						: gatewayError.reason === 'unavailable'
 							? 'unavailable'
 							: 'error',
-				fallbackReason: gatewayError.reason,
+				fallbackReason:
+					gatewayError.reason === 'rate-limited' &&
+					gatewayError.code === 'shared-anonymous-client-limit'
+						? 'shared-rate-limited'
+						: gatewayError.reason,
 				status: gatewayError.status,
 				inputTokens: null,
 				outputTokens: null,

@@ -123,6 +123,118 @@ test('enforces per-capability rate limits without sending rejected requests', as
 		reason: 'rate-limited',
 	})
 	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(getAiGatewayTelemetry().at(-1)).toEqual(
+		expect.objectContaining({ fallbackReason: 'rate-limited' }),
+	)
+})
+
+test('identifies and throttles shared anonymous bucket warnings', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+	const fetchImpl = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	const request = () =>
+		requestStructuredAi({
+			capability: 'tip-of-tongue',
+			promptVersion: 'shared-anonymous-limit-test-v1',
+			instructions: 'Return the value.',
+			input: { memory: 'private clue' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: 'anonymous:shared',
+			rateLimit: 1,
+			now: 1_000,
+			fetchImpl,
+		})
+
+	await expect(request()).resolves.toEqual({ value: 'ok' })
+	await expect(request()).rejects.toMatchObject({ reason: 'rate-limited' })
+	await expect(request()).rejects.toMatchObject({ reason: 'rate-limited' })
+	expect(fetchImpl).toHaveBeenCalledOnce()
+	expect(warning).toHaveBeenCalledOnce()
+	expect(warning).toHaveBeenCalledWith(
+		'Shared anonymous AI request bucket reached its limit',
+		{ capability: 'tip-of-tongue' },
+	)
+	expect(getAiGatewayTelemetry().slice(1)).toEqual([
+		expect.objectContaining({ fallbackReason: 'shared-rate-limited' }),
+		expect.objectContaining({ fallbackReason: 'shared-rate-limited' }),
+	])
+	expect(JSON.stringify(getAiGatewayTelemetry())).not.toContain('private clue')
+})
+
+test('records unsafe input rejections without retaining input or calling the provider', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	const fetchMock = vi.fn<typeof fetch>()
+	vi.stubGlobal('fetch', fetchMock)
+	const unsafeInput = { memberText: 'private contract failure' }
+	const unsafeError = new Error('Unsafe test payload')
+	const promptVersion = `unsafe-input-test-${randomUUID()}`
+	try {
+		await expect(
+			requestStructuredAi({
+				capability: 'review-assistance',
+				promptVersion,
+				instructions: 'Return the value.',
+				input: unsafeInput,
+				outputSchema: OutputSchema,
+				jsonSchemaName: 'test_output',
+				jsonSchema,
+				assertSafeInput(input) {
+					expect(input).toBe(unsafeInput)
+					throw unsafeError
+				},
+			}),
+		).rejects.toBe(unsafeError)
+		expect(fetchMock).not.toHaveBeenCalled()
+		expect(getAiGatewayTelemetry()).toEqual([
+			expect.objectContaining({
+				outcome: 'error',
+				fallbackReason: 'unsafe-input',
+				status: null,
+			}),
+		])
+		const events = await prisma.aiUsageEvent.findMany({
+			where: { promptVersion },
+		})
+		expect(events).toEqual([
+			expect.objectContaining({
+				outcome: 'error',
+				fallbackReason: 'unsafe-input',
+				status: null,
+			}),
+		])
+		expect(
+			JSON.stringify([...getAiGatewayTelemetry(), ...events]),
+		).not.toContain('private contract failure')
+	} finally {
+		await prisma.aiUsageEvent.deleteMany({ where: { promptVersion } })
+	}
+})
+
+test('records rejected multimodal capability contracts without network access', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	const fetchImpl = vi.fn<typeof fetch>()
+	await expect(
+		requestStructuredAi({
+			capability: 'review-assistance',
+			promptVersion: 'unsafe-multimodal-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'hello' },
+			apiInput: [{ type: 'input_image', image_url: 'private' }],
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			fetchImpl,
+		}),
+	).rejects.toMatchObject({ reason: 'error' })
+	expect(fetchImpl).not.toHaveBeenCalled()
+	expect(getAiGatewayTelemetry()).toEqual([
+		expect.objectContaining({ fallbackReason: 'unsafe-input' }),
+	])
 })
 
 test('applies gateway admission and telemetry to moderation classification', async () => {
@@ -334,6 +446,57 @@ test('coordinates production limits across process state and persists privacy-sa
 	await prisma.aiUsageEvent.deleteMany({
 		where: { promptVersion: 'durable-test-v1' },
 	})
+})
+
+test('identifies a durable shared anonymous rejection after process restart', async () => {
+	vi.stubEnv('OPENAI_API_KEY', 'test-key')
+	vi.stubEnv('NODE_ENV', 'production')
+	const now = Date.UTC(2044, 4, 6, 12)
+	const windowStartedAt = new Date(Math.floor(now / 86_400_000) * 86_400_000)
+	const fetchMock = vi.fn<typeof fetch>(async () => response({ value: 'ok' }))
+	vi.stubGlobal('fetch', fetchMock)
+	const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+	const request = () =>
+		requestStructuredAi({
+			capability: 'import-reconciliation',
+			promptVersion: 'durable-shared-limit-test-v1',
+			instructions: 'Return the value.',
+			input: { memberText: 'private import data' },
+			outputSchema: OutputSchema,
+			jsonSchemaName: 'test_output',
+			jsonSchema,
+			assertSafeInput() {},
+			rateLimitKey: 'anonymous:shared',
+			rateLimit: 1,
+			now,
+		})
+
+	try {
+		await expect(request()).resolves.toEqual({ value: 'ok' })
+		resetAiGatewayStateForTests()
+		await expect(request()).rejects.toMatchObject({ reason: 'rate-limited' })
+		expect(fetchMock).toHaveBeenCalledOnce()
+		expect(warning).toHaveBeenCalledOnce()
+		const events = await prisma.aiUsageEvent.findMany({
+			where: { promptVersion: 'durable-shared-limit-test-v1' },
+			orderBy: { createdAt: 'asc' },
+		})
+		expect(events.map(event => event.fallbackReason)).toEqual([
+			null,
+			'shared-rate-limited',
+		])
+		expect(JSON.stringify(events)).not.toContain('private import data')
+	} finally {
+		await prisma.aiUsageEvent.deleteMany({
+			where: { promptVersion: 'durable-shared-limit-test-v1' },
+		})
+		await prisma.aiRateLimitBucket.deleteMany({
+			where: {
+				capability: 'import-reconciliation',
+				windowStartedAt: { gte: windowStartedAt },
+			},
+		})
+	}
 })
 
 test('enforces the durable daily capability budget across client keys and process state', async () => {
