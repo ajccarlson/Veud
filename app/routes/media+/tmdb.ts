@@ -6,6 +6,7 @@
  * asked for it and a trap when they cannot ask for anything else — so the
  * caller must always have a value that lands here.
  */
+import { providerReleaseYear } from '#app/utils/media-detail.ts'
 export function tmdbSearchKind(type: string) {
 	const normalized = type.toLowerCase().replace(/[^0-9a-z]/gi, '')
 	if (normalized.includes('movie')) return 'movie'
@@ -141,14 +142,14 @@ export async function formatTMDBResults(
 				try {
 					releaseEnd = new Date(data.last_air_date)
 				} catch {}
-				year = releaseStart!.getFullYear()
+				year = providerReleaseYear(releaseStart)
 
 				length = data.number_of_episodes + ' eps'
 			} else {
 				title = data.title
 
 				releaseStart = releaseEnd = new Date(data.release_date)
-				year = releaseStart!.getFullYear()
+				year = providerReleaseYear(releaseStart)
 
 				const lengthRaw = data.runtime
 				const hours = Math.floor(lengthRaw / 60)
