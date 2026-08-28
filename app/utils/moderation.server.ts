@@ -176,6 +176,184 @@ export async function findModerationTarget(
 		: null
 }
 
+function moderationTargetKey(type: ModerationTargetType, id: string) {
+	return `${type}:${id}`
+}
+
+export async function findModerationTargets(
+	tx: Transaction,
+	references: Array<{ type: ModerationTargetType; id: string }>,
+) {
+	const idsByType = {
+		account: new Set<string>(),
+		review: new Set<string>(),
+		review_comment: new Set<string>(),
+		collection: new Set<string>(),
+		collection_comment: new Set<string>(),
+		profile_comment: new Set<string>(),
+	} satisfies Record<ModerationTargetType, Set<string>>
+	for (const reference of references) {
+		idsByType[reference.type].add(reference.id)
+	}
+
+	const [
+		accounts,
+		reviews,
+		reviewComments,
+		collections,
+		collectionComments,
+		profileComments,
+	] = await Promise.all([
+		idsByType.account.size
+			? tx.user.findMany({
+					where: { id: { in: [...idsByType.account] } },
+					select: {
+						id: true,
+						username: true,
+						bio: true,
+						accountStatus: true,
+					},
+				})
+			: [],
+		idsByType.review.size
+			? tx.review.findMany({
+					where: { id: { in: [...idsByType.review] } },
+					select: {
+						id: true,
+						body: true,
+						authorId: true,
+						moderationStatus: true,
+						media: { select: { id: true, title: true } },
+					},
+				})
+			: [],
+		idsByType.review_comment.size
+			? tx.reviewComment.findMany({
+					where: { id: { in: [...idsByType.review_comment] } },
+					select: {
+						id: true,
+						body: true,
+						authorId: true,
+						moderationStatus: true,
+						review: { select: { mediaId: true } },
+					},
+				})
+			: [],
+		idsByType.collection.size
+			? tx.mediaCollection.findMany({
+					where: { id: { in: [...idsByType.collection] } },
+					select: {
+						id: true,
+						title: true,
+						description: true,
+						ownerId: true,
+						moderationStatus: true,
+					},
+				})
+			: [],
+		idsByType.collection_comment.size
+			? tx.collectionComment.findMany({
+					where: { id: { in: [...idsByType.collection_comment] } },
+					select: {
+						id: true,
+						body: true,
+						authorId: true,
+						collectionId: true,
+						moderationStatus: true,
+					},
+				})
+			: [],
+		idsByType.profile_comment.size
+			? tx.profileComment.findMany({
+					where: { id: { in: [...idsByType.profile_comment] } },
+					select: {
+						id: true,
+						body: true,
+						authorId: true,
+						moderationStatus: true,
+						profile: { select: { username: true } },
+					},
+				})
+			: [],
+	])
+
+	const targets = new Map<string, ModerationTarget>()
+	const remember = (target: ModerationTarget) => {
+		targets.set(moderationTargetKey(target.type, target.id), target)
+	}
+	for (const user of accounts) {
+		remember({
+			id: user.id,
+			type: 'account',
+			subjectId: user.id,
+			label: user.username,
+			excerpt: excerpt(user.bio ?? `@${user.username}`),
+			status: user.accountStatus,
+			context: { username: user.username },
+		})
+	}
+	for (const review of reviews) {
+		remember({
+			id: review.id,
+			type: 'review',
+			subjectId: review.authorId,
+			label: `Review of ${review.media.title || 'untitled media'}`,
+			excerpt: excerpt(review.body),
+			status: review.moderationStatus,
+			context: { mediaId: review.media.id },
+		})
+	}
+	for (const comment of reviewComments) {
+		remember({
+			id: comment.id,
+			type: 'review_comment',
+			subjectId: comment.authorId,
+			label: 'Review comment',
+			excerpt: excerpt(comment.body),
+			status: comment.moderationStatus,
+			context: { mediaId: comment.review.mediaId },
+		})
+	}
+	for (const collection of collections) {
+		remember({
+			id: collection.id,
+			type: 'collection',
+			subjectId: collection.ownerId,
+			label: collection.title,
+			excerpt: excerpt(collection.description),
+			status: collection.moderationStatus,
+			context: { collectionId: collection.id },
+		})
+	}
+	for (const comment of collectionComments) {
+		remember({
+			id: comment.id,
+			type: 'collection_comment',
+			subjectId: comment.authorId,
+			label: 'Collection comment',
+			excerpt: excerpt(comment.body),
+			status: comment.moderationStatus,
+			context: { collectionId: comment.collectionId },
+		})
+	}
+	for (const comment of profileComments) {
+		remember({
+			id: comment.id,
+			type: 'profile_comment',
+			subjectId: comment.authorId,
+			label: `Profile comment on @${comment.profile.username}`,
+			excerpt: excerpt(comment.body),
+			status: comment.moderationStatus,
+			context: { username: comment.profile.username },
+		})
+	}
+
+	return references.map(
+		reference =>
+			targets.get(moderationTargetKey(reference.type, reference.id)) ?? null,
+	)
+}
+
 async function userRank(tx: Transaction, userId: string) {
 	const user = await tx.user.findUnique({
 		where: { id: userId },

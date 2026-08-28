@@ -1,15 +1,18 @@
 import { faker } from '@faker-js/faker'
-import { expect, test } from 'vitest'
+import { afterEach, expect, test, vi } from 'vitest'
 import { getSessionExpirationDate } from './auth.server.ts'
 import { prisma } from './db.server.ts'
 import {
 	createModerationReport,
 	createModerationAppeal,
+	findModerationTargets,
 	moderateAccount,
 	moderateContent,
 	setModeratorRole,
 	updateReportWorkflow,
 } from './moderation.server.ts'
+
+afterEach(() => vi.restoreAllMocks())
 
 async function createUser(prefix: string, role?: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -28,6 +31,53 @@ async function createUser(prefix: string, role?: string) {
 		},
 	})
 }
+
+test('moderation targets are batched by model while preserving reference order', async () => {
+	const [account, author] = await Promise.all([
+		createUser('batch_account'),
+		createUser('batch_author'),
+	])
+	const media = await prisma.media.create({
+		data: { kind: 'movie', title: 'Batched moderation target' },
+	})
+	const review = await prisma.review.create({
+		data: {
+			authorId: author.id,
+			mediaId: media.id,
+			body: 'Hydrated in one review query.',
+		},
+	})
+
+	const accountBatch = vi.spyOn(prisma.user, 'findMany')
+	const reviewBatch = vi.spyOn(prisma.review, 'findMany')
+	const commentBatch = vi.spyOn(prisma.reviewComment, 'findMany')
+	const targets = await findModerationTargets(prisma, [
+		{ type: 'review', id: review.id },
+		{ type: 'account', id: 'missing-account' },
+		{ type: 'account', id: account.id },
+		{ type: 'review', id: review.id },
+	])
+
+	expect(targets.map(target => target?.id ?? null)).toEqual([
+		review.id,
+		null,
+		account.id,
+		review.id,
+	])
+	expect(targets[0]).toEqual(
+		expect.objectContaining({
+			type: 'review',
+			label: 'Review of Batched moderation target',
+		}),
+	)
+	expect(targets[2]).toEqual(
+		expect.objectContaining({ type: 'account', label: account.username }),
+	)
+	expect(accountBatch).toHaveBeenCalledTimes(1)
+	expect(reviewBatch).toHaveBeenCalledTimes(1)
+	expect(commentBatch).not.toHaveBeenCalled()
+	vi.restoreAllMocks()
+})
 
 async function rejectionStatus(promise: Promise<unknown>) {
 	const error = await promise.catch(reason => reason)
