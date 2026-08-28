@@ -108,6 +108,10 @@ const DiscoveryActionSchema = z.discriminatedUnion('intent', [
 
 const DISCOVERY_SESSION_MS = 2 * 60 * 60 * 1_000
 
+function discoveryActionError(error: string, status: number) {
+	return json({ ok: false as const, error }, { status })
+}
+
 function parseSessionValues(value: string) {
 	const parsed: unknown = JSON.parse(value)
 	if (!Array.isArray(parsed)) throw new Error('Invalid discovery session')
@@ -179,19 +183,22 @@ export async function action({ request }: ActionFunctionArgs) {
 		Object.fromEntries(await request.formData()),
 	)
 	if (!parsed.success) {
-		throw new Response('Invalid discovery assistant action', { status: 400 })
+		return discoveryActionError('Invalid discovery assistant action', 400)
 	}
 	const now = new Date()
 	if (parsed.data.intent === 'describe-start') {
-		const plan = await createNaturalLanguageDiscoveryPlan(
-			{ memberRequest: parsed.data.q, kind: parsed.data.kind },
-			{ rateLimitKey: `viewer:${ownerId}` },
-		).catch(error => {
-			throw new Response(
-				`Discovery assistant unavailable: ${naturalDiscoveryFallbackReason(error)}`,
-				{ status: 503 },
+		let plan: NaturalLanguageDiscoveryPlan
+		try {
+			plan = await createNaturalLanguageDiscoveryPlan(
+				{ memberRequest: parsed.data.q, kind: parsed.data.kind },
+				{ rateLimitKey: `viewer:${ownerId}` },
 			)
-		})
+		} catch (error) {
+			return discoveryActionError(
+				`Discovery assistant unavailable: ${naturalDiscoveryFallbackReason(error)}`,
+				503,
+			)
+		}
 		const session = await prisma.aiDiscoverySession.create({
 			data: {
 				ownerId,
@@ -210,7 +217,7 @@ export async function action({ request }: ActionFunctionArgs) {
 			expiresAt: { gt: now },
 		},
 	})
-	if (!session) throw new Response('Discovery session expired', { status: 404 })
+	if (!session) return discoveryActionError('Discovery session expired', 404)
 	const phrases = z
 		.array(z.string().max(500))
 		.parse(parseSessionValues(session.phrases))
@@ -229,7 +236,7 @@ export async function action({ request }: ActionFunctionArgs) {
 	}
 	const currentPlan = plans[session.currentStep]
 	if (!currentPlan)
-		throw new Response('Discovery session is invalid', { status: 409 })
+		return discoveryActionError('Discovery session is invalid', 409)
 	if (
 		parsed.data.intent === 'describe-remove' ||
 		parsed.data.intent === 'describe-relax'
@@ -243,9 +250,10 @@ export async function action({ request }: ActionFunctionArgs) {
 					)
 				: relaxDiscoveryPlan(currentPlan)
 		if (JSON.stringify(nextPlan) === JSON.stringify(currentPlan)) {
-			throw new Response('That constraint cannot be relaxed safely.', {
-				status: 409,
-			})
+			return discoveryActionError(
+				'That constraint cannot be relaxed safely.',
+				409,
+			)
 		}
 		const phrase =
 			parsed.data.intent === 'describe-remove'
@@ -274,13 +282,9 @@ export async function action({ request }: ActionFunctionArgs) {
 		{ rateLimitKey: `viewer:${ownerId}` },
 	).catch(() => null as null | NaturalLanguageDiscoveryPlan)
 	if (!nextPlan) {
-		return json(
-			{
-				ok: false as const,
-				error:
-					'Refinement is temporarily unavailable. Your last valid filters and results are unchanged.',
-			},
-			{ status: 503 },
+		return discoveryActionError(
+			'Refinement is temporarily unavailable. Your last valid filters and results are unchanged.',
+			503,
 		)
 	}
 	const nextPhrases = [...phrases.slice(0, session.currentStep + 1), nextPhrase]
@@ -857,16 +861,17 @@ export default function DiscoverRoute() {
 				</p>
 			) : null}
 
+			{actionData && !actionData.ok ? (
+				<p
+					role="alert"
+					className="rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-sm text-red-100"
+				>
+					{actionData.error}
+				</p>
+			) : null}
+
 			{data.naturalPlan && data.discoverySession ? (
 				<section className="rounded-2xl border border-veud-border bg-veud-surface p-4 shadow-lg shadow-black/10 sm:p-5">
-					{actionData && !actionData.ok ? (
-						<p
-							role="alert"
-							className="mb-4 rounded-xl border border-red-400/45 bg-red-950/30 p-3 text-sm text-red-100"
-						>
-							{actionData.error}
-						</p>
-					) : null}
 					<div className="flex flex-wrap items-start justify-between gap-3">
 						<div>
 							<p className="text-xs font-black uppercase tracking-[0.18em] text-veud-mint">

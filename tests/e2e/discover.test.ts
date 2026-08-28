@@ -422,6 +422,54 @@ test('advanced search exposes mutually exclusive AI mode checkboxes', async ({
 	).toHaveAttribute('minlength', '2')
 })
 
+test('expired discovery actions stay on the page with an inline error', async ({
+	page,
+	login,
+}) => {
+	const viewer = await login()
+	const plan = {
+		kinds: ['anime'],
+		includeGenres: [],
+		excludeGenres: [],
+		includeTerms: [],
+		excludeTerms: [],
+		yearFrom: null,
+		yearTo: null,
+		releaseStatus: null,
+		language: null,
+		toneTerms: [],
+		pace: null,
+		lengthUnit: null,
+		lengthFrom: null,
+		lengthTo: null,
+		sort: 'popular',
+		explanation: 'Anime titles.',
+		unsupportedConstraints: [],
+	}
+	const session = await prisma.aiDiscoverySession.create({
+		data: {
+			ownerId: viewer.id,
+			phrases: JSON.stringify(['anime']),
+			plans: JSON.stringify([plan]),
+			expiresAt: new Date(Date.now() + 60_000),
+		},
+	})
+
+	await page.goto(`/discover?mode=describe&session=${session.id}`)
+	await expect(page.getByText('Veud understood')).toBeVisible()
+	await prisma.aiDiscoverySession.update({
+		where: { id: session.id },
+		data: { expiresAt: new Date(Date.now() - 1_000) },
+	})
+	await page.getByRole('button', { name: 'Remove kind anime' }).click()
+
+	await expect(page).toHaveURL(
+		new RegExp(`/discover\\?mode=describe&session=${session.id}$`),
+	)
+	await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible()
+	await expect(page.getByRole('alert')).toHaveText('Discovery session expired')
+})
+
 test('signed-out describe links do not turn the global catalog search into a POST', async ({
 	page,
 }) => {
