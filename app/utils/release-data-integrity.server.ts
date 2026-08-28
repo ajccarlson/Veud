@@ -1,4 +1,4 @@
-import { type Prisma, type PrismaClient } from '@prisma/client'
+import { Prisma, type PrismaClient } from '@prisma/client'
 
 export const E2E_MEDIA_TITLE_PREFIX = '[VEUD E2E]'
 
@@ -119,60 +119,85 @@ export const knownMediaFixtureTitles = [
 	'Third catalog result',
 ] as const
 
-const attachmentSelect = {
-	entries: true,
-	favorites: true,
-	trackingStates: true,
-	activityEvents: true,
-	reviews: true,
-	diaryEntries: true,
-	collectionItems: true,
-	releaseReminders: true,
-	recommendationFeedback: true,
-	libraryImportItems: true,
-} satisfies Prisma.MediaCountOutputTypeSelect
+/**
+ * Every relation on Media, and whether a row on it means a member is attached.
+ *
+ * This gates a delete. `removeConfirmedTestMediaFixtures` counts the member
+ * side and refuses to remove a fixture that anyone is using, so a relation
+ * missing from that count is a relation whose rows do not protect anything —
+ * and `consumptionEvents`, a member's watch and read log, was missing. A
+ * fixture nobody had listed or reviewed but had watched counted as unattached
+ * and went, taking the log with it on cascade.
+ *
+ * The catalog side is deliberately not counted: titles, identities, credits and
+ * feed rows exist on every fixture by construction, and hydration recreates
+ * them. Counting those would mean no fixture was ever removable.
+ *
+ * Classifying all of them, rather than listing the ones that matter, is what
+ * makes the next relation a decision instead of an omission.
+ */
+const mediaAttachmentOwnership = {
+	entries: 'member',
+	favorites: 'member',
+	trackingStates: 'member',
+	consumptionEvents: 'member',
+	activityEvents: 'member',
+	reviews: 'member',
+	diaryEntries: 'member',
+	collectionItems: 'member',
+	releaseReminders: 'member',
+	recommendationFeedback: 'member',
+	libraryImportItems: 'member',
 
-const fixtureAccountCountSelect = {
-	watchlists: true,
-	userFavorites: true,
-	roles: true,
-	sessions: true,
-	connections: true,
-	following: true,
-	followers: true,
-	commentsAuthored: true,
-	profileComments: true,
-	trackingStates: true,
-	activityEvents: true,
-	reviews: true,
-	diaryEntries: true,
-	reviewLikes: true,
-	reviewComments: true,
-	notificationsReceived: true,
-	notificationsSent: true,
-	mediaCollections: true,
-	collectionLikes: true,
-	collectionComments: true,
-	releaseReminders: true,
-	catalogQualityReviews: true,
-	catalogQualityEvents: true,
-	catalogMergesPrepared: true,
-	catalogMergesApplied: true,
-	catalogMergesReverted: true,
-	catalogMergeEvents: true,
-	recommendationFeedback: true,
-	notificationDigests: true,
-	moderationReportsSubmitted: true,
-	moderationReportsAssigned: true,
-	moderationReportsSubject: true,
-	moderationActionsPerformed: true,
-	moderationActionsSubject: true,
-	moderationAppealDrafts: true,
-	serviceIncidentEvents: true,
-	libraryImportBatches: true,
-	aiDiscoverySessions: true,
-	trackingCommandPreviews: true,
-} satisfies Prisma.UserCountOutputTypeSelect
+	externalIds: 'catalog',
+	titles: 'catalog',
+	outgoingRelations: 'catalog',
+	incomingRelations: 'catalog',
+	seasons: 'catalog',
+	installments: 'catalog',
+	releaseOccurrences: 'catalog',
+	watchAvailability: 'catalog',
+	credits: 'catalog',
+	creditSyncStates: 'catalog',
+	catalogFeedItems: 'catalog',
+	catalogMetricSnapshots: 'catalog',
+	primaryQualityIssues: 'catalog',
+	secondaryQualityIssues: 'catalog',
+} as const satisfies Record<string, 'member' | 'catalog'>
+
+/** Exported for the coverage test; the classification is the contract. */
+export const mediaAttachmentOwnershipForTest = mediaAttachmentOwnership
+
+export const mediaAttachmentRelations = Object.entries(mediaAttachmentOwnership)
+	.filter(([, ownership]) => ownership === 'member')
+	.map(([name]) => name)
+
+const attachmentSelect = Object.fromEntries(
+	mediaAttachmentRelations.map(name => [name, true]),
+) as Prisma.MediaCountOutputTypeSelect & Record<string, true>
+
+/**
+ * Everything attached to an account, derived rather than listed.
+ *
+ * The hand-written version carried 39 of the 44 to-many relations on User and
+ * had drifted: `consumptionEvents`, `consents`, `twoFactorRecoveryCodes` and
+ * both safety-control relations were absent, so an account holding only those
+ * counted as inert and could be removed.
+ *
+ * Unlike Media there is no split to make here. Every relation on an account is
+ * that account's, so the guard counts all of them and a new one is covered the
+ * day it is added. Erring towards "attached" is the safe direction for
+ * something that decides whether to delete.
+ */
+const fixtureAccountCountSelect = Object.fromEntries(
+	Prisma.dmmf.datamodel.models
+		.find(model => model.name === 'User')!
+		.fields.filter(field => field.kind === 'object' && field.isList)
+		.map(field => [field.name, true]),
+) as Prisma.UserCountOutputTypeSelect & Record<string, true>
+
+/** Exported for the coverage test. */
+export const fixtureAccountCountSelectForTest = fixtureAccountCountSelect
 
 export type MemberOwnedMediaAttachments = {
 	[K in keyof typeof attachmentSelect]: number
