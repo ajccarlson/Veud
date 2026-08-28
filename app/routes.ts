@@ -55,6 +55,12 @@ export default [
 	}),
 	appRoute('routes/_seo+/robots[.]txt.ts', { path: 'robots.txt' }),
 	appRoute('routes/_seo+/sitemap[.]xml.ts', { path: 'sitemap.xml' }),
+	appRoute('routes/_seo+/sitemap.pages[.]xml.ts', {
+		path: 'sitemap/pages.xml',
+	}),
+	appRoute('routes/_seo+/sitemap.media.$page[.]xml.ts', {
+		path: 'sitemap/media/:page.xml',
+	}),
 	appRoute('routes/admin+/cache.tsx', { path: 'admin/cache' }),
 	appRoute('routes/admin+/catalog.tsx', { path: 'admin/catalog' }),
 	appRoute('routes/admin+/operations.tsx', { path: 'admin/operations' }),
