@@ -181,6 +181,16 @@ export const publicSurfaceLoadBudgets = Object.freeze({
 		warmSqlQueries: 0,
 		payloadBytes: 48 * 1024,
 	}),
+	searchSuggestions: Object.freeze({
+		// Anonymous search performs one bounded title query and one bounded person
+		// query. It is intentionally uncached in process: the HTTP response cache is
+		// keyed by query string, so both measurements must remain bounded themselves.
+		coldQueries: 2,
+		warmQueries: 2,
+		coldSqlQueries: 2,
+		warmSqlQueries: 2,
+		payloadBytes: 32 * 1024,
+	}),
 })
 
 // Two features have each raised these by exactly one, and each is one query.

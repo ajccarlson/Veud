@@ -6,9 +6,10 @@ import { getSearchSuggestions } from '#app/utils/search-suggestions.server.ts'
  * Suggestions for the site search bar.
  *
  * The search bar itself is public: signing in changes nothing about which
- * catalog titles exist. What it can change is what they are *called* — a member
- * who asked for English anime titles must be offered the same names the rest of
- * the site shows them, or the row they click is not the row they were shown.
+ * catalog titles or credited people exist. What it can change is what titles
+ * are *called* — a member who asked for English anime titles must be offered
+ * the same names the rest of the site shows them, or the row they click is not
+ * the row they were shown.
  */
 export async function loader({ request }: LoaderFunctionArgs) {
 	const url = new URL(request.url)

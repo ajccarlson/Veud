@@ -252,9 +252,17 @@ test('enforces cold, warm, and payload budgets for public surfaces', () => {
 			warmSqlQueries: 0,
 			payloadBytes: 12_000,
 		},
+		searchSuggestions: {
+			coldQueries: 2,
+			warmQueries: 2,
+			coldSqlQueries: 2,
+			warmSqlQueries: 2,
+			payloadBytes: 8_000,
+		},
 	}
 
 	expect(publicSurfaceLoadBudgets.discoveryFacets.payloadBytes).toBe(48 * 1024)
+	expect(publicSurfaceLoadBudgets.searchSuggestions.coldQueries).toBe(2)
 	expect(() => assertPublicSurfaceLoadBudgets(report)).not.toThrow()
 
 	report.anonymousHome.coldQueries = 13
