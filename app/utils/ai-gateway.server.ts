@@ -12,6 +12,7 @@ const MAX_TELEMETRY_EVENTS = 500
 const DAY_MS = 24 * 60 * 60 * 1_000
 const DEFAULT_DAILY_CAPABILITY_LIMIT = 5_000
 const DEFAULT_ANONYMOUS_DAILY_CAPABILITY_LIMIT = 250
+export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna'
 
 export const aiCapabilities = [
 	'tip-of-tongue',
@@ -27,6 +28,7 @@ export const aiCapabilities = [
 export type AiCapability = (typeof aiCapabilities)[number]
 export type AiCircuit = {
 	unavailableUntil: number
+	unavailableReason?: 'model-unavailable'
 	transientFailures?: number
 	transientWindowStartedAt?: number
 }
@@ -46,6 +48,7 @@ export type AiGatewayTelemetry = {
 		| 'concurrency'
 		| 'shared-rate-limited'
 		| 'unsafe-input'
+		| 'model-unavailable'
 		| null
 	status: number | null
 	inputTokens: number | null
@@ -320,6 +323,10 @@ function opensCircuitImmediately(status: number) {
 	return status === 401 || status === 403 || status === 429
 }
 
+function isModelUnavailableCode(code: string | null) {
+	return code === 'model_not_found'
+}
+
 function isTransientTransportError(error: unknown) {
 	const name =
 		typeof error === 'object' && error !== null && 'name' in error
@@ -336,6 +343,11 @@ function isTransientTransportError(error: unknown) {
 function clearTransientFailures(circuit: AiCircuit) {
 	delete circuit.transientFailures
 	delete circuit.transientWindowStartedAt
+}
+
+function clearCircuitAvailability(circuit: AiCircuit) {
+	circuit.unavailableUntil = 0
+	delete circuit.unavailableReason
 }
 
 function recordTransientFailure(circuit: AiCircuit, now: number) {
@@ -356,6 +368,7 @@ function recordTransientFailure(circuit: AiCircuit, now: number) {
 		circuit.unavailableUntil,
 		now + AI_UNAVAILABLE_COOLDOWN_MS,
 	)
+	delete circuit.unavailableReason
 	clearTransientFailures(circuit)
 }
 
@@ -365,15 +378,23 @@ function cooldownMs(code: string | null) {
 		: AI_UNAVAILABLE_COOLDOWN_MS
 }
 
-export function modelFor(capability: AiCapability, fallback: string) {
-	const capabilityKey = `OPENAI_${capability
-		.replaceAll('-', '_')
-		.toUpperCase()}_MODEL`
+const capabilityModelEnvironmentKeys = {
+	'tip-of-tongue': 'OPENAI_TIP_OF_TONGUE_MODEL',
+	'natural-language-discovery': 'OPENAI_NATURAL_LANGUAGE_DISCOVERY_MODEL',
+	'discovery-refinement': 'OPENAI_DISCOVERY_REFINEMENT_MODEL',
+	'tracking-command': 'OPENAI_TRACKING_COMMAND_MODEL',
+	'image-tip-of-tongue': 'OPENAI_IMAGE_TIP_OF_TONGUE_MODEL',
+	'import-reconciliation': 'OPENAI_IMPORT_RECONCILIATION_MODEL',
+	'review-assistance': 'OPENAI_REVIEW_ASSISTANCE_MODEL',
+	'moderation-triage': 'OPENAI_MODERATION_TRIAGE_MODEL',
+} as const satisfies Record<AiCapability, string>
+
+export function modelFor(
+	capability: AiCapability,
+	fallback = DEFAULT_OPENAI_MODEL,
+) {
 	return (
-		process.env[capabilityKey]?.trim() ||
-		(capability === 'tip-of-tongue'
-			? process.env.OPENAI_TIP_OF_TONGUE_MODEL?.trim()
-			: '') ||
+		process.env[capabilityModelEnvironmentKeys[capability]]?.trim() ||
 		process.env.OPENAI_DEFAULT_MODEL?.trim() ||
 		fallback
 	)
@@ -463,7 +484,10 @@ function providerRequestError(status: number, payload: unknown) {
 	const code = parsedError.success
 		? (parsedError.data.error?.code ?? null)
 		: null
-	const unavailable = opensCircuitImmediately(status) || status >= 500
+	const unavailable =
+		opensCircuitImmediately(status) ||
+		status >= 500 ||
+		isModelUnavailableCode(code)
 	return new AiGatewayError(
 		unavailable ? 'unavailable' : 'error',
 		unavailable
@@ -533,7 +557,7 @@ async function runControlledAiRequest<Output>(
 				...baseTelemetry,
 				durationMs: 0,
 				outcome: 'unavailable',
-				fallbackReason: 'unavailable',
+				fallbackReason: circuit.unavailableReason ?? 'unavailable',
 				status: null,
 				inputTokens: null,
 				outputTokens: null,
@@ -545,6 +569,7 @@ async function runControlledAiRequest<Output>(
 			'AI capability is temporarily unavailable.',
 		)
 	}
+	if (circuit.unavailableUntil) clearCircuitAvailability(circuit)
 	const dailyLimit = configuredLimit(
 		'VEUD_AI_DAILY_LIMIT_PER_CAPABILITY',
 		DEFAULT_DAILY_CAPABILITY_LIMIT,
@@ -676,6 +701,7 @@ async function runControlledAiRequest<Output>(
 			signal: AbortSignal.timeout(options.timeoutMs),
 		})
 		status = result.status
+		clearCircuitAvailability(circuit)
 		clearTransientFailures(circuit)
 		await recordTelemetry(
 			{
@@ -705,7 +731,14 @@ async function runControlledAiRequest<Output>(
 							error instanceof Error ? error.message : 'AI request failed.',
 							status,
 						)
-		if (
+		if (isModelUnavailableCode(gatewayError.code)) {
+			circuit.unavailableUntil = Math.max(
+				circuit.unavailableUntil,
+				startedAtMs + AI_UNAVAILABLE_COOLDOWN_MS,
+			)
+			circuit.unavailableReason = 'model-unavailable'
+			clearTransientFailures(circuit)
+		} else if (
 			gatewayError.status !== null &&
 			opensCircuitImmediately(gatewayError.status)
 		) {
@@ -713,6 +746,7 @@ async function runControlledAiRequest<Output>(
 				circuit.unavailableUntil,
 				startedAtMs + cooldownMs(gatewayError.code),
 			)
+			delete circuit.unavailableReason
 			clearTransientFailures(circuit)
 		} else if (
 			transportFailure ||
@@ -732,9 +766,10 @@ async function runControlledAiRequest<Output>(
 						: gatewayError.reason === 'unavailable'
 							? 'unavailable'
 							: 'error',
-				fallbackReason:
-					gatewayError.reason === 'rate-limited' &&
-					gatewayError.code === 'shared-anonymous-client-limit'
+				fallbackReason: isModelUnavailableCode(gatewayError.code)
+					? 'model-unavailable'
+					: gatewayError.reason === 'rate-limited' &&
+						  gatewayError.code === 'shared-anonymous-client-limit'
 						? 'shared-rate-limited'
 						: gatewayError.reason,
 				status: gatewayError.status,
@@ -850,8 +885,7 @@ export async function requestStructuredAi<Output>(options: {
 	circuit?: AiCircuit
 }) {
 	const model =
-		options.model?.trim() ||
-		modelFor(options.capability, options.fallbackModel ?? 'gpt-5.6-luna')
+		options.model?.trim() || modelFor(options.capability, options.fallbackModel)
 	const fetchImpl = options.fetchImpl ?? fetch
 	return await runControlledAiRequest({
 		capability: options.capability,

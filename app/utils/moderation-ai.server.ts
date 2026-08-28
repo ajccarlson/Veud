@@ -244,7 +244,7 @@ export async function assessModerationReport(
 				recommendedQueue: classifier.critical
 					? 'safety'
 					: triage.recommendedQueue,
-				model: modelFor('moderation-triage', 'gpt-5.6-luna'),
+				model: modelFor('moderation-triage'),
 				promptVersion: PROMPT_VERSION,
 				policyVersion: POLICY_VERSION,
 			},
