@@ -130,10 +130,25 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 	expect(
 		publicLanding.data.watchListData.map(item => item.watchlist.id),
 	).toEqual([publicList.id])
+	expect(publicLanding.data.watchListData[0]).toMatchObject({
+		entryCount: 1,
+		listEntries: [expect.objectContaining({ title: 'Public title' })],
+	})
 	const ownerLanding = await listTypeLoader(landingArgs(ownerCookie))
 	expect(
 		ownerLanding.data.watchListData.map(item => item.watchlist.id).sort(),
 	).toEqual([privateList.id, publicList.id].sort())
+	expect(
+		ownerLanding.data.watchListData.map(item => [
+			item.watchlist.id,
+			item.entryCount,
+		]),
+	).toEqual(
+		expect.arrayContaining([
+			[publicList.id, 1],
+			[privateList.id, 1],
+		]),
+	)
 
 	const entryArgs = (watchlistId: string, cookie?: string) =>
 		({
@@ -153,6 +168,24 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 			entry => entry.title,
 		),
 	).toEqual(['Private title'])
+
+	await prisma.entry.createMany({
+		data: Array.from({ length: 6 }, (_, index) => ({
+			watchlistId: publicList.id,
+			position: index + 2,
+			title: `Additional public title ${index + 1}`,
+			type: 'TV Series',
+		})),
+	})
+	const boundedLanding = await listTypeLoader(landingArgs())
+	const boundedPublicList = boundedLanding.data.watchListData.find(
+		item => item.watchlist.id === publicList.id,
+	)
+	expect(boundedPublicList).toMatchObject({ entryCount: 7 })
+	expect(boundedPublicList?.listEntries).toHaveLength(5)
+	expect(boundedPublicList?.listEntries.map(entry => entry.position)).toEqual([
+		1, 2, 3, 4, 5,
+	])
 })
 
 test('watchlist detail loader returns browser-safe canonical scores', async () => {

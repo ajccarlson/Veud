@@ -185,9 +185,7 @@ export function GetWatchlistSettings(entryData: any, listParams: any) {
 					<h2 className="list-landing-nav-header">
 						{entryData.watchlist.header}
 					</h2>
-					<div className="list-landing-nav-length">
-						{entryData.listEntries.length}
-					</div>
+					<div className="list-landing-nav-length">{entryData.entryCount}</div>
 				</div>
 				<div className="list-landing-nav-bottom-container">
 					<div className="list-landing-nav-bottom">
