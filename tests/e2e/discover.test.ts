@@ -372,6 +372,72 @@ test('global advanced search returns five grounded local matches without provide
 	}
 })
 
+test('direct text Tip of My Tongue search survives URL navigation and reload', async ({
+	page,
+}) => {
+	const suffix = Math.random().toString(36).slice(2, 10)
+	const prompt = `A copper ${suffix} compass beneath a frozen observatory`
+	const matches = await Promise.all(
+		Array.from({ length: 5 }, (_, index) =>
+			prisma.media.create({
+				data: {
+					kind: 'movie',
+					title: `Copper Observatory ${suffix} ${index + 1}`,
+					description: `A copper ${suffix} compass is hidden beneath a frozen observatory.`,
+					catalogPopularity: 500 - index,
+				},
+			}),
+		),
+	)
+
+	try {
+		await page.goto('/discover?mode=memory')
+		await page.getByLabel('What do you remember?').fill(prompt)
+		await page.locator('#discover-kind').selectOption('movie')
+		await page.getByRole('button', { name: 'Find matches' }).click()
+
+		await expect(
+			page.getByRole('heading', { name: 'Closest matches' }),
+		).toBeVisible()
+		const resultUrl = new URL(page.url())
+		expect(resultUrl.pathname).toBe('/discover')
+		expect(resultUrl.searchParams.get('mode')).toBe('memory')
+		expect(resultUrl.searchParams.get('q')).toBe(prompt)
+		expect(resultUrl.searchParams.get('kind')).toBe('movie')
+		expect([...resultUrl.searchParams.keys()].sort()).toEqual([
+			'kind',
+			'mode',
+			'q',
+		])
+		for (const match of matches) {
+			await expect(page.getByText(match.title!, { exact: true })).toBeVisible()
+		}
+
+		await page.reload()
+		await expect(
+			page.getByText(matches[0]!.title!, { exact: true }),
+		).toBeVisible()
+		await page.goBack()
+		expect(new URL(page.url()).searchParams.get('q')).toBeNull()
+		await page.goForward()
+		await expect(
+			page.getByText(matches[0]!.title!, { exact: true }),
+		).toBeVisible()
+		await page.getByRole('link', { name: 'Clear' }).click()
+		await expect(page).toHaveURL(/\/discover\?mode=memory$/)
+		const clearedUrl = new URL(page.url())
+		expect(clearedUrl.searchParams.get('mode')).toBe('memory')
+		expect(clearedUrl.searchParams.get('q')).toBeNull()
+		await expect(
+			page.getByRole('heading', { name: 'Closest matches' }),
+		).toHaveCount(0)
+	} finally {
+		await prisma.media
+			.deleteMany({ where: { id: { in: matches.map(match => match.id) } } })
+			.catch(() => {})
+	}
+})
+
 test('Tip of My Tongue keeps text and image clues in one prompt', async ({
 	page,
 	login,

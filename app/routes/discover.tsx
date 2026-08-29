@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
 	data as json,
 	Form,
@@ -11,6 +12,7 @@ import {
 	useLoaderData,
 	useLocation,
 	useNavigation,
+	useSubmit,
 } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { z } from 'zod'
@@ -556,7 +558,9 @@ export default function DiscoverRoute() {
 	const actionData = useActionData<typeof action>()
 	const location = useLocation()
 	const navigation = useNavigation()
+	const submit = useSubmit()
 	const imageFetcher = useFetcher<typeof imageTipOfTongueAction>()
+	const [hasMemoryImage, setHasMemoryImage] = useState(false)
 	const pendingSearchParams = navigation.location
 		? new URLSearchParams(navigation.location.search)
 		: null
@@ -635,15 +639,27 @@ export default function DiscoverRoute() {
 				className={`discover-search-panel ${data.filters.mode !== 'standard' ? 'discover-search-panel--memory' : ''}`}
 				onSubmit={event => {
 					if (data.filters.mode !== 'memory') return
+					const formData = new FormData(event.currentTarget)
+					const image = formData.get('image')
+					if (!(image instanceof File) || image.size === 0) {
+						event.preventDefault()
+						formData.delete('image')
+						imageFetcher.reset()
+						setHasMemoryImage(false)
+						submit(formData, { method: 'get' })
+						return
+					}
 					event.preventDefault()
-					imageFetcher.submit(new FormData(event.currentTarget), {
+					imageFetcher.submit(formData, {
 						method: 'post',
 						action: '/resources/image-tip-of-tongue',
 						encType: 'multipart/form-data',
 					})
 				}}
 			>
-				{data.filters.mode === 'memory' ? <HoneypotInputs /> : null}
+				{data.filters.mode === 'memory' && hasMemoryImage ? (
+					<HoneypotInputs />
+				) : null}
 				{data.filters.mode === 'memory' ? (
 					<input type="hidden" name="mode" value="memory" />
 				) : null}
@@ -684,6 +700,11 @@ export default function DiscoverRoute() {
 										type="file"
 										accept="image/jpeg,image/png,image/webp"
 										aria-label="Add a screenshot or cover"
+										onChange={event =>
+											setHasMemoryImage(
+												Boolean(event.currentTarget.files?.[0]?.size),
+											)
+										}
 									/>
 								</label>
 							) : null}
@@ -829,12 +850,16 @@ export default function DiscoverRoute() {
 						)}
 					</Button>
 					{data.filters.mode === 'memory' ? (
-						<Button
-							type="reset"
-							variant="ghost"
-							onClick={() => imageFetcher.reset()}
-						>
-							Clear
+						<Button asChild type="button" variant="ghost">
+							<Link
+								to="/discover?mode=memory"
+								onClick={() => {
+									setHasMemoryImage(false)
+									imageFetcher.reset()
+								}}
+							>
+								Clear
+							</Link>
 						</Button>
 					) : (
 						<Button asChild type="button" variant="ghost">
