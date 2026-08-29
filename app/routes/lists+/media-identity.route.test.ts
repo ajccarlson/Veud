@@ -928,6 +928,18 @@ test('cell edits synchronize score, dates, and episode progress', async () => {
 	expect(state.progress).toEqual([
 		expect.objectContaining({ unit: 'episode', current: 3, total: 12 }),
 	])
+
+	await updateEntryCellCommand(owner.ownerId, {
+		entryId: added.id,
+		columnId: 'personal',
+		value: null,
+	})
+	expect(
+		await prisma.trackingState.findUniqueOrThrow({
+			where: { id: added.trackingStateId as string },
+			select: { score: true },
+		}),
+	).toEqual({ score: null })
 })
 
 test('moving a row updates canonical status and deletion cleans up orphan state', async () => {
