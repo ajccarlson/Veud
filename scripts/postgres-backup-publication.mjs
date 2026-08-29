@@ -193,7 +193,7 @@ export function attestPostgresBackupFile(
 		return attestation
 	} catch (error) {
 		if (error instanceof Error && error.message.startsWith(label)) throw error
-		throw new Error(`${label} could not be safely attested`)
+		throw new Error(`${label} could not be safely attested`, { cause: error })
 	} finally {
 		if (descriptor !== undefined) fs.closeSync(descriptor)
 	}
@@ -295,7 +295,9 @@ export function copyPostgresBackupToPrivatePath(
 		fs.fsyncSync(destinationDescriptor)
 	} catch (error) {
 		if (error instanceof Error && error.message.startsWith(label)) throw error
-		throw new Error(`${label} could not be copied into private staging`)
+		throw new Error(`${label} could not be copied into private staging`, {
+			cause: error,
+		})
 	} finally {
 		if (destinationDescriptor !== undefined) fs.closeSync(destinationDescriptor)
 		if (sourceDescriptor !== undefined) fs.closeSync(sourceDescriptor)
@@ -507,7 +509,9 @@ export function publishPostgresBackupFile(source, destination, expected) {
 		fs.linkSync(source, destination)
 	} catch (error) {
 		if (error?.code === 'EEXIST') {
-			throw new Error('PostgreSQL backup publication target already exists')
+			throw new Error('PostgreSQL backup publication target already exists', {
+				cause: error,
+			})
 		}
 		throw error
 	}

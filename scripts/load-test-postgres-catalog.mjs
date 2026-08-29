@@ -242,6 +242,7 @@ function readJson(filename, label) {
 	} catch (error) {
 		throw new Error(
 			`${label} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error },
 		)
 	}
 }

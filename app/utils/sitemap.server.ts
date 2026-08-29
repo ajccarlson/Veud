@@ -169,7 +169,7 @@ export function publicPageSitemapPaths(
 		if (path === null) continue
 
 		let parent = route.parentId ? routes[route.parentId] : undefined
-		let parentId = route.parentId
+		let parentId: string | undefined
 		while (parent) {
 			const parentPath = parent.path ? parent.path.replace(/\/$/, '') : ''
 			path = `${parentPath}/${path}`

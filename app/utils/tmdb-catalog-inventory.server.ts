@@ -302,6 +302,7 @@ export async function importTmdbInventory(
 			} catch (error) {
 				throw new Error(
 					`Invalid TMDB ${options.kind} export line ${physicalLine}: ${error instanceof Error ? error.message : String(error)}`,
+					{ cause: error },
 				)
 			}
 			recordsSeen++
@@ -575,6 +576,7 @@ export async function importTmdbInventory(
 				recordsFailed++
 				throw new Error(
 					`Invalid TMDB ${options.kind} export line ${physicalLine}: ${error instanceof Error ? error.message : String(error)}`,
+					{ cause: error },
 				)
 			}
 			recordsSeen++
