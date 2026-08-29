@@ -1,26 +1,9 @@
-import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	assertWatchlistCreationAllowed,
 	WatchlistLimitError,
 } from '#app/utils/watchlist-limits.ts'
-
-const wrapped = <T extends z.ZodTypeAny>(value: T) =>
-	z.object({ value, type: z.string() })
-
-const CreateWatchlistSchema = z.object({
-	position: wrapped(z.number().int().positive().max(10_000)),
-	name: wrapped(z.string().trim().min(1).max(100)),
-	header: wrapped(z.string().trim().min(1).max(100)),
-	typeId: wrapped(z.string().trim().min(1).max(100)),
-	displayedColumns: wrapped(z.string().min(1).max(5_000)),
-	description: wrapped(z.string().max(5_000)).optional(),
-	// Older clients include these fields. The server deliberately ignores them.
-	createdAt: wrapped(z.unknown()).optional(),
-	updatedAt: wrapped(z.unknown()).optional(),
-})
 
 const CreateWatchlistCommandSchema = z.object({
 	position: z.number().int().positive().max(10_000).optional(),
@@ -119,30 +102,4 @@ export async function createWatchlistCommand(
 		}
 		throw error
 	}
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-
-	let rawList: unknown
-	try {
-		rawList = JSON.parse(searchParams.get('list') ?? '')
-	} catch {
-		throw new Response('Invalid list payload', { status: 400 })
-	}
-	const parsed = CreateWatchlistSchema.safeParse(rawList)
-	if (!parsed.success) {
-		throw new Response('Invalid list payload', { status: 400 })
-	}
-	const input = parsed.data
-	return createWatchlistCommand(ownerId, {
-		position: input.position.value,
-		name: input.name.value,
-		header: input.header.value,
-		typeId: input.typeId.value,
-		displayedColumns: input.displayedColumns.value,
-		description: input.description?.value ?? '',
-		isPublic: true,
-	})
 }

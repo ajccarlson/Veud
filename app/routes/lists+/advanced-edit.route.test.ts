@@ -1,9 +1,7 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/lists+/.fetch+/advanced-edit.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { advancedEditEntryCommand } from '#app/utils/lists/commands/advanced-edit-entry.server.ts'
 
 async function createOwnerWithEntry() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
@@ -66,50 +64,30 @@ async function createOwnerWithEntry() {
 			}),
 		},
 	})
-	const session = await prisma.session.create({
-		data: { userId: owner.id, expirationDate: getSessionExpirationDate() },
-	})
-	const cookie = await getSessionCookieHeader(session)
 	return {
+		owner,
 		entry,
 		watchlist,
 		destination,
 		trackingState,
-		request: new Request(BASE_URL, {
-			method: 'POST',
-			headers: { cookie, 'Content-Type': 'application/json' },
-		}),
 	}
-}
-
-function request(
-	request: Request,
-	entryId: string,
-	fields: Record<string, unknown>,
-) {
-	return new Request(request, {
-		body: JSON.stringify({ entryId, fields }),
-	})
 }
 
 test('owner can atomically edit hidden fields and normalized tracking state', async () => {
 	const setup = await createOwnerWithEntry()
 	const beforeUpdatedAt = setup.watchlist.updatedAt
 
-	await action({
-		request: request(setup.request, setup.entry.id, {
-			story: 9,
-			personal: 8.5,
-			priority: 'High',
-			notes: 'Watch the director commentary.',
-			started: '2026-07-01',
-			finished: '2026-07-18',
-			destinationWatchlistId: setup.destination.id,
-			repeatCount: 2,
-			progress: { episode: 4 },
-		}),
-		params: {},
-	} as any)
+	await advancedEditEntryCommand(setup.owner.id, setup.entry.id, {
+		story: 9,
+		personal: 8.5,
+		priority: 'High',
+		notes: 'Watch the director commentary.',
+		started: '2026-07-01',
+		finished: '2026-07-18',
+		destinationWatchlistId: setup.destination.id,
+		repeatCount: 2,
+		progress: { episode: 4 },
+	})
 
 	const entry = await prisma.entry.findUniqueOrThrow({
 		where: { id: setup.entry.id },
@@ -136,9 +114,7 @@ test('owner can atomically edit hidden fields and normalized tracking state', as
 	})
 	expect(Number(tracking.score)).toBe(8.5)
 	expect(tracking.startedAt?.toISOString()).toBe('2026-07-01T00:00:00.000Z')
-	expect(tracking.completedAt?.toISOString()).toBe(
-		'2026-07-18T00:00:00.000Z',
-	)
+	expect(tracking.completedAt?.toISOString()).toBe('2026-07-18T00:00:00.000Z')
 	expect(tracking.progress).toEqual([
 		expect.objectContaining({ unit: 'episode', current: 4, total: 12 }),
 	])
@@ -165,32 +141,18 @@ test('advanced edit rejects non-owners and invalid scores', async () => {
 			username: `u_${otherSuffix}`,
 		},
 	})
-	const otherSession = await prisma.session.create({
-		data: { userId: other.id, expirationDate: getSessionExpirationDate() },
-	})
-	const otherCookie = await getSessionCookieHeader(otherSession)
 
-	const forbidden = await action({
-		request: new Request(BASE_URL, {
-			method: 'POST',
-			headers: {
-				cookie: otherCookie,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-				entryId: setup.entry.id,
-				fields: { personal: 10 },
-			}),
-		}),
-		params: {},
-	} as any).catch(error => error)
+	const forbidden = await advancedEditEntryCommand(other.id, setup.entry.id, {
+		personal: 10,
+	}).catch(error => error)
 	expect(forbidden).toBeInstanceOf(Response)
 	expect((forbidden as Response).status).toBe(404)
 
-	const invalid = await action({
-		request: request(setup.request, setup.entry.id, { personal: 11 }),
-		params: {},
-	} as any).catch(error => error)
+	const invalid = await advancedEditEntryCommand(
+		setup.owner.id,
+		setup.entry.id,
+		{ personal: 11 },
+	).catch(error => error)
 	expect(invalid).toBeInstanceOf(Response)
 	expect((invalid as Response).status).toBe(400)
 
@@ -199,10 +161,11 @@ test('advanced edit rejects non-owners and invalid scores', async () => {
 		{ progress: { episode: 13 } },
 		{ progress: { chapter: 1 } },
 	]) {
-		const rejected = await action({
-			request: request(setup.request, setup.entry.id, fields),
-			params: {},
-		} as any).catch(error => error)
+		const rejected = await advancedEditEntryCommand(
+			setup.owner.id,
+			setup.entry.id,
+			fields,
+		).catch(error => error)
 		expect(rejected).toBeInstanceOf(Response)
 		expect((rejected as Response).status).toBe(400)
 	}

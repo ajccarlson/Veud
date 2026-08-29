@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 import {
@@ -55,16 +53,4 @@ export async function addFavoriteCommand(ownerId: string, favorite: unknown) {
 		// arbitrary client JSON, so the shape is asserted here.
 		return tx.userFavorite.create({ data: { ...data, mediaId } as any })
 	})
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	let favorite: unknown
-	try {
-		favorite = JSON.parse(searchParams.get('favorite') ?? '')
-	} catch {
-		throw new Response('Invalid favorite payload', { status: 400 })
-	}
-	return addFavoriteCommand(ownerId, favorite)
 }

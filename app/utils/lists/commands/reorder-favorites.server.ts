@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 
 export async function reorderFavoritesCommand(ownerId: string, order: unknown) {
@@ -40,16 +38,4 @@ export async function reorderFavoritesCommand(ownerId: string, order: unknown) {
 	)
 
 	return { ok: true }
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	let order: unknown
-	try {
-		order = JSON.parse(searchParams.get('order') ?? '')
-	} catch {
-		throw new Response('Invalid order payload', { status: 400 })
-	}
-	return reorderFavoritesCommand(ownerId, order)
 }

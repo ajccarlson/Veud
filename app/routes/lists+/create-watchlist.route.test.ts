@@ -1,13 +1,11 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/lists+/.fetch+/create-watchlist.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { createWatchlistCommand } from '#app/utils/lists/commands/create-watchlist.server.ts'
 import {
 	MAX_WATCHLISTS_PER_TYPE,
 	MAX_WATCHLISTS_PER_USER,
 } from '#app/utils/watchlist-limits.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
 
 async function fixture() {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -26,33 +24,17 @@ async function fixture() {
 			completionType: '{"past":"watched"}',
 		},
 	})
-	const session = await prisma.session.create({
-		data: { userId: owner.id, expirationDate: getSessionExpirationDate() },
-	})
-	return {
-		owner,
-		type,
-		request: new Request(BASE_URL, {
-			method: 'POST',
-			headers: { cookie: await getSessionCookieHeader(session) },
-		}),
-	}
-}
-
-function params(list: Record<string, unknown>) {
-	return {
-		request: new URLSearchParams({ list: JSON.stringify(list) }).toString(),
-	}
+	return { owner, type }
 }
 
 function validList(typeId: string) {
 	return {
-		position: { value: 1, type: 'int' },
-		name: { value: 'watching', type: 'string' },
-		header: { value: 'Watching', type: 'string' },
-		typeId: { value: typeId, type: 'string' },
-		displayedColumns: { value: '["title"]', type: 'string' },
-		description: { value: '', type: 'string' },
+		position: 1,
+		name: 'watching',
+		header: 'Watching',
+		typeId,
+		displayedColumns: '["title"]',
+		description: '',
 	}
 }
 
@@ -80,18 +62,13 @@ async function seedWatchlists({
 
 test('creates only validated server-owned watchlist fields', async () => {
 	const data = await fixture()
-	const created = await action({
-		request: data.request,
-		params: params({
-			...validList(data.type.id),
-			id: { value: 'attacker-controlled-id', type: 'string' },
-			isPublic: { value: false, type: 'bool' },
-			entries: {
-				value: { create: { title: 'Injected entry', position: 1 } },
-				type: 'relation',
-			},
-		}),
-	} as any)
+	const created = await createWatchlistCommand(data.owner.id, {
+		...validList(data.type.id),
+		id: 'attacker-controlled-id',
+		entries: {
+			create: { title: 'Injected entry', position: 1 },
+		},
+	})
 
 	expect(created).toMatchObject({
 		ownerId: data.owner.id,
@@ -108,16 +85,15 @@ test('creates only validated server-owned watchlist fields', async () => {
 test('rejects malformed and oversized watchlist fields', async () => {
 	const data = await fixture()
 	for (const list of [
-		{ ...validList(data.type.id), name: { value: '', type: 'string' } },
+		{ ...validList(data.type.id), name: '' },
 		{
 			...validList(data.type.id),
-			description: { value: 'x'.repeat(5_001), type: 'string' },
+			description: 'x'.repeat(5_001),
 		},
 	]) {
-		const response = await action({
-			request: data.request,
-			params: params(list),
-		} as any).catch(error => error)
+		const response = await createWatchlistCommand(data.owner.id, list).catch(
+			error => error,
+		)
 		expect(response).toBeInstanceOf(Response)
 		expect((response as Response).status).toBe(400)
 	}
@@ -132,10 +108,10 @@ test('allows 50 watchlists per type and rejects the next without reordering', as
 		prefix: 'type-limit',
 	})
 
-	const boundary = await action({
-		request: data.request,
-		params: params(validList(data.type.id)),
-	} as any)
+	const boundary = await createWatchlistCommand(
+		data.owner.id,
+		validList(data.type.id),
+	)
 	expect(boundary.position).toBe(1)
 	expect(
 		await prisma.watchlist.count({
@@ -143,10 +119,10 @@ test('allows 50 watchlists per type and rejects the next without reordering', as
 		}),
 	).toBe(MAX_WATCHLISTS_PER_TYPE)
 
-	const response = await action({
-		request: data.request,
-		params: params(validList(data.type.id)),
-	} as any).catch(error => error)
+	const response = await createWatchlistCommand(
+		data.owner.id,
+		validList(data.type.id),
+	).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(409)
 	expect(await (response as Response).text()).toContain(
@@ -197,18 +173,15 @@ test('allows 100 watchlists in total and rejects the next', async () => {
 		prefix: 'total-b',
 	})
 
-	await action({
-		request: data.request,
-		params: params(validList(thirdType.id)),
-	} as any)
+	await createWatchlistCommand(data.owner.id, validList(thirdType.id))
 	expect(
 		await prisma.watchlist.count({ where: { ownerId: data.owner.id } }),
 	).toBe(MAX_WATCHLISTS_PER_USER)
 
-	const response = await action({
-		request: data.request,
-		params: params(validList(thirdType.id)),
-	} as any).catch(error => error)
+	const response = await createWatchlistCommand(
+		data.owner.id,
+		validList(thirdType.id),
+	).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(409)
 	expect(await (response as Response).text()).toContain(

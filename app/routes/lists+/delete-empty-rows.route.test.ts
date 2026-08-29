@@ -1,17 +1,7 @@
-/**
- * Route test for delete-empty-rows
- * (app/routes/lists+/.fetch+/delete-empty-rows.$request.ts).
- *
- * Verifies the 2.2 refactor: empty rows (no meaningful title/type) are removed in a single
- * atomic deleteMany, non-empty rows are kept, the removed rows are returned, and only the
- * owner can run it.
- */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/lists+/.fetch+/delete-empty-rows.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { deleteEmptyEntriesCommand } from '#app/utils/lists/commands/delete-empty-entries.server.ts'
 
 async function createUserRecord() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
@@ -19,15 +9,6 @@ async function createUserRecord() {
 		data: { email: `${suffix}@example.com`, username: `u_${suffix}` },
 		select: { id: true },
 	})
-}
-
-async function authedRequestFor(userId: string) {
-	const session = await prisma.session.create({
-		data: { userId, expirationDate: getSessionExpirationDate() },
-		select: { id: true },
-	})
-	const cookie = await getSessionCookieHeader(session)
-	return new Request(BASE_URL, { method: 'POST', headers: { cookie } })
 }
 
 // Seeds a watchlist with two "empty" rows (blank / whitespace-only title, no type) and one
@@ -68,21 +49,10 @@ async function seedWatchlistWithEntries() {
 	return { userId: owner.id, watchlistId: wl.id, listTypeId: wl.typeId }
 }
 
-function paramsFor(watchlistId: string, listTypeId: string) {
-	return new URLSearchParams({
-		watchlistId,
-		listTypeData: JSON.stringify({ header: 'LiveAction', id: listTypeId }),
-	}).toString()
-}
-
 test('removes only the empty rows and keeps the real one', async () => {
-	const { userId, watchlistId, listTypeId } = await seedWatchlistWithEntries()
-	const request = await authedRequestFor(userId)
+	const { userId, watchlistId } = await seedWatchlistWithEntries()
 
-	const removed = await action({
-		request,
-		params: { request: paramsFor(watchlistId, listTypeId) },
-	} as any)
+	const removed = await deleteEmptyEntriesCommand(userId, watchlistId)
 
 	expect(Array.isArray(removed)).toBe(true)
 	expect((removed as unknown[]).length).toBe(2)
@@ -96,14 +66,12 @@ test('removes only the empty rows and keeps the real one', async () => {
 })
 
 test('a logged-in non-owner cannot delete rows (404, nothing removed)', async () => {
-	const { watchlistId, listTypeId } = await seedWatchlistWithEntries()
+	const { watchlistId } = await seedWatchlistWithEntries()
 	const other = await createUserRecord()
-	const request = await authedRequestFor(other.id)
 
-	const res = await action({
-		request,
-		params: { request: paramsFor(watchlistId, listTypeId) },
-	} as any).catch(e => e)
+	const res = await deleteEmptyEntriesCommand(other.id, watchlistId).catch(
+		e => e,
+	)
 
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)

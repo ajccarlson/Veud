@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	EntryOrderError,
@@ -34,19 +32,4 @@ export async function reorderEntriesCommand(
 		}
 		throw error
 	}
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	let entryIds: unknown
-	try {
-		entryIds = JSON.parse(searchParams.get('entryIds') ?? '')
-	} catch {
-		throw new Response('Invalid entry order', { status: 400 })
-	}
-	return reorderEntriesCommand(ownerId, {
-		watchlistId: searchParams.get('watchlistId'),
-		entryIds,
-	})
 }

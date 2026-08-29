@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
@@ -64,10 +62,4 @@ export async function deleteWatchlistCommand(
 	})
 
 	return true
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	return deleteWatchlistCommand(ownerId, searchParams.get('id'))
 }

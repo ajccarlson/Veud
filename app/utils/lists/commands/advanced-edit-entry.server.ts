@@ -1,6 +1,4 @@
 import { type Prisma } from '@prisma/client'
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { requireOwnedEntry } from '#app/utils/lists/authorization.server.ts'
 import {
@@ -310,19 +308,4 @@ export async function advancedEditEntryCommand(
 		}
 		throw error
 	}
-}
-
-export async function action({ request }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	let payload: unknown
-	try {
-		payload = await request.json()
-	} catch {
-		throw new Response('Invalid advanced edit payload', { status: 400 })
-	}
-	if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-		throw new Response('Invalid advanced edit payload', { status: 400 })
-	}
-	const input = payload as Record<string, unknown>
-	return advancedEditEntryCommand(ownerId, input.entryId, input.fields)
 }
