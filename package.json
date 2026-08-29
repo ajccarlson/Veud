@@ -127,7 +127,6 @@
     "@epic-web/invariant": "^1.0.0",
     "@epic-web/remember": "^1.0.2",
     "@epic-web/totp": "^4.0.1",
-    "@nasa-gcn/remix-seo": "^2.0.0",
     "@nivo/bar": "^0.99.0",
     "@nivo/boxplot": "^0.99.0",
     "@nivo/calendar": "^0.99.0",

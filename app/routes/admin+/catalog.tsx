@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	Form,
@@ -35,10 +34,6 @@ import {
 import { prisma } from '#app/utils/db.server.ts'
 import { cn } from '#app/utils/misc.tsx'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => null,
-}
 
 export const meta: MetaFunction = () => [
 	{ title: 'Catalog operations | Veud' },

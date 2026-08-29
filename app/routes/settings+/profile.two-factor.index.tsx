@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	redirect,
@@ -20,10 +19,6 @@ import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { RECOVERY_CODES_SESSION_KEY } from './profile.two-factor.recovery.tsx'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 import { twoFAVerifyVerificationType } from './profile.two-factor.verify.tsx'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => null,
-}
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	const userId = await requireUserId(request, { url })

@@ -1,6 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	redirect,
@@ -28,9 +27,8 @@ import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { EmailChangeEmail } from './profile.change-email.server.tsx'
 import { type BreadcrumbHandle } from './profile.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: <Icon name="envelope-closed">Change Email</Icon>,
-	getSitemapEntries: () => null,
 }
 
 export const newEmailAddressSessionKey = 'new-email-address'

@@ -6,7 +6,6 @@ import {
 } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -45,10 +44,6 @@ import {
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => null,
-}
 
 export const ProfileFormSchema = z.object({
 	name: OptionalNameSchema,
