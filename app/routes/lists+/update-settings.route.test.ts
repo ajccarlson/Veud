@@ -1,18 +1,9 @@
-/**
- * Route test for update-settings
- * (app/routes/lists+/.fetch+/update-settings.$request.ts).
- *
- * Verifies the 2.3 mass-assignment fix: whitelisted fields (name, header, …) are applied,
- * while any other client-supplied key (ownerId, id, typeId, …) is ignored, so a client
- * can't reassign ownership or otherwise mutate system fields through the settings form.
- */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/lists+/.fetch+/update-settings.$request.ts'
 import { loader as profileActivityLoader } from '#app/routes/users+/$username.activity.tsx'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { updateWatchlistSettingsCommand } from '#app/utils/lists/commands/update-watchlist-settings.server.ts'
+import { BASE_URL } from '#tests/utils.ts'
 
 async function createUserRecord() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
@@ -20,15 +11,6 @@ async function createUserRecord() {
 		data: { email: `${suffix}@example.com`, username: `u_${suffix}` },
 		select: { id: true },
 	})
-}
-
-async function authedRequestFor(userId: string) {
-	const session = await prisma.session.create({
-		data: { userId, expirationDate: getSessionExpirationDate() },
-		select: { id: true },
-	})
-	const cookie = await getSessionCookieHeader(session)
-	return new Request(BASE_URL, { method: 'POST', headers: { cookie } })
 }
 
 // Owner + one watchlist with a known starting name, so changes are observable.
@@ -69,29 +51,28 @@ async function seedOwnedWatchlist() {
 	}
 }
 
-function settingsParams(listId: string, pairs: Array<[string, unknown]>) {
-	return new URLSearchParams({
-		listId,
-		settings: JSON.stringify(pairs),
-	}).toString()
+function updateSettings(
+	userId: string,
+	watchlistId: string,
+	pairs: Array<[string, unknown]>,
+) {
+	return updateWatchlistSettingsCommand(
+		userId,
+		watchlistId,
+		Object.fromEntries(pairs),
+	)
 }
 
 test('applies whitelisted settings', async () => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [
-				['name', 'renamed'],
-				['header', 'New Header'],
-				['isPublic', false],
-				['defaultSortColumn', 'title'],
-				['defaultSortDirection', 'desc'],
-			]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [
+		['name', 'renamed'],
+		['header', 'New Header'],
+		['isPublic', false],
+		['defaultSortColumn', 'title'],
+		['defaultSortDirection', 'desc'],
+	])
 
 	const wl = await prisma.watchlist.findUnique({ where: { id: watchlistId } })
 	expect(wl?.name).toBe('renamed')
@@ -103,7 +84,6 @@ test('applies whitelisted settings', async () => {
 
 test('non-visibility settings do not rewrite linked activity', async () => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 	const watchlist = await prisma.watchlist.findUniqueOrThrow({
 		where: { id: watchlistId },
 	})
@@ -122,16 +102,11 @@ test('non-visibility settings do not rewrite linked activity', async () => {
 		},
 	})
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [
-				['header', watchlist.header],
-				['isPublic', watchlist.isPublic],
-				['description', 'Only the description changed.'],
-			]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [
+		['header', watchlist.header],
+		['isPublic', watchlist.isPublic],
+		['description', 'Only the description changed.'],
+	])
 
 	expect(
 		await prisma.activityEvent.findUniqueOrThrow({
@@ -146,14 +121,10 @@ test.each([
 	['defaultSortDirection', 'sideways', 'Invalid default sort direction'],
 ] as const)('rejects invalid %s values', async (key, value, message) => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 
-	const response = await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [[key, value]]),
-		},
-	} as any).catch(error => error)
+	const response = await updateSettings(userId, watchlistId, [
+		[key, value],
+	]).catch(error => error)
 
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(400)
@@ -162,7 +133,6 @@ test.each([
 
 test('visibility changes hide linked and legacy list activity', async () => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 	const watchlist = await prisma.watchlist.findUniqueOrThrow({
 		where: { id: watchlistId },
 	})
@@ -200,12 +170,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 		}),
 	])
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [['isPublic', false]]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [['isPublic', false]])
 	expect(
 		await prisma.activityEvent.findMany({
 			where: { id: { in: [linked.id, legacy.id] } },
@@ -214,12 +179,7 @@ test('visibility changes hide linked and legacy list activity', async () => {
 		}),
 	).toEqual([{ isPublic: false }, { isPublic: false }])
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [['isPublic', true]]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [['isPublic', true]])
 	expect(
 		await prisma.activityEvent.findUniqueOrThrow({
 			where: { id: linked.id },
@@ -238,7 +198,6 @@ test.each(['rename then privatize', 'rename and privatize together'] as const)(
 	'legacy list activity stays private after %s',
 	async sequence => {
 		const { userId, username, watchlistId } = await seedOwnedWatchlist()
-		const request = await authedRequestFor(userId)
 		const watchlist = await prisma.watchlist.findUniqueOrThrow({
 			where: { id: watchlistId },
 		})
@@ -257,34 +216,19 @@ test.each(['rename then privatize', 'rename and privatize together'] as const)(
 		})
 
 		if (sequence === 'rename then privatize') {
-			await action({
-				request,
-				params: {
-					request: settingsParams(watchlistId, [['header', 'Renamed Header']]),
-				},
-			} as any)
+			await updateSettings(userId, watchlistId, [['header', 'Renamed Header']])
 			expect(
 				await prisma.activityEvent.findUniqueOrThrow({
 					where: { id: legacy.id },
 					select: { statusWatchlistId: true, isPublic: true },
 				}),
 			).toEqual({ statusWatchlistId: null, isPublic: false })
-			await action({
-				request,
-				params: {
-					request: settingsParams(watchlistId, [['isPublic', false]]),
-				},
-			} as any)
+			await updateSettings(userId, watchlistId, [['isPublic', false]])
 		} else {
-			await action({
-				request,
-				params: {
-					request: settingsParams(watchlistId, [
-						['header', 'Renamed Header'],
-						['isPublic', false],
-					]),
-				},
-			} as any)
+			await updateSettings(userId, watchlistId, [
+				['header', 'Renamed Header'],
+				['isPublic', false],
+			])
 		}
 
 		expect(
@@ -305,7 +249,6 @@ test.each(['rename then privatize', 'rename and privatize together'] as const)(
 
 test('ambiguous label-only legacy activity is hidden instead of attached to the wrong list', async () => {
 	const { userId, username, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 	const watchlist = await prisma.watchlist.findUniqueOrThrow({
 		where: { id: watchlistId },
 	})
@@ -332,12 +275,7 @@ test('ambiguous label-only legacy activity is hidden instead of attached to the 
 		},
 	})
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [['header', 'Renamed Header']]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [['header', 'Renamed Header']])
 
 	expect(
 		await prisma.activityEvent.findUniqueOrThrow({
@@ -356,7 +294,6 @@ test('ambiguous label-only legacy activity is hidden instead of attached to the 
 
 test('activity created while private never republishes an old sensitive label', async () => {
 	const { userId, username, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
 	const watchlist = await prisma.watchlist.update({
 		where: { id: watchlistId },
 		data: { header: 'Secret queue', isPublic: false },
@@ -388,15 +325,10 @@ test('activity created while private never republishes an old sensitive label', 
 		},
 	})
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [
-				['header', 'Public queue'],
-				['isPublic', true],
-			]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [
+		['header', 'Public queue'],
+		['isPublic', true],
+	])
 
 	expect(
 		await prisma.activityEvent.findUniqueOrThrow({
@@ -422,13 +354,9 @@ test('activity created while private never republishes an old sensitive label', 
 
 test('rejects non-boolean visibility values', async () => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
-	const request = await authedRequestFor(userId)
-	const response = await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [['isPublic', 'false']]),
-		},
-	} as any).catch(error => error)
+	const response = await updateSettings(userId, watchlistId, [
+		['isPublic', 'false'],
+	]).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(400)
 })
@@ -436,18 +364,12 @@ test('rejects non-boolean visibility values', async () => {
 test('ignores non-whitelisted fields so ownership/id cannot be reassigned', async () => {
 	const { userId, watchlistId } = await seedOwnedWatchlist()
 	const attacker = await createUserRecord()
-	const request = await authedRequestFor(userId)
 
-	await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [
-				['name', 'renamed'],
-				['ownerId', attacker.id],
-				['id', 'hacked-id'],
-			]),
-		},
-	} as any)
+	await updateSettings(userId, watchlistId, [
+		['name', 'renamed'],
+		['ownerId', attacker.id],
+		['id', 'hacked-id'],
+	])
 
 	// findUnique by the ORIGINAL id still resolves — proving id was not rewritten — and the
 	// owner is unchanged, while the whitelisted name change did go through.
@@ -460,14 +382,10 @@ test('ignores non-whitelisted fields so ownership/id cannot be reassigned', asyn
 test('a logged-in non-owner cannot change settings (404)', async () => {
 	const { watchlistId } = await seedOwnedWatchlist()
 	const other = await createUserRecord()
-	const request = await authedRequestFor(other.id)
 
-	const res = await action({
-		request,
-		params: {
-			request: settingsParams(watchlistId, [['name', 'hacked']]),
-		},
-	} as any).catch(e => e)
+	const res = await updateSettings(other.id, watchlistId, [
+		['name', 'hacked'],
+	]).catch(e => e)
 
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)

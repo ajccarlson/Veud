@@ -1,6 +1,4 @@
 import { type Prisma } from '@prisma/client'
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { syncTrackingStateForEntry } from '#app/utils/tracking-state.server.ts'
 import { serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
@@ -258,14 +256,4 @@ export async function updateEntryCellCommand(
 		console.error('[update-cell] failed to update cell:', e)
 		throw new Response('Failed to update cell', { status: 500 })
 	}
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	return updateEntryCellCommand(ownerId, {
-		entryId: searchParams.get('rowIndex'),
-		columnId: searchParams.get('colId'),
-		value: searchParams.get('newValue'),
-	})
 }

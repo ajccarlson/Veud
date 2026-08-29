@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { normalizeEntryPositions } from '#app/utils/lists/entry-order.server.ts'
 import { claimWatchlistRevisions } from '#app/utils/lists/watchlist-revision.server.ts'
@@ -54,13 +52,4 @@ export async function deleteEmptyEntriesCommand(
 		}
 		return removedEntries
 	})
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	return deleteEmptyEntriesCommand(
-		ownerId,
-		searchParams.get('watchlistId')?.toLowerCase() ?? null,
-	)
 }

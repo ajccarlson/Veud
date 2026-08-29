@@ -1,12 +1,9 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action as deleteRow } from '#app/routes/lists+/.fetch+/delete-row.$request.ts'
-import { action as legacyDeleteRow } from '#app/routes/lists+/.fetch+/fix-watchlist-order.$request.ts'
-import { action as moveRow } from '#app/routes/lists+/.fetch+/move-row.$request.ts'
-import { action as reorderRows } from '#app/routes/lists+/.fetch+/reorder-rows.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { deleteEntryCommand } from '#app/utils/lists/commands/delete-entry.server.ts'
+import { moveEntryCommand } from '#app/utils/lists/commands/move-entry.server.ts'
+import { reorderEntriesCommand } from '#app/utils/lists/commands/reorder-entries.server.ts'
 
 async function createUser(prefix: string) {
 	const suffix = faker.string.alphanumeric({ length: 10 }).toLowerCase()
@@ -15,16 +12,6 @@ async function createUser(prefix: string) {
 			email: `${prefix}_${suffix}@example.com`,
 			username: `${prefix}_${suffix}`,
 		},
-	})
-}
-
-async function requestFor(userId: string) {
-	const session = await prisma.session.create({
-		data: { userId, expirationDate: getSessionExpirationDate() },
-	})
-	return new Request(BASE_URL, {
-		method: 'POST',
-		headers: { cookie: await getSessionCookieHeader(session) },
 	})
 }
 
@@ -135,7 +122,6 @@ async function fixture() {
 		])
 	return {
 		owner,
-		request: await requestFor(owner.id),
 		source,
 		destination,
 		foreignDestination,
@@ -155,11 +141,9 @@ function moveParams(
 	position?: number,
 ) {
 	return {
-		request: new URLSearchParams({
-			entryId,
-			destinationWatchlistId,
-			...(position === undefined ? {} : { position: String(position) }),
-		}).toString(),
+		entryId,
+		destinationWatchlistId,
+		position: position ?? null,
 	}
 }
 
@@ -175,10 +159,10 @@ test('atomically moves an existing entry and normalizes both lists', async () =>
 	const data = await fixture()
 	const beforeCount = await prisma.entry.count()
 
-	const result = await moveRow({
-		request: data.request,
-		params: moveParams(data.moved.id, data.destination.id, 2),
-	} as any)
+	const result = await moveEntryCommand(
+		data.owner.id,
+		moveParams(data.moved.id, data.destination.id, 2),
+	)
 	expect(result).toMatchObject({
 		id: data.moved.id,
 		watchlistId: data.destination.id,
@@ -218,10 +202,10 @@ test('rejects unauthorized and incompatible targets without changing the source'
 		[data.foreignDestination.id, 404],
 		[data.incompatibleDestination.id, 400],
 	] as const) {
-		const response = await moveRow({
-			request: data.request,
-			params: moveParams(data.moved.id, watchlistId),
-		} as any).catch(error => error)
+		const response = await moveEntryCommand(
+			data.owner.id,
+			moveParams(data.moved.id, watchlistId),
+		).catch(error => error)
 		expect(response).toBeInstanceOf(Response)
 		expect((response as Response).status).toBe(status)
 		expect(
@@ -242,10 +226,10 @@ test('rejects a canonical media kind that does not match the destination type', 
 		},
 	})
 
-	const response = await moveRow({
-		request: data.request,
-		params: moveParams(incompatibleEntry.id, data.destination.id),
-	} as any).catch(error => error)
+	const response = await moveEntryCommand(
+		data.owner.id,
+		moveParams(incompatibleEntry.id, data.destination.id),
+	).catch(error => error)
 	expect(response).toBeInstanceOf(Response)
 	expect((response as Response).status).toBe(400)
 	expect(
@@ -257,10 +241,10 @@ test('rejects a canonical media kind that does not match the destination type', 
 
 test('moves an entry to a typed position within the same list', async () => {
 	const data = await fixture()
-	await moveRow({
-		request: data.request,
-		params: moveParams(data.first.id, data.source.id, 3),
-	} as any)
+	await moveEntryCommand(
+		data.owner.id,
+		moveParams(data.first.id, data.source.id, 3),
+	)
 	expect(await orderedEntries(data.source.id)).toEqual([
 		{ id: data.moved.id, position: 1, title: 'Moved' },
 		{ id: data.third.id, position: 2, title: 'Third' },
@@ -270,30 +254,20 @@ test('moves an entry to a typed position within the same list', async () => {
 
 test('persists a complete managed-drag order and rejects stale order payloads', async () => {
 	const data = await fixture()
-	await reorderRows({
-		request: data.request,
-		params: {
-			request: new URLSearchParams({
-				watchlistId: data.source.id,
-				entryIds: JSON.stringify([data.third.id, data.first.id, data.moved.id]),
-			}).toString(),
-		},
-	} as any)
+	await reorderEntriesCommand(data.owner.id, {
+		watchlistId: data.source.id,
+		entryIds: [data.third.id, data.first.id, data.moved.id],
+	})
 	expect(await orderedEntries(data.source.id)).toEqual([
 		{ id: data.third.id, position: 1, title: 'Third' },
 		{ id: data.first.id, position: 2, title: 'First' },
 		{ id: data.moved.id, position: 3, title: 'Moved' },
 	])
 
-	const stale = await reorderRows({
-		request: data.request,
-		params: {
-			request: new URLSearchParams({
-				watchlistId: data.source.id,
-				entryIds: JSON.stringify([data.first.id, data.moved.id]),
-			}).toString(),
-		},
-	} as any).catch(error => error)
+	const stale = await reorderEntriesCommand(data.owner.id, {
+		watchlistId: data.source.id,
+		entryIds: [data.first.id, data.moved.id],
+	}).catch(error => error)
 	expect(stale).toBeInstanceOf(Response)
 	expect((stale as Response).status).toBe(400)
 	expect((await orderedEntries(data.source.id)).map(entry => entry.id)).toEqual(
@@ -303,26 +277,7 @@ test('persists a complete managed-drag order and rejects stale order payloads', 
 
 test('deleting an entry closes its position gap in the same transaction', async () => {
 	const data = await fixture()
-	await deleteRow({
-		request: data.request,
-		params: {
-			request: new URLSearchParams({ id: data.moved.id }).toString(),
-		},
-	} as any)
-	expect(await orderedEntries(data.source.id)).toEqual([
-		{ id: data.first.id, position: 1, title: 'First' },
-		{ id: data.third.id, position: 2, title: 'Third' },
-	])
-})
-
-test('the legacy delete endpoint delegates to the reconciled deletion command', async () => {
-	const data = await fixture()
-	await legacyDeleteRow({
-		request: data.request,
-		params: {
-			request: new URLSearchParams({ id: data.moved.id }).toString(),
-		},
-	} as any)
+	await deleteEntryCommand(data.owner.id, data.moved.id)
 	expect(await orderedEntries(data.source.id)).toEqual([
 		{ id: data.first.id, position: 1, title: 'First' },
 		{ id: data.third.id, position: 2, title: 'Third' },
