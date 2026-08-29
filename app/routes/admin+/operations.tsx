@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	Form,
@@ -30,10 +29,6 @@ import {
 	updateIncidentSchema,
 } from '#app/utils/service-incidents.ts'
 import { useOptionalUser, userHasRole } from '#app/utils/user.ts'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => null,
-}
 
 export const meta: MetaFunction = () => [
 	{ title: 'Site operations | Veud' },

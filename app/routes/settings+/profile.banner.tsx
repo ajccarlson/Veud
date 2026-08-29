@@ -1,7 +1,6 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
 import { invariantResponse } from '@epic-web/invariant'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { parseFormData } from '@remix-run/form-data-parser'
 import { useState } from 'react'
 import {
@@ -36,9 +35,8 @@ import {
 } from '#app/utils/safe-image.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: <Icon name="camera">Banner</Icon>,
-	getSitemapEntries: () => null,
 }
 
 const MAX_SIZE = 1024 * 1024 * 5 // 5MB

@@ -182,3 +182,52 @@ export function publicPageSitemapPaths(
 	}
 	return [...paths].sort()
 }
+
+/**
+ * The robots.txt directives, in the order a crawler reads them.
+ *
+ * This replaces `generateRobotsTxt` from `@nasa-gcn/remix-seo`, which was the
+ * only runtime use left of a package whose unsatisfiable peer on
+ * `@remix-run/react` forced `legacy-peer-deps=true` for the entire install.
+ * Output is byte-identical to what that produced: the same default
+ * `User-agent: *` and `Allow: /`, then the caller's directives, one per line.
+ *
+ * Deliberately not changed here: nothing is disallowed. The sitemap already
+ * knows which paths are not public, and teaching robots.txt the same list would
+ * be a real improvement — but it changes what crawlers do, which is a decision
+ * of its own and not one to make as a side effect of removing a dependency.
+ */
+export type RobotsDirective = {
+	type: 'userAgent' | 'allow' | 'disallow' | 'sitemap' | 'crawlDelay'
+	value: string
+}
+
+const robotsDirectiveLabels: Record<RobotsDirective['type'], string> = {
+	userAgent: 'User-agent',
+	allow: 'Allow',
+	disallow: 'Disallow',
+	sitemap: 'Sitemap',
+	crawlDelay: 'Crawl-delay',
+}
+
+export function robotsTxt(directives: RobotsDirective[]) {
+	return [
+		{ type: 'userAgent', value: '*' } as const,
+		{ type: 'allow', value: '/' } as const,
+		...directives,
+	]
+		.map(
+			directive =>
+				`${robotsDirectiveLabels[directive.type]}: ${directive.value}\n`,
+		)
+		.join('')
+}
+
+export function robotsResponse(body: string) {
+	return new Response(body, {
+		headers: {
+			'Content-Type': 'text/plain',
+			'Content-Length': String(new TextEncoder().encode(body).byteLength),
+		},
+	})
+}

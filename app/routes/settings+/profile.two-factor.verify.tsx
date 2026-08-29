@@ -1,6 +1,5 @@
 import { getFormProps, getInputProps, useForm } from '@conform-to/react'
 import { getZodConstraint, parseWithZod } from '@conform-to/zod'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import * as QRCode from 'qrcode'
 import {
 	data as json,
@@ -29,9 +28,8 @@ import { type BreadcrumbHandle } from './profile.tsx'
 import { RECOVERY_CODES_SESSION_KEY } from './profile.two-factor.recovery.tsx'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: <Icon name="check">Verify</Icon>,
-	getSitemapEntries: () => null,
 }
 
 const CancelSchema = z.object({ intent: z.literal('cancel') })

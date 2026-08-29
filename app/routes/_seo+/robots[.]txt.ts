@@ -1,9 +1,11 @@
-import { generateRobotsTxt } from '@nasa-gcn/remix-seo'
 import { type LoaderFunctionArgs } from 'react-router'
 import { getDomainUrl } from '#app/utils/misc.tsx'
+import { robotsResponse, robotsTxt } from '#app/utils/sitemap.server.ts'
 
 export function loader({ request }: LoaderFunctionArgs) {
-	return generateRobotsTxt([
-		{ type: 'sitemap', value: `${getDomainUrl(request)}/sitemap.xml` },
-	])
+	return robotsResponse(
+		robotsTxt([
+			{ type: 'sitemap', value: `${getDomainUrl(request)}/sitemap.xml` },
+		]),
+	)
 }
