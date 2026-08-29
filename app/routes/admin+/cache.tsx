@@ -1,5 +1,4 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	redirect,
@@ -29,10 +28,6 @@ import {
 } from '#app/utils/litefs.server.ts'
 import { useDebounce, useDoubleCheck } from '#app/utils/misc.tsx'
 import { requireUserWithRole } from '#app/utils/permissions.server.ts'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => null,
-}
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
 	await requireUserWithRole(request, 'admin', { url })

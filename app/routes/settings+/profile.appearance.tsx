@@ -1,10 +1,8 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { ThemeChoice } from '#app/components/theme-switch.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 
-export const handle: SEOHandle & { breadcrumb: React.ReactNode } = {
+export const handle: { breadcrumb: React.ReactNode } = {
 	breadcrumb: <Icon name="sun">Appearance</Icon>,
-	getSitemapEntries: () => null,
 }
 
 /**

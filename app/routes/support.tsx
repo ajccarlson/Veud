@@ -1,14 +1,9 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { Link, type MetaFunction } from 'react-router'
 import {
 	VeudPage,
 	VeudPageHeader,
 	VeudPanel,
 } from '#app/components/ui/veud-layout.tsx'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => [{ route: '/support', priority: 0.2 }],
-}
 
 export const meta: MetaFunction = () => [
 	{ title: 'Support | Veud' },

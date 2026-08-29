@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -15,9 +14,8 @@ import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 import { twoFAVerificationType } from './profile.two-factor.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: <Icon name="lock-open-1">Disable</Icon>,
-	getSitemapEntries: () => null,
 }
 
 export async function loader({ request, url }: LoaderFunctionArgs) {
