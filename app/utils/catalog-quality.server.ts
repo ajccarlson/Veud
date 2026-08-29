@@ -231,7 +231,7 @@ function singleMediaFindings(media: CatalogQualityMedia) {
 		})
 	} else {
 		const imageUrl = media.thumbnail.split('|', 1)[0]?.trim() ?? ''
-		let validImage = false
+		let validImage: boolean
 		try {
 			const parsed = new URL(imageUrl)
 			validImage = parsed.protocol === 'https:'

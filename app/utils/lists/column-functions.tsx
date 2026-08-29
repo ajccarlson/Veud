@@ -399,7 +399,7 @@ export function getSiteID(url: string) {
 		}
 	} catch (e) {
 		console.error(url)
-		throw new Error('Failed to get site ID!\n' + e)
+		throw new Error('Failed to get site ID!', { cause: e })
 	}
 }
 

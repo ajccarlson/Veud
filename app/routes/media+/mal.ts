@@ -307,7 +307,7 @@ export async function getAnimeInfo(entryID: any) {
 
 		return formatAnimeInfo(data, true)
 	} catch (e) {
-		throw new Error('Error: failed to fetch MAL info!\n' + e)
+		throw new Error('Error: failed to fetch MAL info!', { cause: e })
 	}
 }
 
@@ -385,7 +385,7 @@ export async function formatMangaInfo(data: any, full = true) {
 
 		return malInfo
 	} catch (e) {
-		throw new Error('Error: failed to fetch MAL info!\n' + e)
+		throw new Error('Error: failed to fetch MAL info!', { cause: e })
 	}
 }
 
@@ -420,7 +420,7 @@ export async function getMangaInfo(entryID: any) {
 
 		return formatMangaInfo(data, true)
 	} catch (e) {
-		throw new Error('Error: failed to fetch MAL info!\n' + e)
+		throw new Error('Error: failed to fetch MAL info!', { cause: e })
 	}
 }
 
@@ -568,6 +568,6 @@ export async function getSeasonalAnime(
 
 		return resultArray
 	} catch (e) {
-		throw new Error('Error: failed to fetch anime season!\n' + e)
+		throw new Error('Error: failed to fetch anime season!', { cause: e })
 	}
 }
