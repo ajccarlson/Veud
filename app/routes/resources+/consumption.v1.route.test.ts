@@ -171,3 +171,159 @@ test('consumption history is private and validates media units', async () => {
 	expect(unauthenticated).toBeInstanceOf(Response)
 	expect((unauthenticated as Response).status).toBeGreaterThanOrEqual(300)
 })
+
+test('consumption history exposes bounded filterable pages and event truncation', async () => {
+	const { cookie, owner, media, state } = await fixture()
+	await prisma.mediaInstallment.createMany({
+		data: [
+			...Array.from({ length: 104 }, (_, index) => ({
+				mediaId: media.id,
+				kind: 'episode',
+				seasonNumber: index < 52 ? 1 : 2,
+				number: (index % 52) + 1,
+				absoluteNumber: index + 1,
+				title: `Episode ${index + 1}`,
+			})),
+			{
+				mediaId: media.id,
+				kind: 'volume',
+				seasonNumber: 2,
+				number: 1,
+				absoluteNumber: 1,
+				title: 'Volume 1',
+			},
+		],
+	})
+	const expected = await prisma.mediaInstallment.findMany({
+		where: { mediaId: media.id },
+		orderBy: [{ kind: 'asc' }, { seasonNumber: 'asc' }, { number: 'asc' }],
+		select: { id: true },
+	})
+	const repeatedInstallmentId = expected[0]?.id
+	const otherRepeatedInstallmentId = expected[1]?.id
+	if (!repeatedInstallmentId || !otherRepeatedInstallmentId) {
+		throw new Error('Expected two installment fixtures')
+	}
+	const consumedAt = new Date('2026-08-28T12:00:00.000Z')
+	await Promise.all(
+		[repeatedInstallmentId, otherRepeatedInstallmentId].flatMap(installmentId =>
+			Array.from({ length: 21 }, (_, repeatNumber) =>
+				prisma.consumptionEvent.create({
+					data: {
+						ownerId: owner.id,
+						mediaId: media.id,
+						trackingStateId: state.id,
+						installmentId,
+						unit: 'episode',
+						eventType: repeatNumber === 0 ? 'installment' : 'repeat',
+						repeatNumber,
+						consumedAt,
+					},
+				}),
+			),
+		),
+	)
+	const otherOwner = await prisma.user.create({
+		data: {
+			email: `other_${faker.string.alphanumeric({ length: 10 }).toLowerCase()}@example.com`,
+			username: `other_${faker.string.alphanumeric({ length: 10 }).toLowerCase()}`,
+		},
+	})
+	const privateEvent = await prisma.consumptionEvent.create({
+		data: {
+			ownerId: otherOwner.id,
+			mediaId: media.id,
+			installmentId: repeatedInstallmentId,
+			unit: 'episode',
+			eventType: 'repeat',
+			repeatNumber: 999,
+			consumedAt: new Date('2026-08-29T12:00:00.000Z'),
+		},
+	})
+	const expectedEvents = await prisma.consumptionEvent.findMany({
+		where: { ownerId: owner.id, installmentId: repeatedInstallmentId },
+		orderBy: [{ consumedAt: 'desc' }, { id: 'desc' }],
+		select: { id: true },
+	})
+
+	const load = (parameters: Record<string, string> = {}) => {
+		const query = new URLSearchParams({ mediaId: media.id, ...parameters })
+		return loader({
+			request: new Request(`${BASE_URL}/resources/consumption/v1?${query}`, {
+				headers: { cookie },
+			}),
+		} as any)
+	}
+	const first = await load()
+	expect(first.data.ok).toBe(true)
+	expect(first.data.data.media.installments).toHaveLength(100)
+	expect(
+		first.data.data.media.installments.map(installment => installment.id),
+	).toEqual(expected.slice(0, 100).map(installment => installment.id))
+	expect(first.data.pagination).toEqual({
+		nextCursor: expected[99]?.id,
+		truncated: true,
+	})
+	const repeated = first.data.data.media.installments[0]
+	expect(repeated?.consumptionEvents).toHaveLength(20)
+	expect(repeated?.consumptionEvents[0]?.repeatNumber).toEqual(
+		expect.any(Number),
+	)
+	expect(repeated?.consumptionEvents[0]?.consumedAt).toEqual(expect.any(Date))
+	expect(repeated?.consumptionEvents.map(event => event.id)).toEqual(
+		expectedEvents.slice(0, 20).map(event => event.id),
+	)
+	expect(repeated?.consumptionEvents.map(event => event.id)).not.toContain(
+		privateEvent.id,
+	)
+	expect(repeated?.consumptionEventsTruncated).toBe(true)
+	const otherRepeated = first.data.data.media.installments[1]
+	expect(otherRepeated?.consumptionEvents).toHaveLength(20)
+	expect(otherRepeated?.consumptionEventsTruncated).toBe(true)
+	expect(new Headers(first.init?.headers).get('cache-control')).toBe(
+		'private, no-store',
+	)
+
+	const second = await load({ cursor: first.data.pagination.nextCursor ?? '' })
+	expect(second.data.data.media.installments.map(row => row.id)).toEqual(
+		expected.slice(100).map(row => row.id),
+	)
+	expect(second.data.pagination).toEqual({
+		nextCursor: null,
+		truncated: false,
+	})
+
+	const filtered = await load({ unit: 'volume', seasonNumber: '2' })
+	expect(filtered.data.data.media.installments).toEqual([
+		expect.objectContaining({ kind: 'volume', seasonNumber: 2, number: 1 }),
+	])
+	expect(filtered.data.pagination.truncated).toBe(false)
+
+	const offFilterCursor = await load({
+		unit: 'episode',
+		cursor: filtered.data.data.media.installments[0]?.id ?? '',
+	}).catch(error => error)
+	expect(offFilterCursor).toBeInstanceOf(Response)
+	expect((offFilterCursor as Response).status).toBe(400)
+
+	const otherMedia = await prisma.media.create({
+		data: { kind: 'anime', title: 'Foreign consumption cursor' },
+	})
+	const foreignInstallment = await prisma.mediaInstallment.create({
+		data: {
+			mediaId: otherMedia.id,
+			kind: 'episode',
+			seasonNumber: 1,
+			number: 1,
+		},
+	})
+	const foreignCursor = await load({ cursor: foreignInstallment.id }).catch(
+		error => error,
+	)
+	expect(foreignCursor).toBeInstanceOf(Response)
+	expect((foreignCursor as Response).status).toBe(400)
+
+	const oversized = await load({ take: '251' }).catch(error => error)
+	expect(oversized).toBeInstanceOf(Response)
+	expect((oversized as Response).status).toBe(400)
+})
