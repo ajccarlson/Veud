@@ -1,6 +1,4 @@
-import { type ActionFunctionArgs } from 'react-router'
 import { z } from 'zod'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
 import { requireOwnedWatchlist } from '#app/utils/lists/authorization.server.ts'
@@ -23,9 +21,6 @@ const EDITABLE_SETTINGS = [
 	'defaultSortColumn',
 	'defaultSortDirection',
 ]
-
-// `settings` arrives as a JSON array of [key, value] pairs.
-const SettingsSchema = z.array(z.tuple([z.string(), z.unknown()]))
 
 function validatedSetting(key: string, value: unknown) {
 	if (key === 'name' || key === 'header') {
@@ -125,24 +120,4 @@ export async function updateWatchlistSettingsCommand(
 
 	// The client reads the updated watchlist as the last element of the returned array.
 	return [updated]
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	let rawSettings: unknown
-	try {
-		rawSettings = JSON.parse(searchParams.get('settings') ?? '')
-	} catch {
-		throw new Response('Invalid settings payload', { status: 400 })
-	}
-	const parsedSettings = SettingsSchema.safeParse(rawSettings)
-	if (!parsedSettings.success) {
-		throw new Response('Invalid settings payload', { status: 400 })
-	}
-	return updateWatchlistSettingsCommand(
-		ownerId,
-		searchParams.get('listId'),
-		Object.fromEntries(parsedSettings.data),
-	)
 }

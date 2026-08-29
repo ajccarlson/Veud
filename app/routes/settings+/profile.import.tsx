@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	Form,
@@ -40,9 +39,8 @@ function entriesLabel(count: number) {
 	return `${count.toLocaleString()} ${count === 1 ? 'entry' : 'entries'}`
 }
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: 'Import library',
-	getSitemapEntries: () => null,
 }
 
 function candidates(value: string) {

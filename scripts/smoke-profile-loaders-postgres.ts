@@ -5,7 +5,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { type PrismaClient } from '@prisma/client'
-import { type updateEntryCellCommand } from '#app/routes/lists+/.fetch+/update-cell.$request.ts'
 import {
 	type action as mediaDetailAction,
 	type loader as mediaDetailLoader,
@@ -24,6 +23,7 @@ import {
 } from '#app/utils/legacy-tracking-entry.server.ts'
 import { type applyLibraryImportBatch } from '#app/utils/library-import-commit.server.ts'
 import { type syncWatchlistActivityVisibility } from '#app/utils/lists/activity-visibility.server.ts'
+import { type updateEntryCellCommand } from '#app/utils/lists/commands/update-entry-cell.server.ts'
 import { type loadProfileFavorites } from '#app/utils/profile-data.server.ts'
 import { type setMediaTrackingStatus } from '#app/utils/tracking-status.server.ts'
 import { type serializeUserLibraryMutation } from '#app/utils/watchlist-limits.ts'
@@ -2161,7 +2161,7 @@ async function main() {
 		import('#app/utils/activity.server.ts'),
 		import('#app/utils/lists/activity-visibility.server.ts'),
 		import('#app/routes/media+/$mediaId.tsx'),
-		import('#app/routes/lists+/.fetch+/update-cell.$request.ts'),
+		import('#app/utils/lists/commands/update-entry-cell.server.ts'),
 		import('#app/utils/tracking-status.server.ts'),
 		import('#app/utils/watchlist-limits.ts'),
 	])

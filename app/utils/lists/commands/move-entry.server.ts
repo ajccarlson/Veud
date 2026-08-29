@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	EntryOrderError,
@@ -38,15 +36,4 @@ export async function moveEntryCommand(
 		}
 		throw error
 	}
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	const rawPosition = searchParams.get('position')
-	return moveEntryCommand(ownerId, {
-		entryId: searchParams.get('entryId'),
-		destinationWatchlistId: searchParams.get('destinationWatchlistId'),
-		position: rawPosition === null ? null : Number(rawPosition),
-	})
 }

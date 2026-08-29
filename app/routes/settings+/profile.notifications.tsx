@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	Form,
@@ -22,9 +21,8 @@ import {
 	notificationDigestFrequencies,
 } from '#app/utils/notification-preferences.ts'
 
-export const handle: SEOHandle & { breadcrumb: React.ReactNode } = {
+export const handle: { breadcrumb: React.ReactNode } = {
 	breadcrumb: <Icon name="envelope-closed">Notifications</Icon>,
-	getSitemapEntries: () => null,
 }
 
 const PreferenceSchema = z.object({

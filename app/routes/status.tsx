@@ -1,4 +1,3 @@
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import {
 	data as json,
 	type LoaderFunctionArgs,
@@ -16,10 +15,6 @@ import {
 	parseAffectedAreas,
 	serviceAreas,
 } from '#app/utils/service-incidents.ts'
-
-export const handle: SEOHandle = {
-	getSitemapEntries: () => [{ route: '/status', priority: 0.2 }],
-}
 
 export const meta: MetaFunction = () => [
 	{ title: 'Service status | Veud' },

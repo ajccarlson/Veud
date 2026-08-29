@@ -1,17 +1,7 @@
-/**
- * Route-level test for the update-cell action
- * (app/routes/lists+/.fetch+/update-cell.$request.ts).
- *
- * Covers the 0.2 access control on this route and the 2.1 error-handling fix: auth/ownership
- * failures surface as real statuses (401/404) and bad input as 400 — never swallowed into a
- * 200 body.
- */
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action } from '#app/routes/lists+/.fetch+/update-cell.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { updateEntryCellCommand } from '#app/utils/lists/commands/update-entry-cell.server.ts'
 
 async function createUserRecord() {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
@@ -19,15 +9,6 @@ async function createUserRecord() {
 		data: { email: `${suffix}@example.com`, username: `u_${suffix}` },
 		select: { id: true },
 	})
-}
-
-async function authedRequestFor(userId: string) {
-	const session = await prisma.session.create({
-		data: { userId, expirationDate: getSessionExpirationDate() },
-		select: { id: true },
-	})
-	const cookie = await getSessionCookieHeader(session)
-	return new Request(BASE_URL, { method: 'POST', headers: { cookie } })
 }
 
 async function createOwnerWithEntry() {
@@ -73,21 +54,16 @@ async function createOwnerWithEntry() {
 }
 
 function updateTitleParams(entryId: string, newValue: string) {
-	return new URLSearchParams({
-		rowIndex: entryId,
-		colId: 'title',
-		newValue,
-	}).toString()
+	return { entryId, columnId: 'title', value: newValue }
 }
 
 test('the owner can update a cell', async () => {
 	const { userId, entryId } = await createOwnerWithEntry()
-	const request = await authedRequestFor(userId)
 
-	const result = await action({
-		request,
-		params: { request: updateTitleParams(entryId, 'Updated Title') },
-	} as any)
+	const result = await updateEntryCellCommand(
+		userId,
+		updateTitleParams(entryId, 'Updated Title'),
+	)
 
 	expect((result as { title?: string }).title).toBe('Updated Title')
 })
@@ -105,12 +81,10 @@ test('a regular cell edit preserves current history and refreshes its timestamp'
 			}),
 		},
 	})
-	const request = await authedRequestFor(userId)
-
-	await action({
-		request,
-		params: { request: updateTitleParams(entryId, 'History-safe title') },
-	} as any)
+	await updateEntryCellCommand(
+		userId,
+		updateTitleParams(entryId, 'History-safe title'),
+	)
 
 	const saved = await prisma.entry.findUniqueOrThrow({
 		where: { id: entryId },
@@ -129,63 +103,36 @@ test('a regular cell edit preserves current history and refreshes its timestamp'
 test('a logged-in non-owner cannot update the cell (404)', async () => {
 	const { entryId } = await createOwnerWithEntry()
 	const other = await createUserRecord()
-	const request = await authedRequestFor(other.id)
 
-	const res = await action({
-		request,
-		params: { request: updateTitleParams(entryId, 'Hacked') },
-	} as any).catch(e => e)
+	const res = await updateEntryCellCommand(
+		other.id,
+		updateTitleParams(entryId, 'Hacked'),
+	).catch(e => e)
 
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(404)
 })
 
-test('an unauthenticated caller cannot update the cell', async () => {
-	const { entryId } = await createOwnerWithEntry()
-
-	const res = await action({
-		request: new Request(BASE_URL, { method: 'POST' }),
-		params: { request: updateTitleParams(entryId, 'Hacked') },
-	} as any).catch(e => e)
-
-	expect(res).toBeInstanceOf(Response)
-	const status = (res as Response).status
-	expect(status).toBeGreaterThanOrEqual(300)
-	expect(status).toBeLessThan(400)
-})
-
 test('protected columns cannot be changed through the generic cell endpoint', async () => {
 	const { userId, entryId } = await createOwnerWithEntry()
-	const request = await authedRequestFor(userId)
 
-	const params = new URLSearchParams({
-		rowIndex: entryId,
-		colId: 'watchlistId',
-		newValue: 'attacker-controlled-watchlist',
-	}).toString()
-
-	const res = await action({
-		request,
-		params: { request: params },
-	} as any).catch(e => e)
+	const res = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'watchlistId',
+		value: 'attacker-controlled-watchlist',
+	}).catch(e => e)
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(400)
 })
 
 test('column values are cast from the server schema and reject invalid numbers', async () => {
 	const { userId, entryId } = await createOwnerWithEntry()
-	const request = await authedRequestFor(userId)
-	const params = new URLSearchParams({
-		rowIndex: entryId,
-		colId: 'personal',
-		newValue: 'not-a-number',
-		type: 'string',
-	}).toString()
 
-	const res = await action({
-		request,
-		params: { request: params },
-	} as any).catch(error => error)
+	const res = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'personal',
+		value: 'not-a-number',
+	}).catch(error => error)
 	expect(res).toBeInstanceOf(Response)
 	expect((res as Response).status).toBe(400)
 })

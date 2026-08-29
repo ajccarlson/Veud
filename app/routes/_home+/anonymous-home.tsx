@@ -1,4 +1,5 @@
-import { Link, useFetcher } from 'react-router'
+import { useState } from 'react'
+import { Form, Link, useFetcher, useNavigation, useSubmit } from 'react-router'
 import { HoneypotInputs } from 'remix-utils/honeypot/react'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon, type IconName } from '#app/components/ui/icon.tsx'
@@ -98,7 +99,12 @@ function MemoryDemo({
 	imageSearchAvailable: boolean
 }) {
 	const fetcher = useFetcher<typeof imageTipOfTongueAction>()
-	const pending = fetcher.state !== 'idle'
+	const navigation = useNavigation()
+	const submit = useSubmit()
+	const [hasImage, setHasImage] = useState(false)
+	const textSearchPending =
+		navigation.state !== 'idle' && navigation.formData?.get('mode') === 'memory'
+	const pending = fetcher.state !== 'idle' || textSearchPending
 	const items = fetcher.data?.ok ? fetcher.data.items : []
 	const status = fetcher.data?.ok
 		? tipOfTongueStatus({
@@ -120,13 +126,30 @@ function MemoryDemo({
 				<h2 id="home-anon-memory-title">What was that title?</h2>
 				<p>Describe whatever you remember.</p>
 			</div>
-			<fetcher.Form
-				method="post"
-				action="/resources/image-tip-of-tongue"
-				encType="multipart/form-data"
+			<Form
+				method="get"
+				action="/discover"
 				className="home-anon-memory-form"
+				onSubmit={event => {
+					const formData = new FormData(event.currentTarget)
+					const image = formData.get('image')
+					event.preventDefault()
+					if (!(image instanceof File) || image.size === 0) {
+						formData.delete('image')
+						fetcher.reset()
+						setHasImage(false)
+						submit(formData, { method: 'get', action: '/discover' })
+						return
+					}
+					fetcher.submit(formData, {
+						method: 'post',
+						action: '/resources/image-tip-of-tongue',
+						encType: 'multipart/form-data',
+					})
+				}}
 			>
-				<HoneypotInputs />
+				{hasImage ? <HoneypotInputs /> : null}
+				<input type="hidden" name="mode" value="memory" />
 				<label htmlFor="home-memory-query" className="sr-only">
 					Describe the movie, show, anime, or manga you remember
 				</label>
@@ -145,6 +168,9 @@ function MemoryDemo({
 							type="file"
 							accept="image/jpeg,image/png,image/webp"
 							aria-label="Add a screenshot or cover"
+							onChange={event =>
+								setHasImage(Boolean(event.currentTarget.files?.[0]?.size))
+							}
 						/>
 					</label>
 				) : null}
@@ -171,7 +197,7 @@ function MemoryDemo({
 						{pending ? 'Searching…' : 'Find matches'}
 					</Button>
 				</div>
-			</fetcher.Form>
+			</Form>
 
 			{pending ? (
 				<div

@@ -1,5 +1,4 @@
 import { invariantResponse } from '@epic-web/invariant'
-import { type SEOHandle } from '@nasa-gcn/remix-seo'
 import { useState } from 'react'
 import {
 	data as json,
@@ -32,9 +31,8 @@ import { makeTimings } from '#app/utils/timing.server.ts'
 import { createToastHeaders } from '#app/utils/toast.server.ts'
 import { type BreadcrumbHandle } from './profile.tsx'
 
-export const handle: BreadcrumbHandle & SEOHandle = {
+export const handle: BreadcrumbHandle = {
 	breadcrumb: <Icon name="link-2">Connections</Icon>,
-	getSitemapEntries: () => null,
 }
 
 async function userCanDeleteConnections(userId: string) {

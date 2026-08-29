@@ -18,7 +18,6 @@ import {
 } from '#app/utils/proxy-security.server.ts'
 import {
 	getImageTipOfTongueMatches,
-	getTipOfTongueMatches,
 	TipOfTongueImageError,
 } from '#app/utils/tip-of-tongue.server.ts'
 
@@ -85,28 +84,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 		kind: formData.get('kind'),
 	})
 	const image = formData.get('image')
-	const hasImage = image instanceof File && image.size > 0
-	if (
-		!fields.success ||
-		(!hasImage &&
-			String(formData.get('q') ?? formData.get('prompt') ?? '').trim().length <
-				3)
-	) {
-		return json(
-			{ ok: false as const, error: 'Add a few details or an image.' },
-			{ status: 400 },
-		)
+	if (!fields.success || !(image instanceof File) || image.size === 0) {
+		return json({ ok: false as const, error: 'Add an image.' }, { status: 400 })
 	}
 	try {
-		const result = hasImage
-			? await getImageTipOfTongueMatches(
-					{ image, ...fields.data },
-					{ rateLimitKey },
-				)
-			: await getTipOfTongueMatches(
-					{ memory: fields.data.prompt, kind: fields.data.kind },
-					{ allowAi: true, rateLimitKey },
-				)
+		const result = await getImageTipOfTongueMatches(
+			{ image, ...fields.data },
+			{ rateLimitKey },
+		)
 		const filters = parseDiscoveryQuery(
 			new URLSearchParams({ kind: fields.data.kind, mode: 'memory' }),
 		)
@@ -126,7 +111,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 			})),
 			source: result.source,
 			fallbackReason: result.fallbackReason,
-			upload: 'upload' in result ? result.upload : null,
+			upload: result.upload,
 		})
 	} catch (error) {
 		const status = error instanceof TipOfTongueImageError ? error.status : 503

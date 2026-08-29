@@ -1,5 +1,3 @@
-import { type ActionFunctionArgs } from 'react-router'
-import { requireUserId } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { stripProtectedFields } from '#app/utils/lists/authorization.server.ts'
 import {
@@ -103,16 +101,4 @@ export async function updateEntryCommand(
 		}
 		return updated
 	})
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-	const ownerId = await requireUserId(request)
-	const searchParams = new URLSearchParams(params.request)
-	let row: unknown
-	try {
-		row = JSON.parse(searchParams.get('row') ?? '')
-	} catch {
-		throw new Response('Invalid row payload', { status: 400 })
-	}
-	return updateEntryCommand(ownerId, searchParams.get('rowIndex'), row)
 }

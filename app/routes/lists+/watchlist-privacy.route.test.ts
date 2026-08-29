@@ -2,7 +2,6 @@ import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
 import { loader as watchlistLoader } from '#app/routes/lists+/.$username+/.$list-type+/$watchlist.tsx'
 import { loader as listTypeLoader } from '#app/routes/lists+/.$username+/.$list-type+/index.tsx'
-import { loader as entryLoader } from '#app/routes/lists+/.fetch+/get-list-entries.$request.ts'
 import { loader as v1EntryLoader } from '#app/routes/resources+/lists.v1.entries.ts'
 import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -150,24 +149,34 @@ test('private lists are owner-only across detail, landing, and entry loaders', a
 		]),
 	)
 
-	const entryArgs = (watchlistId: string, cookie?: string) =>
-		({
-			request: new Request(BASE_URL, {
+	const entryArgs = (watchlistId: string, cookie?: string) => {
+		const request = new Request(
+			`${BASE_URL}/resources/lists/v1/entries?watchlistId=${watchlistId}`,
+			{
 				headers: cookie ? { cookie } : undefined,
-			}),
-			params: {
-				request: new URLSearchParams({ watchlistId }).toString(),
 			},
-		}) as any
-	expect(
-		(await entryLoader(entryArgs(publicList.id))).map(entry => entry.title),
-	).toEqual(['Public title'])
-	await expectNotFound(entryLoader(entryArgs(privateList.id, otherCookie)))
-	expect(
-		(await entryLoader(entryArgs(privateList.id, ownerCookie))).map(
-			entry => entry.title,
-		),
-	).toEqual(['Private title'])
+		)
+		return { request, url: new URL(request.url), params: {} } as any
+	}
+	const publicEntries = await v1EntryLoader(entryArgs(publicList.id))
+	expect(publicEntries.data.ok).toBe(true)
+	if (!publicEntries.data.ok) throw new Error('Expected public list entries')
+	expect(publicEntries.data.data.map(entry => entry.title)).toEqual([
+		'Public title',
+	])
+	const deniedEntries = await v1EntryLoader(
+		entryArgs(privateList.id, otherCookie),
+	)
+	expect(deniedEntries.init?.status).toBe(404)
+	expect(deniedEntries.data.ok).toBe(false)
+	const privateEntries = await v1EntryLoader(
+		entryArgs(privateList.id, ownerCookie),
+	)
+	expect(privateEntries.data.ok).toBe(true)
+	if (!privateEntries.data.ok) throw new Error('Expected private list entries')
+	expect(privateEntries.data.data.map(entry => entry.title)).toEqual([
+		'Private title',
+	])
 
 	await prisma.entry.createMany({
 		data: Array.from({ length: 6 }, (_, index) => ({
@@ -335,15 +344,6 @@ test('public watchlist payload excludes account data and hidden entry fields', a
 	expect(result.data).not.toHaveProperty('watchLists')
 	expect(result.data).not.toHaveProperty('watchListsSorted')
 
-	const legacyEntries = await entryLoader({
-		request: new Request(BASE_URL),
-		params: {
-			request: new URLSearchParams({ watchlistId: watchlist.id }).toString(),
-		},
-	} as any)
-	expect(legacyEntries[0]).not.toHaveProperty('notes')
-	expect(legacyEntries[0]).not.toHaveProperty('history')
-
 	const v1Request = new Request(
 		`${BASE_URL}/resources/lists/v1/entries?watchlistId=${watchlist.id}`,
 	)
@@ -436,14 +436,6 @@ test('public list DTO exposes only configured tracking fields', async () => {
 				watchlist: watchlist.name,
 			},
 		} as any)
-		const legacy = await entryLoader({
-			request: new Request(BASE_URL),
-			params: {
-				request: new URLSearchParams({
-					watchlistId: watchlist.id,
-				}).toString(),
-			},
-		} as any)
 		const v1Request = new Request(
 			`${BASE_URL}/resources/lists/v1/entries?watchlistId=${watchlist.id}`,
 		)
@@ -454,7 +446,7 @@ test('public list DTO exposes only configured tracking fields', async () => {
 		} as any)
 		expect(v1.data.ok).toBe(true)
 		if (!v1.data.ok) throw new Error('Expected a public list response')
-		return [detail.data.listEntries, legacy, v1.data.data]
+		return [detail.data.listEntries, v1.data.data]
 	}
 
 	for (const entries of await loadSurfaces()) {
@@ -731,14 +723,6 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 				watchlist: publicList.name,
 			},
 		} as any)
-		const legacy = await entryLoader({
-			request: new Request(BASE_URL, { headers: headers(cookie) }),
-			params: {
-				request: new URLSearchParams({
-					watchlistId: publicList.id,
-				}).toString(),
-			},
-		} as any)
 		const v1Request = new Request(
 			`${BASE_URL}/resources/lists/v1/entries?watchlistId=${publicList.id}`,
 			{ headers: headers(cookie) },
@@ -767,7 +751,6 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 		return {
 			entries: {
 				detail: detail.data.listEntries,
-				legacy,
 				v1: v1.data.data,
 			},
 			landingEntries,
@@ -907,7 +890,7 @@ test('public duplicate entries cannot expose private or invalid tracking state',
 			},
 		],
 	})
-	for (const entries of [ownerResult.entries.legacy, ownerResult.entries.v1]) {
+	for (const entries of [ownerResult.entries.v1]) {
 		expect(entries.find(entry => entry.position === 2)?.media).toMatchObject({
 			kind: 'tv',
 			externalIds: [

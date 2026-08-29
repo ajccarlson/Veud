@@ -5,6 +5,8 @@ import {
 	isPublicSitemapPath,
 	parseSitemapPage,
 	publicPageSitemapPaths,
+	robotsResponse,
+	robotsTxt,
 	sitemapIndexXml,
 	sitemapPageCount,
 	urlSetXml,
@@ -166,4 +168,38 @@ test('a nested page keeps its parent path', () => {
 	})
 	expect(paths).toContain('/lists')
 	expect(paths).toContain('/')
+})
+
+test('robots.txt is byte-identical to what the removed library produced', () => {
+	// `@nasa-gcn/remix-seo` was dropped because its unsatisfiable peer forced
+	// legacy-peer-deps for the whole install. Crawler behaviour should not change
+	// as a side effect of that, so this pins the exact bytes it emitted.
+	expect(
+		robotsTxt([{ type: 'sitemap', value: 'https://veud.test/sitemap.xml' }]),
+	).toBe('User-agent: *\nAllow: /\nSitemap: https://veud.test/sitemap.xml\n')
+})
+
+test('robots.txt keeps the defaults ahead of anything a caller adds', () => {
+	expect(
+		robotsTxt([
+			{ type: 'disallow', value: '/admin' },
+			{ type: 'crawlDelay', value: '10' },
+		]),
+	).toBe('User-agent: *\nAllow: /\nDisallow: /admin\nCrawl-delay: 10\n')
+})
+
+test('the robots response declares its length in bytes, not characters', () => {
+	// Content-Length is bytes. A multi-byte path would make a character count
+	// short, and a truncated robots.txt is read as a shorter policy.
+	const body = robotsTxt([
+		{ type: 'sitemap', value: 'https://veud.test/sitemap—x.xml' },
+	])
+	const response = robotsResponse(body)
+	expect(response.headers.get('Content-Type')).toBe('text/plain')
+	expect(response.headers.get('Content-Length')).toBe(
+		String(new TextEncoder().encode(body).byteLength),
+	)
+	expect(Number(response.headers.get('Content-Length'))).toBeGreaterThan(
+		body.length,
+	)
 })

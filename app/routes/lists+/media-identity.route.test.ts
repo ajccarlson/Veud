@@ -1,13 +1,11 @@
 import { faker } from '@faker-js/faker'
 import { expect, test } from 'vitest'
-import { action as addFavorite } from '#app/routes/lists+/.fetch+/add-favorite.$request.ts'
-import { action as addRow } from '#app/routes/lists+/.fetch+/add-row.$request.ts'
-import { action as deleteRow } from '#app/routes/lists+/.fetch+/delete-row.$request.ts'
-import { action as updateCell } from '#app/routes/lists+/.fetch+/update-cell.$request.ts'
-import { action as updateRow } from '#app/routes/lists+/.fetch+/update-row.$request.ts'
-import { getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { BASE_URL, getSessionCookieHeader } from '#tests/utils.ts'
+import { addEntryCommand } from '#app/utils/lists/commands/add-entry.server.ts'
+import { addFavoriteCommand } from '#app/utils/lists/commands/add-favorite.server.ts'
+import { deleteEntryCommand } from '#app/utils/lists/commands/delete-entry.server.ts'
+import { updateEntryCellCommand } from '#app/utils/lists/commands/update-entry-cell.server.ts'
+import { updateEntryCommand } from '#app/utils/lists/commands/update-entry.server.ts'
 
 async function createOwner(listTypeName: 'liveaction' | 'anime' | 'manga') {
 	const suffix = faker.string.alphanumeric({ length: 12 }).toLowerCase()
@@ -57,27 +55,31 @@ async function createOwner(listTypeName: 'liveaction' | 'anime' | 'manga') {
 		},
 		select: { id: true },
 	})
-	const session = await prisma.session.create({
-		data: { userId: owner.id, expirationDate: getSessionExpirationDate() },
-		select: { id: true },
-	})
-	const cookie = await getSessionCookieHeader(session)
-
 	return {
 		ownerId: owner.id,
 		listTypeId: listType.id,
 		watchlistId: watchlist.id,
-		request: new Request(BASE_URL, {
-			method: 'POST',
-			headers: { cookie },
-		}),
 	}
 }
 
-function routeParams(key: 'row' | 'favorite', value: Record<string, unknown>) {
-	return {
-		request: new URLSearchParams({ [key]: JSON.stringify(value) }).toString(),
-	}
+function commandParams(
+	_key: 'row' | 'favorite',
+	value: Record<string, unknown>,
+) {
+	return value
+}
+
+type CommandCall = {
+	ownerId: string
+	params: Record<string, unknown>
+}
+
+function addRow({ ownerId, params }: CommandCall) {
+	return addEntryCommand(ownerId, params)
+}
+
+function addFavorite({ ownerId, params }: CommandCall) {
+	return addFavoriteCommand(ownerId, params)
 }
 
 test('new rows reuse sparse canonical media while saving user-owned snapshots', async () => {
@@ -90,8 +92,8 @@ test('new rows reuse sparse canonical media while saving user-owned snapshots', 
 		'https://image.tmdb.org/poster.jpg|https://www.themoviedb.org/movie/278'
 
 	const first = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			id: 'client-chosen-id',
 			watchlistId: owner.watchlistId,
 			position: 1,
@@ -107,8 +109,8 @@ test('new rows reuse sparse canonical media while saving user-owned snapshots', 
 	} as any)
 
 	const second = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 2,
 			title: 'The same work in another row',
@@ -181,8 +183,8 @@ test('tracking activity created from a private list stays private', async () => 
 		data: { isPublic: false },
 	})
 	const entry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Private tracking title',
@@ -221,8 +223,8 @@ test('deleting the current public entry restores a surviving private status', as
 		externalId: '99992',
 	}
 	const privateEntry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: privateList.id,
 			position: 1,
 			title: 'Private fallback title',
@@ -231,8 +233,8 @@ test('deleting the current public entry restores a surviving private status', as
 		}),
 	} as any)
 	const publicEntry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Private fallback title',
@@ -241,12 +243,7 @@ test('deleting the current public entry restores a surviving private status', as
 		}),
 	} as any)
 
-	await deleteRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({ id: publicEntry.id }).toString(),
-		},
-	} as any)
+	await deleteEntryCommand(owner.ownerId, publicEntry.id)
 
 	const state = await prisma.trackingState.findUniqueOrThrow({
 		where: { id: privateEntry.trackingStateId as string },
@@ -277,8 +274,8 @@ test('new rows insert atomically without duplicate positions', async () => {
 
 	for (const [index, title] of ['First row', 'Inserted row'].entries()) {
 		await addRow({
-			request: owner.request,
-			params: routeParams('row', {
+			ownerId: owner.ownerId,
+			params: commandParams('row', {
 				watchlistId: owner.watchlistId,
 				position: 1,
 				title,
@@ -315,8 +312,8 @@ test('provider identity must agree with the destination list type', async () => 
 	const owner = await createOwner('liveaction')
 
 	const result = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Wrong catalog',
@@ -347,8 +344,8 @@ test('provider identities reject noncanonical and unsafe external IDs', async ()
 		'9007199254740992',
 	]) {
 		const result = await addRow({
-			request: owner.request,
-			params: routeParams('row', {
+			ownerId: owner.ownerId,
+			params: commandParams('row', {
 				watchlistId: owner.watchlistId,
 				position: 1,
 				title: 'Noncanonical catalog identity',
@@ -370,8 +367,8 @@ test('provider identities reject noncanonical and unsafe external IDs', async ()
 test('new MAL rows ignore client-supplied canonical relations and target metadata', async () => {
 	const owner = await createOwner('anime')
 	const entry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'First season',
@@ -422,8 +419,8 @@ test('new MAL rows ignore client-supplied canonical relations and target metadat
 test('new TMDB rows ignore client-supplied canonical franchise data', async () => {
 	const owner = await createOwner('liveaction')
 	const entry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'First franchise movie',
@@ -464,8 +461,8 @@ test('new TMDB rows ignore client-supplied canonical franchise data', async () =
 test('invalid cross-provider client relation metadata is ignored', async () => {
 	const owner = await createOwner('anime')
 	const entry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Invalid relation source',
@@ -501,8 +498,8 @@ test('favorites use session ownership and validated canonical identity', async (
 	})
 
 	const favorite = await addFavorite({
-		request: owner.request,
-		params: routeParams('favorite', {
+		ownerId: owner.ownerId,
+		params: commandParams('favorite', {
 			position: 1,
 			title: 'Berserk',
 			typeId: owner.listTypeId,
@@ -606,8 +603,8 @@ test('add, update, and favorite payloads cannot overwrite trusted canonical medi
 	}
 
 	const entry = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Private row title',
@@ -649,33 +646,25 @@ test('add, update, and favorite payloads cannot overwrite trusted canonical medi
 	})
 	expect(await prisma.mediaRelation.count()).toBe(1)
 
-	const updated = await updateRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({
-				rowIndex: entry.id,
-				row: JSON.stringify({
-					title: 'Updated private row title',
-					thumbnail: 'https://member.example/updated.jpg',
-					description: 'Updated private row description',
-					genres: 'Another forged genre',
-					nextRelease: null,
-					mediaIdentity: identity,
-					mediaRelations: [
-						{
-							relationType: 'prequel',
-							targetIdentity: {
-								provider: 'mal',
-								kind: 'anime',
-								externalId: '44002',
-							},
-							targetCatalog: { title: 'Forged prequel' },
-						},
-					],
-				}),
-			}).toString(),
-		},
-	} as any)
+	const updated = await updateEntryCommand(owner.ownerId, entry.id, {
+		title: 'Updated private row title',
+		thumbnail: 'https://member.example/updated.jpg',
+		description: 'Updated private row description',
+		genres: 'Another forged genre',
+		nextRelease: null,
+		mediaIdentity: identity,
+		mediaRelations: [
+			{
+				relationType: 'prequel',
+				targetIdentity: {
+					provider: 'mal',
+					kind: 'anime',
+					externalId: '44002',
+				},
+				targetCatalog: { title: 'Forged prequel' },
+			},
+		],
+	})
 	expect(updated).toEqual(
 		expect.objectContaining({
 			title: 'Updated private row title',
@@ -686,8 +675,8 @@ test('add, update, and favorite payloads cannot overwrite trusted canonical medi
 	)
 
 	const favorite = await addFavorite({
-		request: owner.request,
-		params: routeParams('favorite', {
+		ownerId: owner.ownerId,
+		params: commandParams('favorite', {
 			position: 1,
 			title: 'Private favorite title',
 			thumbnail: 'https://member.example/favorite.jpg',
@@ -763,23 +752,15 @@ test('refreshing a legacy row can establish its canonical identity', async () =>
 		select: { id: true },
 	})
 
-	const updated = await updateRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({
-				rowIndex: entry.id,
-				row: JSON.stringify({
-					title: 'Fullmetal Alchemist: Brotherhood',
-					position: 99,
-					mediaIdentity: {
-						provider: 'mal',
-						kind: 'anime',
-						externalId: '5114',
-					},
-				}),
-			}).toString(),
+	const updated = await updateEntryCommand(owner.ownerId, entry.id, {
+		title: 'Fullmetal Alchemist: Brotherhood',
+		position: 99,
+		mediaIdentity: {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '5114',
 		},
-	} as any)
+	})
 
 	expect(updated.title).toBe('Fullmetal Alchemist: Brotherhood')
 	expect(updated.position).toBe(1)
@@ -804,8 +785,8 @@ test('client schedule edits remain user-owned and never update sibling snapshots
 		episode: 10,
 	})
 	const added = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Schedule refresh title',
@@ -833,23 +814,15 @@ test('client schedule edits remain user-owned and never update sibling snapshots
 		},
 	})
 
-	await updateRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({
-				rowIndex: added.id,
-				row: JSON.stringify({
-					title: 'Failed provider refresh preserves schedule',
-					nextRelease: null,
-					mediaIdentity: {
-						provider: 'mal',
-						kind: 'anime',
-						externalId: '55114',
-					},
-				}),
-			}).toString(),
+	await updateEntryCommand(owner.ownerId, added.id, {
+		title: 'Failed provider refresh preserves schedule',
+		nextRelease: null,
+		mediaIdentity: {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '55114',
 		},
-	} as any)
+	})
 	expect(
 		await prisma.media.findUniqueOrThrow({
 			where: { id: added.mediaId as string },
@@ -868,8 +841,8 @@ test('client schedule edits remain user-owned and never update sibling snapshots
 test('correcting canonical identity removes the superseded orphan state', async () => {
 	const owner = await createOwner('anime')
 	const added = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Incorrect identity',
@@ -881,23 +854,15 @@ test('correcting canonical identity removes the superseded orphan state', async 
 		}),
 	} as any)
 
-	const updated = await updateRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({
-				rowIndex: added.id,
-				row: JSON.stringify({
-					...added,
-					title: 'Corrected identity',
-					mediaIdentity: {
-						provider: 'mal',
-						kind: 'anime',
-						externalId: '2',
-					},
-				}),
-			}).toString(),
+	const updated = await updateEntryCommand(owner.ownerId, added.id, {
+		...added,
+		title: 'Corrected identity',
+		mediaIdentity: {
+			provider: 'mal',
+			kind: 'anime',
+			externalId: '2',
 		},
-	} as any)
+	})
 
 	expect(updated.mediaId).not.toBe(added.mediaId)
 	expect(updated.trackingStateId).not.toBe(added.trackingStateId)
@@ -911,8 +876,8 @@ test('correcting canonical identity removes the superseded orphan state', async 
 test('cell edits synchronize score, dates, and episode progress', async () => {
 	const owner = await createOwner('anime')
 	const added = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Progress title',
@@ -933,33 +898,25 @@ test('cell edits synchronize score, dates, and episode progress', async () => {
 		}),
 	} as any)
 
-	const cellParams = (colId: string, newValue: string, type: string) => ({
-		request: new URLSearchParams({
-			rowIndex: added.id,
-			colId,
-			newValue,
-			type,
-			filter: type,
-			listTypeData: JSON.stringify({ mediaType: '["episode"]' }),
-		}).toString(),
+	const cellParams = (columnId: string, value: string) => ({
+		entryId: added.id,
+		columnId,
+		value,
 	})
 
-	await updateCell({
-		request: owner.request,
-		params: cellParams('personal', '9', 'number'),
-	} as any)
-	await updateCell({
-		request: owner.request,
-		params: cellParams('length', '3 / 12 eps', 'string'),
-	} as any)
-	await updateCell({
-		request: owner.request,
-		params: cellParams('started', '2026-01-02', 'history'),
-	} as any)
-	await updateCell({
-		request: owner.request,
-		params: cellParams('finished', '2026-01-12', 'history'),
-	} as any)
+	await updateEntryCellCommand(owner.ownerId, cellParams('personal', '9'))
+	await updateEntryCellCommand(
+		owner.ownerId,
+		cellParams('length', '3 / 12 eps'),
+	)
+	await updateEntryCellCommand(
+		owner.ownerId,
+		cellParams('started', '2026-01-02'),
+	)
+	await updateEntryCellCommand(
+		owner.ownerId,
+		cellParams('finished', '2026-01-12'),
+	)
 
 	const state = await prisma.trackingState.findUniqueOrThrow({
 		where: { id: added.trackingStateId as string },
@@ -986,8 +943,8 @@ test('moving a row updates canonical status and deletion cleans up orphan state'
 	})
 	const identity = { provider: 'mal', kind: 'anime', externalId: '5114' }
 	const source = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: owner.watchlistId,
 			position: 1,
 			title: 'Fullmetal Alchemist: Brotherhood',
@@ -996,8 +953,8 @@ test('moving a row updates canonical status and deletion cleans up orphan state'
 		}),
 	} as any)
 	const moved = await addRow({
-		request: owner.request,
-		params: routeParams('row', {
+		ownerId: owner.ownerId,
+		params: commandParams('row', {
 			watchlistId: destination.id,
 			position: 1,
 			title: source.title,
@@ -1015,19 +972,9 @@ test('moving a row updates canonical status and deletion cleans up orphan state'
 	expect(stateAfterMove.statusWatchlistId).toBe(destination.id)
 	expect(Number(stateAfterMove.score)).toBe(8)
 
-	await deleteRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({ id: source.id }).toString(),
-		},
-	} as any)
+	await deleteEntryCommand(owner.ownerId, source.id)
 	expect(await prisma.trackingState.count()).toBe(1)
 
-	await deleteRow({
-		request: owner.request,
-		params: {
-			request: new URLSearchParams({ id: moved.id }).toString(),
-		},
-	} as any)
+	await deleteEntryCommand(owner.ownerId, moved.id)
 	expect(await prisma.trackingState.count()).toBe(0)
 })
