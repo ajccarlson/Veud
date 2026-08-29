@@ -15,7 +15,7 @@ async function seed() {
 	// `prisma migrate reset`) deletes ALL data via cleanupDb() below. Refuse to run
 	// against a database that already holds data unless explicitly forced, so a
 	// populated/production database can't be wiped by accident.
-	let existingUserCount = 0
+	let existingUserCount: number
 	try {
 		existingUserCount = await prisma.user.count()
 	} catch {
@@ -194,27 +194,27 @@ async function seed() {
 	const listTypes = [
 		{
 			id: `yducsgix`,
-      name: `liveaction`,
-      header: `Live Action`,
-      columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","airYear":"string","releaseStart":"date","releaseEnd":"date","length":"string","rating":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","language":"string","story":"number","character":"number","presentation":"number","sound":"number","performance":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","tmdbScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
-      mediaType: `["episode"]`,
-      completionType: `{"present":"watch","past":"watched","continuous":"watching"}`
+			name: `liveaction`,
+			header: `Live Action`,
+			columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","airYear":"string","releaseStart":"date","releaseEnd":"date","length":"string","rating":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","language":"string","story":"number","character":"number","presentation":"number","sound":"number","performance":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","tmdbScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
+			mediaType: `["episode"]`,
+			completionType: `{"present":"watch","past":"watched","continuous":"watching"}`,
 		},
-    {
+		{
 			id: `lx727mrc`,
-      name: `anime`,
-      header: `Anime`,
-      columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","startSeason":"string","releaseStart":"date","releaseEnd":"date","length":"string","rating":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","studios":"string","priority":"string","story":"number","character":"number","presentation":"number","sound":"number","performance":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","malScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
-      mediaType: `["episode"]`,
-      completionType: `{"present":"watch","past":"watched","continuous":"watching"}`
+			name: `anime`,
+			header: `Anime`,
+			columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","startSeason":"string","releaseStart":"date","releaseEnd":"date","length":"string","rating":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","studios":"string","priority":"string","story":"number","character":"number","presentation":"number","sound":"number","performance":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","malScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
+			mediaType: `["episode"]`,
+			completionType: `{"present":"watch","past":"watched","continuous":"watching"}`,
 		},
-    {
+		{
 			id: `b44evg7f`,
-      name: `manga`,
-      header: `Manga`,
-      columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","startYear":"string","releaseStart":"date","releaseEnd":"date","chapters":"string","volumes":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","serialization":"string","authors":"string","priority":"string","story":"number","character":"number","presentation":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","malScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
-      mediaType: `["chapter","volume"]`,
-      completionType: `{"present":"read","past":"read","continuous":"reading"}`
+			name: `manga`,
+			header: `Manga`,
+			columns: `{"id":"string","watchlistId":"string","position":"number","thumbnail":"string","title":"string","type":"string","startYear":"string","releaseStart":"date","releaseEnd":"date","chapters":"string","volumes":"string","startDate":"history", "finishedDate":"history", "dateAdded":"history", "lastUpdated":"history","genres":"string","serialization":"string","authors":"string","priority":"string","story":"number","character":"number","presentation":"number","enjoyment":"number","averaged":"number","personal":"number","differencePersonal":"number","malScore":"number","differenceObjective":"number","description":"string","notes":"string"}`,
+			mediaType: `["chapter","volume"]`,
+			completionType: `{"present":"read","past":"read","continuous":"reading"}`,
 		},
 	]
 

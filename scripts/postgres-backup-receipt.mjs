@@ -311,7 +311,7 @@ function readBoundedPrivatePostgresReceipt(
 		}
 	} catch (error) {
 		if (error instanceof Error && error.message.startsWith(label)) throw error
-		throw new Error(`${label} could not be safely read`)
+		throw new Error(`${label} could not be safely read`, { cause: error })
 	} finally {
 		if (descriptor !== undefined) fs.closeSync(descriptor)
 	}

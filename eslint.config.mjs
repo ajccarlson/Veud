@@ -37,6 +37,15 @@ const legacyConfig = {
 	extends: ['eslint:recommended', 'prettier'],
 	plugins: ['import'],
 	rules: {
+		// ESLint 10 promotes both of these into its recommended set. Taking them
+		// now gets their value without running eslint-plugin-react outside the
+		// peer range it declares — 7.37.5 is the latest and still says `^9.7`.
+		//
+		// `preserve-caught-error` is the one that matters: rethrowing a new error
+		// without `cause` discards what actually failed, which is exactly the
+		// information wanted at three in the morning.
+		'preserve-caught-error': 'error',
+		'no-useless-assignment': 'error',
 		// Playwright requires destructuring in fixtures even if nothing is used.
 		'no-empty-pattern': 'off',
 		'no-async-promise-executor': 'off',
