@@ -338,12 +338,10 @@ test('every User relation is classified as exported or withheld', async () => {
 	//
 	// This is that comparison. Adding a relation to User without deciding
 	// whether a member's own data export contains it fails here.
-	const { Prisma } = await import('@prisma/client')
-	const user = Prisma.dmmf.datamodel.models.find(model => model.name === 'User')
-	expect(user, 'User model missing from the Prisma DMMF').toBeDefined()
-
-	const relations = user!.fields
-		.filter(field => field.kind === 'object')
+	const { schemaModel } =
+		await import('../../../scripts/prisma-schema-model.mjs')
+	const relations = schemaModel('User')
+		.fields.filter(field => field.kind === 'object')
 		.map(field => field.name)
 		.sort()
 

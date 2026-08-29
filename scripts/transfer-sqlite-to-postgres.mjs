@@ -3,7 +3,7 @@ import 'dotenv/config'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Prisma, PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import Database from 'better-sqlite3'
 import { listRequiredMigrations } from './backup-utils.mjs'
 import { assertCatalogWriterRuntimeProof } from './catalog-writer-runtime-guard.mjs'
@@ -19,6 +19,7 @@ import {
 	postgresTargetIdentity,
 	sortRowsForSelfRelations,
 } from './postgres-transfer-utils.mjs'
+import { schemaModels } from './prisma-schema-model.mjs'
 
 assertCatalogWriterRuntimeProof(process.env)
 
@@ -347,7 +348,11 @@ async function main() {
 		readonly: true,
 		fileMustExist: true,
 	})
-	const models = Prisma.dmmf.datamodel.models
+	// Read from schema.prisma rather than the generated client: Prisma 7 strips
+	// `isList` and `relationFromFields` out of the DMMF, and the insertion order
+	// is built entirely from those. Losing them silently degrades the plan to
+	// alphabetical, which inserts children before parents.
+	const models = schemaModels()
 	// Some relations have no valid insertion order at all; those columns go in
 	// empty and are filled once every row exists.
 	const deferredRelations = planDeferredRelations(models)

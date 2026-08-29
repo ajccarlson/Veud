@@ -1,4 +1,5 @@
-import { Prisma, type PrismaClient } from '@prisma/client'
+import { type Prisma, type PrismaClient } from '@prisma/client'
+import { listRelations } from '../../scripts/prisma-schema-model.mjs'
 
 export const E2E_MEDIA_TITLE_PREFIX = '[VEUD E2E]'
 
@@ -190,10 +191,7 @@ const attachmentSelect = Object.fromEntries(
  * something that decides whether to delete.
  */
 const fixtureAccountCountSelect = Object.fromEntries(
-	Prisma.dmmf.datamodel.models
-		.find(model => model.name === 'User')!
-		.fields.filter(field => field.kind === 'object' && field.isList)
-		.map(field => [field.name, true]),
+	listRelations('User').map(name => [name, true]),
 ) as Prisma.UserCountOutputTypeSelect & Record<string, true>
 
 /** Exported for the coverage test. */

@@ -1,5 +1,8 @@
-import { Prisma } from '@prisma/client'
 import { expect, test } from 'vitest'
+import {
+	listRelations,
+	schemaModel,
+} from '../../scripts/prisma-schema-model.mjs'
 import {
 	mediaMergeDrainCountSelect,
 	mediaMergeRelationDispositions,
@@ -17,20 +20,12 @@ import {
  * of losing the rows.
  */
 test('every Media relation has a declared merge disposition', () => {
-	const media = Prisma.dmmf.datamodel.models.find(
-		model => model.name === 'Media',
-	)
-	expect(media, 'Media model missing from the Prisma DMMF').toBeDefined()
-
-	const relations = media!.fields
-		.filter(field => field.kind === 'object' && field.isList)
-		.map(field => field.name)
-		.sort()
+	const relations = listRelations('Media').sort()
 	// A to-one relation would need a different disposition than "move the rows",
 	// so the ledger deliberately only covers to-many. Catch one being added.
 	expect(
-		media!.fields
-			.filter(field => field.kind === 'object' && !field.isList)
+		schemaModel('Media')
+			.fields.filter(field => field.kind === 'object' && !field.isList)
 			.map(field => field.name),
 	).toEqual([])
 
