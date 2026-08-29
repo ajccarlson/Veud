@@ -220,8 +220,8 @@ test('treats an undescribed foreign key column as required', () => {
 test('the real datamodel produces a usable transfer plan', async () => {
 	// This is the regression that matters: the cutover path could not run at
 	// all, because the moderation models form a cycle the planner refused.
-	const { Prisma } = await import('@prisma/client')
-	const models = Prisma.dmmf.datamodel.models
+	const { schemaModels } = await import('./prisma-schema-model.mjs')
+	const models = schemaModels()
 	const plan = buildModelTransferPlan(models)
 	expect(plan).toHaveLength(models.length)
 	expect(plan).toContain('ModerationReport')

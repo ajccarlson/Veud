@@ -1,5 +1,8 @@
-import { Prisma } from '@prisma/client'
 import { describe, expect, test } from 'vitest'
+import {
+	listRelations,
+	schemaModels,
+} from '../../scripts/prisma-schema-model.mjs'
 import { prisma } from './db.server.ts'
 import {
 	attachmentTotal,
@@ -219,14 +222,7 @@ test('every Media relation is classified before a fixture can be removed', async
 	// rows protect nothing — consumptionEvents, a member's watch and read log,
 	// was missing, so a fixture nobody had listed but had watched counted as
 	// unattached and went, taking the log with it.
-	const { Prisma } = await import('@prisma/client')
-	const media = Prisma.dmmf.datamodel.models.find(
-		model => model.name === 'Media',
-	)
-	const relations = media!.fields
-		.filter(field => field.kind === 'object' && field.isList)
-		.map(field => field.name)
-		.sort()
+	const relations = listRelations('Media').sort()
 
 	expect(relations).toEqual(Object.keys(mediaAttachmentOwnershipForTest).sort())
 })
@@ -244,12 +240,7 @@ test('an account counts every relation it has', async () => {
 	// The hand-written list had drifted to 39 of 44, missing consumptionEvents,
 	// consents, twoFactorRecoveryCodes and both safety-control relations. An
 	// account holding only those counted as inert.
-	const { Prisma } = await import('@prisma/client')
-	const user = Prisma.dmmf.datamodel.models.find(model => model.name === 'User')
-	const relations = user!.fields
-		.filter(field => field.kind === 'object' && field.isList)
-		.map(field => field.name)
-		.sort()
+	const relations = listRelations('User').sort()
 
 	expect(Object.keys(fixtureAccountCountSelectForTest).sort()).toEqual(
 		relations,
@@ -271,13 +262,8 @@ test('every Watchlist and TrackingState relation is classified before a seed acc
 	// block removal is evidence a real person used the account, and progress and
 	// consumption events were not counted, so someone who had watched episodes on
 	// a seed account still looked untouched.
-	const { Prisma } = await import('@prisma/client')
 	for (const model of ['Watchlist', 'TrackingState'] as const) {
-		const relations = Prisma.dmmf.datamodel.models
-			.find(entry => entry.name === model)!
-			.fields.filter(field => field.kind === 'object' && field.isList)
-			.map(field => field.name)
-			.sort()
+		const relations = listRelations(model).sort()
 		expect(
 			Object.keys(seedRowActivityOwnership[model]).sort(),
 			`${model} has a relation nothing has classified`,
@@ -307,7 +293,7 @@ test('what deletion keeps is exactly what the copy says it keeps', () => {
 	// account with the reference emptied. Anything else here would either block
 	// deletion outright or take the record with it.
 	const survives: string[] = []
-	for (const model of Prisma.dmmf.datamodel.models) {
+	for (const model of schemaModels()) {
 		for (const field of model.fields) {
 			if (field.kind !== 'object' || field.type !== 'User') continue
 			if (!field.relationFromFields?.length) continue
