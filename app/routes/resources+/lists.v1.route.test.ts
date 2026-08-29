@@ -227,6 +227,26 @@ test('an owner can move and edit an entry through the versioned contract', async
 	})
 })
 
+test('cell schema failures use the structured validation envelope', async () => {
+	const { entry, cookie } = await fixture()
+	const result = await action({
+		request: mutationRequest(
+			'update-entry-cell',
+			{ entryId: entry.id, columnId: 'personal', value: 11 },
+			cookie,
+		),
+	} as any)
+
+	expect(result.init?.status).toBe(400)
+	expect(result.data).toEqual({
+		ok: false,
+		error: expect.objectContaining({
+			code: 'VALIDATION_FAILED',
+			message: 'Scores must be between 1 and 10',
+		}),
+	})
+})
+
 test('ownership failures use a structured not-found response', async () => {
 	const { entry, otherList, cookie } = await fixture()
 	const result = await action({

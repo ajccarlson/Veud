@@ -27,15 +27,32 @@ async function createOwnerWithEntry() {
 							header: 'LiveAction',
 							columns: JSON.stringify({
 								title: 'string',
+								notes: 'string',
+								priority: 'string',
+								story: 'number',
 								personal: 'number',
+								averaged: 'number',
+								tmdbScore: 'number',
+								releaseStart: 'date',
+								startDate: 'history',
+								finishedDate: 'history',
+								dateAdded: 'history',
+								lastUpdated: 'history',
+								length: 'string',
 								watchlistId: 'string',
 							}),
-							mediaType: '["movie"]',
+							mediaType: '["episode"]',
 							completionType: 'watched',
 						},
 					},
 					entries: {
-						create: { position: 1, title: 'Original Title' },
+						create: {
+							position: 1,
+							title: 'Original Title',
+							story: 5,
+							personal: 7,
+							length: '12 eps',
+						},
 					},
 				},
 			},
@@ -50,7 +67,7 @@ async function createOwnerWithEntry() {
 	const wl = owner.watchlists[0]
 	const entryId = wl?.entries[0]?.id
 	if (!wl || !entryId) throw new Error('test setup: entry was not created')
-	return { userId: owner.id, entryId }
+	return { userId: owner.id, entryId, listTypeId: wl.typeId }
 }
 
 function updateTitleParams(entryId: string, newValue: string) {
@@ -125,14 +142,129 @@ test('protected columns cannot be changed through the generic cell endpoint', as
 	expect((res as Response).status).toBe(400)
 })
 
-test('column values are cast from the server schema and reject invalid numbers', async () => {
+test('cell values use bounded score schemas and clear scores to null', async () => {
 	const { userId, entryId } = await createOwnerWithEntry()
 
-	const res = await updateEntryCellCommand(userId, {
+	for (const [columnId, value] of [
+		['personal', 'not-a-number'],
+		['personal', 11],
+		['story', 1.5],
+		['story', -1],
+	] as const) {
+		const response = await updateEntryCellCommand(userId, {
+			entryId,
+			columnId,
+			value,
+		}).catch(error => error)
+		expect(response).toBeInstanceOf(Response)
+		expect((response as Response).status).toBe(400)
+	}
+
+	const cleared = await updateEntryCellCommand(userId, {
 		entryId,
 		columnId: 'personal',
-		value: 'not-a-number',
+		value: null,
+	})
+	expect(cleared.personal).toBeNull()
+	expect(cleared.story).toBe(5)
+})
+
+test('computed and server-managed columns stay read-only', async () => {
+	const { userId, entryId } = await createOwnerWithEntry()
+
+	for (const columnId of ['averaged', 'tmdbScore', 'added', 'lastUpdated']) {
+		const response = await updateEntryCellCommand(userId, {
+			entryId,
+			columnId,
+			value: 9,
+		}).catch(error => error)
+		expect(response).toBeInstanceOf(Response)
+		expect((response as Response).status).toBe(400)
+	}
+})
+
+test('configured column types must exactly match their field rule', async () => {
+	const { userId, entryId, listTypeId } = await createOwnerWithEntry()
+	const listType = await prisma.listType.findUniqueOrThrow({
+		where: { id: listTypeId },
+		select: { columns: true },
+	})
+	await prisma.listType.update({
+		where: { id: listTypeId },
+		data: {
+			columns: JSON.stringify({
+				...(JSON.parse(listType.columns) as Record<string, unknown>),
+				story: 'string',
+			}),
+		},
+	})
+
+	const response = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'story',
+		value: 8,
 	}).catch(error => error)
-	expect(res).toBeInstanceOf(Response)
-	expect((res as Response).status).toBe(400)
+	expect(response).toBeInstanceOf(Response)
+	expect((response as Response).status).toBe(400)
+})
+
+test('text schemas preserve nulls and enforce field limits', async () => {
+	const { userId, entryId } = await createOwnerWithEntry()
+
+	const cleared = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'notes',
+		value: null,
+	})
+	expect(cleared.notes).toBeNull()
+
+	for (const [columnId, value] of [
+		['notes', 'x'.repeat(5_001)],
+		['title', null],
+	] as const) {
+		const response = await updateEntryCellCommand(userId, {
+			entryId,
+			columnId,
+			value,
+		}).catch(error => error)
+		expect(response).toBeInstanceOf(Response)
+		expect((response as Response).status).toBe(400)
+	}
+})
+
+test('dates and progress use exact field schemas', async () => {
+	const { userId, entryId } = await createOwnerWithEntry()
+
+	for (const [columnId, value] of [
+		['releaseStart', '2026-02-30'],
+		['releaseStart', '2026-02-28T99:99:99.000Z'],
+		['started', 'next Tuesday'],
+		['length', '13 / 12 eps'],
+		['length', 'episode three'],
+	] as const) {
+		const response = await updateEntryCellCommand(userId, {
+			entryId,
+			columnId,
+			value,
+		}).catch(error => error)
+		expect(response).toBeInstanceOf(Response)
+		expect((response as Response).status).toBe(400)
+	}
+
+	const dated = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'releaseStart',
+		value: '2026-02-28T18:30:00.000Z',
+	})
+	expect(dated.releaseStart?.toISOString()).toBe('2026-02-28T00:00:00.000Z')
+
+	const progressed = await updateEntryCellCommand(userId, {
+		entryId,
+		columnId: 'length',
+		value: '3 / 12 eps',
+	})
+	const history = JSON.parse(progressed.history ?? '{}') as {
+		progress?: Record<string, { completed?: boolean }>
+	}
+	expect(history.progress?.['3']?.completed).toBe(true)
 })
