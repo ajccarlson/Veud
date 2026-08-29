@@ -51,7 +51,10 @@ export const handlers: Array<HttpHandler> = [
 		}
 
 		const schemaName = responseSchemaName(body)
-		if (schemaName === 'tip_of_tongue_media_suggestions') {
+		if (
+			schemaName === 'tip_of_tongue_media_suggestions' ||
+			schemaName === 'image_tip_of_tongue_media_suggestions'
+		) {
 			return structuredResponse({ suggestions: tipOfTongueSuggestions() })
 		}
 

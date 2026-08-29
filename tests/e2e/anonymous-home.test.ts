@@ -1,3 +1,4 @@
+import sharp from 'sharp'
 import { prisma } from '#app/utils/db.server.ts'
 import { expect, test } from '#tests/playwright-utils.ts'
 
@@ -47,11 +48,8 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 		await expect(page.getByText('Letterboxd', { exact: true })).toBeVisible()
 
 		const memoryForm = page.locator('form.home-anon-memory-form')
-		await expect(memoryForm).toHaveAttribute(
-			'action',
-			'/resources/image-tip-of-tongue',
-		)
-		await expect(memoryForm).toHaveAttribute('enctype', 'multipart/form-data')
+		await expect(memoryForm).toHaveAttribute('action', '/discover')
+		await expect(memoryForm).toHaveAttribute('method', 'get')
 		const imageInput = page.getByLabel('Add a screenshot or cover')
 		await expect(imageInput).toBeVisible()
 		await page
@@ -59,25 +57,53 @@ test('anonymous home explains the product and runs its catalog memory demo', asy
 			.fill('a red light inside an abandoned glass station')
 		await page.getByLabel('Memory search media type').selectOption('movie')
 		await page.getByRole('button', { name: 'Find matches' }).click()
+		await expect(page).toHaveURL(
+			/\/discover\?mode=memory&q=a(?:\+|%20)red(?:\+|%20)light.*&kind=movie$/,
+		)
+		const resultUrl = new URL(page.url())
+		expect(resultUrl.searchParams.get('mode')).toBe('memory')
+		expect(resultUrl.searchParams.get('q')).toBe(
+			'a red light inside an abandoned glass station',
+		)
+		expect(resultUrl.searchParams.get('kind')).toBe('movie')
+		expect([...resultUrl.searchParams.keys()].sort()).toEqual([
+			'kind',
+			'mode',
+			'q',
+		])
 		await expect(
-			page
-				.locator('.home-anon-memory-results')
-				.getByRole('link', { name: /Glass Station Memory 1/ }),
+			page.getByRole('heading', { name: 'Closest matches' }),
 		).toBeVisible()
+		for (const item of media) {
+			await expect(page.getByText(item.title!, { exact: true })).toBeVisible()
+		}
+
+		await page.goBack()
+		await expect(page).toHaveURL('/')
+		await page
+			.getByLabel('Describe the movie, show, anime, or manga you remember')
+			.fill('a red light inside an abandoned glass station')
+		await page.getByLabel('Memory search media type').selectOption('movie')
+		await imageInput.setInputFiles({
+			name: 'memory.png',
+			mimeType: 'image/png',
+			buffer: await sharp({
+				create: {
+					width: 16,
+					height: 16,
+					channels: 3,
+					background: '#b87333',
+				},
+			})
+				.png()
+				.toBuffer(),
+		})
+		await page.getByRole('button', { name: 'Find matches' }).click()
+		await expect(page).toHaveURL('/')
 		await expect(page.locator('.home-anon-memory-result')).toHaveCount(5)
 		await expect(
 			page.getByText('5 of 5 matches · AI match', { exact: true }),
 		).toBeVisible()
-		await expect(page.locator('.home-anon-memory-result em')).toHaveCount(5)
-		await expect(
-			page.getByText('Want AI and image clues?', { exact: false }),
-		).toHaveCount(0)
-		await expect(
-			page.getByRole('link', { name: 'Open the full search' }),
-		).toHaveAttribute('href', '/discover?mode=memory')
-
-		await page.setViewportSize({ width: 320, height: 900 })
-		await expect(page.locator('.home-anon-memory-result').nth(4)).toBeVisible()
 	} finally {
 		await prisma.media
 			.deleteMany({ where: { id: { in: media.map(item => item.id) } } })
