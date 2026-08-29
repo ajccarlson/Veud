@@ -334,10 +334,110 @@ test('the v1 entries resource returns a consistently ordered envelope', async ()
 				watchlistId: source.id,
 			}),
 		],
+		pagination: {
+			nextCursor: null,
+			revision: source.mutationVersion,
+		},
 	})
 	expect(new Headers(result.init?.headers).get('cache-control')).toBe(
 		'private, no-store',
 	)
+})
+
+test('the v1 entries resource pages deterministically and pins list revisions', async () => {
+	const { source, otherList } = await fixture()
+	await prisma.entry.createMany({
+		data: Array.from({ length: 104 }, (_, index) => ({
+			watchlistId: source.id,
+			position: index < 2 ? 2 : index + 1,
+			title: `Paged title ${index + 1}`,
+		})),
+	})
+	const foreignCursor = await prisma.entry.create({
+		data: { watchlistId: otherList.id, position: 1, title: 'Foreign cursor' },
+		select: { id: true },
+	})
+	const expected = await prisma.entry.findMany({
+		where: { watchlistId: source.id },
+		orderBy: [{ position: 'asc' }, { id: 'asc' }],
+		select: { id: true },
+	})
+
+	const load = (query: URLSearchParams) =>
+		entriesLoader({
+			request: new Request(`${BASE_URL}/resources/lists/v1/entries?${query}`),
+		} as any)
+	const first = await load(
+		new URLSearchParams({ watchlistId: source.id, take: '2' }),
+	)
+	expect(first.data.ok).toBe(true)
+	if (!first.data.ok) throw new Error('Expected the first entries page')
+	expect(first.data.data.map(entry => entry.id)).toEqual(
+		expected.slice(0, 2).map(entry => entry.id),
+	)
+	expect(first.data.pagination).toEqual({
+		nextCursor: expected[1]?.id,
+		revision: source.mutationVersion,
+	})
+
+	const second = await load(
+		new URLSearchParams({
+			watchlistId: source.id,
+			take: '2',
+			cursor: first.data.pagination?.nextCursor ?? '',
+			revision: String(source.mutationVersion),
+		}),
+	)
+	expect(second.data.ok).toBe(true)
+	if (!second.data.ok) throw new Error('Expected the second entries page')
+	expect(second.data.data.map(entry => entry.id)).toEqual(
+		expected.slice(2, 4).map(entry => entry.id),
+	)
+	expect(second.data.pagination?.nextCursor).toBe(expected[3]?.id)
+
+	const defaultPage = await load(
+		new URLSearchParams({ watchlistId: source.id }),
+	)
+	expect(defaultPage.data.ok).toBe(true)
+	if (!defaultPage.data.ok) throw new Error('Expected the default entries page')
+	expect(defaultPage.data.data).toHaveLength(100)
+	expect(defaultPage.data.pagination).toEqual({
+		nextCursor: expected[99]?.id,
+		revision: source.mutationVersion,
+	})
+
+	const oversized = await load(
+		new URLSearchParams({ watchlistId: source.id, take: '251' }),
+	)
+	expect(oversized.init?.status).toBe(400)
+	expect(oversized.data).toEqual({
+		ok: false,
+		error: expect.objectContaining({ code: 'INVALID_REQUEST' }),
+	})
+
+	const foreign = await load(
+		new URLSearchParams({
+			watchlistId: source.id,
+			cursor: foreignCursor.id,
+		}),
+	)
+	expect(foreign.init?.status).toBe(400)
+	expect(foreign.data).toEqual({
+		ok: false,
+		error: expect.objectContaining({ code: 'INVALID_REQUEST' }),
+	})
+
+	const stale = await load(
+		new URLSearchParams({
+			watchlistId: source.id,
+			revision: String(source.mutationVersion + 1),
+		}),
+	)
+	expect(stale.init?.status).toBe(409)
+	expect(stale.data).toEqual({
+		ok: false,
+		error: expect.objectContaining({ code: 'CONFLICT' }),
+	})
 })
 
 test('linked list payloads replace historical snapshots with bounded canonical metadata', async () => {

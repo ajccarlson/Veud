@@ -139,13 +139,33 @@ export const ListMutationErrorSchema = z.object({
 		.optional(),
 })
 
+export const LIST_ENTRIES_DEFAULT_PAGE_SIZE = 100
+export const LIST_ENTRIES_MAX_PAGE_SIZE = 250
+
+export const ListEntriesPaginationSchema = z.object({
+	nextCursor: id.nullable(),
+	revision: z.number().int().nonnegative(),
+})
+
 export const ListMutationResponseSchema = z.discriminatedUnion('ok', [
-	z.object({ ok: z.literal(true), data: z.unknown() }),
+	z.object({
+		ok: z.literal(true),
+		data: z.unknown(),
+		pagination: ListEntriesPaginationSchema.optional(),
+	}),
 	z.object({ ok: z.literal(false), error: ListMutationErrorSchema }),
 ])
 
 export const ListEntriesQuerySchema = z.object({
 	watchlistId: id,
+	take: z.coerce
+		.number()
+		.int()
+		.min(1)
+		.max(LIST_ENTRIES_MAX_PAGE_SIZE)
+		.default(LIST_ENTRIES_DEFAULT_PAGE_SIZE),
+	cursor: id.optional(),
+	revision: z.coerce.number().int().nonnegative().optional(),
 })
 
 export type ListMutationRequest = z.infer<typeof ListMutationRequestSchema>

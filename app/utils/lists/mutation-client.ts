@@ -1,4 +1,6 @@
 import {
+	LIST_ENTRIES_MAX_PAGE_SIZE,
+	ListEntriesPaginationSchema,
 	ListMutationResponseSchema,
 	type ListMutationInput,
 	type ListMutationIntent,
@@ -59,32 +61,83 @@ export async function mutateList<
 export async function getWatchlistEntries<Result = unknown[]>(
 	watchlistId: string,
 ): Promise<Result> {
-	const query = new URLSearchParams({ watchlistId })
-	const response = await fetch(`/resources/lists/v1/entries?${query}`)
-	const parsed = ListMutationResponseSchema.safeParse(
-		await response.json().catch(() => null),
-	)
-	if (!parsed.success) {
-		throw new ListMutationClientError(
-			`Could not load list entries (${response.status})`,
-			response.status,
-			'INVALID_RESPONSE',
-		)
+	async function collect(restartAvailable: boolean): Promise<unknown[]> {
+		const entries: unknown[] = []
+		const seenCursors = new Set<string>()
+		let cursor: string | null = null
+		let revision: number | null = null
+
+		for (;;) {
+			const query = new URLSearchParams({
+				watchlistId,
+				take: String(LIST_ENTRIES_MAX_PAGE_SIZE),
+			})
+			if (cursor) query.set('cursor', cursor)
+			if (revision !== null) query.set('revision', String(revision))
+
+			const response = await fetch(`/resources/lists/v1/entries?${query}`)
+			const parsed = ListMutationResponseSchema.safeParse(
+				await response.json().catch(() => null),
+			)
+			if (!parsed.success) {
+				throw new ListMutationClientError(
+					`Could not load list entries (${response.status})`,
+					response.status,
+					'INVALID_RESPONSE',
+				)
+			}
+			if (!parsed.data.ok) {
+				if (response.status === 409 && restartAvailable) {
+					return collect(false)
+				}
+				throw new ListMutationClientError(
+					parsed.data.error.message,
+					response.status,
+					parsed.data.error.code,
+					parsed.data.error.issues,
+				)
+			}
+			if (!response.ok) {
+				throw new ListMutationClientError(
+					`Could not load list entries (${response.status})`,
+					response.status,
+					'REQUEST_FAILED',
+				)
+			}
+
+			const pagination = ListEntriesPaginationSchema.safeParse(
+				parsed.data.pagination,
+			)
+			if (!pagination.success || !Array.isArray(parsed.data.data)) {
+				throw new ListMutationClientError(
+					`Could not load list entries (${response.status})`,
+					response.status,
+					'INVALID_RESPONSE',
+				)
+			}
+			if (revision !== null && revision !== pagination.data.revision) {
+				if (restartAvailable) return collect(false)
+				throw new ListMutationClientError(
+					'The list changed while it was loading',
+					409,
+					'CONFLICT',
+				)
+			}
+
+			revision = pagination.data.revision
+			entries.push(...parsed.data.data)
+			cursor = pagination.data.nextCursor
+			if (!cursor) return entries
+			if (seenCursors.has(cursor)) {
+				throw new ListMutationClientError(
+					'List entries returned a repeated cursor',
+					response.status,
+					'INVALID_RESPONSE',
+				)
+			}
+			seenCursors.add(cursor)
+		}
 	}
-	if (!parsed.data.ok) {
-		throw new ListMutationClientError(
-			parsed.data.error.message,
-			response.status,
-			parsed.data.error.code,
-			parsed.data.error.issues,
-		)
-	}
-	if (!response.ok) {
-		throw new ListMutationClientError(
-			`Could not load list entries (${response.status})`,
-			response.status,
-			'REQUEST_FAILED',
-		)
-	}
-	return parsed.data.data as Result
+
+	return (await collect(true)) as Result
 }

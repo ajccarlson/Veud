@@ -56,6 +56,7 @@ let dragScrollViewport: HTMLElement | null = null
 let registeredDropZones: Array<{ container: Element; params: any }> = []
 let activeDragEvent: any = null
 let hoveredDestinationWatchlistId: string | null = null
+const destinationEntryPages = new Map<string, Promise<WatchlistRow[]>>()
 /**
  * The grid's sort before a drag previewed another list.
  *
@@ -102,6 +103,7 @@ function beginDragSession(event: any) {
 	if (!entryId) return
 	activeDragEvent = event
 	if (dragSession?.entryId !== entryId) {
+		destinationEntryPages.clear()
 		dragSession = {
 			entryId,
 			sourceWatchlistId: event.node.data.watchlistId,
@@ -143,6 +145,7 @@ function clearDragExperience() {
 	}
 	activeDragEvent = null
 	hoveredDestinationWatchlistId = null
+	destinationEntryPages.clear()
 	dragSession = null
 }
 
@@ -184,9 +187,21 @@ function applyWatchlistSort(watchlist: {
 }
 
 async function fetchWatchlistEntries(watchlistId: string) {
-	return (await getWatchlistEntries<WatchlistRow[]>(watchlistId)).sort(
-		(first, second) => first.position - second.position,
-	)
+	let request = destinationEntryPages.get(watchlistId)
+	if (!request) {
+		request = getWatchlistEntries<WatchlistRow[]>(watchlistId).then(entries =>
+			entries.sort((first, second) => first.position - second.position),
+		)
+		destinationEntryPages.set(watchlistId, request)
+	}
+	try {
+		return await request
+	} catch (error) {
+		if (destinationEntryPages.get(watchlistId) === request) {
+			destinationEntryPages.delete(watchlistId)
+		}
+		throw error
+	}
 }
 
 async function showDestinationPreview(event: any, watchlistId: string) {
