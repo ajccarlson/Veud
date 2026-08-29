@@ -192,10 +192,12 @@ export function publicPageSitemapPaths(
  * Output is byte-identical to what that produced: the same default
  * `User-agent: *` and `Allow: /`, then the caller's directives, one per line.
  *
- * Deliberately not changed here: nothing is disallowed. The sitemap already
- * knows which paths are not public, and teaching robots.txt the same list would
- * be a real improvement — but it changes what crawlers do, which is a decision
- * of its own and not one to make as a side effect of removing a dependency.
+ * Nothing is disallowed, and that is settled rather than outstanding. The
+ * sitemap knows which paths are not public, but robots.txt is a public document
+ * that people read before crawlers do — `Disallow: /admin` publishes the
+ * location of the administrative surface to anyone curious, in exchange for
+ * crawl budget on pages that require authentication anyway. Those paths are
+ * protected by auth and kept out of the sitemap, which is the half worth doing.
  */
 export type RobotsDirective = {
 	type: 'userAgent' | 'allow' | 'disallow' | 'sitemap' | 'crawlDelay'
