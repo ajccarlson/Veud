@@ -203,7 +203,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.5",
     "@total-typescript/ts-reset": "^0.6.1",
-    "@types/better-sqlite3": "^7.6.9",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/compression": "^1.7.5",
     "@types/cookie": "^1.0.0",
     "@types/eslint": "^9.6.1",
