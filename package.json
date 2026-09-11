@@ -183,7 +183,7 @@
     "remix-auth-oauth2": "^3.4.1",
     "remix-utils": "^10.0.0",
     "sass": "^1.103.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "sonner": "^1.4.3",
     "source-map-support": "^0.5.21",
     "spin-delay": "^2.0.1",
