@@ -157,7 +157,7 @@
     "class-variance-authority": "^0.7.0",
     "close-with-grace": "^2.5.0",
     "clsx": "^2.1.0",
-    "compression": "^1.7.4",
+    "compression": "^1.8.2",
     "cookie": "^2.0.1",
     "cross-env": "^10.1.0",
     "date-fns": "^4.4.0",
